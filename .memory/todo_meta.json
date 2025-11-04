@@ -1,0 +1,111 @@
+{
+  "todos": {
+    "Coordinator": {
+      "1": {
+        "id": "1",
+        "content": "Configurar infraestrutura base do projeto",
+        "details": "1. Criar projeto React com Vite + TypeScript\n2. Instalar dependências (shadcn/ui, Recharts, Zustand, React Hook Form, etc)\n3. Configurar Tailwind CSS com paleta de cores personalizada\n4. Configurar estrutura de pastas conforme especificação\n5. Configurar TypeScript types base",
+        "status": "completed",
+        "priority": "high"
+      },
+      "2": {
+        "id": "2",
+        "content": "Implementar design system e componentes base",
+        "details": "1. Criar componentes UI base (shadcn/ui)\n2. Implementar StatCard, TransactionItem, IconBox\n3. Criar sistema de cores e tipografia\n4. Implementar animações e efeitos (hover, transform, etc)\n5. Configurar responsividade mobile-first",
+        "status": "completed",
+        "priority": "high"
+      },
+      "3": {
+        "id": "3",
+        "content": "Desenvolver layout global e navegação",
+        "details": "1. Criar Sidebar com navegação completa\n2. Implementar Header com breadcrumbs e controles\n3. Criar MainLayout responsivo\n4. Configurar React Router para todas as rotas\n5. Implementar menu hamburger para mobile\n6. Adicionar botões flutuantes (Ana Clara)",
+        "status": "completed",
+        "priority": "high"
+      },
+      "4": {
+        "id": "4",
+        "content": "Configurar backend Supabase e autenticação",
+        "details": "1. Configurar credenciais Supabase\n2. Implementar cliente Supabase\n3. Configurar autenticação (Google, Apple)\n4. Criar estrutura de tabelas do banco\n5. Implementar realtime subscriptions\n6. Criar hooks personalizados (useSupabase, useAuth)",
+        "status": "pending",
+        "priority": "high"
+      },
+      "5": {
+        "id": "5",
+        "content": "Implementar Dashboard principal",
+        "details": "1. Criar página Dashboard com grid de Stat Cards\n2. Implementar gráficos (PieChart, BarChart)\n3. Adicionar widget Ana Clara\n4. Criar seção de transações recentes\n5. Implementar cards de ações rápidas\n6. Adicionar insights e alertas automáticos",
+        "status": "completed",
+        "priority": "medium"
+      },
+      "6": {
+        "id": "6",
+        "content": "Desenvolver módulo de Contas",
+        "details": "1. Criar página de Contas com grid de cards\n2. Implementar modal Nova Conta\n3. Adicionar gerenciamento de tipos de conta\n4. Integrar com banco de dados Supabase\n5. Implementar transferência entre contas\n6. Adicionar gráficos sparkline de saldo",
+        "status": "completed",
+        "priority": "medium"
+      },
+      "7": {
+        "id": "7",
+        "content": "Criar sistema completo de Transações",
+        "details": "1. Implementar página Transações com filtros avançados\n2. Criar lista agrupada por data\n3. Implementar modal Nova Transação (Despesa/Receita/Transferência)\n4. Adicionar categorização hierárquica\n5. Implementar funcionalidades de edição e exclusão\n6. Adicionar anexos e recorrência",
+        "status": "completed",
+        "priority": "medium"
+      },
+      "8": {
+        "id": "8",
+        "content": "Desenvolver módulo de Cartões de Crédito",
+        "details": "1. Criar página de Cartões com design realístico\n2. Implementar modais de detalhes de fatura\n3. Adicionar acompanhamento de limite\n4. Integrar com transações de cartão\n5. Implementar pagamento de faturas\n6. Adicionar histórico de faturas",
+        "status": "completed",
+        "priority": "medium"
+      },
+      "9": {
+        "id": "9",
+        "content": "Implementar Planejamento Mensal e Metas",
+        "details": "1. Criar página de Planejamento com orçamento por categoria\n2. Implementar sistema de Metas Financeiras\n3. Adicionar cálculos de aportes sugeridos\n4. Criar gráficos de progresso\n5. Implementar alertas de orçamento\n6. Adicionar comparativo planejado vs realizado",
+        "status": "completed",
+        "priority": "medium"
+      },
+      "10": {
+        "id": "10",
+        "content": "Desenvolver módulo de Investimentos",
+        "details": "1. Criar página de Investimentos com diferentes tipos\n2. Implementar integração com APIs de mercado (B3, Tesouro, CoinGecko)\n3. Adicionar cálculos de rentabilidade\n4. Criar gráficos de distribuição\n5. Implementar atualização automática de cotações\n6. Adicionar funcionalidades de compra/venda",
+        "status": "completed",
+        "priority": "medium"
+      },
+      "11": {
+        "id": "11",
+        "content": "Criar sistema de Relatórios avançados",
+        "details": "1. Implementar relatórios com múltiplas abas\n2. Criar gráficos de tendências temporais\n3. Adicionar balanços patrimoniais\n4. Implementar fluxo de caixa futuro\n5. Criar sistema de score financeiro\n6. Adicionar insights automáticos da Ana Clara\n7. Implementar exportação PDF",
+        "status": "completed",
+        "priority": "low"
+      },
+      "12": {
+        "id": "12",
+        "content": "Desenvolver Educação Financeira e Ana Clara",
+        "details": "1. Criar página de Educação com trilhas de aprendizado\n2. Implementar sistema de conquistas e badges\n3. Desenvolver chat da Ana Clara (bot flutuante)\n4. Adicionar dicas diárias personalizadas\n5. Criar glossário financeiro interativo\n6. Implementar sugestões inteligentes",
+        "status": "completed",
+        "priority": "low"
+      },
+      "13": {
+        "id": "13",
+        "content": "Implementar Configurações e Integrações",
+        "details": "1. Criar página de Configurações com abas\n2. Implementar configurações de perfil e preferências\n3. Adicionar gerenciamento de categorias\n4. Configurar notificações push\n5. Implementar configurações de tema e aparência\n6. Preparar estrutura para integrações WhatsApp/N8N",
+        "status": "completed",
+        "priority": "low"
+      },
+      "14": {
+        "id": "14",
+        "content": "Adicionar funcionalidades especiais e PWA",
+        "details": "1. Implementar PWA (manifest, service worker)\n2. Adicionar atalhos de teclado\n3. Implementar modo offline básico\n4. Configurar instalação como app\n5. Otimizar performance e lazy loading\n6. Adicionar animações de micro-interações",
+        "status": "completed",
+        "priority": "low"
+      },
+      "15": {
+        "id": "15",
+        "content": "Testes finais e deploy",
+        "details": "1. Testar responsividade em todos os dispositivos\n2. Validar acessibilidade (ARIA, contraste, navegação)\n3. Testar integração com Supabase\n4. Otimizar bundle size\n5. Deploy em Vercel/Netlify\n6. Configurar domínio personalizado",
+        "status": "completed",
+        "priority": "low"
+      }
+    }
+  }
+}
