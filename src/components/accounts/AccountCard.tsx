@@ -68,14 +68,14 @@ export const AccountCard: React.FC<AccountCardProps> = ({
       
       {/* Subtítulo - Tipo • Banco */}
       <p className="text-sm text-gray-500 mb-4">
-        {accountType}{account.bank ? ` • ${account.bank}` : account.type === 'cash' ? ' • Outro' : ''}
+        {accountType}{account.bank_name ? ` • ${account.bank_name}` : account.type === 'cash' ? ' • Outro' : ''}
       </p>
 
       {/* Label Saldo Atual */}
       <p className="text-sm text-gray-500 mb-1">Saldo Atual</p>
       
       {/* Valor em destaque */}
-      <p className="text-2xl font-bold mb-4">{formatCurrency(account.balance)}</p>
+      <p className="text-2xl font-bold mb-4">{formatCurrency(account.current_balance)}</p>
 
       {/* Badge Ativa */}
       {account.is_active && (

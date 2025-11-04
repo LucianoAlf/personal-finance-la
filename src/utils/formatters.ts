@@ -34,3 +34,26 @@ export const getInitials = (name: string): string => {
   }
   return name.substring(0, 2).toUpperCase();
 };
+
+// Formatar data para input (YYYY-MM-DD)
+export const formatDateForInput = (date: string | Date): string => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toISOString().split('T')[0];
+};
+
+// Formatar data relativa (hoje, ontem, etc)
+export const formatRelativeDate = (date: string | Date): string => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  if (d.toDateString() === today.toDateString()) {
+    return 'Hoje';
+  }
+  if (d.toDateString() === yesterday.toDateString()) {
+    return 'Ontem';
+  }
+  
+  return format(d, 'dd/MM/yyyy', { locale: ptBR });
+};

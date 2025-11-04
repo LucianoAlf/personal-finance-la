@@ -40,10 +40,12 @@ interface AccountDialogProps {
 const accountSchema = z.object({
   name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
   type: z.enum(['checking', 'savings', 'cash', 'investment', 'credit_card'] as const),
-  bank: z.string().optional(),
-  balance: z.number().min(0, 'Saldo deve ser maior ou igual a 0'),
+  bank_name: z.string().optional(),
+  initial_balance: z.number().min(0, 'Saldo inicial deve ser maior ou igual a 0'),
   color: z.string(),
   icon: z.string(),
+  is_shared: z.boolean().default(false),
+  is_active: z.boolean().default(true),
 });
 
 export type AccountFormData = z.infer<typeof accountSchema>;
@@ -59,10 +61,12 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
     defaultValues: {
       name: account?.name || '',
       type: account?.type || 'checking',
-      bank: account?.bank || '',
-      balance: account?.balance || 0,
+      bank_name: account?.bank_name || '',
+      initial_balance: account?.initial_balance || 0,
       color: account?.color || 'checking',
       icon: account?.icon || 'checking',
+      is_shared: account?.is_shared || false,
+      is_active: account?.is_active ?? true,
     },
   });
 
@@ -131,7 +135,7 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
             {/* Banco */}
             <FormField
               control={form.control}
-              name="bank"
+              name="bank_name"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Banco (Opcional)</FormLabel>
@@ -146,7 +150,7 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
             {/* Saldo Inicial */}
             <FormField
               control={form.control}
-              name="balance"
+              name="initial_balance"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Saldo Inicial</FormLabel>

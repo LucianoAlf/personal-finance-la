@@ -123,7 +123,7 @@ export function Accounts() {
                   <div className="mb-3">
                     <p className="text-sm text-gray-600 mb-1">Saldo Atual</p>
                     <h2 className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(account.balance)}
+                      {formatCurrency(account.current_balance)}
                     </h2>
                   </div>
 

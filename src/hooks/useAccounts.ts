@@ -7,63 +7,11 @@ export const useAccounts = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // DADOS MOCK PARA DESENVOLVIMENTO - REMOVER EM PRODUÇÃO
-  const isDevelopment = import.meta.env.DEV;
-  const mockAccounts: Account[] = [
-    {
-      id: 'mock-1',
-      user_id: 'mock-user',
-      name: 'Conta Corrente Nubank',
-      type: 'checking',
-      bank: 'Nubank',
-      balance: 2500.75,
-      color: 'checking',
-      icon: 'checking',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 'mock-2',
-      user_id: 'mock-user',
-      name: 'Carteira',
-      type: 'cash',
-      balance: 150.00,
-      color: 'cash',
-      icon: 'cash',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    },
-    {
-      id: 'mock-3',
-      user_id: 'mock-user',
-      name: 'Poupança Caixa',
-      type: 'savings',
-      bank: 'Caixa Econômica Federal',
-      balance: 5000.00,
-      color: 'savings',
-      icon: 'savings',
-      is_active: true,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }
-  ];
-
   // Buscar contas ativas do usuário
   const fetchAccounts = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      // USAR DADOS MOCK EM DESENVOLVIMENTO
-      if (isDevelopment) {
-        // Simular delay de rede
-        await new Promise(resolve => setTimeout(resolve, 500));
-        setAccounts(mockAccounts);
-        setLoading(false);
-        return;
-      }
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -94,20 +42,6 @@ export const useAccounts = () => {
   const addAccount = async (accountData: Omit<Account, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
     try {
       setError(null);
-
-      // USAR DADOS MOCK EM DESENVOLVIMENTO
-      if (isDevelopment) {
-        const newAccount: Account = {
-          ...accountData,
-          id: `mock-${Date.now()}`,
-          user_id: 'mock-user',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        
-        setAccounts(prev => [newAccount, ...prev]);
-        return newAccount;
-      }
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -144,22 +78,6 @@ export const useAccounts = () => {
     try {
       setError(null);
 
-      // USAR DADOS MOCK EM DESENVOLVIMENTO
-      if (isDevelopment) {
-        const updatedAccount = {
-          ...updates,
-          updated_at: new Date().toISOString(),
-        };
-        
-        setAccounts(prev => 
-          prev.map(account => 
-            account.id === id ? { ...account, ...updatedAccount } : account
-          )
-        );
-        
-        return updatedAccount;
-      }
-
       const { data, error: updateError } = await supabase
         .from('accounts')
         .update({
@@ -193,12 +111,6 @@ export const useAccounts = () => {
     try {
       setError(null);
 
-      // USAR DADOS MOCK EM DESENVOLVIMENTO
-      if (isDevelopment) {
-        setAccounts(prev => prev.filter(account => account.id !== id));
-        return;
-      }
-
       const { error: deleteError } = await supabase
         .from('accounts')
         .update({ 
@@ -221,14 +133,14 @@ export const useAccounts = () => {
 
   // Calcular saldo total de todas as contas
   const getTotalBalance = (): number => {
-    return accounts.reduce((total, account) => total + (account.balance || account.current_balance || 0), 0);
+    return accounts.reduce((total, account) => total + (account.current_balance || 0), 0);
   };
 
   // Calcular saldo por tipos específicos de conta
   const getBalanceByType = (types: AccountType[]): number => {
     return accounts
       .filter(account => types.includes(account.type))
-      .reduce((total, account) => total + (account.balance || account.current_balance || 0), 0);
+      .reduce((total, account) => total + (account.current_balance || 0), 0);
   };
 
   // Effect para buscar contas e configurar realtime

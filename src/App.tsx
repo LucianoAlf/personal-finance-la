@@ -4,7 +4,7 @@ import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Contas } from './pages/Contas';
-import { Transactions } from './pages/Transactions';
+import { Transacoes } from './pages/Transacoes';
 import { CreditCards } from './pages/CreditCards';
 import { Planning } from './pages/Planning';
 import { Goals } from './pages/Goals';
@@ -29,7 +29,7 @@ function App() {
           <Route index element={<Dashboard />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="contas" element={<Contas />} />
-          <Route path="transacoes" element={<Transactions />} />
+          <Route path="transacoes" element={<Transacoes />} />
           <Route path="cartoes" element={<CreditCards />} />
           <Route path="planejamento" element={<Planning />} />
           <Route path="metas" element={<Goals />} />
