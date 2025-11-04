@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { MainLayout } from './components/layout/MainLayout';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
-import { Accounts } from './pages/Accounts';
+import { Contas } from './pages/Contas';
 import { Transactions } from './pages/Transactions';
 import { CreditCards } from './pages/CreditCards';
 import { Planning } from './pages/Planning';
@@ -15,9 +17,18 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<MainLayout />}>
+        {/* Rota de Login (sem layout) */}
+        <Route path="/login" element={<Login />} />
+        
+        {/* Rotas protegidas com layout */}
+        <Route path="/" element={
+          <ProtectedRoute>
+            <MainLayout />
+          </ProtectedRoute>
+        }>
           <Route index element={<Dashboard />} />
-          <Route path="contas" element={<Accounts />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="contas" element={<Contas />} />
           <Route path="transacoes" element={<Transactions />} />
           <Route path="cartoes" element={<CreditCards />} />
           <Route path="planejamento" element={<Planning />} />

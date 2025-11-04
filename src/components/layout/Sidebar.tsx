@@ -1,6 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { useUIStore } from '@/store/uiStore';
+import { useAuth } from '@/hooks/useAuth';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Home,
   Wallet,
@@ -36,6 +38,17 @@ const menuItems = [
 export function Sidebar() {
   const location = useLocation();
   const { sidebarOpen, toggleSidebar, setAnaCoachOpen } = useUIStore();
+  const { profile, user } = useAuth();
+
+  const getInitials = (name: string | null) => {
+    if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
+    return name
+      .split(' ')
+      .map((n) => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
 
   return (
     <>
@@ -100,9 +113,25 @@ export function Sidebar() {
           })}
         </nav>
 
-        {/* Footer */}
-        <div className="p-4 border-t border-gray-200">
-          <button className="flex items-center space-x-3 px-4 py-3 w-full text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+        {/* Footer com perfil */}
+        <div className="p-4 border-t border-gray-200 mt-auto">
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarFallback className="bg-purple-600 text-white">
+                {getInitials(profile?.full_name)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {profile?.full_name || 'Carregando...'}
+              </p>
+              <p className="text-xs text-gray-500 truncate">
+                {user?.email}
+              </p>
+            </div>
+          </div>
+          <button className="flex items-center space-x-3 px-4 py-3 w-full text-gray-700 hover:bg-gray-100 rounded-lg transition-colors mt-3">
             <HelpCircle size={20} />
             <span>Ajuda</span>
           </button>

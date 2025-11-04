@@ -3,7 +3,7 @@ import { StatCard } from '@/components/dashboard/StatCard';
 import { TransactionItem } from '@/components/dashboard/TransactionItem';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuthStore } from '@/store/authStore';
+import { useAuth } from '@/hooks/useAuth';
 import { mockAccounts, mockTransactions, mockCreditCards } from '@/utils/mockData';
 import { formatCurrency } from '@/utils/formatters';
 import {
@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 
 export function Dashboard() {
-  const { user } = useAuthStore();
+  const { user, profile } = useAuth();
 
   // Cálculos
   const totalBalance = mockAccounts.reduce((sum, acc) => sum + acc.balance, 0);
@@ -41,7 +41,7 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
-        title={`Olá, ${user?.name?.split(' ')[0] || 'Usuário'}!`}
+        title={`Olá, ${profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuário'}!`}
         subtitle="Bem-vindo ao seu painel financeiro"
         actions={
           <>
