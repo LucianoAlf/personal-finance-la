@@ -1,12 +1,61 @@
+import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
-import { Card, CardContent } from '@/components/ui/card';
+import { StatCard } from '@/components/dashboard/StatCard';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { mockCreditCards } from '@/utils/mockData';
+import { CreditCardList } from '@/components/credit-cards/CreditCardList';
+import { CreditCardDialog } from '@/components/credit-cards/CreditCardDialog';
+import { InvoiceList } from '@/components/invoices/InvoiceList';
+import { InvoiceDetailsDialog } from '@/components/invoices/InvoiceDetailsDialog';
+import { InvoicePaymentDialog } from '@/components/invoices/InvoicePaymentDialog';
+import { useCreditCards } from '@/hooks/useCreditCards';
 import { formatCurrency } from '@/utils/formatters';
-import { Plus, DollarSign, CreditCard } from 'lucide-react';
+import { Plus, CreditCard, TrendingUp, Wallet } from 'lucide-react';
+import { CreditCard as CreditCardType, CreditCardInvoice } from '@/types/database.types';
+import { useToast } from '@/hooks/use-toast';
 
 export function CreditCards() {
+  const {
+    cardsSummary,
+    loading,
+    deleteCard,
+    getTotalLimit,
+    getTotalUsed,
+    getTotalAvailable,
+  } = useCreditCards();
+  
+  const { toast } = useToast();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedCard, setSelectedCard] = useState<CreditCardType | undefined>();
+  const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('');
+  const [selectedInvoice, setSelectedInvoice] = useState<CreditCardInvoice | undefined>();
+
+  const handleEdit = (card: CreditCardType) => {
+    setSelectedCard(card);
+    setDialogOpen(true);
+  };
+
+  const handleArchive = async (card: CreditCardType) => {
+    const success = await deleteCard(card.id);
+    if (success) {
+      toast({
+        title: 'Cartão arquivado',
+        description: 'O cartão foi arquivado com sucesso.',
+      });
+    }
+  };
+
+  const handleDelete = async (card: CreditCardType) => {
+    const success = await deleteCard(card.id);
+    if (success) {
+      toast({
+        title: 'Cartão excluído',
+        description: 'O cartão foi excluído com sucesso.',
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
@@ -14,109 +63,95 @@ export function CreditCards() {
         subtitle="Gerencie suas faturas e limites"
         icon={<CreditCard size={24} />}
         actions={
-          <>
-            <Button size="sm" variant="outline">
-              <DollarSign size={16} className="mr-1" />
-              Pagar Fatura
-            </Button>
-            <Button size="sm">
-              <Plus size={16} className="mr-1" />
-              Novo Cartão
-            </Button>
-          </>
+          <Button onClick={() => { 
+            console.log('Botão Novo Cartão clicado');
+            setSelectedCard(undefined); 
+            setDialogOpen(true);
+            console.log('Dialog state atualizado para true');
+          }}>
+            <Plus size={16} className="mr-1" />
+            Novo Cartão
+          </Button>
         }
       />
 
       <div className="p-6 space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockCreditCards.map((card) => {
-            const percentUsed = (card.current_balance / card.limit) * 100;
-            const isHighUsage = percentUsed > 80;
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+          <StatCard
+            title="Limite Total"
+            value={formatCurrency(getTotalLimit())}
+            icon={CreditCard}
+            gradient="blue"
+          />
+          <StatCard
+            title="Limite Usado"
+            value={formatCurrency(getTotalUsed())}
+            icon={TrendingUp}
+            gradient="orange"
+          />
+          <StatCard
+            title="Limite Disponível"
+            value={formatCurrency(getTotalAvailable())}
+            icon={Wallet}
+            gradient="green"
+          />
+        </div>
 
-            return (
-              <Card
-                key={card.id}
-                className="hover:-translate-y-1 hover:shadow-xl transition-all duration-300 overflow-hidden"
-              >
-                <div
-                  className="h-48 p-6 bg-gradient-to-br from-gray-800 to-gray-900 text-white rounded-t-lg flex flex-col justify-between"
-                  style={{ backgroundColor: card.color }}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium uppercase">{card.brand}</span>
-                    <Badge
-                      variant={
-                        card.current_balance > 0 ? 'warning' : 'success'
-                      }
-                      className="bg-white/20 text-white"
-                    >
-                      {card.current_balance > 0 ? 'Fatura Aberta' : 'Paga'}
-                    </Badge>
-                  </div>
+        {/* Lista de Cartões */}
+        <CreditCardList
+          cards={cardsSummary}
+          loading={loading}
+          onEdit={handleEdit}
+          onArchive={handleArchive}
+          onDelete={handleDelete}
+          onAddNew={() => { setSelectedCard(undefined); setDialogOpen(true); }}
+        />
 
-                  <div>
-                    <p className="text-sm opacity-80 mb-1">{card.name}</p>
-                    <p className="text-xl font-mono">•••• •••• •••• {card.last_four_digits}</p>
-                  </div>
-                </div>
-
-                <CardContent className="p-6 space-y-4">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Fatura Atual</p>
-                    <h3 className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(card.current_balance)}
-                    </h3>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between text-sm mb-2">
-                      <span className="text-gray-600">Limite Utilizado</span>
-                      <span
-                        className={
-                          isHighUsage ? 'text-red-600 font-semibold' : 'text-gray-900'
-                        }
-                      >
-                        {percentUsed.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full transition-all ${
-                          isHighUsage ? 'bg-red-500' : 'bg-purple-500'
-                        }`}
-                        style={{ width: `${Math.min(percentUsed, 100)}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-600 mt-1">
-                      Limite: {formatCurrency(card.limit)}
-                    </p>
-                  </div>
-
-                  <div className="pt-4 border-t flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Vencimento</span>
-                    <span className="font-semibold">{card.due_date}/01</span>
-                  </div>
-
-                  <Button className="w-full" variant="outline">
-                    Ver Detalhes da Fatura
-                  </Button>
-                </CardContent>
-              </Card>
-            );
-          })}
-
-          {/* Botão Novo Cartão */}
-          <Card className="border-2 border-dashed border-gray-300 hover:border-purple-500 transition-colors cursor-pointer group">
-            <CardContent className="p-6 flex flex-col items-center justify-center h-full min-h-[350px]">
-              <Plus size={48} className="text-gray-400 group-hover:text-purple-500 mb-3" />
-              <h3 className="font-semibold text-gray-900 mb-1">Adicionar Cartão</h3>
-              <p className="text-sm text-gray-600 text-center">
-                Cadastre um novo cartão de crédito
-              </p>
-            </CardContent>
-          </Card>
+        {/* Seção de Faturas */}
+        <div className="mt-12">
+          <h2 className="text-2xl font-bold text-gray-900 mb-6">Faturas</h2>
+          <InvoiceList />
         </div>
       </div>
+
+      {/* Dialog Criar/Editar Cartão */}
+      <CreditCardDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        card={selectedCard}
+        onSuccess={() => {
+          setDialogOpen(false);
+          setSelectedCard(undefined);
+        }}
+      />
+
+      {/* Dialog Detalhes da Fatura */}
+      {selectedInvoiceId && (
+        <InvoiceDetailsDialog
+          open={detailsDialogOpen}
+          onOpenChange={setDetailsDialogOpen}
+          invoiceId={selectedInvoiceId}
+          onPayInvoice={() => {
+            setDetailsDialogOpen(false);
+            setPaymentDialogOpen(true);
+          }}
+        />
+      )}
+
+      {/* Dialog Pagamento de Fatura */}
+      {selectedInvoice && selectedCard && (
+        <InvoicePaymentDialog
+          open={paymentDialogOpen}
+          onOpenChange={setPaymentDialogOpen}
+          invoice={selectedInvoice}
+          card={selectedCard}
+          onSuccess={() => {
+            setPaymentDialogOpen(false);
+            setSelectedInvoice(undefined);
+          }}
+        />
+      )}
     </div>
   );
 }

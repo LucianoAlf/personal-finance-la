@@ -1,0 +1,56 @@
+name: Invoice Automation (Daily Cron)
+
+# Executa diariamente às 00:00 UTC (21:00 horário de Brasília)
+on:
+  schedule:
+    # Cron: minuto hora dia mês dia-da-semana
+    # 0 0 * * * = Todo dia à meia-noite UTC
+    - cron: '0 0 * * *'
+  
+  # Permite execução manual via GitHub Actions UI
+  workflow_dispatch:
+
+jobs:
+  run-invoice-automation:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📋 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Execute Invoice Automation Edge Function
+        run: |
+          echo "🔄 Executando automação de faturas..."
+          
+          RESPONSE=$(curl -X POST \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/invoice-automation" \
+            -w "\nHTTP_STATUS:%{http_code}" \
+            -s)
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS" | cut -d':' -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS/d')
+          
+          echo "📊 Status HTTP: $HTTP_STATUS"
+          echo "📄 Resposta: $BODY"
+          
+          if [ "$HTTP_STATUS" -eq 200 ]; then
+            echo "✅ Automação executada com sucesso!"
+            
+            # Extrair informações da resposta
+            CLOSED=$(echo "$BODY" | grep -o '"closedInvoices":[0-9]*' | cut -d':' -f2)
+            OVERDUE=$(echo "$BODY" | grep -o '"overdueInvoices":[0-9]*' | cut -d':' -f2)
+            
+            echo "📊 Faturas fechadas: $CLOSED"
+            echo "⚠️ Faturas vencidas: $OVERDUE"
+          else
+            echo "❌ Erro na automação!"
+            exit 1
+          fi
+
+      - name: 📝 Log resultado
+        if: always()
+        run: |
+          echo "⏰ Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "🎯 Workflow executado com sucesso"

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { MainLayout } from './components/layout/MainLayout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { Toaster } from './components/ui/toaster';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Contas } from './pages/Contas';
@@ -46,6 +47,7 @@ function App() {
           <Route path="tags" element={<Tags />} />
         </Route>
       </Routes>
+      <Toaster />
     </BrowserRouter>
   );
 }
