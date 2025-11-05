@@ -29,8 +29,13 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCategories } from '@/hooks/useCategories';
+import { useTags } from '@/hooks/useTags';
+import { useTransactions } from '@/hooks/useTransactions';
 import type { Transaction } from '@/types/transactions';
 import { TRANSACTION_TYPES } from '@/constants/categories';
+import { X, Plus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { toast } from 'sonner';
 
 const transactionSchema = z.object({
   type: z.enum(['income', 'expense', 'transfer']),
@@ -66,8 +71,13 @@ export const TransactionDialog = ({
 }: TransactionDialogProps) => {
   const { accounts } = useAccounts();
   const { categories, getCategoriesByType } = useCategories();
+  const { tags, createTag } = useTags();
+  const { saveTransactionTags } = useTransactions();
   const [loading, setLoading] = useState(false);
   const [selectedType, setSelectedType] = useState<'income' | 'expense' | 'transfer'>('expense');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showTagInput, setShowTagInput] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
 
   const form = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
@@ -100,10 +110,13 @@ export const TransactionDialog = ({
         notes: transaction.notes || '',
         transfer_to_account_id: transaction.transfer_to_account_id || '',
       });
+      // Carregar tags da transação
+      setSelectedTags(transaction.tags?.map(t => t.id) || []);
     } else {
       // MODO CRIAÇÃO: usar defaultType se fornecido, senão 'expense'
       const typeToUse = defaultType || 'expense';
       setSelectedType(typeToUse);
+      setSelectedTags([]);
       form.reset({
         type: typeToUse,
         account_id: '',
@@ -149,12 +162,49 @@ export const TransactionDialog = ({
       };
 
       await onSave(payload);
+      
+      // Salvar tags se estiver editando (já temos o ID)
+      if (transaction?.id) {
+        await saveTransactionTags(transaction.id, selectedTags);
+      }
+      // Para novas transações, as tags serão salvas após o refresh automático
+
       onOpenChange(false);
       form.reset();
+      setSelectedTags([]);
     } catch (error) {
       console.error('Error saving transaction:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handlers para tags
+  const handleToggleTag = (tagId: string) => {
+    setSelectedTags(prev =>
+      prev.includes(tagId)
+        ? prev.filter(id => id !== tagId)
+        : [...prev, tagId]
+    );
+  };
+
+  const handleCreateTag = async () => {
+    if (!newTagName.trim()) return;
+
+    try {
+      const newTag = await createTag({ name: newTagName.trim() });
+      if (newTag) {
+        setSelectedTags(prev => [...prev, newTag.id]);
+        toast.success('Tag criada com sucesso!');
+      }
+      setNewTagName('');
+      setShowTagInput(false);
+    } catch (error: any) {
+      if (error.code === '23505') {
+        toast.error('Já existe uma tag com este nome');
+      } else {
+        toast.error('Erro ao criar tag');
+      }
     }
   };
 
@@ -377,6 +427,83 @@ export const TransactionDialog = ({
                 </FormItem>
               )}
             />
+
+            {/* Tags */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Tags (opcional)</label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowTagInput(!showTagInput)}
+                  className="h-8 text-purple-600 hover:text-purple-700"
+                >
+                  <Plus size={16} className="mr-1" />
+                  Nova tag
+                </Button>
+              </div>
+
+              {/* Input para criar nova tag */}
+              {showTagInput && (
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nome da tag..."
+                    value={newTagName}
+                    onChange={(e) => setNewTagName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleCreateTag())}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleCreateTag}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    Criar
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setShowTagInput(false);
+                      setNewTagName('');
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              )}
+
+              {/* Lista de tags disponíveis */}
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag) => {
+                  const isSelected = selectedTags.includes(tag.id);
+                  return (
+                    <Badge
+                      key={tag.id}
+                      onClick={() => handleToggleTag(tag.id)}
+                      className={`cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-purple-600 text-white hover:bg-purple-700'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                      style={isSelected ? { backgroundColor: tag.color } : {}}
+                    >
+                      {tag.name}
+                      {isSelected && <X size={12} className="ml-1" />}
+                    </Badge>
+                  );
+                })}
+              </div>
+
+              {tags.length === 0 && !showTagInput && (
+                <p className="text-sm text-gray-500">
+                  Nenhuma tag criada ainda. Clique em "Nova tag" para criar.
+                </p>
+              )}
+            </div>
 
             {/* Botões */}
             <div className="flex justify-end gap-3 pt-4">

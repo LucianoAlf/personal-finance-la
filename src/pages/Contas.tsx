@@ -144,6 +144,7 @@ export const Contas: React.FC = () => {
       <Header
         title="Contas"
         subtitle="Gerencie suas contas bancárias e carteiras"
+        icon={<Wallet size={24} />}
         actions={
           <>
             <Button variant="outline" size="sm">

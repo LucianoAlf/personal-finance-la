@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 
 import { formatCurrency } from '@/utils/formatters';
 import { ACCOUNT_TYPES, ACCOUNT_COLORS, ACCOUNT_ICONS } from '@/constants/accounts';
+import { getBankLogo, detectBankFromName, getBankColor } from '@/constants/bankLogos';
 import type { Account } from '@/types/accounts';
 
 interface AccountCardProps {
@@ -38,11 +39,21 @@ export const AccountCard: React.FC<AccountCardProps> = ({
   onDelete
 }) => {
   const accountType = ACCOUNT_TYPES[account.type];
-  const accountColor =
-    (typeof account.color === 'string' && account.color.startsWith('#'))
+  
+  // Detectar banco pelo nome da conta
+  const bankCode = detectBankFromName(account.name);
+  
+  // Usar cor do banco se detectado, senão usar cor da conta
+  const accountColor = bankCode 
+    ? getBankColor(bankCode)
+    : (typeof account.color === 'string' && account.color.startsWith('#'))
       ? account.color
       : (ACCOUNT_COLORS as any)[account.color] ?? '#3b82f6';
-  const IconComponent = ACCOUNT_ICONS[account.icon] || ACCOUNT_ICONS['checking'];
+  
+  // Usar logo do banco se detectado, senão usar ícone padrão
+  const IconComponent = bankCode 
+    ? getBankLogo(bankCode)
+    : ACCOUNT_ICONS[account.icon] || ACCOUNT_ICONS['checking'];
   
   const handleEditClick = () => {
     onEdit(account);

@@ -51,9 +51,11 @@
     "lucide-react": "^0.364.0",
     "next-themes": "^0.4.4",
     "react": "^18.3.1",
+    "react-br-bank-icons": "^0.1.0",
     "react-day-picker": "8.10.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.2",
+    "react-icons": "^5.5.0",
     "react-resizable-panels": "^2.1.7",
     "react-router-dom": "^6",
     "recharts": "^2.12.4",
@@ -81,6 +83,7 @@
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.15.0",
     "vite": "^6.0.1",
-    "vite-plugin-source-identifier": "1.1.2"
+    "vite-plugin-source-identifier": "1.1.2",
+    "vite-plugin-svgr": "^4.5.0"
   }
 }

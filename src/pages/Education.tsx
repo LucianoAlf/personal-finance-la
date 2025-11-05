@@ -2,7 +2,7 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Bot, BookOpen, Trophy, Lightbulb, Lock, CheckCircle2 } from 'lucide-react';
+import { Bot, BookOpen, Trophy, Lightbulb, Lock, CheckCircle2, GraduationCap } from 'lucide-react';
 
 export function Education() {
   return (
@@ -10,6 +10,7 @@ export function Education() {
       <Header
         title="Educação Financeira"
         subtitle="Aprenda a cuidar melhor do seu dinheiro"
+        icon={<GraduationCap size={24} />}
       />
 
       <div className="p-6 space-y-6">

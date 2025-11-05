@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Plus, Copy, Save } from 'lucide-react';
+import { Plus, Copy, Save, Calendar } from 'lucide-react';
 
 export function Planning() {
   return (
@@ -9,6 +9,7 @@ export function Planning() {
       <Header
         title="Planejamento Mensal"
         subtitle="Organize seu orçamento e controle suas despesas"
+        icon={<Calendar size={24} />}
         actions={
           <>
             <Button size="sm" variant="outline">

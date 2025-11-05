@@ -32,6 +32,7 @@ export function Investments() {
       <Header
         title="Investimentos"
         subtitle="Acompanhe sua carteira de investimentos"
+        icon={<TrendingUp size={24} />}
         actions={
           <>
             <Button size="sm" variant="outline">

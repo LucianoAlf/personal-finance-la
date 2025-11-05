@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { mockCreditCards } from '@/utils/mockData';
 import { formatCurrency } from '@/utils/formatters';
-import { Plus, DollarSign } from 'lucide-react';
+import { Plus, DollarSign, CreditCard } from 'lucide-react';
 
 export function CreditCards() {
   return (
@@ -12,6 +12,7 @@ export function CreditCards() {
       <Header
         title="Cartões de Crédito"
         subtitle="Gerencie suas faturas e limites"
+        icon={<CreditCard size={24} />}
         actions={
           <>
             <Button size="sm" variant="outline">

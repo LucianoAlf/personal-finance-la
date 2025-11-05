@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { useUIStore } from '@/store/uiStore';
@@ -19,6 +20,9 @@ import {
   X,
   HelpCircle,
   Bot,
+  MoreHorizontal,
+  Tag,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -32,6 +36,10 @@ const menuItems = [
   { icon: TrendingUp, label: 'Investimentos', path: '/investimentos' },
   { icon: BarChart3, label: 'Relatórios', path: '/relatorios' },
   { icon: GraduationCap, label: 'Educação', path: '/educacao' },
+];
+
+const moreOptionsItems = [
+  { icon: Tag, label: 'Tags', path: '/tags' },
   { icon: Settings, label: 'Configurações', path: '/configuracoes' },
 ];
 
@@ -39,6 +47,7 @@ export function Sidebar() {
   const location = useLocation();
   const { sidebarOpen, toggleSidebar, setAnaCoachOpen } = useUIStore();
   const { profile, user } = useAuth();
+  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
 
   const getInitials = (name: string | null) => {
     if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
@@ -111,6 +120,57 @@ export function Sidebar() {
               </Link>
             );
           })}
+
+          {/* Mais opções (dropdown) */}
+          <div className="mt-2">
+            <button
+              onClick={() => setMoreOptionsOpen(!moreOptionsOpen)}
+              className={cn(
+                'flex items-center justify-between w-full px-4 py-3 rounded-lg mb-1 transition-all duration-200',
+                moreOptionsOpen || moreOptionsItems.some(item => location.pathname === item.path)
+                  ? 'bg-gray-100 text-gray-900'
+                  : 'text-gray-700 hover:bg-gray-100'
+              )}
+            >
+              <div className="flex items-center space-x-3">
+                <MoreHorizontal size={20} />
+                <span>Mais opções</span>
+              </div>
+              <ChevronDown 
+                size={16} 
+                className={cn(
+                  'transition-transform duration-200',
+                  moreOptionsOpen && 'rotate-180'
+                )}
+              />
+            </button>
+
+            {/* Submenu */}
+            {moreOptionsOpen && (
+              <div className="ml-4 space-y-1">
+                {moreOptionsItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = location.pathname === item.path;
+
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={cn(
+                        'flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200',
+                        isActive
+                          ? 'bg-primary-50 text-primary font-semibold'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      )}
+                    >
+                      <Icon size={18} />
+                      <span className="text-sm">{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </nav>
 
         {/* Footer com perfil */}

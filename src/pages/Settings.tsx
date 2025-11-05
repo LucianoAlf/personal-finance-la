@@ -3,14 +3,18 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/store/authStore';
-import { User, Save } from 'lucide-react';
+import { User, Save, Settings as SettingsIcon } from 'lucide-react';
 
 export function Settings() {
   const { user } = useAuthStore();
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header title="Configurações" subtitle="Personalize sua experiência" />
+      <Header 
+        title="Configurações" 
+        subtitle="Personalize sua experiência" 
+        icon={<SettingsIcon size={24} />} 
+      />
 
       <div className="p-6 space-y-6 max-w-4xl">
         {/* Perfil */}

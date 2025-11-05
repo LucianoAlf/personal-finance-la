@@ -30,6 +30,11 @@ export interface Transaction {
     id: string;
     name: string;
   };
+  tags?: Array<{
+    id: string;
+    name: string;
+    color: string;
+  }>;
 }
 
 export type TransactionType = 'income' | 'expense' | 'transfer';

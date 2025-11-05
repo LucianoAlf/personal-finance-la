@@ -66,7 +66,31 @@ export const useTransactions = () => {
         throw fetchError;
       }
 
-      setTransactions(data || []);
+      // Buscar tags para cada transação
+      if (data && data.length > 0) {
+        const transactionIds = data.map(t => t.id);
+        
+        const { data: tagsData } = await supabase
+          .from('transaction_tags')
+          .select(`
+            transaction_id,
+            tag:tags(id, name, color)
+          `)
+          .in('transaction_id', transactionIds);
+
+        // Mapear tags para cada transação
+        const transactionsWithTags = data.map(transaction => ({
+          ...transaction,
+          tags: tagsData
+            ?.filter(tt => tt.transaction_id === transaction.id)
+            .map(tt => tt.tag)
+            .filter(Boolean) || []
+        }));
+
+        setTransactions(transactionsWithTags);
+      } else {
+        setTransactions(data || []);
+      }
     } catch (err) {
       console.error('Erro ao buscar transações:', err);
       setError('Erro ao carregar transações. Tente novamente.');
@@ -224,6 +248,34 @@ export const useTransactions = () => {
     return transactions.filter((t) => !t.is_paid);
   };
 
+  // Salvar tags de uma transação
+  const saveTransactionTags = async (transactionId: string, tagIds: string[]) => {
+    try {
+      // Remover todas as tags existentes
+      await supabase
+        .from('transaction_tags')
+        .delete()
+        .eq('transaction_id', transactionId);
+
+      // Adicionar novas tags
+      if (tagIds.length > 0) {
+        const { error: insertError } = await supabase
+          .from('transaction_tags')
+          .insert(
+            tagIds.map((tagId) => ({
+              transaction_id: transactionId,
+              tag_id: tagId,
+            }))
+          );
+
+        if (insertError) throw insertError;
+      }
+    } catch (err) {
+      console.error('Erro ao salvar tags da transação:', err);
+      throw err;
+    }
+  };
+
   // Effect para buscar transações e configurar realtime
   useEffect(() => {
     fetchTransactions();
@@ -267,5 +319,6 @@ export const useTransactions = () => {
     getTransactionsByCategory,
     getTransactionsByType,
     getPendingTransactions,
+    saveTransactionTags,
   };
 };

@@ -24,6 +24,8 @@
     "moduleDetection": "force",
     "noEmit": true,
     "jsx": "react-jsx",
+    "resolveJsonModule": true,
+    "types": ["node", "react", "react-dom"],
     /* Linting */
     "strict": false,
     "noImplicitAny": false,

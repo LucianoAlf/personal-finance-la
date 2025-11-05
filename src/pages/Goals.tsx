@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { mockGoals } from '@/utils/mockData';
 import { formatCurrency, formatDate } from '@/utils/formatters';
-import { Plus, Plane, Shield, Laptop, TrendingUp } from 'lucide-react';
+import { Plus, Plane, Shield, Laptop, TrendingUp, Target } from 'lucide-react';
 
 const iconMap: Record<string, any> = {
   Plane,
@@ -18,6 +18,7 @@ export function Goals() {
       <Header
         title="Metas Financeiras"
         subtitle="Acompanhe seus objetivos e conquiste seus sonhos"
+        icon={<Target size={24} />}
         actions={
           <Button size="sm">
             <Plus size={16} className="mr-1" />

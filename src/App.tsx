@@ -12,6 +12,7 @@ import { Investments } from './pages/Investments';
 import { Reports } from './pages/Reports';
 import { Education } from './pages/Education';
 import { Settings } from './pages/Settings';
+import { Tags } from './pages/Tags';
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
           <Route path="relatorios" element={<Reports />} />
           <Route path="educacao" element={<Education />} />
           <Route path="configuracoes" element={<Settings />} />
+          <Route path="tags" element={<Tags />} />
         </Route>
       </Routes>
     </BrowserRouter>

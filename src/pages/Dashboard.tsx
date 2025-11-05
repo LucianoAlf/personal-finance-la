@@ -22,6 +22,7 @@ import {
   Sparkles,
   AlertCircle,
   CheckCircle2,
+  Home,
 } from 'lucide-react';
 
 export function Dashboard() {
@@ -64,6 +65,7 @@ export function Dashboard() {
       <Header
         title={`Olá, ${profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuário'}!`}
         subtitle="Bem-vindo ao seu painel financeiro"
+        icon={<Home size={24} />}
         actions={
           <>
             <Button size="sm" variant="outline">

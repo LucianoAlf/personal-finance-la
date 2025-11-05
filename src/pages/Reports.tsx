@@ -1,7 +1,7 @@
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download } from 'lucide-react';
+import { Download, BarChart3 } from 'lucide-react';
 
 export function Reports() {
   return (
@@ -9,6 +9,7 @@ export function Reports() {
       <Header
         title="Relatórios"
         subtitle="Análises detalhadas da sua vida financeira"
+        icon={<BarChart3 size={24} />}
         actions={
           <Button size="sm">
             <Download size={16} className="mr-1" />
