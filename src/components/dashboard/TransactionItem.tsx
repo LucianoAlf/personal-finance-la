@@ -1,26 +1,8 @@
-import { LucideIcon } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/utils/formatters';
 import { cn } from '@/lib/cn';
 import { Badge } from '@/components/ui/badge';
-import { mockCategories } from '@/utils/mockData';
-import { 
-  ShoppingCart, 
-  Car, 
-  Home, 
-  UtensilsCrossed, 
-  Heart, 
-  PartyPopper, 
-  Wallet, 
-  Briefcase,
-  Key,
-  Shield,
-  Laptop,
-  Plane,
-  PiggyBank,
-  Landmark,
-  CreditCard,
-  Play
-} from 'lucide-react';
+import { useCategories } from '@/hooks/useCategories';
+import * as LucideIcons from 'lucide-react';
 
 interface TransactionItemProps {
   type: 'income' | 'expense' | 'transfer';
@@ -33,26 +15,6 @@ interface TransactionItemProps {
   onClick?: () => void;
 }
 
-// Mapeamento de ícones string para componentes Lucide
-const iconMap: Record<string, React.ComponentType<any>> = {
-  'ShoppingCart': ShoppingCart,
-  'Car': Car,
-  'Home': Home,
-  'UtensilsCrossed': UtensilsCrossed,
-  'Heart': Heart,
-  'PartyPopper': PartyPopper,
-  'Wallet': Wallet,
-  'Briefcase': Briefcase,
-  'Key': Key,
-  'Shield': Shield,
-  'Laptop': Laptop,
-  'Plane': Plane,
-  'PiggyBank': PiggyBank,
-  'Landmark': Landmark,
-  'CreditCard': CreditCard,
-  'Play': Play,
-};
-
 export function TransactionItem({
   type,
   description,
@@ -63,8 +25,13 @@ export function TransactionItem({
   is_recurring,
   onClick,
 }: TransactionItemProps) {
-  const category = mockCategories.find((c) => c.id === category_id);
-  const IconComponent = category?.icon ? iconMap[category.icon] : Wallet;
+  const { getCategoryById } = useCategories();
+  const category = getCategoryById(category_id);
+  
+  // Renderizar ícone dinamicamente (igual à página Transacoes)
+  const IconComponent = category?.icon 
+    ? (LucideIcons as any)[category.icon] || LucideIcons.Wallet
+    : LucideIcons.Wallet;
 
   return (
     <div

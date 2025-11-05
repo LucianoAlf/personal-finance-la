@@ -4,7 +4,8 @@ import { TransactionItem } from '@/components/dashboard/TransactionItem';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { mockAccounts, mockTransactions, mockCreditCards } from '@/utils/mockData';
+import { useTransactions } from '@/hooks/useTransactions';
+import { useAccounts } from '@/hooks/useAccounts';
 import { formatCurrency } from '@/utils/formatters';
 import {
   Wallet,
@@ -26,17 +27,37 @@ import {
 export function Dashboard() {
   const { user, profile } = useAuth();
 
-  // Cálculos
-  const totalBalance = mockAccounts.reduce((sum, acc) => sum + acc.balance, 0);
-  const totalIncome = mockTransactions
-    .filter((t) => t.type === 'income')
-    .reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenses = mockTransactions
-    .filter((t) => t.type === 'expense')
-    .reduce((sum, t) => sum + t.amount, 0);
-  const totalCreditCards = mockCreditCards.reduce((sum, cc) => sum + cc.current_balance, 0);
+  // HOOKS REAIS - SEM MOCK DATA
+  const {
+    transactions,
+    getTotalIncome,
+    getTotalExpenses,
+    getBalance,
+    loading: transactionsLoading,
+  } = useTransactions();
 
-  const recentTransactions = mockTransactions.slice(0, 5);
+  const {
+    accounts,
+    getTotalBalance,
+    loading: accountsLoading,
+  } = useAccounts();
+
+  // CÁLCULOS COM DADOS REAIS
+  const totalBalance = getTotalBalance();
+  const totalIncome = getTotalIncome(true); // mês atual
+  const totalExpenses = getTotalExpenses(true); // mês atual
+  const totalCreditCards = 0; // Por enquanto (Fase 4)
+
+  const recentTransactions = transactions.slice(0, 5);
+
+  // LOADING STATE
+  if (transactionsLoading || accountsLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-lg">Carregando dashboard...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -181,50 +202,44 @@ export function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="space-y-3">
-              {recentTransactions.map((transaction) => (
-                <TransactionItem key={transaction.id} {...transaction} />
-              ))}
+              {recentTransactions.length > 0 ? (
+                recentTransactions.map((transaction) => (
+                  <TransactionItem
+                    key={transaction.id}
+                    type={transaction.type}
+                    description={transaction.description}
+                    category_id={transaction.category_id}
+                    date={new Date(transaction.transaction_date)}
+                    amount={transaction.amount}
+                    is_paid={transaction.is_paid}
+                    is_recurring={transaction.is_recurring}
+                  />
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="mb-2">Nenhuma transação recente</p>
+                  <p className="text-sm">Crie sua primeira transação para começar!</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          {/* Cartões de Crédito */}
+          {/* Cartões de Crédito - FASE 4 */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Cartões de Crédito</CardTitle>
-                <Button variant="ghost" size="sm">
-                  Ver Todos
+                <Button variant="ghost" size="sm" disabled>
+                  Em Breve
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {mockCreditCards.slice(0, 2).map((card) => {
-                const percentUsed = (card.current_balance / card.limit) * 100;
-                return (
-                  <div
-                    key={card.id}
-                    className="p-4 rounded-lg bg-gradient-to-br from-gray-800 to-gray-900 text-white"
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="font-semibold">{card.name}</span>
-                      <span className="text-sm opacity-80">•••• {card.last_four_digits}</span>
-                    </div>
-                    <div className="mb-2">
-                      <p className="text-2xl font-bold">{formatCurrency(card.current_balance)}</p>
-                      <p className="text-sm opacity-70">
-                        Limite: {formatCurrency(card.limit)}
-                      </p>
-                    </div>
-                    <div className="w-full bg-white/20 rounded-full h-2 mb-2">
-                      <div
-                        className="bg-white rounded-full h-2 transition-all"
-                        style={{ width: `${percentUsed}%` }}
-                      />
-                    </div>
-                    <p className="text-xs opacity-80">Vencimento: {card.due_date}/01</p>
-                  </div>
-                );
-              })}
+            <CardContent className="flex items-center justify-center py-12">
+              <div className="text-center text-gray-500">
+                <CreditCard size={48} className="mx-auto mb-4 text-gray-300" />
+                <p className="font-semibold mb-1">Em Breve: Cartões de Crédito</p>
+                <p className="text-sm">Gerencie seus cartões e faturas na Fase 4</p>
+              </div>
             </CardContent>
           </Card>
         </div>
