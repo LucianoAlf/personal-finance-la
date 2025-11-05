@@ -1,5 +1,5 @@
 import React from 'react';
-import { Edit, Archive, MoreVertical } from 'lucide-react';
+import { Edit, Trash2, MoreVertical, Archive, List, DollarSign } from 'lucide-react';
 
 import { Card } from '@/components/ui/card';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
@@ -13,6 +13,9 @@ import type { Account } from '@/types/accounts';
 interface AccountCardProps {
   account: Account;
   onEdit: (account: Account) => void;
+  onArchive: (id: string) => void;
+  onViewTransactions: (accountId: string) => void;
+  onAdjustBalance: (account: Account) => void;
   onDelete: (id: string) => void;
 }
 
@@ -29,14 +32,40 @@ const IconBox: React.FC<{
 export const AccountCard: React.FC<AccountCardProps> = ({
   account,
   onEdit,
+  onArchive,
+  onViewTransactions,
+  onAdjustBalance,
   onDelete
 }) => {
   const accountType = ACCOUNT_TYPES[account.type];
-  const accountColor = ACCOUNT_COLORS[account.color];
+  const accountColor =
+    (typeof account.color === 'string' && account.color.startsWith('#'))
+      ? account.color
+      : (ACCOUNT_COLORS as any)[account.color] ?? '#3b82f6';
   const IconComponent = ACCOUNT_ICONS[account.icon] || ACCOUNT_ICONS['checking'];
+  
+  const handleEditClick = () => {
+    onEdit(account);
+  };
+  
+  const handleArchiveClick = () => {
+    onArchive(account.id);
+  };
+  
+  const handleViewTransactionsClick = () => {
+    onViewTransactions(account.id);
+  };
+  
+  const handleAdjustBalanceClick = () => {
+    onAdjustBalance(account);
+  };
+  
+  const handleDeleteClick = () => {
+    onDelete(account.id);
+  };
 
   return (
-    <Card className="p-6 hover:shadow-lg transition-shadow duration-200 h-full">
+    <Card className="p-6 hover:shadow-lg transition-shadow duration-200 h-full relative">
       {/* Header - IconBox + Menu Dropdown */}
       <div className="flex items-start justify-between mb-4">
         <IconBox
@@ -46,18 +75,34 @@ export const AccountCard: React.FC<AccountCardProps> = ({
         
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="h-8 w-8 p-0"
+            >
               <MoreVertical size={20} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEdit(account)}>
+            <DropdownMenuItem onClick={handleEditClick}>
               <Edit size={16} className="mr-2" />
               Editar
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onDelete(account.id)} className="text-red-600">
+            <DropdownMenuItem onClick={handleArchiveClick}>
               <Archive size={16} className="mr-2" />
               Arquivar
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleViewTransactionsClick}>
+              <List size={16} className="mr-2" />
+              Transações
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleAdjustBalanceClick}>
+              <DollarSign size={16} className="mr-2" />
+              Reajuste de saldo
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleDeleteClick} className="text-red-600">
+              <Trash2 size={16} className="mr-2" />
+              Excluir
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

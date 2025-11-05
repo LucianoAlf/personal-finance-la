@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -27,7 +27,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-import { ACCOUNT_TYPES, ACCOUNT_COLORS, ACCOUNT_ICONS } from '@/constants/accounts';
+import { ACCOUNT_TYPES, ACCOUNT_ICONS, COLOR_OPTIONS, ACCOUNT_COLORS } from '@/constants/accounts';
 import type { Account, AccountType } from '@/types/accounts';
 
 interface AccountDialogProps {
@@ -59,16 +59,45 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
   const form = useForm<AccountFormData>({
     resolver: zodResolver(accountSchema),
     defaultValues: {
-      name: account?.name || '',
-      type: account?.type || 'checking',
-      bank_name: account?.bank_name || '',
-      initial_balance: account?.initial_balance || 0,
-      color: account?.color || 'checking',
-      icon: account?.icon || 'checking',
-      is_shared: account?.is_shared || false,
-      is_active: account?.is_active ?? true,
+      name: '',
+      type: 'checking',
+      bank_name: '',
+      initial_balance: 0,
+      color: '#3b82f6', // Azul padrão
+      icon: 'checking',
+      is_shared: false,
+      is_active: true,
     },
   });
+
+  // Resetar formulário quando account mudar (modo edição)
+  useEffect(() => {
+    if (account) {
+      form.reset({
+        name: account.name,
+        type: account.type,
+        bank_name: account.bank_name || '',
+        initial_balance: account.current_balance, // carregar saldo total atual
+        color: account.color?.startsWith('#')
+          ? account.color
+          : (ACCOUNT_COLORS as any)[account.color] ?? '#3b82f6',
+        icon: account.icon,
+        is_shared: account.is_shared,
+        is_active: account.is_active,
+      });
+    } else {
+      form.reset({
+        name: '',
+        type: 'checking',
+        bank_name: '',
+        initial_balance: 0,
+        color: '#3b82f6', // Azul padrão
+        icon: 'checking',
+        is_shared: false,
+        is_active: true,
+      });
+    }
+  }, [account, form]);
 
   const onSubmit = (data: AccountFormData) => {
     onSave(data);
@@ -147,21 +176,25 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
               )}
             />
 
-            {/* Saldo Inicial */}
+            {/* Saldo Total */}
             <FormField
               control={form.control}
               name="initial_balance"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Saldo Inicial</FormLabel>
+                  <FormLabel>Saldo Total</FormLabel>
                   <FormControl>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                    />
+                    <div className="relative">
+                      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">R$</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        className="pl-8"
+                        {...field}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -182,11 +215,14 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {Object.entries(ACCOUNT_COLORS).map(([key, colorClass]) => (
-                        <SelectItem key={key} value={key}>
+                      {COLOR_OPTIONS.map((option) => (
+                        <SelectItem key={option.key} value={option.color}>
                           <div className="flex items-center gap-2">
-                            <div className={`w-4 h-4 rounded-full ${colorClass}`} />
-                            {key.charAt(0).toUpperCase() + key.slice(1)}
+                            <div 
+                              className="w-4 h-4 rounded-full" 
+                              style={{ backgroundColor: option.color }}
+                            />
+                            {option.name}
                           </div>
                         </SelectItem>
                       ))}
@@ -215,7 +251,7 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
                         <SelectItem key={key} value={key}>
                           <div className="flex items-center gap-2">
                             <IconComponent size={16} />
-                            {key.charAt(0).toUpperCase() + key.slice(1)}
+                            {ACCOUNT_TYPES[key as keyof typeof ACCOUNT_TYPES]}
                           </div>
                         </SelectItem>
                       ))}

@@ -14,8 +14,6 @@ import { TYPE_COLORS } from '@/constants/categories';
 import * as LucideIcons from 'lucide-react';
 
 export const Transacoes = () => {
-  console.log('🟢 Transacoes: PÁGINA CARREGADA');
-  
   // HOOKS REAIS - SEM MOCK DATA
   const {
     transactions,
@@ -27,8 +25,6 @@ export const Transacoes = () => {
     getTotalExpenses,
     getBalance,
   } = useTransactions();
-  
-  console.log('🟢 Transacoes: transactions =', transactions);
 
   const { accounts } = useAccounts();
   const { getCategoryById } = useCategories();
@@ -42,15 +38,6 @@ export const Transacoes = () => {
   const monthlyIncome = getTotalIncome(true);
   const monthlyExpenses = getTotalExpenses(true);
   const monthlyBalance = getBalance(true);
-
-  // DEBUG: Mostrar estado atual
-  console.log('📊 Estado atual da página:', {
-    totalTransactions: transactions.length,
-    loading,
-    monthlyIncome,
-    monthlyExpenses,
-    monthlyBalance,
-  });
 
   // HANDLERS
   const handleEdit = (transaction: Transaction) => {
@@ -72,15 +59,12 @@ export const Transacoes = () => {
 
   const handleSave = async (data: any) => {
     try {
-      console.log('💾 Salvando transação:', data);
       if (selectedTransaction) {
         // MODO EDIÇÃO - ATUALIZAR
-        console.log('✏️ Modo edição');
         await updateTransaction(selectedTransaction.id, data);
         toast.success('Transação atualizada com sucesso!');
       } else {
         // MODO CRIAÇÃO - ADICIONAR
-        console.log('➕ Modo criação');
         await addTransaction(data);
         toast.success('Transação criada com sucesso!');
       }
@@ -95,11 +79,9 @@ export const Transacoes = () => {
 
   // ACEITA TIPO OPCIONAL PARA PRÉ-SELECIONAR (income/expense)
   const handleNewTransaction = (type?: TransactionType) => {
-    console.log('🟢 BOTÃO CLICADO! Tipo:', type);
     setSelectedTransaction(undefined);
     setPreSelectedType(type);
     setDialogOpen(true);
-    console.log('🟢 Dialog aberto:', true);
   };
 
   // Renderizar ícone da categoria dinamicamente

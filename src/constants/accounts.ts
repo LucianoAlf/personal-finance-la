@@ -22,6 +22,18 @@ export const ACCOUNT_COLORS = {
   credit_card: '#ef4444',
 } as const;
 
+// Cores visuais para seletor
+export const COLOR_OPTIONS = [
+  { key: 'blue', name: 'Azul', color: '#3b82f6' },
+  { key: 'green', name: 'Verde', color: '#10b981' },
+  { key: 'orange', name: 'Laranja', color: '#f59e0b' },
+  { key: 'purple', name: 'Roxo', color: '#8b5cf6' },
+  { key: 'red', name: 'Vermelho', color: '#ef4444' },
+  { key: 'pink', name: 'Rosa', color: '#ec4899' },
+  { key: 'cyan', name: 'Ciano', color: '#06b6d4' },
+  { key: 'yellow', name: 'Amarelo', color: '#eab308' },
+] as const;
+
 export const ACCOUNT_ICONS = {
   checking: Landmark,
   savings: PiggyBank,

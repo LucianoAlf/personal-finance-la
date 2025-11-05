@@ -15,7 +15,10 @@ export const useAccounts = () => {
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        throw new Error('Usuário não autenticado');
+        // Usuário ainda não disponível: limpa estado e aguarda onAuthStateChange
+        setAccounts([]);
+        setLoading(false);
+        return;
       }
 
       const { data, error: fetchError } = await supabase
@@ -29,7 +32,11 @@ export const useAccounts = () => {
         throw fetchError;
       }
 
-      setAccounts(data || []);
+      setAccounts((data || []).map((a: any) => ({
+        ...a,
+        current_balance: Number(a.current_balance) || 0,
+        initial_balance: Number(a.initial_balance) || 0,
+      })));
     } catch (err) {
       console.error('Erro ao buscar contas:', err);
       setError('Erro ao carregar contas. Tente novamente.');
@@ -38,8 +45,10 @@ export const useAccounts = () => {
     }
   };
 
-  // Adicionar nova conta
-  const addAccount = async (accountData: Omit<Account, 'id' | 'user_id' | 'created_at' | 'updated_at'>) => {
+  // Adicionar nova conta - recebe dados do formulário (sem current_balance)
+  const addAccount = async (
+    accountData: Omit<Account, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'current_balance'>
+  ) => {
     try {
       setError(null);
 
@@ -73,17 +82,24 @@ export const useAccounts = () => {
     }
   };
 
-  // Atualizar conta existente
+  // Atualizar conta existente - se vier initial_balance, refletir em current_balance
   const updateAccount = async (id: string, updates: Partial<Account>) => {
     try {
       setError(null);
 
+      const patch: Partial<Account> = {
+        ...updates,
+        // se o formulário enviou o saldo total em initial_balance,
+        // sincronizamos o current_balance
+        ...(typeof (updates as any).initial_balance === 'number'
+          ? { current_balance: (updates as any).initial_balance }
+          : {}),
+        updated_at: new Date().toISOString(),
+      };
+
       const { data, error: updateError } = await supabase
         .from('accounts')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
+        .update(patch)
         .eq('id', id)
         .select()
         .single();
@@ -106,17 +122,14 @@ export const useAccounts = () => {
     }
   };
 
-  // Arquivar conta (soft delete)
+  // Excluir conta (hard delete)
   const deleteAccount = async (id: string) => {
     try {
       setError(null);
 
       const { error: deleteError } = await supabase
         .from('accounts')
-        .update({ 
-          is_active: false,
-          updated_at: new Date().toISOString(),
-        })
+        .delete()
         .eq('id', id);
 
       if (deleteError) {
@@ -125,22 +138,22 @@ export const useAccounts = () => {
 
       setAccounts(prev => prev.filter(account => account.id !== id));
     } catch (err) {
-      console.error('Erro ao arquivar conta:', err);
-      setError(err instanceof Error ? err.message : 'Erro ao arquivar conta');
+      console.error('Erro ao excluir conta:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao excluir conta');
       throw err;
     }
   };
 
   // Calcular saldo total de todas as contas
   const getTotalBalance = (): number => {
-    return accounts.reduce((total, account) => total + (account.current_balance || 0), 0);
+    return accounts.reduce((total, account) => total + (Number((account as any).current_balance) || 0), 0);
   };
 
   // Calcular saldo por tipos específicos de conta
   const getBalanceByType = (types: AccountType[]): number => {
     return accounts
       .filter(account => types.includes(account.type))
-      .reduce((total, account) => total + (account.current_balance || 0), 0);
+      .reduce((total, account) => total + (Number((account as any).current_balance) || 0), 0);
   };
 
   // Effect para buscar contas e configurar realtime
@@ -157,16 +170,25 @@ export const useAccounts = () => {
           schema: 'public',
           table: 'accounts',
         },
-        (payload) => {
-          console.log('Mudança detectada na tabela accounts:', payload);
+        () => {
           fetchAccounts();
         }
       )
       .subscribe();
 
+    // Refetch quando sessão/auth mudar (ex.: em páginas que montam antes do user)
+    const { data: auth } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        fetchAccounts();
+      } else {
+        setAccounts([]);
+      }
+    });
+
     // Cleanup
     return () => {
       supabase.removeChannel(channel);
+      auth?.subscription?.unsubscribe?.();
     };
   }, []);
 

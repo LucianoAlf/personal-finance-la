@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Plus, Wallet, ArrowLeftRight, DollarSign } from 'lucide-react';
 
@@ -7,19 +8,26 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { AccountCard } from '@/components/accounts/AccountCard';
 import { AccountDialog, type AccountFormData } from '@/components/accounts/AccountDialog';
+import { DeleteAccountDialog } from '@/components/accounts/DeleteAccountDialog';
 
 import { useAccounts } from '@/hooks/useAccounts';
 import { formatCurrency } from '@/utils/formatters';
 import type { Account } from '@/types/accounts';
 
 export const Contas: React.FC = () => {
+  const navigate = useNavigate();
   const { accounts, loading, error, getTotalBalance, getBalanceByType, addAccount, updateAccount, deleteAccount } = useAccounts();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [adjustBalanceDialogOpen, setAdjustBalanceDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
+  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
+  const [accountToAdjust, setAccountToAdjust] = useState<Account | null>(null);
+  const [newBalance, setNewBalance] = useState<number>(0);
 
   const totalBalance = getTotalBalance();
-  const bankBalance = getBalanceByType('bank');
-  const walletBalance = getBalanceByType('wallet');
+  const bankBalance = getBalanceByType(['checking', 'savings']);
+  const walletBalance = getBalanceByType(['cash']);
 
   // Handlers para o AccountCard
   const handleEdit = (account: Account) => {
@@ -27,12 +35,66 @@ export const Contas: React.FC = () => {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (id: string) => {
+    const account = accounts.find(a => a.id === id);
+    if (account) {
+      setAccountToDelete(account);
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!accountToDelete) return;
+    
     try {
-      await deleteAccount(id);
+      await deleteAccount(accountToDelete.id);
+      toast.success('Conta excluída com sucesso!');
+      setAccountToDelete(null);
+    } catch (error) {
+      toast.error('Erro ao excluir conta. Tente novamente.');
+    }
+  };
+
+  const handleArchive = async (id: string) => {
+    const account = accounts.find(a => a.id === id);
+    if (!account) return;
+    
+    if (!confirm(`Tem certeza que deseja arquivar a conta "${account.name}"? Ela ficará inativa mas seus dados serão mantidos.`)) {
+      return;
+    }
+    
+    try {
+      await updateAccount(id, { is_active: false });
       toast.success('Conta arquivada com sucesso!');
     } catch (error) {
       toast.error('Erro ao arquivar conta. Tente novamente.');
+    }
+  };
+
+  const handleViewTransactions = (accountId: string) => {
+    // Redirecionar para página de transações com filtro por conta
+    navigate(`/transacoes?account=${accountId}`);
+  };
+
+  const handleAdjustBalance = (account: Account) => {
+    setAccountToAdjust(account);
+    setNewBalance(account.current_balance);
+    setAdjustBalanceDialogOpen(true);
+  };
+
+  const confirmAdjustBalance = async () => {
+    if (!accountToAdjust) return;
+    
+    try {
+      await updateAccount(accountToAdjust.id, { 
+        current_balance: newBalance,
+        initial_balance: newBalance 
+      });
+      toast.success('Saldo ajustado com sucesso!');
+      setAdjustBalanceDialogOpen(false);
+      setAccountToAdjust(null);
+    } catch (error) {
+      toast.error('Erro ao ajustar saldo. Tente novamente.');
     }
   };
 
@@ -145,6 +207,9 @@ export const Contas: React.FC = () => {
                 key={account.id}
                 account={account}
                 onEdit={handleEdit}
+                onArchive={handleArchive}
+                onViewTransactions={handleViewTransactions}
+                onAdjustBalance={handleAdjustBalance}
                 onDelete={handleDelete}
               />
             ))}
@@ -182,6 +247,61 @@ export const Contas: React.FC = () => {
           account={selectedAccount}
           onSave={handleSave}
         />
+
+        {/* Dialog de confirmação de exclusão */}
+        <DeleteAccountDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          onConfirm={confirmDelete}
+          accountName={accountToDelete?.name || ''}
+        />
+
+        {/* Dialog de Reajuste de Saldo */}
+        {adjustBalanceDialogOpen && accountToAdjust && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md">
+              <h2 className="text-xl font-semibold mb-4">Reajuste de Saldo</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Conta: <strong>{accountToAdjust.name}</strong>
+              </p>
+              <p className="text-sm text-gray-600 mb-4">
+                Saldo Atual: <strong>{formatCurrency(accountToAdjust.current_balance)}</strong>
+              </p>
+              
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2">Novo Saldo</label>
+                <div className="relative">
+                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">R$</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newBalance}
+                    onChange={(e) => setNewBalance(parseFloat(e.target.value) || 0)}
+                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setAdjustBalanceDialogOpen(false);
+                    setAccountToAdjust(null);
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={confirmAdjustBalance}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  Confirmar Ajuste
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

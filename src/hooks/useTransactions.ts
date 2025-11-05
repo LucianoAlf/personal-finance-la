@@ -12,8 +12,6 @@ interface TransactionFilters {
 }
 
 export const useTransactions = () => {
-  console.log('🔵 useTransactions: INICIANDO (SEM MOCK)');
-  
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,20 +19,14 @@ export const useTransactions = () => {
   // Buscar todas as transações com relacionamentos
   const fetchTransactions = async (filters?: TransactionFilters) => {
     try {
-      console.log('🔵 fetchTransactions: BUSCANDO DO SUPABASE');
       setLoading(true);
       setError(null);
 
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      
-      if (authError || !user) {
-        console.warn('⚠️ Usuário não autenticado:', authError?.message);
-        setTransactions([]);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
         setLoading(false);
         return;
       }
-
-      console.log('✅ Buscando transações para usuário:', user.id);
 
       let query = supabase
         .from('transactions')
@@ -74,7 +66,6 @@ export const useTransactions = () => {
         throw fetchError;
       }
 
-      console.log('✅ Transações carregadas:', data?.length || 0);
       setTransactions(data || []);
     } catch (err) {
       console.error('Erro ao buscar transações:', err);
@@ -90,7 +81,6 @@ export const useTransactions = () => {
   ) => {
     try {
       setError(null);
-      console.log('📥 Tentando criar transação:', transactionData);
 
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) {
@@ -248,8 +238,7 @@ export const useTransactions = () => {
           schema: 'public',
           table: 'transactions',
         },
-        (payload) => {
-          console.log('Mudança detectada na tabela transactions:', payload);
+        () => {
           fetchTransactions();
         }
       )
