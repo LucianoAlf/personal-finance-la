@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { Header } from '@/components/layout/Header';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CreditCardList } from '@/components/credit-cards/CreditCardList';
 import { CreditCardDialog } from '@/components/credit-cards/CreditCardDialog';
 import { CreditCardDetailsDialog } from '@/components/credit-cards/CreditCardDetailsDialog';
@@ -12,7 +13,7 @@ import { InvoicePaymentDialog } from '@/components/invoices/InvoicePaymentDialog
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useInvoices } from '@/hooks/useInvoices';
 import { formatCurrency } from '@/utils/formatters';
-import { Plus, CreditCard, TrendingUp, Wallet, ShoppingCart } from 'lucide-react';
+import { Plus, CreditCard, TrendingUp, Wallet, ShoppingCart, Receipt } from 'lucide-react';
 import { CreditCard as CreditCardType, CreditCardInvoice, CreditCardSummary } from '@/types/database.types';
 import { useToast } from '@/hooks/use-toast';
 
@@ -151,26 +152,43 @@ export function CreditCards() {
           />
         </div>
 
-        {/* Lista de Cartões */}
-        <CreditCardList
-          cards={cardsSummary}
-          loading={loading}
-          onEdit={handleEdit}
-          onArchive={handleArchive}
-          onDelete={handleDelete}
-          onViewDetails={handleViewDetails}
-          onAddNew={() => { setSelectedCard(undefined); setDialogOpen(true); }}
-        />
+        {/* Tabs: Cartões e Faturas */}
+        <Tabs defaultValue="cartoes" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsTrigger value="cartoes" className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Meus Cartões
+            </TabsTrigger>
+            <TabsTrigger value="faturas" className="flex items-center gap-2">
+              <Receipt className="h-4 w-4" />
+              Faturas
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Seção de Faturas */}
-        <div ref={invoicesRef} className="mt-12">
-          <h2 className="text-2xl font-bold text-gray-900 mb-6">Faturas</h2>
-          <InvoiceList 
-            highlightedInvoiceId={highlightedInvoiceId}
-            onViewDetails={handleViewInvoiceDetails}
-            onPayInvoice={handlePayInvoice}
-          />
-        </div>
+          {/* Tab: Cartões */}
+          <TabsContent value="cartoes" className="space-y-4">
+            <CreditCardList
+              cards={cardsSummary}
+              loading={loading}
+              onEdit={handleEdit}
+              onArchive={handleArchive}
+              onDelete={handleDelete}
+              onViewDetails={handleViewDetails}
+              onAddNew={() => { setSelectedCard(undefined); setDialogOpen(true); }}
+            />
+          </TabsContent>
+
+          {/* Tab: Faturas */}
+          <TabsContent value="faturas" className="space-y-4">
+            <div ref={invoicesRef}>
+              <InvoiceList 
+                highlightedInvoiceId={highlightedInvoiceId}
+                onViewDetails={handleViewInvoiceDetails}
+                onPayInvoice={handlePayInvoice}
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Dialog Criar/Editar Cartão */}

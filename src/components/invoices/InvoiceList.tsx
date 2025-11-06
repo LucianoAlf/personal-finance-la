@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { InvoiceCard } from './InvoiceCard';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileText } from 'lucide-react';
+import { FileText, Clock, CheckCircle2, CreditCard } from 'lucide-react';
 
 interface InvoiceListProps {
   cardId?: string;
@@ -72,22 +72,40 @@ export function InvoiceList({ cardId, loading: externalLoading, highlightedInvoi
   );
 
   return (
-    <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'open' | 'paid')} className="space-y-6">
-      {/* Tabs e Filtros */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <TabsList>
-          <TabsTrigger value="open">
-            Faturas Abertas ({openInvoices.length})
-          </TabsTrigger>
-          <TabsTrigger value="paid">
-            Faturas Pagas ({paidInvoices.length})
-          </TabsTrigger>
-        </TabsList>
+    <div className="space-y-6">
+      {/* Filtros Modernos */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
+        {/* Filtros de Status */}
+        <div className="flex gap-2">
+          <Button
+            variant={activeTab === 'open' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('open')}
+            className="flex items-center gap-2"
+          >
+            <Clock className="h-4 w-4" />
+            Abertas
+            <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-white/20">
+              {openInvoices.length}
+            </span>
+          </Button>
+          <Button
+            variant={activeTab === 'paid' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('paid')}
+            className="flex items-center gap-2"
+          >
+            <CheckCircle2 className="h-4 w-4" />
+            Pagas
+            <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-white/20">
+              {paidInvoices.length}
+            </span>
+          </Button>
+        </div>
 
         {/* Filtro por Cartão */}
         {cards.length > 1 && (
           <Select value={selectedCardId || 'all'} onValueChange={(v) => setSelectedCardId(v === 'all' ? undefined : v)}>
-            <SelectTrigger className="w-full sm:w-[200px]">
+            <SelectTrigger className="w-full sm:w-[220px]">
+              <CreditCard className="h-4 w-4 mr-2" />
               <SelectValue placeholder="Todos os Cartões" />
             </SelectTrigger>
             <SelectContent>
@@ -103,7 +121,7 @@ export function InvoiceList({ cardId, loading: externalLoading, highlightedInvoi
       </div>
 
       {/* Lista de Faturas */}
-      <TabsContent value={activeTab} className="mt-0">
+      <div>
         {displayInvoices.length === 0 ? (
           <EmptyState
             message={
@@ -129,7 +147,7 @@ export function InvoiceList({ cardId, loading: externalLoading, highlightedInvoi
             })}
           </div>
         )}
-      </TabsContent>
-    </Tabs>
+      </div>
+    </div>
   );
 }
