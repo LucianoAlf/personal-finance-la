@@ -22,6 +22,7 @@ import {
   Bot,
   MoreHorizontal,
   Tag,
+  FolderTree,
   ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,7 @@ const menuItems = [
 
 const moreOptionsItems = [
   { icon: Tag, label: 'Tags', path: '/tags' },
+  { icon: FolderTree, label: 'Categorias', path: '/categorias' },
   { icon: Settings, label: 'Configurações', path: '/configuracoes' },
 ];
 

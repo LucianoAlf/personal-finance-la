@@ -14,6 +14,7 @@ import { Reports } from './pages/Reports';
 import { Education } from './pages/Education';
 import { Settings } from './pages/Settings';
 import { Tags } from './pages/Tags';
+import Categories from './pages/Categories';
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
           <Route path="educacao" element={<Education />} />
           <Route path="configuracoes" element={<Settings />} />
           <Route path="tags" element={<Tags />} />
+          <Route path="categorias" element={<Categories />} />
         </Route>
       </Routes>
       <Toaster />

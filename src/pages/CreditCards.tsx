@@ -10,10 +10,11 @@ import { PurchaseDialog } from '@/components/credit-cards/PurchaseDialog';
 import { InvoiceList } from '@/components/invoices/InvoiceList';
 import { InvoiceDetailsDialog } from '@/components/invoices/InvoiceDetailsDialog';
 import { InvoicePaymentDialog } from '@/components/invoices/InvoicePaymentDialog';
+import { AnalyticsTab } from '@/components/analytics/AnalyticsTab';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useInvoices } from '@/hooks/useInvoices';
 import { formatCurrency } from '@/utils/formatters';
-import { Plus, CreditCard, TrendingUp, Wallet, ShoppingCart, Receipt } from 'lucide-react';
+import { Plus, CreditCard, TrendingUp, Wallet, ShoppingCart, Receipt, BarChart3 } from 'lucide-react';
 import { CreditCard as CreditCardType, CreditCardInvoice, CreditCardSummary } from '@/types/database.types';
 import { useToast } from '@/hooks/use-toast';
 
@@ -152,9 +153,9 @@ export function CreditCards() {
           />
         </div>
 
-        {/* Tabs: Cartões e Faturas */}
+        {/* Tabs: Cartões, Faturas e Análises */}
         <Tabs defaultValue="cartoes" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
             <TabsTrigger value="cartoes" className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
               Meus Cartões
@@ -162,6 +163,10 @@ export function CreditCards() {
             <TabsTrigger value="faturas" className="flex items-center gap-2">
               <Receipt className="h-4 w-4" />
               Faturas
+            </TabsTrigger>
+            <TabsTrigger value="analises" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Análises
             </TabsTrigger>
           </TabsList>
 
@@ -187,6 +192,11 @@ export function CreditCards() {
                 onPayInvoice={handlePayInvoice}
               />
             </div>
+          </TabsContent>
+
+          {/* Tab: Análises */}
+          <TabsContent value="analises" className="space-y-4">
+            <AnalyticsTab />
           </TabsContent>
         </Tabs>
       </div>

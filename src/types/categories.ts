@@ -8,6 +8,7 @@ export interface Category {
   icon: string;
   is_default: boolean;
   created_at: string;
+  keywords?: string[];
 }
 
 export type CategoryType = 'income' | 'expense';
