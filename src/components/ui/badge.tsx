@@ -1,13 +1,15 @@
 import * as React from 'react';
 import { cn } from '@/lib/cn';
 
-export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
+export interface BadgeProps {
   variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'outline';
   children?: React.ReactNode;
+  className?: string;
   style?: React.CSSProperties;
+  onClick?: () => void;
 }
 
-function Badge({ className, variant = 'default', style, ...props }: BadgeProps) {
+function Badge({ className, variant = 'default', style, onClick, children }: BadgeProps) {
   const variants = {
     default: 'bg-primary text-primary-foreground',
     success: 'bg-success text-success-foreground',
@@ -25,8 +27,10 @@ function Badge({ className, variant = 'default', style, ...props }: BadgeProps) 
         className
       )}
       style={style}
-      {...props}
-    />
+      onClick={onClick}
+    >
+      {children}
+    </div>
   );
 }
 

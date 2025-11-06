@@ -61,14 +61,14 @@ export function InvoiceDetailsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="flex items-center justify-between">
-            <span>
-              Fatura de {format(new Date(invoice.reference_month), 'MMMM yyyy', { locale: ptBR })} - {card.name}
-            </span>
+          <DialogTitle>
+            Fatura de {format(new Date(invoice.reference_month), 'MMMM yyyy', { locale: ptBR })} - {card.name}
+          </DialogTitle>
+          <div className="pt-2">
             <Badge variant={getBadgeVariant(invoice.status)}>
               {INVOICE_STATUS_LABELS[invoice.status]}
             </Badge>
-          </DialogTitle>
+          </div>
         </DialogHeader>
 
         <div className="space-y-6">

@@ -10,6 +10,8 @@
     ],
     "module": "ESNext",
     "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "ignoreDeprecations": "5.0",
     /* Tailwind stuff */
     "baseUrl": ".",
     "paths": {
@@ -25,7 +27,7 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "resolveJsonModule": true,
-    "types": ["node", "react", "react-dom"],
+    "preserveSymlinks": true,
     /* Linting */
     "strict": false,
     "noImplicitAny": false,
