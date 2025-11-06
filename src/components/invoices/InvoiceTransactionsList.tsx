@@ -1,5 +1,6 @@
 import { useCreditCardTransactions } from '@/hooks/useCreditCardTransactions';
 import { formatCurrency } from '@/utils/formatters';
+import { formatShortDateBR } from '@/lib/date-utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -44,20 +45,24 @@ export function InvoiceTransactionsList({
           className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
         >
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm font-medium text-gray-900">
-                {transaction.description}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              <span>
-                📅 {format(new Date(transaction.transaction_date), "dd 'de' MMM", { locale: ptBR })}
-              </span>
-              {transaction.installment_number && (
-                <span>
-                  • {transaction.installment_number}/{transaction.total_installments}x
-                </span>
-              )}
+            <div key={transaction.id} className="flex items-center justify-between py-3 border-b last:border-0">
+              <div className="flex items-center gap-3">
+                <div className="text-2xl">{/* getCategoryIcon(transaction.category_id) */}</div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-gray-900">{transaction.description}</p>
+                    {transaction.total_installments && transaction.total_installments > 1 && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                        {transaction.installment_number}/{transaction.total_installments}x
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {format(new Date(transaction.purchase_date), "dd 'de' MMM", { locale: ptBR })}
+                  </p>
+                </div>
+              </div>
+              <p className="font-semibold text-gray-900">{formatCurrency(transaction.amount)}</p>
             </div>
           </div>
           <div className="text-right">

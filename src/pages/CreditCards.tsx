@@ -1,16 +1,18 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Header } from '@/components/layout/Header';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Button } from '@/components/ui/button';
 import { CreditCardList } from '@/components/credit-cards/CreditCardList';
 import { CreditCardDialog } from '@/components/credit-cards/CreditCardDialog';
+import { CreditCardDetailsDialog } from '@/components/credit-cards/CreditCardDetailsDialog';
+import { PurchaseDialog } from '@/components/credit-cards/PurchaseDialog';
 import { InvoiceList } from '@/components/invoices/InvoiceList';
 import { InvoiceDetailsDialog } from '@/components/invoices/InvoiceDetailsDialog';
 import { InvoicePaymentDialog } from '@/components/invoices/InvoicePaymentDialog';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { formatCurrency } from '@/utils/formatters';
-import { Plus, CreditCard, TrendingUp, Wallet } from 'lucide-react';
-import { CreditCard as CreditCardType, CreditCardInvoice } from '@/types/database.types';
+import { Plus, CreditCard, TrendingUp, Wallet, ShoppingCart } from 'lucide-react';
+import { CreditCard as CreditCardType, CreditCardInvoice, CreditCardSummary } from '@/types/database.types';
 import { useToast } from '@/hooks/use-toast';
 
 export function CreditCards() {
@@ -21,22 +23,50 @@ export function CreditCards() {
     getTotalLimit,
     getTotalUsed,
     getTotalAvailable,
+    fetchCards,
+    fetchCardsSummary,
   } = useCreditCards();
   
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);
+  const [cardDetailsDialogOpen, setCardDetailsDialogOpen] = useState(false);
   const [selectedCard, setSelectedCard] = useState<CreditCardType | undefined>();
+  const [selectedCardForDetails, setSelectedCardForDetails] = useState<CreditCardSummary | undefined>();
+  const [selectedCardIdForPurchase, setSelectedCardIdForPurchase] = useState<string | undefined>();
   const [detailsDialogOpen, setDetailsDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('');
   const [selectedInvoice, setSelectedInvoice] = useState<CreditCardInvoice | undefined>();
+  const [highlightedInvoiceId, setHighlightedInvoiceId] = useState<string | null>(null);
+  const invoicesRef = useRef<HTMLDivElement>(null);
 
-  const handleEdit = (card: CreditCardType) => {
-    setSelectedCard(card);
+  const handleEdit = (card: CreditCardSummary) => {
+    setSelectedCard(card as any);
     setDialogOpen(true);
   };
 
-  const handleArchive = async (card: CreditCardType) => {
+  const handleViewDetails = (card: CreditCardSummary) => {
+    setSelectedCardForDetails(card);
+    setCardDetailsDialogOpen(true);
+  };
+
+  const handleNewPurchase = (cardId?: string) => {
+    setSelectedCardIdForPurchase(cardId);
+    setPurchaseDialogOpen(true);
+  };
+
+  const handleViewInvoiceDetails = (invoiceId: string) => {
+    setSelectedInvoiceId(invoiceId);
+    setDetailsDialogOpen(true);
+  };
+
+  const handlePayInvoice = (invoiceId: string) => {
+    setSelectedInvoiceId(invoiceId);
+    setPaymentDialogOpen(true);
+  };
+
+  const handleArchive = async (card: CreditCardSummary) => {
     const success = await deleteCard(card.id);
     if (success) {
       toast({
@@ -63,15 +93,19 @@ export function CreditCards() {
         subtitle="Gerencie suas faturas e limites"
         icon={<CreditCard size={24} />}
         actions={
-          <Button onClick={() => { 
-            console.log('Botão Novo Cartão clicado');
-            setSelectedCard(undefined); 
-            setDialogOpen(true);
-            console.log('Dialog state atualizado para true');
-          }}>
-            <Plus size={16} className="mr-1" />
-            Novo Cartão
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => handleNewPurchase()}>
+              <ShoppingCart size={16} className="mr-1" />
+              Nova Compra
+            </Button>
+            <Button onClick={() => { 
+              setSelectedCard(undefined); 
+              setDialogOpen(true);
+            }}>
+              <Plus size={16} className="mr-1" />
+              Novo Cartão
+            </Button>
+          </div>
         }
       />
 
@@ -105,13 +139,18 @@ export function CreditCards() {
           onEdit={handleEdit}
           onArchive={handleArchive}
           onDelete={handleDelete}
+          onViewDetails={handleViewDetails}
           onAddNew={() => { setSelectedCard(undefined); setDialogOpen(true); }}
         />
 
         {/* Seção de Faturas */}
-        <div className="mt-12">
+        <div ref={invoicesRef} className="mt-12">
           <h2 className="text-2xl font-bold text-gray-900 mb-6">Faturas</h2>
-          <InvoiceList />
+          <InvoiceList 
+            highlightedInvoiceId={highlightedInvoiceId}
+            onViewDetails={handleViewInvoiceDetails}
+            onPayInvoice={handlePayInvoice}
+          />
         </div>
       </div>
 
@@ -123,6 +162,9 @@ export function CreditCards() {
         onSuccess={() => {
           setDialogOpen(false);
           setSelectedCard(undefined);
+          // Atualiza a lista imediatamente após criar/editar
+          fetchCards();
+          fetchCardsSummary();
         }}
       />
 
@@ -150,6 +192,41 @@ export function CreditCards() {
             setPaymentDialogOpen(false);
             setSelectedInvoice(undefined);
           }}
+        />
+      )}
+
+      {/* Dialog Nova Compra */}
+      <PurchaseDialog
+        open={purchaseDialogOpen}
+        onOpenChange={setPurchaseDialogOpen}
+        cardId={selectedCardIdForPurchase}
+        onSuccess={(result) => {
+          setPurchaseDialogOpen(false);
+          setSelectedCardIdForPurchase(undefined);
+          // Refetch imediato como fallback ao realtime
+          fetchCards();
+          fetchCardsSummary();
+          
+          // Destacar fatura e fazer scroll
+          if (result?.invoiceId) {
+            setHighlightedInvoiceId(result.invoiceId);
+            setTimeout(() => {
+              invoicesRef.current?.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: 'start' 
+              });
+            }, 100);
+            setTimeout(() => setHighlightedInvoiceId(null), 3000);
+          }
+        }}
+      />
+
+      {/* Dialog Detalhes do Cartão */}
+      {selectedCardForDetails && (
+        <CreditCardDetailsDialog
+          open={cardDetailsDialogOpen}
+          onOpenChange={setCardDetailsDialogOpen}
+          card={selectedCardForDetails as any}
         />
       )}
     </div>

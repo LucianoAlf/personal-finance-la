@@ -48,10 +48,29 @@ export function useCreditCards() {
       const { data, error: fetchError } = await supabase
         .from('v_credit_cards_summary')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('is_archived', false);
 
       if (fetchError) throw fetchError;
-      setCardsSummary(data || []);
+      // Deduplicar por id de cartão para evitar linhas duplicadas da view
+      const unique = (data || []).reduce((acc, item) => {
+        if (!acc.some((c) => c.id === (item as any).id)) acc.push(item as CreditCardSummary);
+        return acc;
+      }, [] as CreditCardSummary[]);
+
+      // Fallback: incluir cartões da tabela base que não apareceram na view ainda
+      const existingIds = new Set(unique.map((c) => c.id));
+      const missingFromView = cards
+        .filter((c) => !existingIds.has(c.id) && c.is_archived === false)
+        .map((c) => ({
+          ...c,
+          used_limit: c.credit_limit - c.available_limit,
+          usage_percentage: Math.round(((c.credit_limit - c.available_limit) / Math.max(c.credit_limit, 1)) * 100),
+          total_transactions: 0,
+          paid_invoices_count: 0,
+        })) as CreditCardSummary[];
+
+      setCardsSummary([...unique, ...missingFromView]);
     } catch (err: any) {
       console.error('Erro ao buscar resumo dos cartões:', err);
     }
@@ -68,11 +87,19 @@ export function useCreditCards() {
           user_id: user.id,
           ...input,
           available_limit: input.credit_limit, // Inicialmente, limite disponível = limite total
+          is_archived: false,
+          is_active: true,
         })
         .select()
         .single();
 
-      if (createError) throw createError;
+      if (createError) {
+        // Erro de constraint única (últimos 4 dígitos duplicados)
+        if (createError.code === '23505') {
+          throw new Error('Já existe um cartão cadastrado com estes últimos 4 dígitos. Use números diferentes.');
+        }
+        throw createError;
+      }
 
       await fetchCards();
       await fetchCardsSummary();
@@ -80,7 +107,7 @@ export function useCreditCards() {
     } catch (err: any) {
       setError(err.message);
       console.error('Erro ao criar cartão:', err);
-      return null;
+      throw err; // Re-throw para o componente tratar
     }
   };
 
@@ -178,27 +205,75 @@ export function useCreditCards() {
     fetchCards();
     fetchCardsSummary();
 
-    const subscription = supabase
-      .channel('credit_cards_changes')
+    // Subscription para mudanças nos cartões
+    const cardsSubscription = supabase
+      .channel(`credit_cards_${user.id}`)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'credit_cards',
-          filter: `user_id=eq.${user.id}`,
         },
-        () => {
+        (payload) => {
+          const newRow: any = (payload as any).new;
+          const oldRow: any = (payload as any).old;
+          if (newRow?.user_id !== user.id && oldRow?.user_id !== user.id) return;
+          console.log('🔄 Cartão alterado:', payload);
           fetchCards();
           fetchCardsSummary();
+        }
+      )
+      .subscribe((status) => {
+        console.log('🛰️ Realtime[cards] status:', status);
+      });
+
+    // Subscription para mudanças nas transações (atualiza limites)
+    const transactionsSubscription = supabase
+      .channel(`credit_card_transactions_for_cards_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'credit_card_transactions',
+        },
+        (payload) => {
+          const newRow: any = (payload as any).new;
+          const oldRow: any = (payload as any).old;
+          if (newRow?.user_id !== user.id && oldRow?.user_id !== user.id) return;
+          console.log('🔄 Transação alterou cartão:', payload);
+          fetchCardsSummary(); // Atualiza resumo quando há transações
+        }
+      )
+      .subscribe((status) => {
+        console.log('🛰️ Realtime[cards<-transactions] status:', status);
+      });
+
+    // Subscription para mudanças nas faturas
+    const invoicesSubscription = supabase
+      .channel(`credit_card_invoices_for_cards_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'credit_card_invoices',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('🔄 Fatura alterou cartão:', payload);
+          fetchCardsSummary(); // Atualiza resumo quando há mudanças nas faturas
         }
       )
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      cardsSubscription.unsubscribe();
+      transactionsSubscription.unsubscribe();
+      invoicesSubscription.unsubscribe();
     };
-  }, [user]);
+  }, [user?.id]);
 
   return {
     cards,

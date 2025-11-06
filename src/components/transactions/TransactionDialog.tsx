@@ -28,6 +28,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useAccounts } from '@/hooks/useAccounts';
+import * as LucideIcons from 'lucide-react';
 import { useCategories } from '@/hooks/useCategories';
 import { useTags } from '@/hooks/useTags';
 import { useTransactions } from '@/hooks/useTransactions';
@@ -78,6 +79,13 @@ export const TransactionDialog = ({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showTagInput, setShowTagInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
+
+  // Renderizar ícone Lucide dinamicamente
+  const renderCategoryIcon = (iconName: string, color: string) => {
+    const IconComponent = (LucideIcons as any)[iconName];
+    if (!IconComponent) return null;
+    return <IconComponent size={16} style={{ color }} />;
+  };
 
   const form = useForm<TransactionFormData>({
     resolver: zodResolver(transactionSchema),
@@ -321,7 +329,10 @@ export const TransactionDialog = ({
                         <SelectContent>
                           {filteredCategories.map((category) => (
                             <SelectItem key={category.id} value={category.id}>
-                              {category.name}
+                              <div className="flex items-center gap-2">
+                                {renderCategoryIcon(category.icon, category.color)}
+                                <span>{category.name}</span>
+                              </div>
                             </SelectItem>
                           ))}
                         </SelectContent>

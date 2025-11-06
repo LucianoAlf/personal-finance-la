@@ -223,7 +223,7 @@ export function useInvoices(cardId?: string) {
     fetchInvoicesDetailed();
 
     const subscription = supabase
-      .channel('invoices_changes')
+      .channel(`invoices_${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -232,7 +232,8 @@ export function useInvoices(cardId?: string) {
           table: 'credit_card_invoices',
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
+        (payload) => {
+          console.log('🔄 Fatura alterada:', payload);
           fetchInvoices();
           fetchInvoicesDetailed();
         }
@@ -242,7 +243,7 @@ export function useInvoices(cardId?: string) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user, cardId]);
+  }, [user?.id, cardId]);
 
   return {
     invoices,

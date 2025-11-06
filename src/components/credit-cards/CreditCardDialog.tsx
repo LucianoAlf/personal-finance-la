@@ -49,6 +49,8 @@ export function CreditCardDialog({ open, onOpenChange, card, onSuccess }: Credit
             title: 'Cartão criado!',
             description: 'Seu novo cartão foi adicionado com sucesso.',
           });
+          // Aguardar um pouco para o realtime subscription processar
+          await new Promise(resolve => setTimeout(resolve, 500));
           onSuccess?.();
           onOpenChange(false);
         } else {

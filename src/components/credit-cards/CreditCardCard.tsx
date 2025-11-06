@@ -6,8 +6,7 @@ import { formatCurrency } from '@/utils/formatters';
 import { formatCardNumber, calculateUsagePercentage } from '@/utils/creditCardUtils';
 import { CARD_BRANDS, INVOICE_STATUS_LABELS } from '@/constants/creditCards';
 import { CreditCardMenu } from './CreditCardMenu';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import { formatLongDateBR } from '@/lib/date-utils';
 
 interface CreditCardCardProps {
   card: CreditCardSummary;
@@ -15,9 +14,10 @@ interface CreditCardCardProps {
   onEdit?: () => void;
   onArchive?: () => void;
   onDelete?: () => void;
+  onViewDetails?: () => void;
 }
 
-export function CreditCardCard({ card, onClick, onEdit, onArchive, onDelete }: CreditCardCardProps) {
+export function CreditCardCard({ card, onClick, onEdit, onArchive, onDelete, onViewDetails }: CreditCardCardProps) {
   const usagePercentage = calculateUsagePercentage(card.used_limit, card.credit_limit);
   
   // Determinar cor da barra de progresso
@@ -91,7 +91,7 @@ export function CreditCardCard({ card, onClick, onEdit, onArchive, onDelete }: C
             </h3>
             {card.current_due_date && (
               <p className="text-xs text-gray-500 mt-1">
-                Vence em {format(new Date(card.current_due_date), "dd 'de' MMMM", { locale: ptBR })}
+                Vence em {formatLongDateBR(card.current_due_date).replace(/de \d{4}$/, '')}
               </p>
             )}
           </div>
@@ -132,7 +132,7 @@ export function CreditCardCard({ card, onClick, onEdit, onArchive, onDelete }: C
             className="flex-1"
             onClick={(e) => {
               e.stopPropagation();
-              // TODO: Navegar para detalhes da fatura
+              onViewDetails?.();
             }}
           >
             Ver Detalhes

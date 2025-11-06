@@ -11,6 +11,7 @@ interface CreditCardListProps {
   onEdit?: (card: CreditCardSummary) => void;
   onArchive?: (card: CreditCardSummary) => void;
   onDelete?: (card: CreditCardSummary) => void;
+  onViewDetails?: (card: CreditCardSummary) => void;
   onAddNew?: () => void;
 }
 
@@ -21,6 +22,7 @@ export function CreditCardList({
   onEdit,
   onArchive,
   onDelete,
+  onViewDetails,
   onAddNew,
 }: CreditCardListProps) {
   // Loading State
@@ -79,6 +81,7 @@ export function CreditCardList({
           onEdit={() => onEdit?.(card)}
           onArchive={() => onArchive?.(card)}
           onDelete={() => onDelete?.(card)}
+          onViewDetails={() => onViewDetails?.(card)}
         />
       ))}
 

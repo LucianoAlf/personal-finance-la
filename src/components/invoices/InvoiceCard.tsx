@@ -5,18 +5,20 @@ import { CreditCardInvoice, CreditCard } from '@/types/database.types';
 import { formatCurrency } from '@/utils/formatters';
 import { formatCardNumber, calculateUsagePercentage } from '@/utils/creditCardUtils';
 import { INVOICE_STATUS_LABELS } from '@/constants/creditCards';
-import { format, differenceInDays } from 'date-fns';
+import { differenceInDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatLongDateBR } from '@/lib/date-utils';
 import { FileText, Lock, CheckCircle, AlertCircle, Calendar } from 'lucide-react';
 
 interface InvoiceCardProps {
   invoice: CreditCardInvoice;
   card: CreditCard;
+  isHighlighted?: boolean;
   onViewDetails: () => void;
   onPayInvoice?: () => void;
 }
 
-export function InvoiceCard({ invoice, card, onViewDetails, onPayInvoice }: InvoiceCardProps) {
+export function InvoiceCard({ invoice, card, isHighlighted = false, onViewDetails, onPayInvoice }: InvoiceCardProps) {
   const usagePercentage = calculateUsagePercentage(invoice.total_amount, card.credit_limit);
   const daysUntilDue = differenceInDays(new Date(invoice.due_date), new Date());
   const isOverdue = invoice.status === 'overdue';
@@ -56,11 +58,14 @@ export function InvoiceCard({ invoice, card, onViewDetails, onPayInvoice }: Invo
   };
 
   return (
-    <Card
-      className={`hover:-translate-y-1 hover:shadow-xl transition-all duration-300 ${
-        isOverdue ? 'border-red-500 border-2' : ''
-      } ${isPaid ? 'opacity-75' : ''}`}
-    >
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <Card
+        className={`hover:-translate-y-1 hover:shadow-xl transition-all duration-300 ${
+          isOverdue ? 'border-red-500 border-2' : ''
+        } ${isPaid ? 'opacity-75' : ''} ${
+          isHighlighted ? 'ring-2 ring-primary ring-offset-2 shadow-2xl animate-pulse' : ''
+        }`}
+      >
       <CardContent className="p-6 space-y-4">
         {/* Header */}
         <div className="flex items-start justify-between">
@@ -96,7 +101,7 @@ export function InvoiceCard({ invoice, card, onViewDetails, onPayInvoice }: Invo
               <span>Vencimento</span>
             </div>
             <span className={`font-medium ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
-              {format(new Date(invoice.due_date), "dd 'de' MMMM", { locale: ptBR })}
+              {formatLongDateBR(invoice.due_date).replace(/de \d{4}$/, '')}
             </span>
           </div>
 
@@ -155,5 +160,6 @@ export function InvoiceCard({ invoice, card, onViewDetails, onPayInvoice }: Invo
         </div>
       </CardContent>
     </Card>
+    </div>
   );
 }

@@ -10,9 +10,12 @@ import { FileText } from 'lucide-react';
 interface InvoiceListProps {
   cardId?: string;
   loading?: boolean;
+  highlightedInvoiceId?: string | null;
+  onViewDetails?: (invoiceId: string) => void;
+  onPayInvoice?: (invoiceId: string) => void;
 }
 
-export function InvoiceList({ cardId, loading: externalLoading }: InvoiceListProps) {
+export function InvoiceList({ cardId, loading: externalLoading, highlightedInvoiceId, onViewDetails, onPayInvoice }: InvoiceListProps) {
   const [selectedCardId, setSelectedCardId] = useState<string | undefined>(cardId);
   const [activeTab, setActiveTab] = useState<'open' | 'paid'>('open');
 
@@ -118,14 +121,9 @@ export function InvoiceList({ cardId, loading: externalLoading }: InvoiceListPro
                   key={invoice.id}
                   invoice={invoice}
                   card={card}
-                  onViewDetails={() => {
-                    // TODO: Abrir modal de detalhes
-                    console.log('Ver detalhes da fatura:', invoice.id);
-                  }}
-                  onPayInvoice={() => {
-                    // TODO: Abrir modal de pagamento
-                    console.log('Pagar fatura:', invoice.id);
-                  }}
+                  isHighlighted={highlightedInvoiceId === invoice.id}
+                  onViewDetails={() => onViewDetails?.(invoice.id)}
+                  onPayInvoice={() => onPayInvoice?.(invoice.id)}
                 />
               );
             })}

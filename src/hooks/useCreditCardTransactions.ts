@@ -247,7 +247,164 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
     fetchTransactions();
 
     const subscription = supabase
-      .channel('cc_transactions_changes')
+      .channel(`credit_card_transactions_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'credit_card_transactions',
+        },
+        (payload) => {
+          const uid = user?.id;
+          const newRow: any = (payload as any).new;
+          const oldRow: any = (payload as any).old;
+          if (newRow?.user_id !== uid && oldRow?.user_id !== uid) return; // filtro no cliente
+          console.log('🔄 Transação alterada:', payload);
+          fetchTransactions();
+        }
+      )
+      .subscribe((status) => {
+        console.log('🛰️ Realtime[transactions] status:', status);
+      });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user?.id, cardId, invoiceId]);
+
+  // Criar compra (com ou sem parcelamento)
+  const createPurchase = async (data: {
+    credit_card_id: string;
+    description: string;
+    amount: number;
+    purchase_date: string;
+    category_id: string;
+    installments: number;
+    merchant?: string;
+    notes?: string;
+  }): Promise<{ success: boolean; invoiceId?: string }> => {
+    try {
+      const purchaseDate = new Date(data.purchase_date);
+      const installmentGroupId = crypto.randomUUID();
+      let firstInvoiceId: string | undefined;
+
+      // Buscar informações do cartão
+      const { data: card, error: cardError } = await supabase
+        .from('credit_cards')
+        .select('closing_day, due_day')
+        .eq('id', data.credit_card_id)
+        .single();
+
+      if (cardError) throw cardError;
+
+      // Criar parcelas
+      const installments = [];
+      const installmentAmount = data.amount / data.installments;
+
+      for (let i = 1; i <= data.installments; i++) {
+        // Calcular mês da fatura (compra + i-1 meses)
+        const dueDate = new Date(purchaseDate);
+        dueDate.setMonth(dueDate.getMonth() + (i - 1));
+        
+        const referenceMonth = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-01`;
+
+        // Buscar ou criar fatura para este mês
+        let { data: invoice, error: invoiceError } = await supabase
+          .from('credit_card_invoices')
+          .select('id')
+          .eq('credit_card_id', data.credit_card_id)
+          .eq('reference_month', referenceMonth)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // Se não existe, criar fatura
+        if (invoiceError || !invoice) {
+          const closingDate = new Date(dueDate.getFullYear(), dueDate.getMonth(), card.closing_day);
+          const dueDate2 = new Date(dueDate.getFullYear(), dueDate.getMonth(), card.due_day);
+
+          const { data: newInvoice, error: createInvoiceError } = await supabase
+            .from('credit_card_invoices')
+            .insert({
+              user_id: user!.id,
+              credit_card_id: data.credit_card_id,
+              reference_month: referenceMonth,
+              closing_date: closingDate.toISOString().split('T')[0],
+              due_date: dueDate2.toISOString().split('T')[0],
+              status: 'open',
+              total_amount: 0,
+              paid_amount: 0,
+            })
+            .select()
+            .single();
+
+          if (createInvoiceError) {
+            // Conflito de unicidade (duplicada) – buscar a mais recente
+            if ((createInvoiceError as any).code === '23505') {
+              const { data: existing } = await supabase
+                .from('credit_card_invoices')
+                .select('id')
+                .eq('credit_card_id', data.credit_card_id)
+                .eq('reference_month', referenceMonth)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              if (!existing) throw createInvoiceError;
+              invoice = existing;
+            } else {
+              throw createInvoiceError;
+            }
+          } else {
+            invoice = newInvoice;
+          }
+        }
+
+        // Guardar o invoice_id da primeira parcela
+        if (i === 1) {
+          firstInvoiceId = invoice.id;
+        }
+
+        installments.push({
+          user_id: user!.id,
+          credit_card_id: data.credit_card_id,
+          invoice_id: invoice.id,
+          description: data.description,
+          amount: installmentAmount,
+          purchase_date: purchaseDate.toISOString().split('T')[0],
+          category_id: data.category_id,
+          establishment: data.merchant || null,
+          installment_number: i,
+          total_installments: data.installments,
+          installment_group_id: data.installments > 1 ? installmentGroupId : null,
+          notes: data.notes || null,
+        });
+      }
+
+      // Inserir todas as parcelas
+      const { error: insertError } = await supabase
+        .from('credit_card_transactions')
+        .insert(installments);
+
+      if (insertError) throw insertError;
+
+      await fetchTransactions();
+      return { success: true, invoiceId: firstInvoiceId };
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Erro ao criar compra:', err);
+      return { success: false };
+    }
+  };
+
+  // Realtime subscription para transações
+  useEffect(() => {
+    if (!user) return;
+
+    fetchTransactions();
+
+    const subscription = supabase
+      .channel(`credit_card_transactions_${user.id}`)
       .on(
         'postgres_changes',
         {
@@ -256,7 +413,8 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
           table: 'credit_card_transactions',
           filter: `user_id=eq.${user.id}`,
         },
-        () => {
+        (payload) => {
+          console.log('🔄 Transação alterada:', payload);
           fetchTransactions();
         }
       )
@@ -265,7 +423,7 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
     return () => {
       subscription.unsubscribe();
     };
-  }, [user, cardId, invoiceId]);
+  }, [user?.id, cardId, invoiceId]);
 
   return {
     transactions,
@@ -274,6 +432,7 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
     fetchTransactions,
     createTransaction,
     createInstallmentTransaction,
+    createPurchase,
     updateTransaction,
     deleteTransaction,
     deleteInstallmentGroup,

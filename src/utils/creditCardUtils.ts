@@ -114,6 +114,72 @@ export function getUsageColor(percentage: number): string {
 }
 
 /**
+ * Interface para dados de parcela
+ */
+export interface InstallmentData {
+  amount: number;
+  installment_number: number;
+  total_installments: number;
+  due_month: string; // YYYY-MM format
+}
+
+/**
+ * Calcular valor de cada parcela
+ */
+export function calculateInstallmentValue(totalAmount: number, installments: number): number {
+  return totalAmount / installments;
+}
+
+/**
+ * Criar array de parcelas para distribuir nas faturas
+ */
+export function createInstallments(
+  totalAmount: number,
+  installments: number,
+  purchaseDate: Date
+): InstallmentData[] {
+  const installmentAmount = calculateInstallmentValue(totalAmount, installments);
+  const result: InstallmentData[] = [];
+
+  for (let i = 1; i <= installments; i++) {
+    // Calcular mês da parcela (compra + i-1 meses)
+    const dueDate = new Date(purchaseDate);
+    dueDate.setMonth(dueDate.getMonth() + (i - 1));
+    
+    const dueMonth = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}`;
+
+    result.push({
+      amount: installmentAmount,
+      installment_number: i,
+      total_installments: installments,
+      due_month: dueMonth,
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Validar se valor da parcela é aceitável
+ */
+export function validateInstallmentValue(
+  totalAmount: number,
+  installments: number,
+  minValue: number = 5.0
+): { valid: boolean; message?: string } {
+  const installmentValue = calculateInstallmentValue(totalAmount, installments);
+  
+  if (installmentValue < minValue) {
+    return {
+      valid: false,
+      message: `Valor da parcela (R$ ${installmentValue.toFixed(2)}) é menor que o mínimo permitido (R$ ${minValue.toFixed(2)})`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
  * Formatar descrição de parcela
  */
 export function formatInstallmentDescription(
