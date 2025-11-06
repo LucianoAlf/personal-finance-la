@@ -107,38 +107,30 @@ export function InvoiceTransactionsList({
           className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
         >
           <div className="flex-1">
-            <div key={transaction.id} className="flex items-center justify-between py-3 border-b last:border-0">
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">{/* getCategoryIcon(transaction.category_id) */}</div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-gray-900">{transaction.description}</p>
-                    {transaction.total_installments && transaction.total_installments > 1 && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                        {transaction.installment_number}/{transaction.total_installments}x
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-gray-500">
-                      {format(new Date(transaction.purchase_date), "dd 'de' MMM", { locale: ptBR })}
-                    </p>
-                    {/* Tags da transação */}
-                    <div className="flex flex-wrap gap-1">
-                      {(tagsByTransaction[transaction.id] || []).map((tag: any) => (
-                        <Badge
-                          key={tag.id}
-                          style={{ backgroundColor: tag.color }}
-                          className="text-white"
-                        >
-                          {tag.name}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-gray-900">{transaction.description}</p>
+              {transaction.total_installments && transaction.total_installments > 1 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                  {transaction.installment_number}/{transaction.total_installments}x
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-sm text-gray-500">
+                {format(new Date(transaction.purchase_date), "dd 'de' MMM", { locale: ptBR })}
+              </p>
+              {/* Tags da transação */}
+              <div className="flex flex-wrap gap-1">
+                {(tagsByTransaction[transaction.id] || []).map((tag: any) => (
+                  <Badge
+                    key={tag.id}
+                    style={{ backgroundColor: tag.color }}
+                    className="text-white"
+                  >
+                    {tag.name}
+                  </Badge>
+                ))}
               </div>
-              <p className="font-semibold text-gray-900">{formatCurrency(transaction.amount)}</p>
             </div>
           </div>
           <div className="text-right">

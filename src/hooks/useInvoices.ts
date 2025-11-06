@@ -215,6 +215,116 @@ export function useInvoices(cardId?: string) {
       .reduce((sum, inv) => sum + inv.total_amount, 0);
   };
 
+  // Pagar fatura
+  const payInvoice = async (data: {
+    invoice_id: string;
+    account_id: string;
+    amount: number;
+    payment_date: string;
+    payment_type: 'total' | 'minimum' | 'partial';
+    notes?: string;
+  }): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // 1. Buscar fatura
+      const invoice = await getInvoiceById(data.invoice_id);
+      if (!invoice) {
+        throw new Error('Fatura não encontrada');
+      }
+
+      // 2. Validar valor do pagamento
+      if (data.amount <= 0) {
+        throw new Error('Valor do pagamento deve ser maior que zero');
+      }
+
+      if (data.amount > invoice.remaining_amount) {
+        throw new Error('Valor do pagamento não pode ser maior que o saldo restante');
+      }
+
+      // 3. Buscar saldo da conta
+      const { data: account, error: accountError } = await supabase
+        .from('accounts')
+        .select('balance')
+        .eq('id', data.account_id)
+        .single();
+
+      if (accountError) throw accountError;
+
+      if (account.balance < data.amount) {
+        throw new Error('Saldo insuficiente na conta');
+      }
+
+      // 4. Criar pagamento
+      const { error: paymentError } = await supabase
+        .from('credit_card_payments')
+        .insert({
+          invoice_id: data.invoice_id,
+          user_id: user!.id,
+          account_id: data.account_id,
+          amount: data.amount,
+          payment_date: data.payment_date,
+          payment_type: data.payment_type,
+          notes: data.notes,
+        });
+
+      if (paymentError) throw paymentError;
+
+      // 5. Atualizar saldo da conta (débito)
+      const { error: accountUpdateError } = await supabase
+        .from('accounts')
+        .update({ balance: account.balance - data.amount })
+        .eq('id', data.account_id);
+
+      if (accountUpdateError) throw accountUpdateError;
+
+      // 6. Criar transação de débito na conta
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: user!.id,
+          account_id: data.account_id,
+          type: 'expense',
+          description: `Pagamento de fatura - ${invoice.reference_month}`,
+          amount: data.amount,
+          date: data.payment_date,
+          category_id: null, // Ou criar categoria específica para pagamento de cartão
+          is_paid: true,
+          notes: data.notes,
+        });
+
+      if (transactionError) throw transactionError;
+
+      // 7. Atualizar fatura
+      const newPaidAmount = invoice.paid_amount + data.amount;
+      const newRemainingAmount = invoice.total_amount - newPaidAmount;
+      const newStatus: InvoiceStatus = 
+        newRemainingAmount <= 0 ? 'paid' : 
+        newPaidAmount > 0 ? 'partial' : 
+        invoice.status;
+
+      const { error: invoiceUpdateError } = await supabase
+        .from('credit_card_invoices')
+        .update({
+          paid_amount: newPaidAmount,
+          remaining_amount: newRemainingAmount,
+          status: newStatus,
+          payment_date: newStatus === 'paid' ? data.payment_date : invoice.payment_date,
+          payment_account_id: data.account_id,
+        })
+        .eq('id', data.invoice_id);
+
+      if (invoiceUpdateError) throw invoiceUpdateError;
+
+      // 8. Atualizar listas
+      await fetchInvoices();
+      await fetchInvoicesDetailed();
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('Erro ao pagar fatura:', err);
+      return { success: false, error: err.message };
+    }
+  };
+
   // Realtime subscription
   useEffect(() => {
     if (!user) return;
@@ -260,5 +370,6 @@ export function useInvoices(cardId?: string) {
     closeInvoice,
     getInvoiceTotal,
     getOpenInvoicesTotal,
+    payInvoice,
   };
 }

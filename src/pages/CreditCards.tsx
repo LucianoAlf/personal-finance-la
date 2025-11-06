@@ -10,6 +10,7 @@ import { InvoiceList } from '@/components/invoices/InvoiceList';
 import { InvoiceDetailsDialog } from '@/components/invoices/InvoiceDetailsDialog';
 import { InvoicePaymentDialog } from '@/components/invoices/InvoicePaymentDialog';
 import { useCreditCards } from '@/hooks/useCreditCards';
+import { useInvoices } from '@/hooks/useInvoices';
 import { formatCurrency } from '@/utils/formatters';
 import { Plus, CreditCard, TrendingUp, Wallet, ShoppingCart } from 'lucide-react';
 import { CreditCard as CreditCardType, CreditCardInvoice, CreditCardSummary } from '@/types/database.types';
@@ -26,6 +27,8 @@ export function CreditCards() {
     fetchCards,
     fetchCardsSummary,
   } = useCreditCards();
+  
+  const { invoices, invoicesDetailed } = useInvoices();
   
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -63,6 +66,22 @@ export function CreditCards() {
 
   const handlePayInvoice = (invoiceId: string) => {
     setSelectedInvoiceId(invoiceId);
+    
+    // Buscar invoice e card completos
+    const invoice = invoices.find(inv => inv.id === invoiceId);
+    if (!invoice) {
+      console.error('Invoice não encontrada:', invoiceId);
+      return;
+    }
+    
+    const card = cardsSummary.find(c => c.id === invoice.credit_card_id);
+    if (!card) {
+      console.error('Card não encontrado:', invoice.credit_card_id);
+      return;
+    }
+    
+    setSelectedInvoice(invoice);
+    setSelectedCard(card as any);
     setPaymentDialogOpen(true);
   };
 

@@ -4,9 +4,10 @@ import { cn } from '@/lib/cn';
 export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
   variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'outline';
   children?: React.ReactNode;
+  style?: React.CSSProperties;
 }
 
-function Badge({ className, variant = 'default', ...props }: BadgeProps) {
+function Badge({ className, variant = 'default', style, ...props }: BadgeProps) {
   const variants = {
     default: 'bg-primary text-primary-foreground',
     success: 'bg-success text-success-foreground',
@@ -23,6 +24,7 @@ function Badge({ className, variant = 'default', ...props }: BadgeProps) {
         variants[variant],
         className
       )}
+      style={style}
       {...props}
     />
   );

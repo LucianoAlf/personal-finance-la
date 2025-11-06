@@ -192,12 +192,13 @@ export interface CreditCardPayment {
   id: string;
   invoice_id: string;
   user_id: string;
-  account_id?: string;
+  account_id: string;
   amount: number;
-  payment_date: Date;
-  payment_type: PaymentType;
+  payment_date: string;
+  payment_type: 'total' | 'minimum' | 'partial';
   notes?: string;
-  created_at: Date;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CreatePaymentInput {

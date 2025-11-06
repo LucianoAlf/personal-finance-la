@@ -1,8 +1,10 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InvoiceSummary } from './InvoiceSummary';
 import { InvoiceTransactionsList } from './InvoiceTransactionsList';
+import { InvoicePaymentHistory } from './InvoicePaymentHistory';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { formatCurrency } from '@/utils/formatters';
@@ -10,6 +12,7 @@ import { INVOICE_STATUS_LABELS } from '@/constants/creditCards';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Receipt, History } from 'lucide-react';
 
 interface InvoiceDetailsDialogProps {
   open: boolean;
@@ -125,11 +128,30 @@ export function InvoiceDetailsDialog({
             <InvoiceSummary invoiceId={invoiceId} />
           </div>
 
-          {/* Lista de Transações */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Transações</h3>
-            <InvoiceTransactionsList invoiceId={invoiceId} />
-          </div>
+          {/* Tabs: Transações e Histórico de Pagamentos */}
+          <Tabs defaultValue="transactions" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="transactions" className="flex items-center gap-2">
+                <Receipt className="h-4 w-4" />
+                Transações
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="flex items-center gap-2">
+                <History className="h-4 w-4" />
+                Histórico de Pagamentos
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="transactions" className="mt-4">
+              <InvoiceTransactionsList invoiceId={invoiceId} />
+            </TabsContent>
+
+            <TabsContent value="payments" className="mt-4">
+              <InvoicePaymentHistory 
+                invoiceId={invoiceId} 
+                totalAmount={invoice.total_amount}
+              />
+            </TabsContent>
+          </Tabs>
 
           {/* Botões de Ação */}
           <div className="flex justify-end gap-3 pt-4 border-t">
