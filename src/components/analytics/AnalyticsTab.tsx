@@ -1,6 +1,7 @@
 import { PeriodMetrics } from './PeriodMetrics';
 import { InsightsPanel } from './InsightsPanel';
 import { ChartsSection } from './ChartsSection';
+import { AdvancedAnalytics } from './AdvancedAnalytics';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { useEffect } from 'react';
 
@@ -43,13 +44,16 @@ export function AnalyticsTab() {
         {/* Seção 3: Gráficos Interativos */}
         <ChartsSection />
 
+        {/* Seção 4: Análises Avançadas */}
+        <AdvancedAnalytics />
+
         {/* Seções futuras - Em breve */}
         <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
             Mais seções em breve...
           </h3>
           <p className="text-gray-600">
-            Análises avançadas, histórico completo e metas de gastos
+            Histórico completo e metas de gastos
           </p>
         </div>
       </div>

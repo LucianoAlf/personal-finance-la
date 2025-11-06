@@ -10,11 +10,12 @@ import { PurchaseDialog } from '@/components/credit-cards/PurchaseDialog';
 import { InvoiceList } from '@/components/invoices/InvoiceList';
 import { InvoiceDetailsDialog } from '@/components/invoices/InvoiceDetailsDialog';
 import { InvoicePaymentDialog } from '@/components/invoices/InvoicePaymentDialog';
+import { InvoiceHistory } from '@/components/invoices/InvoiceHistory';
 import { AnalyticsTab } from '@/components/analytics/AnalyticsTab';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useInvoices } from '@/hooks/useInvoices';
 import { formatCurrency } from '@/utils/formatters';
-import { Plus, CreditCard, TrendingUp, Wallet, ShoppingCart, Receipt, BarChart3 } from 'lucide-react';
+import { Plus, CreditCard, TrendingUp, Wallet, ShoppingCart, Receipt, BarChart3, History } from 'lucide-react';
 import { CreditCard as CreditCardType, CreditCardInvoice, CreditCardSummary } from '@/types/database.types';
 import { useToast } from '@/hooks/use-toast';
 
@@ -153,9 +154,9 @@ export function CreditCards() {
           />
         </div>
 
-        {/* Tabs: Cartões, Faturas e Análises */}
+        {/* Tabs: Cartões, Faturas, Análises e Histórico */}
         <Tabs defaultValue="cartoes" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="cartoes" className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
               Meus Cartões
@@ -167,6 +168,10 @@ export function CreditCards() {
             <TabsTrigger value="analises" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Análises
+            </TabsTrigger>
+            <TabsTrigger value="historico" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Histórico
             </TabsTrigger>
           </TabsList>
 
@@ -197,6 +202,20 @@ export function CreditCards() {
           {/* Tab: Análises */}
           <TabsContent value="analises" className="space-y-4">
             <AnalyticsTab />
+          </TabsContent>
+
+          {/* Tab: Histórico */}
+          <TabsContent value="historico" className="space-y-4">
+            <InvoiceHistory 
+              onEditInvoice={(id) => handleViewInvoiceDetails(id)}
+              onDeleteInvoice={(id) => {
+                toast({
+                  title: 'Excluir fatura',
+                  description: 'Funcionalidade em desenvolvimento',
+                  variant: 'destructive',
+                });
+              }}
+            />
           </TabsContent>
         </Tabs>
       </div>

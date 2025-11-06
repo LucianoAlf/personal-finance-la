@@ -1,0 +1,227 @@
+import { useState, useEffect } from 'react';
+import { subMonths, endOfMonth, startOfMonth, format } from 'date-fns';
+import { InvoiceHistoryFilters } from './InvoiceHistoryFilters';
+import { InvoiceHistoryTable } from './InvoiceHistoryTable';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+
+interface Filters {
+  dateRange: { start: Date; end: Date };
+  cardIds: string[];
+  valueRange: { min: number; max: number };
+  searchQuery: string;
+  status: string[];
+}
+
+interface Pagination {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+}
+
+interface Sorting {
+  column: string;
+  direction: 'asc' | 'desc';
+}
+
+interface InvoiceHistoryProps {
+  onEditInvoice?: (invoiceId: string) => void;
+  onDeleteInvoice?: (invoiceId: string) => void;
+}
+
+export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistoryProps = {}) {
+  const { user } = useAuth();
+  const [filters, setFilters] = useState<Filters>({
+    dateRange: {
+      start: startOfMonth(subMonths(new Date(), 6)),
+      end: endOfMonth(new Date()),
+    },
+    cardIds: [],
+    valueRange: { min: 0, max: 10000 },
+    searchQuery: '',
+    status: [],
+  });
+
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    pageSize: 20,
+    totalItems: 0,
+  });
+
+  const [sorting, setSorting] = useState<Sorting>({
+    column: 'reference_month',
+    direction: 'desc',
+  });
+
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [cards, setCards] = useState<any[]>([]);
+
+  // Buscar cartões do usuário
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchCards = async () => {
+      const { data } = await supabase
+        .from('credit_cards')
+        .select('id, name, brand')
+        .eq('user_id', user.id);
+
+      setCards(data || []);
+    };
+
+    fetchCards();
+  }, [user]);
+
+  // Buscar faturas
+  useEffect(() => {
+    if (!user) return;
+
+    fetchInvoices();
+  }, [user, filters, pagination.page, pagination.pageSize, sorting]);
+
+  const fetchInvoices = async () => {
+    try {
+      setLoading(true);
+
+      // Se houver busca por descrição, filtrar por transações primeiro
+      let invoiceIds: string[] | null = null;
+      if (filters.searchQuery.trim()) {
+        const q = filters.searchQuery.trim();
+        const startStr = format(filters.dateRange.start, 'yyyy-MM-dd');
+        const endStr = format(filters.dateRange.end, 'yyyy-MM-dd');
+        let txQuery = supabase
+          .from('credit_card_transactions')
+          .select('invoice_id, purchase_date, credit_card_id')
+          .eq('user_id', user.id)
+          .or(`description.ilike.%${q}%,establishment.ilike.%${q}%`)
+          .gte('purchase_date', startStr)
+          .lte('purchase_date', endStr);
+
+        if (filters.cardIds.length > 0) {
+          txQuery = txQuery.in('credit_card_id', filters.cardIds);
+        }
+
+        const { data: txData } = await txQuery;
+        
+        if (txData && txData.length > 0) {
+          invoiceIds = [...new Set(txData.map(tx => tx.invoice_id).filter(Boolean))];
+        } else {
+          // Nenhuma transação encontrada, retornar vazio
+          setInvoices([]);
+          setPagination(prev => ({ ...prev, totalItems: 0 }));
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Query base
+      let query = supabase
+        .from('credit_card_invoices')
+        .select(`
+          *,
+          credit_cards (
+            name,
+            brand
+          )
+        `, { count: 'exact' })
+        .eq('user_id', user.id);
+
+      // Aplicar filtro de IDs se houver busca
+      if (invoiceIds) {
+        query = query.in('id', invoiceIds);
+      }
+
+      // Aplicar filtros
+      if (filters.dateRange.start) {
+        query = query.gte('reference_month', format(filters.dateRange.start, 'yyyy-MM-dd'));
+      }
+      if (filters.dateRange.end) {
+        query = query.lte('reference_month', format(filters.dateRange.end, 'yyyy-MM-dd'));
+      }
+      if (filters.cardIds.length > 0) {
+        query = query.in('credit_card_id', filters.cardIds);
+      }
+      if (filters.valueRange.min > 0) {
+        query = query.gte('total_amount', filters.valueRange.min);
+      }
+      if (filters.valueRange.max < 10000) {
+        query = query.lte('total_amount', filters.valueRange.max);
+      }
+      if (filters.status.length > 0) {
+        query = query.in('status', filters.status);
+      }
+
+      // Ordenação
+      query = query.order(sorting.column, { ascending: sorting.direction === 'asc' });
+
+      // Paginação
+      const from = (pagination.page - 1) * pagination.pageSize;
+      const to = from + pagination.pageSize - 1;
+      query = query.range(from, to);
+
+      const { data, error, count } = await query;
+
+      if (error) throw error;
+
+      setInvoices(data || []);
+      setPagination(prev => ({ ...prev, totalItems: count || 0 }));
+    } catch (err) {
+      console.error('Erro ao buscar faturas:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFiltersChange = (newFilters: Partial<Filters>) => {
+    setFilters(prev => ({ ...prev, ...newFilters }));
+    setPagination(prev => ({ ...prev, page: 1 })); // Reset para página 1
+  };
+
+  const handlePageChange = (page: number) => {
+    setPagination(prev => ({ ...prev, page }));
+  };
+
+  const handlePageSizeChange = (pageSize: number) => {
+    setPagination(prev => ({ ...prev, pageSize, page: 1 }));
+  };
+
+  const handleSortChange = (column: string) => {
+    setSorting(prev => ({
+      column,
+      direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          Histórico de Faturas
+        </h2>
+        <p className="text-gray-600">
+          Consulte e exporte faturas de períodos anteriores
+        </p>
+      </div>
+
+      <InvoiceHistoryFilters
+        filters={filters}
+        cards={cards}
+        onFiltersChange={handleFiltersChange}
+        invoices={invoices}
+      />
+
+      <InvoiceHistoryTable
+        invoices={invoices}
+        loading={loading}
+        pagination={pagination}
+        sorting={sorting}
+        onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
+        onSortChange={handleSortChange}
+        onEditInvoice={onEditInvoice}
+        onDeleteInvoice={onDeleteInvoice}
+      />
+    </div>
+  );
+}
