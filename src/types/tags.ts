@@ -15,6 +15,14 @@ export interface TransactionTag {
   tag?: Tag;
 }
 
+export interface CreditCardTransactionTag {
+  id: string;
+  credit_card_transaction_id: string;
+  tag_id: string;
+  created_at: string;
+  tag?: Tag;
+}
+
 export interface CreateTagInput {
   name: string;
   color?: string;

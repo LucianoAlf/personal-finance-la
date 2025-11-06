@@ -1,9 +1,11 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useCreditCardTransactions } from '@/hooks/useCreditCardTransactions';
+import { useCreditCardTags } from '@/hooks/useCreditCardTags';
 import { formatCurrency } from '@/utils/formatters';
-import { formatShortDateBR } from '@/lib/date-utils';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
 
 interface InvoiceTransactionsListProps {
   invoiceId: string;
@@ -15,9 +17,38 @@ export function InvoiceTransactionsList({
   groupByCategory = false,
 }: InvoiceTransactionsListProps) {
   const { transactions, loading } = useCreditCardTransactions();
+  const { tags, getTagsForTransactions } = useCreditCardTags();
+  const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
+  const [tagsByTransaction, setTagsByTransaction] = useState<Record<string, any[]>>({});
 
   // Filtrar transações da fatura
-  const invoiceTransactions = transactions.filter((t) => t.invoice_id === invoiceId);
+  const invoiceTransactions = useMemo(
+    () => transactions.filter((t) => t.invoice_id === invoiceId),
+    [transactions, invoiceId]
+  );
+
+  // Buscar tags das transações desta fatura (em lote)
+  useEffect(() => {
+    const load = async () => {
+      const ids = invoiceTransactions.map((t) => t.id);
+      if (ids.length === 0) return;
+      const map = await getTagsForTransactions(ids);
+      setTagsByTransaction(map);
+    };
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [invoiceTransactions.length]);
+
+  // Aplicar filtro por tags
+  const filteredTransactions = useMemo(() => {
+    if (selectedTagIds.length === 0) return invoiceTransactions;
+    return invoiceTransactions.filter((t) => {
+      const txTags = tagsByTransaction[t.id] || [];
+      if (txTags.length === 0) return false;
+      const txTagIds = txTags.map((tg: any) => tg.id);
+      return selectedTagIds.some((id) => txTagIds.includes(id));
+    });
+  }, [invoiceTransactions, selectedTagIds, tagsByTransaction]);
 
   if (loading) {
     return (
@@ -29,7 +60,7 @@ export function InvoiceTransactionsList({
     );
   }
 
-  if (invoiceTransactions.length === 0) {
+  if (filteredTransactions.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">
         Nenhuma transação nesta fatura
@@ -39,7 +70,38 @@ export function InvoiceTransactionsList({
 
   return (
     <div className="space-y-3">
-      {invoiceTransactions.map((transaction) => (
+      {/* Filtro por Tags */}
+      <div className="mb-2">
+        <p className="text-sm text-gray-600 mb-2">Filtrar por Tags</p>
+        <div className="flex flex-wrap gap-2">
+          {tags.map((tag) => {
+            const active = selectedTagIds.includes(tag.id);
+            return (
+              <Badge
+                key={tag.id}
+                variant={active ? 'default' : 'outline'}
+                style={{
+                  backgroundColor: active ? tag.color : 'transparent',
+                  borderColor: tag.color,
+                  color: active ? '#fff' : tag.color,
+                }}
+                className="cursor-pointer"
+                onClick={() =>
+                  setSelectedTagIds((prev) =>
+                    prev.includes(tag.id)
+                      ? prev.filter((id) => id !== tag.id)
+                      : [...prev, tag.id]
+                  )
+                }
+              >
+                {tag.name}
+              </Badge>
+            );
+          })}
+        </div>
+      </div>
+
+      {filteredTransactions.map((transaction) => (
         <div
           key={transaction.id}
           className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
@@ -57,9 +119,23 @@ export function InvoiceTransactionsList({
                       </span>
                     )}
                   </div>
-                  <p className="text-sm text-gray-500">
-                    {format(new Date(transaction.purchase_date), "dd 'de' MMM", { locale: ptBR })}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-500">
+                      {format(new Date(transaction.purchase_date), "dd 'de' MMM", { locale: ptBR })}
+                    </p>
+                    {/* Tags da transação */}
+                    <div className="flex flex-wrap gap-1">
+                      {(tagsByTransaction[transaction.id] || []).map((tag: any) => (
+                        <Badge
+                          key={tag.id}
+                          style={{ backgroundColor: tag.color }}
+                          className="text-white"
+                        >
+                          {tag.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
               <p className="font-semibold text-gray-900">{formatCurrency(transaction.amount)}</p>

@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
-import { Loader2, CreditCard as CreditCardIcon, Calendar, DollarSign } from 'lucide-react';
+import { Loader2, CreditCard as CreditCardIcon, Calendar, DollarSign, X, Plus } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { CurrencyInput } from '@/components/ui/currency-input';
@@ -11,9 +11,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Badge } from '@/components/ui/badge';
+import { Combobox } from '@/components/ui/combobox';
 import { InstallmentSelector } from './InstallmentSelector';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useCategories } from '@/hooks/useCategories';
+import { useCreditCardTags } from '@/hooks/useCreditCardTags';
+import { useEstablishments } from '@/hooks/useEstablishments';
 import { CreditCard } from '@/types/database.types';
 import { formatCurrency } from '@/utils/formatters';
 import * as LucideIcons from 'lucide-react';
@@ -42,7 +46,7 @@ type PurchaseFormData = z.infer<typeof purchaseSchema>;
 
 interface PurchaseFormProps {
   preSelectedCardId?: string;
-  onSubmit: (data: PurchaseFormData) => Promise<void>;
+  onSubmit: (data: PurchaseFormData, selectedTags: string[]) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -50,6 +54,13 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { cardsSummary } = useCreditCards();
   const { categories, getCategoriesByType } = useCategories();
+  const { tags, createTag, updateCreditCardTransactionTags } = useCreditCardTags();
+  const { establishments, fetchEstablishments } = useEstablishments();
+  
+  // Estados para tags
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [showTagInput, setShowTagInput] = useState(false);
+  const [newTagName, setNewTagName] = useState('');
   
   // Filtrar apenas categorias de despesa e ordenar alfabeticamente
   const expenseCategories = getCategoriesByType('expense');
@@ -109,7 +120,7 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
 
     setIsSubmitting(true);
     try {
-      await onSubmit(data);
+      await onSubmit(data, selectedTags);
     } finally {
       setIsSubmitting(false);
     }
@@ -256,7 +267,15 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
             <FormItem>
               <FormLabel>Estabelecimento (opcional)</FormLabel>
               <FormControl>
-                <Input placeholder="Ex: Supermercado ABC" {...field} />
+                <Combobox
+                  value={field.value || ''}
+                  onValueChange={field.onChange}
+                  onInputChange={(q) => {
+                    if (q && q.length >= 2) fetchEstablishments(q);
+                  }}
+                  options={establishments.map((est) => ({ label: est, value: est }))}
+                  placeholder="Ex: Supermercado ABC"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -277,6 +296,111 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
             </FormItem>
           )}
         />
+
+        {/* Tags */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+            Tags (opcional)
+          </label>
+          <div className="space-y-2">
+            {/* Tags selecionadas */}
+            {selectedTags.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {selectedTags.map((tagId) => {
+                  const tag = tags.find((t) => t.id === tagId);
+                  if (!tag) return null;
+                  return (
+                    <Badge
+                      key={tagId}
+                      style={{ backgroundColor: tag.color }}
+                      className="cursor-pointer text-white"
+                      onClick={() => setSelectedTags(prev => prev.filter(id => id !== tagId))}
+                    >
+                      {tag.name}
+                      <X size={12} className="ml-1" />
+                    </Badge>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Botão adicionar tag */}
+            {!showTagInput && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowTagInput(true)}
+              >
+                <Plus size={16} className="mr-1" /> Nova tag
+              </Button>
+            )}
+
+            {/* Input para nova tag */}
+            {showTagInput && (
+              <div className="flex gap-2">
+                <Input
+                  value={newTagName}
+                  onChange={(e) => setNewTagName(e.target.value)}
+                  placeholder="Nome da tag"
+                  onKeyDown={async (e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (newTagName.trim()) {
+                        const newTag = await createTag({ name: newTagName });
+                        if (newTag) {
+                          setSelectedTags(prev => [...prev, newTag.id]);
+                          setNewTagName('');
+                          setShowTagInput(false);
+                        }
+                      }
+                    }
+                    if (e.key === 'Escape') {
+                      setShowTagInput(false);
+                      setNewTagName('');
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowTagInput(false);
+                    setNewTagName('');
+                  }}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            )}
+
+            {/* Lista de tags disponíveis */}
+            {tags.length > 0 && !showTagInput && (
+              <div className="flex flex-wrap gap-2">
+                {tags
+                  .filter(tag => !selectedTags.includes(tag.id))
+                  .map((tag) => (
+                    <Badge
+                      key={tag.id}
+                      variant="outline"
+                      style={{ borderColor: tag.color, color: tag.color }}
+                      className="cursor-pointer hover:bg-gray-50"
+                      onClick={() => setSelectedTags(prev => [...prev, tag.id])}
+                    >
+                      {tag.name}
+                    </Badge>
+                  ))}
+              </div>
+            )}
+
+            {tags.length === 0 && !showTagInput && (
+              <p className="text-sm text-gray-500">
+                Nenhuma tag criada ainda. Clique em "Nova tag" para criar.
+              </p>
+            )}
+          </div>
+        </div>
 
         {/* Resumo da Compra */}
         {amount > 0 && selectedCard && (

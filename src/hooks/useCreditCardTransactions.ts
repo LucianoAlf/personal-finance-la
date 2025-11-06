@@ -283,7 +283,7 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
     installments: number;
     merchant?: string;
     notes?: string;
-  }): Promise<{ success: boolean; invoiceId?: string }> => {
+  }): Promise<{ success: boolean; invoiceId?: string; transactionIds?: string[] }> => {
     try {
       const purchaseDate = new Date(data.purchase_date);
       const installmentGroupId = crypto.randomUUID();
@@ -381,15 +381,18 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
         });
       }
 
-      // Inserir todas as parcelas
-      const { error: insertError } = await supabase
+      // Inserir todas as parcelas e retornar os IDs criados
+      const { data: createdTransactions, error: insertError } = await supabase
         .from('credit_card_transactions')
-        .insert(installments);
+        .insert(installments)
+        .select('id');
 
       if (insertError) throw insertError;
 
+      const transactionIds = createdTransactions?.map(t => t.id) || [];
+
       await fetchTransactions();
-      return { success: true, invoiceId: firstInvoiceId };
+      return { success: true, invoiceId: firstInvoiceId, transactionIds };
     } catch (err: any) {
       setError(err.message);
       console.error('Erro ao criar compra:', err);
