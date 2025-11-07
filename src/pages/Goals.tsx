@@ -2,15 +2,21 @@ import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap } from 'lucide-react';
 import { useGoals } from '@/hooks/useGoals';
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
+import { useGamification } from '@/hooks/useGamification';
 import { GoalBadges } from '@/components/goals/GoalBadges';
 import { SpendingGoalCard } from '@/components/goals/SpendingGoalCard';
 import { SavingsGoalCard } from '@/components/goals/SavingsGoalCard';
 import { CreateGoalDialog } from '@/components/goals/CreateGoalDialog';
 import { EditGoalDialog } from '@/components/goals/EditGoalDialog';
 import { AddValueDialog } from '@/components/goals/AddValueDialog';
+import { XPProgressBar } from '@/components/gamification/XPProgressBar';
+import { NextAchievements } from '@/components/gamification/NextAchievements';
+import { AchievementGrid } from '@/components/gamification/AchievementGrid';
+import { GamificationToaster } from '@/components/gamification/GamificationToaster';
 import { useToast } from '@/hooks/use-toast';
 import type { FinancialGoalWithCategory } from '@/types/database.types';
 import { GoalSegmentedControl } from '@/components/goals/GoalSegmentedControl';
@@ -18,13 +24,14 @@ import { formatCurrency } from '@/utils/formatters';
 
 export function Goals() {
   const { goals, loading, getGoalsByType, getStats, deleteGoal, getGoalById, refreshGoals } = useGoals();
+  const { profile, badges, unlockedBadges, xpForNextLevel, xpProgress, levelTitle, loading: gamificationLoading } = useGamification();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [addValueDialogOpen, setAddValueDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<FinancialGoalWithCategory | null>(null);
   const [defaultGoalType, setDefaultGoalType] = useState<'savings' | 'spending_limit'>('savings');
-  const [activeTab, setActiveTab] = useState<'savings' | 'spending'>('savings');
+  const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'progress'>('savings');
 
   // Hook de notificações
   useGoalNotifications({ goals });
@@ -48,7 +55,7 @@ export function Goals() {
   }, spendingGoals[0] || null);
 
   // Contagem simples de badges desbloqueadas (coincide com widget)
-  const unlockedBadges = [
+  const unlockedBadgesCount = [
     stats.total_goals >= 1,
     stats.best_streak >= 3,
     stats.best_streak >= 6,
@@ -166,22 +173,26 @@ export function Goals() {
           </Card>
         </div>
 
-        {/* Segmented Control */}
-        <div className="mb-6">
-          <GoalSegmentedControl
-            active={activeTab}
-            onChange={(tab) => setActiveTab(tab)}
-            savingsCount={savingsGoals.length}
-            spendingCount={spendingGoals.length}
-            savingsMetric={totalSavingsTarget > 0 ? `${formatCurrency(totalSavingsCurrent)} de ${formatCurrency(totalSavingsTarget)}` : undefined}
-            spendingMetric={`${limitsComplied} OK${limitsExceeded > 0 ? `, ${limitsExceeded} excedida${limitsExceeded > 1 ? 's' : ''}` : ''}`}
-          />
-        </div>
+        {/* Tabs de Navegação */}
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mb-6">
+          <TabsList className="grid w-full grid-cols-3 mb-6">
+            <TabsTrigger value="savings" className="flex items-center gap-2">
+              <PiggyBank className="h-4 w-4" />
+              Economia ({savingsGoals.length})
+            </TabsTrigger>
+            <TabsTrigger value="spending" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Gastos ({spendingGoals.length})
+            </TabsTrigger>
+            <TabsTrigger value="progress" className="flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Progresso
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Conteúdo por Tab */}
-        {activeTab === 'savings' ? (
-          <div>
-            {savingsGoals.length === 0 ? (
+          {/* Tab: Economia */}
+          <TabsContent value="savings">
+              {savingsGoals.length === 0 ? (
               <div className="text-center py-12">
                 <Target className="h-16 w-16 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhuma meta de economia</h3>
@@ -204,9 +215,10 @@ export function Goals() {
                 ))}
               </div>
             )}
-          </div>
-        ) : (
-          <div>
+          </TabsContent>
+
+          {/* Tab: Gastos */}
+          <TabsContent value="spending">
             {spendingGoals.length === 0 ? (
               <div className="text-center py-12">
                 <Target className="h-16 w-16 text-gray-300 mx-auto mb-4" />
@@ -229,19 +241,64 @@ export function Goals() {
                 ))}
               </div>
             )}
-          </div>
-        )}
+          </TabsContent>
 
-        {/* Gamificação (sempre visível) */}
-        <div className="mt-10">
-          <div className="mb-4 flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-yellow-600" />
-            <h2 className="text-xl font-semibold text-gray-900">Suas Conquistas</h2>
-            <span className="text-sm text-gray-600">({unlockedBadges}/8 desbloqueadas)</span>
-          </div>
-          <GoalBadges stats={stats} goals={goals} />
-        </div>
+          {/* Tab: Progresso (Gamificação) */}
+          <TabsContent value="progress">
+            {gamificationLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Carregando progresso...</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Hero: Barra de XP */}
+                {profile && (
+                  <XPProgressBar
+                    level={profile.level}
+                    xp={profile.xp}
+                    xpForNextLevel={xpForNextLevel}
+                    levelTitle={levelTitle}
+                    totalXP={profile.total_xp}
+                  />
+                )}
+
+                {/* Grid: Próximas Conquistas + Streak */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2">
+                    <NextAchievements badges={badges} />
+                  </div>
+                  <div>
+                    <Card className="p-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <Flame className="h-5 w-5 text-orange-600" />
+                        <h3 className="text-lg font-semibold text-gray-900">Streak Atual</h3>
+                      </div>
+                      <div className="text-center py-6">
+                        <div className="text-5xl font-bold text-orange-600 mb-2">
+                          {profile?.current_streak || 0}
+                        </div>
+                        <p className="text-gray-600">meses consecutivos</p>
+                        {profile && profile.best_streak > 0 && (
+                          <p className="text-sm text-gray-500 mt-2">
+                            Melhor: {profile.best_streak} meses 🏆
+                          </p>
+                        )}
+                      </div>
+                    </Card>
+                  </div>
+                </div>
+
+                {/* Grid de Todas as Conquistas */}
+                <AchievementGrid badges={badges} />
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       </div>
+
+      {/* Toaster de Gamificação */}
+      <GamificationToaster />
 
       {/* Dialogs */}
       <CreateGoalDialog

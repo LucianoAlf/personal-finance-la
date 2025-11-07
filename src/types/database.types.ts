@@ -10,6 +10,91 @@ export interface User {
   created_at: Date;
 }
 
+// =====================================================
+// GAMIFICAÇÃO
+// =====================================================
+
+export interface UserGamification {
+  id: string;
+  user_id: string;
+  
+  // Sistema de XP e Níveis
+  level: number;
+  xp: number;
+  total_xp: number;
+  
+  // Streaks
+  current_streak: number;
+  best_streak: number;
+  last_activity_date?: Date;
+  
+  // Preferências
+  animations_enabled: boolean;
+  sounds_enabled: boolean;
+  notifications_enabled: boolean;
+  
+  // Metadados
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface BadgeProgress {
+  id: string;
+  user_id: string;
+  badge_id: string;
+  
+  // Progresso e Tier
+  tier: 'bronze' | 'silver' | 'gold';
+  progress: number;
+  target: number;
+  
+  // Status
+  unlocked: boolean;
+  unlocked_at?: Date;
+  
+  // Recompensas
+  xp_reward: number;
+  
+  // Metadados
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface Challenge {
+  id: string;
+  user_id: string;
+  
+  // Informações do desafio
+  title: string;
+  description?: string;
+  type: 'savings' | 'spending' | 'streak' | 'custom';
+  
+  // Metas
+  target_value: number;
+  current_value: number;
+  
+  // Prazo
+  deadline?: Date;
+  
+  // Recompensas
+  xp_reward: number;
+  
+  // Status
+  status: 'active' | 'completed' | 'failed' | 'expired';
+  completed_at?: Date;
+  
+  // Metadados
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface AddXPResult {
+  new_level: number;
+  new_xp: number;
+  total_xp: number;
+  leveled_up: boolean;
+}
+
 export interface Account {
   id: string;
   user_id: string;

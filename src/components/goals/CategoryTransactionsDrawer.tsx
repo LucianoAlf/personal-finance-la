@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,12 @@ import { formatCurrency, formatRelativeDate } from '@/utils/formatters';
 import { startOfMonth, endOfMonth, subMonths, startOfYear, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Transaction } from '@/types/transactions';
+import type { CreditCardTransaction } from '@/types/database.types';
 import * as LucideIcons from 'lucide-react';
 import { TransactionDialog } from '@/components/transactions/TransactionDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 interface CategoryTransactionsDrawerProps {
   open: boolean;
@@ -55,7 +58,7 @@ export function CategoryTransactionsDrawer({
   periodEnd,
 }: CategoryTransactionsDrawerProps) {
   const { transactions: regularTransactions, addTransaction, updateTransaction } = useTransactions();
-  const { transactions: creditCardTransactions } = useCreditCardTransactions();
+  const { transactions: creditCardTransactions, updateTransaction: updateCreditCardTransaction } = useCreditCardTransactions();
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType | 'goal_period'>(
     periodStart && periodEnd ? 'goal_period' : 'current_month'
   );
@@ -64,6 +67,27 @@ export function CategoryTransactionsDrawer({
   const [regularViewDialogOpen, setRegularViewDialogOpen] = useState(false);
   const [creditDialogOpen, setCreditDialogOpen] = useState(false);
   const [selectedRegular, setSelectedRegular] = useState<Transaction | null>(null);
+  const [creditEditDialogOpen, setCreditEditDialogOpen] = useState(false);
+  const [selectedCredit, setSelectedCredit] = useState<CreditCardTransaction | null>(null);
+  const [creditForm, setCreditForm] = useState({
+    description: '',
+    amount: 0,
+    purchase_date: new Date(),
+    establishment: '',
+    notes: '' as string | undefined,
+  });
+
+  useEffect(() => {
+    if (selectedCredit) {
+      setCreditForm({
+        description: selectedCredit.description || '',
+        amount: Number(selectedCredit.amount) || 0,
+        purchase_date: new Date(selectedCredit.purchase_date),
+        establishment: selectedCredit.establishment || '',
+        notes: selectedCredit.notes || undefined,
+      });
+    }
+  }, [selectedCredit]);
 
   // Calcular range de datas baseado no período
   const dateRange = useMemo(() => {
@@ -165,6 +189,8 @@ export function CategoryTransactionsDrawer({
     const full = regularTransactions.find((t) => t.id === tx.id);
     if (full) {
       setSelectedRegular(full);
+      setRegularViewDialogOpen(false); // Fechar view dialog se estiver aberto
+      setCreditDialogOpen(false); // Fechar credit dialog se estiver aberto
       setRegularDialogOpen(true);
     }
   };
@@ -173,20 +199,35 @@ export function CategoryTransactionsDrawer({
     const full = regularTransactions.find((t) => t.id === tx.id);
     if (full) {
       setSelectedRegular(full);
+      setRegularDialogOpen(false); // Fechar edit dialog se estiver aberto
+      setCreditDialogOpen(false); // Fechar credit dialog se estiver aberto
       setRegularViewDialogOpen(true);
     }
   };
 
-  const openCreditDialog = (tx: UnifiedTransaction) => {
+  const openCreditViewDialog = (tx: UnifiedTransaction) => {
     setSelectedTransaction(tx);
+    setRegularDialogOpen(false);
+    setRegularViewDialogOpen(false);
     setCreditDialogOpen(true);
+  };
+
+  const openCreditEditDialog = (tx: UnifiedTransaction) => {
+    const full = creditCardTransactions.find((t) => t.id === tx.id);
+    if (full) {
+      setSelectedCredit(full);
+      setRegularDialogOpen(false);
+      setRegularViewDialogOpen(false);
+      setCreditDialogOpen(false);
+      setCreditEditDialogOpen(true);
+    }
   };
 
   const handleEdit = (transaction: UnifiedTransaction) => {
     if (transaction.source === 'regular') {
       openRegularEditDialog(transaction);
     } else {
-      openCreditDialog(transaction);
+      openCreditEditDialog(transaction);
     }
   };
 
@@ -194,7 +235,7 @@ export function CategoryTransactionsDrawer({
     if (transaction.source === 'regular') {
       openRegularViewDialog(transaction);
     } else {
-      openCreditDialog(transaction);
+      openCreditViewDialog(transaction);
     }
   };
 
@@ -391,6 +432,29 @@ export function CategoryTransactionsDrawer({
           </DialogHeader>
           {selectedRegular && (
             <div className="space-y-4">
+              {/* Alerta para Pagamento de Fatura */}
+              {selectedRegular.description?.toLowerCase().includes('pagamento de fatura') && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="text-blue-600">
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 text-sm">
+                      <p className="font-semibold text-blue-900 mb-1">💳 Pagamento de Cartão de Crédito</p>
+                      <p className="text-blue-700">
+                        Para ver os detalhes das compras que compõem este valor, acesse a página de{' '}
+                        <Link to="/cartoes" className="underline font-semibold hover:text-blue-900">
+                          Cartões de Crédito
+                        </Link>
+                        {' '}e visualize a fatura correspondente.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Descrição</p>
@@ -485,6 +549,78 @@ export function CategoryTransactionsDrawer({
                 </div>
               )}
               <div className="pt-2 text-xs text-gray-500">Transação originada de cartão de crédito.</div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog - Transação de cartão (EDIÇÃO) */}
+      <Dialog open={creditEditDialogOpen} onOpenChange={setCreditEditDialogOpen}>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>Editar Transação do Cartão</DialogTitle>
+          </DialogHeader>
+          {selectedCredit && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="text-sm text-gray-600">Descrição</label>
+                  <Input
+                    value={creditForm.description}
+                    onChange={(e) => setCreditForm((f) => ({ ...f, description: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600">Data</label>
+                  <Input
+                    type="date"
+                    value={creditForm.purchase_date.toISOString().slice(0,10)}
+                    onChange={(e) => setCreditForm((f) => ({ ...f, purchase_date: new Date(e.target.value) }))}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600">Valor (R$)</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={creditForm.amount}
+                    onChange={(e) => setCreditForm((f) => ({ ...f, amount: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm text-gray-600">Estabelecimento</label>
+                  <Input
+                    value={creditForm.establishment}
+                    onChange={(e) => setCreditForm((f) => ({ ...f, establishment: e.target.value }))}
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="text-sm text-gray-600">Observações</label>
+                  <Textarea
+                    value={creditForm.notes || ''}
+                    onChange={(e) => setCreditForm((f) => ({ ...f, notes: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setCreditEditDialogOpen(false)}>Cancelar</Button>
+                <Button
+                  onClick={async () => {
+                    if (!selectedCredit) return;
+                    await updateCreditCardTransaction(selectedCredit.id, {
+                      description: creditForm.description,
+                      amount: creditForm.amount,
+                      purchase_date: creditForm.purchase_date,
+                      establishment: creditForm.establishment || null as any,
+                      notes: creditForm.notes || null as any,
+                    });
+                    setCreditEditDialogOpen(false);
+                  }}
+                >
+                  Salvar
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>
