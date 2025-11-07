@@ -67,13 +67,6 @@ export function Goals() {
     }
   };
 
-  const handleViewTransactions = (categoryId: string) => {
-    toast({
-      title: 'Ver Transações',
-      description: 'Funcionalidade em desenvolvimento',
-    });
-  };
-
   const handleAddValue = (goal: FinancialGoalWithCategory) => {
     setSelectedGoal(goal);
     setAddValueDialogOpen(true);
@@ -102,7 +95,7 @@ export function Goals() {
         subtitle="Acompanhe seus objetivos e controle seus gastos"
         icon={<Target size={24} />}
         actions={
-          <Button size="sm" onClick={() => setCreateDialogOpen(true)}>
+          <Button size="lg" onClick={() => setCreateDialogOpen(true)}>
             <Plus size={16} className="mr-1" />
             Nova Meta
           </Button>
@@ -232,7 +225,6 @@ export function Goals() {
                     goal={goal}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
-                    onViewTransactions={handleViewTransactions}
                   />
                 ))}
               </div>

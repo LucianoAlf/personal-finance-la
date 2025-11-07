@@ -27,7 +27,8 @@ import { format, addMonths, addYears, startOfMonth, endOfMonth } from 'date-fns'
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useGoals } from '@/hooks/useGoals';
-import { supabase } from '@/lib/supabase';
+import { useCategories } from '@/hooks/useCategories';
+import * as LucideIcons from 'lucide-react';
 import type { PeriodType, FinancialGoal } from '@/types/database.types';
 
 interface CreateGoalDialogProps {
@@ -93,16 +94,10 @@ const goalFormSchema = z.object({
 
 type GoalFormData = z.infer<typeof goalFormSchema>;
 
-interface Category {
-  id: string;
-  name: string;
-  icon: string;
-}
-
 export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', onCreated }: CreateGoalDialogProps) {
-  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const { createSavingsGoal, createSpendingGoal } = useGoals();
+  const { categories } = useCategories();
 
   const form = useForm<GoalFormData>({
     resolver: zodResolver(goalFormSchema),
@@ -127,20 +122,8 @@ export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', 
   const selectedPeriodType = watch('period_type');
   const deadline = watch('deadline');
 
-  // Fetch categorias quando o modal abrir
-  useEffect(() => {
-    if (open) {
-      async function fetchCategories() {
-        const { data } = await supabase
-          .from('categories')
-          .select('id, name, icon')
-          .order('name');
-        
-        if (data) setCategories(data);
-      }
-      fetchCategories();
-    }
-  }, [open]);
+  // Categorias de despesa (para metas de gasto)
+  const expenseCategories = categories.filter((c) => c.type === 'expense');
 
   // Reset form quando o modal abrir
   useEffect(() => {
@@ -337,9 +320,20 @@ export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', 
                     <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent>
-                    {categories.map((category) => (
+                    {expenseCategories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
-                        {category.name}
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-5 h-5 rounded-full flex items-center justify-center"
+                            style={{ backgroundColor: `${category.color}20` }}
+                          >
+                            {(() => {
+                              const Icon = (LucideIcons as any)[category.icon];
+                              return Icon ? <Icon className="h-3.5 w-3.5" style={{ color: category.color }} /> : null;
+                            })()}
+                          </div>
+                          <span>{category.name}</span>
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>

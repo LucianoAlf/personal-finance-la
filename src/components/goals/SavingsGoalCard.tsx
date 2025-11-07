@@ -81,16 +81,16 @@ export function SavingsGoalCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onAddValue(goal)}>
+              <DropdownMenuItem onSelect={() => onAddValue(goal)}>
                 <Plus className="h-4 w-4 mr-2" />
                 Adicionar Valor
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onEdit(goal)}>
+              <DropdownMenuItem onSelect={() => onEdit(goal)}>
                 <Edit2 className="h-4 w-4 mr-2" />
                 Editar Meta
               </DropdownMenuItem>
               <DropdownMenuItem 
-                onClick={() => onDelete(goal.id)}
+                onSelect={() => onDelete(goal.id)}
                 className="text-red-600"
               >
                 <Trash2 className="h-4 w-4 mr-2" />

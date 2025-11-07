@@ -16,6 +16,7 @@ import type { FinancialGoalWithCategory } from '@/types/database.types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { SpendingCategoryTrendChart } from './charts/SpendingCategoryTrendChart';
+import { CategoryTransactionsDrawer } from './CategoryTransactionsDrawer';
 
 interface SpendingGoalCardProps {
   goal: FinancialGoalWithCategory;
@@ -31,6 +32,7 @@ export function SpendingGoalCard({
   onViewTransactions,
 }: SpendingGoalCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+  const [transactionsDrawerOpen, setTransactionsDrawerOpen] = useState(false);
   const progress = useGoalProgress({ goal });
 
   const periodLabel = goal.period_type === 'monthly' ? 'Mensal' :
@@ -89,18 +91,18 @@ export function SpendingGoalCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onEdit(goal)}>
+              <DropdownMenuItem onSelect={() => onEdit(goal)}>
                 <Edit2 className="h-4 w-4 mr-2" />
                 Ajustar Limite
               </DropdownMenuItem>
-              {onViewTransactions && goal.category_id && (
-                <DropdownMenuItem onClick={() => onViewTransactions(goal.category_id!)}>
+              {goal.category_id && (
+                <DropdownMenuItem onSelect={() => setTransactionsDrawerOpen(true)}>
                   <TrendingDown className="h-4 w-4 mr-2" />
                   Ver Transações
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem 
-                onClick={() => onDelete(goal.id)}
+                onSelect={() => onDelete(goal.id)}
                 className="text-red-600"
               >
                 <Trash2 className="h-4 w-4 mr-2" />
@@ -199,6 +201,33 @@ export function SpendingGoalCard({
               </span>
             )}
           </div>
+        )}
+
+        {/* Drawer de Transações */}
+        {goal.category_id && (
+          <CategoryTransactionsDrawer
+            open={transactionsDrawerOpen}
+            onOpenChange={setTransactionsDrawerOpen}
+            categoryId={goal.category_id}
+            categoryName={goal.category_name || goal.name}
+            categoryIcon={(() => {
+              const name = goal.category_name || '';
+              if (name === 'Alimentação') return 'Utensils';
+              if (name === 'Transporte') return 'Car';
+              if (name === 'Lazer') return 'Gamepad2';
+              if (name === 'Saúde') return 'Heart';
+              if (name === 'Educação') return 'GraduationCap';
+              return 'Wallet';
+            })()}
+            categoryColor={(() => {
+              if (progress.status === 'exceeded') return '#dc2626';
+              if (progress.status === 'warning') return '#ea580c';
+              return '#16a34a';
+            })()}
+            goalId={goal.id}
+            periodStart={goal.period_start}
+            periodEnd={goal.period_end}
+          />
         )}
       </Card>
     </motion.div>

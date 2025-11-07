@@ -27,6 +27,7 @@ export const Transacoes = () => {
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
   const accountIdFromUrl = searchParams.get('account');
+  const categoryIdFromUrl = searchParams.get('category');
 
   // HOOKS REAIS - SEM MOCK DATA
   const {
@@ -57,6 +58,9 @@ export const Transacoes = () => {
   const selectedAccountForFilter = accountIdFromUrl 
     ? accounts.find(a => a.id === accountIdFromUrl) 
     : null;
+  const selectedCategoryForFilter = categoryIdFromUrl
+    ? getCategoryById(categoryIdFromUrl)
+    : null;
 
   // FUNÇÃO PARA NORMALIZAR TEXTO (remove acentos e lowercase)
   const normalizeText = (text: string) => {
@@ -67,9 +71,13 @@ export const Transacoes = () => {
   };
 
   // FILTRAR TRANSAÇÕES POR CONTA (se filtro ativo)
-  let filteredTransactions = accountIdFromUrl
-    ? transactions.filter(t => t.account_id === accountIdFromUrl)
-    : transactions;
+  let filteredTransactions = transactions;
+  if (accountIdFromUrl) {
+    filteredTransactions = filteredTransactions.filter(t => t.account_id === accountIdFromUrl);
+  }
+  if (categoryIdFromUrl) {
+    filteredTransactions = filteredTransactions.filter(t => t.category_id === categoryIdFromUrl);
+  }
 
   // FILTRAR POR PESQUISA (em tempo real)
   if (searchQuery.trim()) {
@@ -216,13 +224,13 @@ export const Transacoes = () => {
   };
 
   // CALCULAR TOTAIS DO MÊS (DADOS REAIS) - Com filtro se ativo
-  const monthlyIncome = accountIdFromUrl
+  const monthlyIncome = (accountIdFromUrl || categoryIdFromUrl)
     ? filteredTransactions
         .filter(t => t.type === 'income' && t.is_paid)
         .reduce((sum, t) => sum + Number(t.amount), 0)
     : getTotalIncome(true);
 
-  const monthlyExpenses = accountIdFromUrl
+  const monthlyExpenses = (accountIdFromUrl || categoryIdFromUrl)
     ? filteredTransactions
         .filter(t => t.type === 'expense' && t.is_paid)
         .reduce((sum, t) => sum + Number(t.amount), 0)
@@ -233,6 +241,13 @@ export const Transacoes = () => {
   // Handler para remover filtro de conta
   const handleRemoveAccountFilter = () => {
     navigate('/transacoes');
+  };
+  const handleRemoveCategoryFilter = () => {
+    // Mantém filtro de conta, se existir
+    const params = new URLSearchParams(location.search);
+    params.delete('category');
+    const query = params.toString();
+    navigate(`/transacoes${query ? `?${query}` : ''}`);
   };
 
   // HANDLERS
@@ -436,13 +451,13 @@ export const Transacoes = () => {
                 </h2>
                 
                 {/* Botão Limpar Filtros */}
-                {(selectedAccountForFilter || activeFilters) && (
+                {(selectedAccountForFilter || selectedCategoryForFilter || activeFilters) && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
                       setActiveFilters(null);
-                      if (selectedAccountForFilter) handleRemoveAccountFilter();
+                      if (selectedAccountForFilter || selectedCategoryForFilter) navigate('/transacoes');
                     }}
                     className="text-gray-600 hover:text-gray-900"
                   >
@@ -453,7 +468,7 @@ export const Transacoes = () => {
               </div>
 
               {/* BADGES DE FILTROS ATIVOS */}
-              {(selectedAccountForFilter || activeFilters) && (
+              {(selectedAccountForFilter || selectedCategoryForFilter || activeFilters) && (
                 <div className="flex flex-wrap gap-2">
                   {/* Filtro de Conta (da URL) */}
                   {selectedAccountForFilter && (
@@ -465,6 +480,19 @@ export const Transacoes = () => {
                         {selectedAccountForFilter.name} - {ACCOUNT_TYPES[selectedAccountForFilter.type]}
                       </span>
                       <X size={14} className="hover:text-purple-900" />
+                    </Badge>
+                  )}
+
+                  {/* Filtro de Categoria (da URL) */}
+                  {selectedCategoryForFilter && (
+                    <Badge 
+                      className="flex items-center gap-2 bg-green-100 text-green-700 hover:bg-green-200 cursor-pointer px-3 py-1.5"
+                      onClick={handleRemoveCategoryFilter}
+                    >
+                      <span className="font-medium">
+                        {selectedCategoryForFilter.name}
+                      </span>
+                      <X size={14} className="hover:text-green-900" />
                     </Badge>
                   )}
 
