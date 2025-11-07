@@ -1,0 +1,318 @@
+{
+  "name": "Send Bill Reminders - WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "*/10 * * * *"
+            }
+          ]
+        }
+      },
+      "name": "Schedule Every 10 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "id": "schedule-trigger",
+      "notes": "Executa a cada 10 minutos para verificar lembretes pendentes"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT \n  br.id as reminder_id,\n  br.bill_id,\n  br.user_id,\n  br.days_before,\n  br.channel,\n  u.phone as user_phone,\n  u.email as user_email,\n  u.full_name as user_name,\n  u.push_token,\n  pb.description,\n  pb.amount,\n  pb.due_date,\n  pb.provider_name\nFROM bill_reminders br\nINNER JOIN users u ON br.user_id = u.id\nINNER JOIN payable_bills pb ON br.bill_id = pb.id\nWHERE br.reminder_date = CURRENT_DATE\n  AND br.reminder_time <= CURRENT_TIME + INTERVAL '10 minutes'\n  AND br.status = 'pending'\n  AND pb.status NOT IN ('paid', 'cancelled')\nORDER BY br.reminder_time\nLIMIT 50;"
+      },
+      "name": "Query Pending Reminders",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [450, 300],
+      "id": "query-reminders",
+      "credentials": {
+        "postgres": {
+          "id": "supabase_db",
+          "name": "Supabase Database"
+        }
+      },
+      "notes": "Busca lembretes pendentes que devem ser enviados agora"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.reminder_id }}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "Has Reminders?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "id": "check-has-reminders",
+      "notes": "Verifica se há lembretes para enviar"
+    },
+    {
+      "parameters": {},
+      "name": "No Reminders",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [850, 450],
+      "id": "no-reminders"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "context_time",
+              "value": "={{ $json.days_before === 1 ? 'Amanhã (' + new Date($json.due_date).toLocaleDateString('pt-BR') + ')' : 'HOJE' }}"
+            },
+            {
+              "name": "urgency",
+              "value": "={{ $json.days_before === 1 ? '⏰ Não esqueça!' : '⚠️ Vence hoje!' }}"
+            },
+            {
+              "name": "formatted_amount",
+              "value": "={{ new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format($json.amount) }}"
+            },
+            {
+              "name": "formatted_due_date",
+              "value": "={{ new Date($json.due_date).toLocaleDateString('pt-BR') }}"
+            },
+            {
+              "name": "whatsapp_message",
+              "value": "=━━━━━━━━━━━━━━━━━━━\n🔔 *Lembrete Ana Clara*\n\nOlá {{ $json.user_name }}! 👋\n\n{{ $node[\"Format Message\"].json[\"context_time\"] }} você tem uma conta a pagar:\n\n📄 *{{ $json.description }}*\n💰 Valor: {{ $node[\"Format Message\"].json[\"formatted_amount\"] }}\n📅 Vencimento: {{ $node[\"Format Message\"].json[\"formatted_due_date\"] }}\n{{ $json.provider_name ? '🏢 Fornecedor: ' + $json.provider_name : '' }}\n\n{{ $node[\"Format Message\"].json[\"urgency\"] }}\n\n━━━━━━━━━━━━━━━━━━━\n💡 Responda \"pago\" para marcar como paga\n━━━━━━━━━━━━━━━━━━━"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Format Message",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [850, 150],
+      "id": "format-message",
+      "notes": "Formata a mensagem do WhatsApp com contexto dinâmico"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.channel }}",
+              "value2": "whatsapp"
+            }
+          ]
+        }
+      },
+      "name": "Switch Channel",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [1050, 150],
+      "id": "switch-channel",
+      "notes": "Roteia para o canal correto (WhatsApp, Email, Push)"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.UAZAPI_BASE_URL }}/v1/instance/{{ $env.UAZAPI_INSTANCE_ID }}/messages/send",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apiKey",
+              "value": "={{ $env.UAZAPI_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "phone",
+              "value": "={{ $json.user_phone }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.whatsapp_message }}"
+            },
+            {
+              "name": "isGroup",
+              "value": "false"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "name": "Send WhatsApp UAZAPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 100],
+      "id": "send-whatsapp",
+      "notes": "Envia mensagem via UAZAPI"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE bill_reminders\nSET status = 'sent', \n    sent_at = now(),\n    metadata = metadata || jsonb_build_object('message_id', '{{ $json.messageId }}', 'sent_via', 'n8n_workflow')\nWHERE id = '{{ $node[\"Query Pending Reminders\"].json[\"reminder_id\"] }}'\nRETURNING *;"
+      },
+      "name": "Update Success",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1450, 100],
+      "id": "update-success",
+      "credentials": {
+        "postgres": {
+          "id": "supabase_db",
+          "name": "Supabase Database"
+        }
+      },
+      "notes": "Marca lembrete como enviado com sucesso"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=UPDATE bill_reminders\nSET status = 'failed',\n    retry_count = retry_count + 1,\n    error_message = '{{ $json.error ? $json.error.message : \"Unknown error\" }}',\n    metadata = metadata || jsonb_build_object('last_error', '{{ $json.error }}', 'failed_at', '{{ new Date().toISOString() }}')\nWHERE id = '{{ $node[\"Query Pending Reminders\"].json[\"reminder_id\"] }}'\nRETURNING *;"
+      },
+      "name": "Update Failed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2,
+      "position": [1450, 300],
+      "id": "update-failed",
+      "credentials": {
+        "postgres": {
+          "id": "supabase_db",
+          "name": "Supabase Database"
+        }
+      },
+      "notes": "Marca lembrete como falho e incrementa retry_count"
+    },
+    {
+      "parameters": {},
+      "name": "Email (TODO)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1250, 200],
+      "id": "email-todo",
+      "notes": "Implementar envio de email (Resend API)"
+    },
+    {
+      "parameters": {},
+      "name": "Push (TODO)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "id": "push-todo",
+      "notes": "Implementar push notification (Expo)"
+    }
+  ],
+  "connections": {
+    "Schedule Every 10 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Query Pending Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Pending Reminders": {
+      "main": [
+        [
+          {
+            "node": "Has Reminders?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Reminders?": {
+      "main": [
+        [
+          {
+            "node": "Format Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Reminders",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Message": {
+      "main": [
+        [
+          {
+            "node": "Switch Channel",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch Channel": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp UAZAPI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email (TODO)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Push (TODO)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send WhatsApp UAZAPI": {
+      "main": [
+        [
+          {
+            "node": "Update Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0",
+  "meta": {
+    "instanceId": "personal-finance-la"
+  },
+  "tags": ["lembretes", "whatsapp", "contas-pagar"]
+}
