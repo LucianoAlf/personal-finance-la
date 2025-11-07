@@ -14,6 +14,7 @@ import { Education } from './pages/Education';
 import { Settings } from './pages/Settings';
 import { Tags } from './pages/Tags';
 import Categories from './pages/Categories';
+import PayableBills from './pages/PayableBills';
 
 function App() {
   return (
@@ -38,6 +39,7 @@ function App() {
           <Route path="contas" element={<Contas />} />
           <Route path="transacoes" element={<Transacoes />} />
           <Route path="cartoes" element={<CreditCards />} />
+          <Route path="contas-pagar" element={<PayableBills />} />
           <Route path="metas" element={<Goals />} />
           <Route path="investimentos" element={<Investments />} />
           <Route path="relatorios" element={<Reports />} />

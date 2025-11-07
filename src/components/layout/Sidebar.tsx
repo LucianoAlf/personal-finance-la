@@ -3,12 +3,15 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/cn';
 import { useUIStore } from '@/store/uiStore';
 import { useAuth } from '@/hooks/useAuth';
+import { usePayableBills } from '@/hooks/usePayableBills';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import {
   Home,
   Wallet,
   List,
   CreditCard,
+  Receipt,
   Calendar,
   Target,
   TrendingUp,
@@ -32,6 +35,7 @@ const menuItems = [
   { icon: Wallet, label: 'Contas', path: '/contas' },
   { icon: List, label: 'Transações', path: '/transacoes' },
   { icon: CreditCard, label: 'Cartões', path: '/cartoes' },
+  { icon: Receipt, label: 'Contas a Pagar', path: '/contas-pagar' },
   { icon: Target, label: 'Metas', path: '/metas' },
   { icon: TrendingUp, label: 'Investimentos', path: '/investimentos' },
   { icon: BarChart3, label: 'Relatórios', path: '/relatorios' },
@@ -49,6 +53,9 @@ export function Sidebar() {
   const { sidebarOpen, toggleSidebar, setAnaCoachOpen } = useUIStore();
   const { profile, user } = useAuth();
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
+  
+  // Buscar alertas de contas a pagar
+  const { summary } = usePayableBills({ status: ['pending', 'overdue'] });
 
   const getInitials = (name: string | null) => {
     if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
@@ -104,20 +111,32 @@ export function Sidebar() {
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
+            
+            // Badge de alertas para Contas a Pagar
+            const alertCount = item.path === '/contas-pagar' 
+              ? summary.overdue_count 
+              : 0;
 
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  'flex items-center space-x-3 px-4 py-3 rounded-lg mb-1 transition-all duration-200',
+                  'flex items-center justify-between px-4 py-3 rounded-lg mb-1 transition-all duration-200',
                   isActive
                     ? 'bg-primary-50 text-primary font-semibold'
                     : 'text-gray-700 hover:bg-gray-100'
                 )}
               >
-                <Icon size={20} />
-                <span>{item.label}</span>
+                <div className="flex items-center space-x-3">
+                  <Icon size={20} />
+                  <span>{item.label}</span>
+                </div>
+                {alertCount > 0 && (
+                  <Badge variant="danger" className="ml-auto">
+                    {alertCount}
+                  </Badge>
+                )}
               </Link>
             );
           })}

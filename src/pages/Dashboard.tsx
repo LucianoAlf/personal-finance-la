@@ -11,6 +11,7 @@ import { MonthlyTrendChart } from '@/components/dashboard/charts/MonthlyTrendCha
 import { GoalsSummaryWidget } from '@/components/goals/GoalsSummaryWidget';
 import { BudgetComplianceWidget } from '@/components/budget/BudgetComplianceWidget';
 import { CreditCardsWidget } from '@/components/creditcards/CreditCardsWidget';
+import { PayableBillsWidget } from '@/components/payable-bills/PayableBillsWidget';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
@@ -205,16 +206,8 @@ export function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card 
-              className="border-2 border-dashed border-gray-300 hover:border-purple-500 transition-colors cursor-pointer group"
-              onClick={() => navigate('/transacoes?status=pending')}
-            >
-              <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
-                <FileText size={32} className="text-gray-400 group-hover:text-purple-500 mb-2 transition-colors" />
-                <h3 className="font-semibold text-gray-900 mb-1">Contas a Pagar</h3>
-                <p className="text-sm text-gray-600">{pendingCount} pendentes</p>
-              </CardContent>
-            </Card>
+            {/* Widget de Contas a Pagar */}
+            <PayableBillsWidget />
 
             {/* Widget de Metas */}
             <GoalsSummaryWidget />

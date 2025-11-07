@@ -1,0 +1,426 @@
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
+import {
+  PayableBill,
+  CreateBillInput,
+  UpdateBillInput,
+  MarkBillAsPaidInput,
+  BillFilters,
+  BillsSummary,
+} from '@/types/payable-bills.types';
+import { addDays, parseISO, isWithinInterval } from 'date-fns';
+
+export function usePayableBills(initialFilters?: BillFilters) {
+  const { user } = useAuth();
+  const [bills, setBills] = useState<PayableBill[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState<BillFilters>(initialFilters || {});
+
+  // ============================================
+  // FETCH: Buscar contas
+  // ============================================
+  const fetchBills = useCallback(async () => {
+    if (!user?.id) return;
+
+    try {
+      setLoading(true);
+
+      let query = supabase
+        .from('payable_bills')
+        .select(`
+          *,
+          bill_tags (
+            tags (*)
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('due_date', { ascending: true });
+
+      // Aplicar filtros
+      if (filters.status) {
+        if (Array.isArray(filters.status)) {
+          query = query.in('status', filters.status);
+        } else {
+          query = query.eq('status', filters.status);
+        }
+      }
+
+      if (filters.bill_type) {
+        if (Array.isArray(filters.bill_type)) {
+          query = query.in('bill_type', filters.bill_type);
+        } else {
+          query = query.eq('bill_type', filters.bill_type);
+        }
+      }
+
+      if (filters.provider_name) {
+        query = query.ilike('provider_name', `%${filters.provider_name}%`);
+      }
+
+      if (filters.priority) {
+        if (Array.isArray(filters.priority)) {
+          query = query.in('priority', filters.priority);
+        } else {
+          query = query.eq('priority', filters.priority);
+        }
+      }
+
+      if (filters.is_recurring !== undefined) {
+        query = query.eq('is_recurring', filters.is_recurring);
+      }
+
+      if (filters.is_installment !== undefined) {
+        query = query.eq('is_installment', filters.is_installment);
+      }
+
+      if (filters.due_date_from) {
+        query = query.gte('due_date', filters.due_date_from);
+      }
+
+      if (filters.due_date_to) {
+        query = query.lte('due_date', filters.due_date_to);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      // Transformar dados para incluir tags
+      const billsWithTags = (data || []).map((bill: any) => ({
+        ...bill,
+        tags: bill.bill_tags?.map((bt: any) => bt.tags).filter(Boolean) || [],
+      }));
+
+      // Busca local (search)
+      let filteredData = billsWithTags;
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase();
+        filteredData = filteredData.filter(
+          (bill) =>
+            bill.description.toLowerCase().includes(searchLower) ||
+            bill.provider_name?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      setBills(filteredData);
+    } catch (error) {
+      console.error('Erro ao buscar contas:', error);
+      toast.error('Erro ao carregar contas a pagar');
+    } finally {
+      setLoading(false);
+    }
+  }, [user?.id, filters]);
+
+  useEffect(() => {
+    fetchBills();
+  }, [fetchBills]);
+
+  // ============================================
+  // CREATE: Criar conta
+  // ============================================
+  const createBill = async (input: CreateBillInput) => {
+    if (!user?.id) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('payable_bills')
+        .insert([
+          {
+            user_id: user.id,
+            ...input,
+            status: 'pending',
+          },
+        ])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success('Conta criada com sucesso!');
+      await fetchBills();
+      return data;
+    } catch (error) {
+      console.error('Erro ao criar conta:', error);
+      toast.error('Erro ao criar conta');
+      return null;
+    }
+  };
+
+  // ============================================
+  // CREATE MANY: Criar parcelamento
+  // ============================================
+  const createInstallmentBills = async (
+    input: CreateBillInput & { installment_total: number }
+  ) => {
+    if (!user?.id) return null;
+
+    try {
+      const installment_group_id = crypto.randomUUID();
+      const bills_to_insert: any[] = [];
+
+      for (let i = 1; i <= input.installment_total; i++) {
+        const due_date = new Date(input.due_date);
+        due_date.setMonth(due_date.getMonth() + (i - 1));
+
+        bills_to_insert.push({
+          user_id: user.id,
+          description: `${input.description} (${i}/${input.installment_total})`,
+          amount: input.amount,
+          due_date: due_date.toISOString().split('T')[0],
+          bill_type: input.bill_type,
+          provider_name: input.provider_name,
+          category_id: input.category_id,
+          payment_account_id: input.payment_account_id,
+          payment_method: input.payment_method,
+          is_installment: true,
+          installment_number: i,
+          installment_total: input.installment_total,
+          installment_group_id,
+          original_purchase_amount: input.amount * input.installment_total,
+          reminder_enabled: input.reminder_enabled ?? true,
+          reminder_days_before: input.reminder_days_before ?? 3,
+          reminder_channels: input.reminder_channels ?? ['app'],
+          priority: input.priority ?? 'medium',
+          tags: input.tags,
+          notes: input.notes,
+          status: 'pending',
+        });
+      }
+
+      const { data, error } = await supabase
+        .from('payable_bills')
+        .insert(bills_to_insert)
+        .select();
+
+      if (error) throw error;
+
+      toast.success(
+        `Parcelamento criado com sucesso! ${input.installment_total} parcelas.`
+      );
+      await fetchBills();
+      return data;
+    } catch (error) {
+      console.error('Erro ao criar parcelamento:', error);
+      toast.error('Erro ao criar parcelamento');
+      return null;
+    }
+  };
+
+  // ============================================
+  // UPDATE: Atualizar conta
+  // ============================================
+  const updateBill = async (id: string, input: UpdateBillInput) => {
+    if (!user?.id) return null;
+
+    try {
+      const { data, error } = await supabase
+        .from('payable_bills')
+        .update(input)
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success('Conta atualizada com sucesso!');
+      await fetchBills();
+      return data;
+    } catch (error) {
+      console.error('Erro ao atualizar conta:', error);
+      toast.error('Erro ao atualizar conta');
+      return null;
+    }
+  };
+
+  // ============================================
+  // DELETE: Deletar conta
+  // ============================================
+  const deleteBill = async (id: string) => {
+    if (!user?.id) return false;
+
+    try {
+      const { error } = await supabase
+        .from('payable_bills')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast.success('Conta deletada com sucesso!');
+      await fetchBills();
+      return true;
+    } catch (error) {
+      console.error('Erro ao deletar conta:', error);
+      toast.error('Erro ao deletar conta');
+      return false;
+    }
+  };
+
+  // ============================================
+  // MARK AS PAID: Marcar como paga
+  // ============================================
+  const markAsPaid = async (input: MarkBillAsPaidInput) => {
+    if (!user?.id) return null;
+
+    try {
+      // Chamar function SQL
+      const { data, error } = await supabase.rpc('mark_bill_as_paid', {
+        p_bill_id: input.bill_id,
+        p_user_id: user.id,
+        p_paid_amount: input.paid_amount,
+        p_payment_method: input.payment_method,
+        p_account_from_id: input.account_from_id || null,
+        p_confirmation_number: input.confirmation_number || null,
+        p_payment_proof_url: input.payment_proof_url || null,
+        p_notes: input.notes || null,
+      });
+
+      if (error) throw error;
+
+      const result = data as any;
+
+      if (result.status === 'paid') {
+        toast.success('Conta marcada como paga!');
+      } else if (result.status === 'partial') {
+        const remaining = result.remaining;
+        toast.success(
+          `Pagamento registrado! Faltam R$ ${remaining.toFixed(2)}`
+        );
+      }
+
+      await fetchBills();
+      return result;
+    } catch (error) {
+      console.error('Erro ao marcar conta como paga:', error);
+      toast.error('Erro ao registrar pagamento');
+      return null;
+    }
+  };
+
+  // ============================================
+  // FILTROS COMPUTADOS
+  // ============================================
+  const pendingBills = useMemo(
+    () => bills.filter((b) => b.status === 'pending' || b.status === 'scheduled'),
+    [bills]
+  );
+
+  const overdueBills = useMemo(
+    () => bills.filter((b) => b.status === 'overdue'),
+    [bills]
+  );
+
+  const paidBills = useMemo(
+    () => bills.filter((b) => b.status === 'paid'),
+    [bills]
+  );
+
+  const partialBills = useMemo(
+    () => bills.filter((b) => b.status === 'partial'),
+    [bills]
+  );
+
+  // Próximas 7 dias
+  const upcomingBills = useMemo(() => {
+    const today = new Date();
+    const in7Days = addDays(today, 7);
+
+    return bills.filter((b) => {
+      if (b.status !== 'pending' && b.status !== 'scheduled') return false;
+      const dueDate = parseISO(b.due_date);
+      return isWithinInterval(dueDate, { start: today, end: in7Days });
+    });
+  }, [bills]);
+
+  // Contas recorrentes (templates)
+  const recurringBills = useMemo(
+    () => bills.filter((b) => b.is_recurring && !b.parent_bill_id),
+    [bills]
+  );
+
+  // Parcelamentos (agrupados)
+  const installmentGroups = useMemo(() => {
+    const groups = new Map<string, PayableBill[]>();
+
+    bills
+      .filter((b) => b.is_installment && b.installment_group_id)
+      .forEach((bill) => {
+        const groupId = bill.installment_group_id!;
+        if (!groups.has(groupId)) {
+          groups.set(groupId, []);
+        }
+        groups.get(groupId)!.push(bill);
+      });
+
+    return Array.from(groups.entries()).map(([group_id, bills]) => ({
+      group_id,
+      bills: bills.sort((a, b) => a.installment_number! - b.installment_number!),
+      total: bills[0]?.original_purchase_amount || 0,
+      paid_count: bills.filter((b) => b.status === 'paid').length,
+      total_count: bills.length,
+    }));
+  }, [bills]);
+
+  // ============================================
+  // RESUMOS
+  // ============================================
+  const summary = useMemo(() => {
+    const totalAmount = bills.reduce((sum, b) => sum + b.amount, 0);
+    const pendingAmount = pendingBills.reduce((sum, b) => sum + b.amount, 0);
+    const overdueAmount = overdueBills.reduce((sum, b) => sum + b.amount, 0);
+    const paidAmount = paidBills.reduce((sum, b) => sum + b.amount, 0);
+    const partialAmount = partialBills.reduce((sum, b) => sum + (b.paid_amount || 0), 0);
+
+    return {
+      total_bills: bills.length,
+      pending_count: pendingBills.length,
+      overdue_count: overdueBills.length,
+      paid_count: paidBills.length,
+      partial_count: partialBills.length,
+      total_amount: totalAmount,
+      pending_amount: pendingAmount,
+      overdue_amount: overdueAmount,
+      paid_amount: paidAmount,
+      partial_amount: partialAmount,
+      critical_pending: bills.filter(
+        (b) => b.priority === 'critical' && b.status === 'pending'
+      ).length,
+      high_pending: bills.filter(
+        (b) => b.priority === 'high' && b.status === 'pending'
+      ).length,
+    };
+  }, [bills, pendingBills, overdueBills, paidBills, partialBills]);
+
+  // ============================================
+  // RETURN
+  // ============================================
+  return {
+    // Data
+    bills,
+    pendingBills,
+    overdueBills,
+    paidBills,
+    partialBills,
+    upcomingBills,
+    recurringBills,
+    installmentGroups,
+    summary,
+
+    // State
+    loading,
+    filters,
+    setFilters,
+
+    // Actions
+    fetchBills,
+    createBill,
+    createInstallmentBills,
+    updateBill,
+    deleteBill,
+    markAsPaid,
+  };
+}
