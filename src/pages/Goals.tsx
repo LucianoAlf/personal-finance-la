@@ -17,14 +17,17 @@ import { XPProgressBar } from '@/components/gamification/XPProgressBar';
 import { NextAchievements } from '@/components/gamification/NextAchievements';
 import { AchievementGrid } from '@/components/gamification/AchievementGrid';
 import { GamificationToaster } from '@/components/gamification/GamificationToaster';
+import { AchievementUnlockedModal } from '@/components/gamification/AchievementUnlockedModal';
+import { StreakHeatmap } from '@/components/gamification/StreakHeatmap';
+import { GamificationStats } from '@/components/gamification/GamificationStats';
+import { getAchievementById, ACHIEVEMENTS } from '@/config/achievements';
 import { useToast } from '@/hooks/use-toast';
 import type { FinancialGoalWithCategory } from '@/types/database.types';
-import { GoalSegmentedControl } from '@/components/goals/GoalSegmentedControl';
 import { formatCurrency } from '@/utils/formatters';
 
 export function Goals() {
   const { goals, loading, getGoalsByType, getStats, deleteGoal, getGoalById, refreshGoals } = useGoals();
-  const { profile, badges, unlockedBadges, xpForNextLevel, xpProgress, levelTitle, loading: gamificationLoading } = useGamification();
+  const { profile, badges, unlockedBadges, xpForNextLevel, xpProgress, levelTitle, loading: gamificationLoading, celebrationQueue, showCelebration, dismissCelebration } = useGamification();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [addValueDialogOpen, setAddValueDialogOpen] = useState(false);
@@ -270,21 +273,20 @@ export function Goals() {
                   </div>
                   <div>
                     <Card className="p-6">
-                      <div className="flex items-center gap-2 mb-4">
-                        <Flame className="h-5 w-5 text-orange-600" />
-                        <h3 className="text-lg font-semibold text-gray-900">Streak Atual</h3>
-                      </div>
-                      <div className="text-center py-6">
-                        <div className="text-5xl font-bold text-orange-600 mb-2">
-                          {profile?.current_streak || 0}
-                        </div>
-                        <p className="text-gray-600">meses consecutivos</p>
-                        {profile && profile.best_streak > 0 && (
-                          <p className="text-sm text-gray-500 mt-2">
-                            Melhor: {profile.best_streak} meses 🏆
-                          </p>
-                        )}
-                      </div>
+                      <StreakHeatmap
+                        currentStreak={profile?.current_streak ?? 0}
+                        bestStreak={profile?.best_streak ?? 0}
+                      />
+                      <div className="my-4 border-t" />
+                      <GamificationStats
+                        profile={profile}
+                        unlockedBadgesCount={unlockedBadges.length}
+                        totalBadges={ACHIEVEMENTS.length}
+                        levelTitle={levelTitle}
+                        xpForNextLevel={xpForNextLevel}
+                        xpProgress={xpProgress}
+                        goals={goals}
+                      />
                     </Card>
                   </div>
                 </div>
@@ -299,6 +301,26 @@ export function Goals() {
 
       {/* Toaster de Gamificação */}
       <GamificationToaster />
+
+      {/* Modal de celebração de conquista */}
+      {celebrationQueue && celebrationQueue.length > 0 && (() => {
+        const current = celebrationQueue[0];
+        const achievement = getAchievementById(current.badge_id);
+        if (!achievement) return null;
+        return (
+          <AchievementUnlockedModal
+            open={showCelebration}
+            onOpenChange={(open) => {
+              if (!open) dismissCelebration();
+            }}
+            achievementName={achievement.name}
+            achievementDescription={achievement.description}
+            tier={current.tier}
+            xpReward={Number(current.xp_reward || achievement.tiers.find(t => t.tier === current.tier)?.xp_reward || 0)}
+            icon={achievement.icon}
+          />
+        );
+      })()}
 
       {/* Dialogs */}
       <CreateGoalDialog

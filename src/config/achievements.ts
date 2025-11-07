@@ -1,4 +1,5 @@
 import { Trophy, Flame, Target, PiggyBank, TrendingUp, Award, Zap, Crown, Star, Gem, Shield, Rocket, Heart, DollarSign, CheckCircle2 } from 'lucide-react';
+import { formatCurrency } from '@/utils/formatters';
 import type { LucideIcon } from 'lucide-react';
 
 // =====================================================
@@ -40,6 +41,47 @@ export const TIER_CONFIG: Record<'bronze' | 'silver' | 'gold', { color: string; 
     emoji: '🥇',
     label: 'Ouro',
   },
+};
+
+export const generateInsight = (
+  input: { badge_id: string; progress: number; nextTarget: number },
+  achievement: Achievement
+): string | null => {
+  const remaining = Math.max(0, (input.nextTarget || 0) - (input.progress || 0));
+  if (!achievement) return null;
+  if (remaining <= 0) return null;
+
+  const pct = input.nextTarget > 0 ? input.progress / input.nextTarget : 0;
+  if (pct >= 0.8) {
+    return `Faltam apenas ${achievement.category === 'savings' ? formatCurrency(remaining) : remaining.toLocaleString('pt-BR')} para desbloquear!`;
+  }
+
+  switch (achievement.id) {
+    case 'savings_master':
+    case 'investment_guru':
+    case 'emergency_fund':
+      return `Adicione ${formatCurrency(remaining)} em suas metas de economia`;
+    case 'goal_creator': {
+      const n = Math.ceil(remaining);
+      return `Crie mais ${n} ${n === 1 ? 'meta' : 'metas'} para avançar`;
+    }
+    case 'goal_achiever': {
+      const n = Math.ceil(remaining);
+      return `Complete mais ${n} ${n === 1 ? 'meta' : 'metas'}`;
+    }
+    case 'consistency_king':
+    case 'unstoppable': {
+      const n = Math.ceil(remaining);
+      return `Mantenha por mais ${n} ${n === 1 ? 'mês' : 'meses'}`;
+    }
+    case 'spending_control':
+    case 'budget_ninja': {
+      const n = Math.ceil(remaining);
+      return `Cumpra mais ${n} ${n === 1 ? 'limite' : 'limites'} este mês`;
+    }
+    default:
+      return `Faltam ${achievement.category === 'savings' ? formatCurrency(remaining) : remaining.toLocaleString('pt-BR')}`;
+  }
 };
 
 // =====================================================

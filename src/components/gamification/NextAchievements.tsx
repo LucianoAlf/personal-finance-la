@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
-import { Trophy, TrendingUp } from 'lucide-react';
+import { Trophy, TrendingUp, Lightbulb, Flame } from 'lucide-react';
 import type { BadgeProgress } from '@/types/database.types';
-import { ACHIEVEMENTS, calculateTierProgress, TIER_CONFIG } from '@/config/achievements';
+import { ACHIEVEMENTS, calculateTierProgress, TIER_CONFIG, generateInsight } from '@/config/achievements';
 
 interface NextAchievementsProps {
   badges: BadgeProgress[];
@@ -71,6 +71,11 @@ export function NextAchievements({ badges }: NextAchievementsProps) {
           const Icon = badge.icon;
           const tierConfig = badge.nextTier ? TIER_CONFIG[badge.nextTier] : null;
 
+          const insight = generateInsight(
+            { badge_id: badge.badge_id, progress: badge.progress, nextTarget: badge.nextTarget },
+            ACHIEVEMENTS.find(a => a.id === badge.badge_id)!
+          );
+
           return (
             <motion.div
               key={badge.id}
@@ -132,6 +137,15 @@ export function NextAchievements({ badges }: NextAchievementsProps) {
                       </span>{' '}
                       para desbloquear
                     </p>
+
+                    {insight && (
+                      <div className="mt-2 rounded-md bg-blue-50 px-3 py-2 border-l-4 border-blue-500">
+                        <p className="text-xs text-blue-800 flex items-center gap-2">
+                          <Lightbulb className="h-4 w-4" />
+                          {insight}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -148,7 +162,8 @@ export function NextAchievements({ badges }: NextAchievementsProps) {
                     repeat: Infinity,
                   }}
                 >
-                  🔥 Quase!
+                  <Flame className="h-3 w-3 inline mr-1" />
+                  Quase!
                 </motion.div>
               )}
             </motion.div>

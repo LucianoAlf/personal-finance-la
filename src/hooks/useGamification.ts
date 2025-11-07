@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { 
   UserGamification, 
@@ -62,6 +62,11 @@ export function useGamification() {
   const [badges, setBadges] = useState<BadgeProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // Fila de celebrações de conquistas recém-desbloqueadas
+  const [celebrationQueue, setCelebrationQueue] = useState<BadgeProgress[]>([]);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const initializedRef = useRef(false);
+  const celebratedRef = useRef<Set<string>>(new Set());
 
   // =====================================================
   // Buscar perfil de gamificação
@@ -264,6 +269,50 @@ export function useGamification() {
     fetchBadges();
   }, [fetchProfile, fetchBadges]);
 
+  // Detectar conquistas recém-desbloqueadas (após primeira carga)
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
+
+    // Considerar como "recentes" as conquistas desbloqueadas nos últimos 10s
+    const getUnlockedMs = (val: unknown): number => {
+      if (!val) return 0;
+      if (typeof val === 'string') {
+        const t = Date.parse(val);
+        return isNaN(t) ? 0 : t;
+      }
+      if (val instanceof Date) return val.getTime();
+      return 0;
+    };
+
+    const recent = badges.filter((b) => {
+      if (!b.unlocked || !b.unlocked_at) return false;
+      const ts = getUnlockedMs(b.unlocked_at as unknown);
+      return ts > 0 && Date.now() - ts < 10_000;
+    });
+
+    const newOnes: BadgeProgress[] = [];
+    for (const b of recent) {
+      const key = `${b.badge_id}|${b.tier}|${b.unlocked_at}`;
+      if (!celebratedRef.current.has(key)) {
+        celebratedRef.current.add(key);
+        newOnes.push(b);
+      }
+    }
+
+    if (newOnes.length > 0) {
+      setCelebrationQueue((prev) => [...prev, ...newOnes]);
+      setShowCelebration(true);
+    }
+  }, [badges]);
+
+  const dismissCelebration = useCallback(() => {
+    setCelebrationQueue((prev) => prev.slice(1));
+    setShowCelebration(false);
+  }, []);
+
   // Realtime subscription para perfil
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -331,5 +380,10 @@ export function useGamification() {
     updatePreferences,
     refreshProfile: fetchProfile,
     refreshBadges: fetchBadges,
+    // Celebrações
+    celebrationQueue,
+    showCelebration,
+    setShowCelebration,
+    dismissCelebration,
   };
 }

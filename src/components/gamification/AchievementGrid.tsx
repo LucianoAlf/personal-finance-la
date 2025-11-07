@@ -36,7 +36,12 @@ export function AchievementGrid({ badges }: AchievementGridProps) {
           nextTierBadge.progress,
           highestUnlockedTier
         )
-      : { percentage: 100, nextTarget: 0, nextTier: null };
+      : {
+          // Sem registros para este badge: começar do zero mirando o tier bronze
+          percentage: 0,
+          nextTarget: achievement.tiers.find(t => t.tier === 'bronze')?.target ?? 0,
+          nextTier: 'bronze' as const,
+        };
 
     return {
       ...achievement,
