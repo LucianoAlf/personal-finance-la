@@ -2,6 +2,7 @@ import { useCreditCardTransactions } from '@/hooks/useCreditCardTransactions';
 import { formatCurrency } from '@/utils/formatters';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useCategories } from '@/hooks/useCategories';
 
 interface InvoiceSummaryProps {
   invoiceId: string;
@@ -21,14 +22,15 @@ const CATEGORY_COLORS = [
 
 export function InvoiceSummary({ invoiceId }: InvoiceSummaryProps) {
   const { transactions, loading } = useCreditCardTransactions();
+  const { categories } = useCategories();
 
   // Filtrar transações da fatura
   const invoiceTransactions = transactions.filter((t) => t.invoice_id === invoiceId);
 
   // Agrupar por categoria
   const categoryTotals = invoiceTransactions.reduce((acc, transaction) => {
-    const category = transaction.category_name || 'Outros';
-    acc[category] = (acc[category] || 0) + transaction.amount;
+    const name = categories.find(c => c.id === (transaction.category_id || ''))?.name || 'Outros';
+    acc[name] = (acc[name] || 0) + transaction.amount;
     return acc;
   }, {} as Record<string, number>);
 

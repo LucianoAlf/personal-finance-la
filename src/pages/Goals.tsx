@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap } from 'lucide-react';
+import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap, Calendar, Copy, Sparkles } from 'lucide-react';
+import { motion, MotionConfig } from 'framer-motion';
 import { useGoals } from '@/hooks/useGoals';
+import { useSearchParams } from 'react-router-dom';
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
 import { useGamification } from '@/hooks/useGamification';
 import { GoalBadges } from '@/components/goals/GoalBadges';
@@ -24,8 +26,15 @@ import { getAchievementById, ACHIEVEMENTS } from '@/config/achievements';
 import { useToast } from '@/hooks/use-toast';
 import type { FinancialGoalWithCategory } from '@/types/database.types';
 import { formatCurrency } from '@/utils/formatters';
+import { MonthSelector } from '@/components/shared/MonthSelector';
+import { useBudgets } from '@/hooks/useBudgets';
+import { BudgetSummaryCards } from '@/components/budget/BudgetSummaryCards';
+import { BudgetInsights } from '@/components/budget/BudgetInsights';
+import { BudgetGrid } from '@/components/budget/BudgetGrid';
+import { AddBudgetCategoryDialog } from '@/components/budget/AddBudgetCategoryDialog';
 
 export function Goals() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { goals, loading, getGoalsByType, getStats, deleteGoal, getGoalById, refreshGoals } = useGoals();
   const { profile, badges, unlockedBadges, xpForNextLevel, xpProgress, levelTitle, loading: gamificationLoading, celebrationQueue, showCelebration, dismissCelebration } = useGamification();
   const { toast } = useToast();
@@ -34,7 +43,23 @@ export function Goals() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<FinancialGoalWithCategory | null>(null);
   const [defaultGoalType, setDefaultGoalType] = useState<'savings' | 'spending_limit'>('savings');
-  const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'progress'>('savings');
+  const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'progress' | 'budget'>(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'budget' || tabParam === 'spending' || tabParam === 'progress') {
+      return tabParam as 'savings' | 'spending' | 'progress' | 'budget';
+    }
+    return 'savings';
+  });
+  const [selectedBudgetDate, setSelectedBudgetDate] = useState<Date>(new Date());
+  const [addBudgetDialogOpen, setAddBudgetDialogOpen] = useState(false);
+
+  const selectedMonthStr = useMemo(() => {
+    const y = selectedBudgetDate.getFullYear();
+    const m = String(selectedBudgetDate.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  }, [selectedBudgetDate]);
+
+  const { budgets, loading: budgetsLoading, totalPlanned, totalActual, totalDifference, copyFromPreviousMonth, getSuggestions, saveBudget, refreshBudgets } = useBudgets(selectedMonthStr);
 
   // Hook de notificações
   useGoalNotifications({ goals });
@@ -85,6 +110,12 @@ export function Goals() {
   const handleCreateGoal = (type: 'savings' | 'spending_limit') => {
     setDefaultGoalType(type);
     setCreateDialogOpen(true);
+  };
+
+  // Sincronizar activeTab com URL
+  const handleTabChange = (newTab: string) => {
+    setActiveTab(newTab as any);
+    setSearchParams({ tab: newTab });
   };
 
   if (loading) {
@@ -177,8 +208,8 @@ export function Goals() {
         </div>
 
         {/* Tabs de Navegação */}
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mb-6">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="savings" className="flex items-center gap-2">
               <PiggyBank className="h-4 w-4" />
               Economia ({savingsGoals.length})
@@ -190,6 +221,10 @@ export function Goals() {
             <TabsTrigger value="progress" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
               Progresso
+            </TabsTrigger>
+            <TabsTrigger value="budget" className="flex items-center gap-2">
+              <Calendar className="h-4 w-4" />
+              Orçamento
             </TabsTrigger>
           </TabsList>
 
@@ -295,6 +330,61 @@ export function Goals() {
                 <AchievementGrid badges={badges} />
               </div>
             )}
+          </TabsContent>
+
+          {/* Tab: Orçamento */}
+          <TabsContent value="budget">
+            <MotionConfig reducedMotion="never">
+              <motion.div
+                key={`${activeTab}-${selectedMonthStr}`}
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
+                className="space-y-6"
+              >
+              {/* Header com ações */}
+              <div className="flex items-center justify-between">
+                <MonthSelector selectedDate={selectedBudgetDate} onDateChange={setSelectedBudgetDate} />
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={async () => { await copyFromPreviousMonth(); toast({ title: 'Orçamento copiado do mês anterior.', description: selectedMonthStr }); }}>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copiar Mês Anterior
+                  </Button>
+                  <Button onClick={async () => { const s = await getSuggestions(); toast({ title: 'Sugestões calculadas', description: `${s.length} categorias com sugestão` }); }}>
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Sugestões Inteligentes
+                  </Button>
+                </div>
+              </div>
+
+              {/* Cards de resumo */}
+              <BudgetSummaryCards
+                totalPlanned={totalPlanned}
+                totalActual={totalActual}
+                totalDifference={totalDifference}
+                month={selectedMonthStr}
+              />
+
+              {/* Insights & Grid */}
+              <BudgetInsights budgets={budgets} totalDifference={totalDifference} month={selectedMonthStr} />
+
+              <BudgetGrid
+                budgets={budgets}
+                loading={budgetsLoading}
+                onEdit={async (categoryId, amount) => { await saveBudget(categoryId, amount); toast({ title: 'Orçamento atualizado' }); await refreshBudgets(); }}
+                onAddCategory={() => setAddBudgetDialogOpen(true)}
+                month={selectedMonthStr}
+              />
+
+              <AddBudgetCategoryDialog
+                open={addBudgetDialogOpen}
+                onOpenChange={setAddBudgetDialogOpen}
+                onAdd={async (categoryId, amount, notes) => { await saveBudget(categoryId, amount, notes); await refreshBudgets(); }}
+                existingCategories={budgets.map((b) => b.category_id)}
+                month={selectedMonthStr}
+              />
+              </motion.div>
+            </MotionConfig>
           </TabsContent>
         </Tabs>
       </div>

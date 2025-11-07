@@ -9,6 +9,8 @@ import { MonthSelector } from '@/components/shared/MonthSelector';
 import { ExpensesByCategoryChart } from '@/components/dashboard/charts/ExpensesByCategoryChart';
 import { MonthlyTrendChart } from '@/components/dashboard/charts/MonthlyTrendChart';
 import { GoalsSummaryWidget } from '@/components/goals/GoalsSummaryWidget';
+import { BudgetComplianceWidget } from '@/components/budget/BudgetComplianceWidget';
+import { CreditCardsWidget } from '@/components/creditcards/CreditCardsWidget';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
@@ -214,19 +216,11 @@ export function Dashboard() {
               </CardContent>
             </Card>
 
-            {/* Widget de Metas - Substituir card "Em breve" */}
+            {/* Widget de Metas */}
             <GoalsSummaryWidget />
 
-            <Card 
-              className="border-2 border-dashed border-gray-300 hover:border-purple-500 transition-colors cursor-pointer group"
-              onClick={() => alert('Em breve: Planejamento Orçamentário')}
-            >
-              <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
-                <Calendar size={32} className="text-gray-400 group-hover:text-purple-500 mb-2 transition-colors" />
-                <h3 className="font-semibold text-gray-900 mb-1">Planejamento</h3>
-                <p className="text-sm text-gray-600">Revisar orçamento</p>
-              </CardContent>
-            </Card>
+            {/* Widget de Orçamento */}
+            <BudgetComplianceWidget />
           </div>
         </div>
 
@@ -278,24 +272,8 @@ export function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* Cartões de Crédito - FASE 4 */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Cartões de Crédito</CardTitle>
-                <Button variant="ghost" size="sm" disabled>
-                  Em Breve
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="flex items-center justify-center py-12">
-              <div className="text-center text-gray-500">
-                <CreditCard size={48} className="mx-auto mb-4 text-gray-300" />
-                <p className="font-semibold mb-1">Em Breve: Cartões de Crédito</p>
-                <p className="text-sm">Gerencie seus cartões e faturas na Fase 4</p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Cartões de Crédito */}
+          <CreditCardsWidget />
         </div>
 
         {/* Insight Cards - Dinâmicos */}

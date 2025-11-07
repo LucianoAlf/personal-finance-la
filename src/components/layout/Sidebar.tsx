@@ -32,7 +32,6 @@ const menuItems = [
   { icon: Wallet, label: 'Contas', path: '/contas' },
   { icon: List, label: 'Transações', path: '/transacoes' },
   { icon: CreditCard, label: 'Cartões', path: '/cartoes' },
-  { icon: Calendar, label: 'Planejamento', path: '/planejamento' },
   { icon: Target, label: 'Metas', path: '/metas' },
   { icon: TrendingUp, label: 'Investimentos', path: '/investimentos' },
   { icon: BarChart3, label: 'Relatórios', path: '/relatorios' },

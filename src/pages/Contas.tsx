@@ -107,7 +107,16 @@ export const Contas: React.FC = () => {
         toast.success('Conta atualizada com sucesso!');
       } else {
         // Criar nova conta
-        await addAccount(data);
+        await addAccount({
+          name: data.name,
+          type: data.type ?? 'checking',
+          bank_name: data.bank_name,
+          initial_balance: data.initial_balance,
+          color: data.color,
+          icon: data.icon,
+          is_shared: data.is_shared,
+          is_active: data.is_active,
+        });
         toast.success('Conta criada com sucesso!');
       }
       setDialogOpen(false);

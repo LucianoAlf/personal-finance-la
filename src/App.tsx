@@ -7,7 +7,6 @@ import { Dashboard } from './pages/Dashboard';
 import { Contas } from './pages/Contas';
 import { Transacoes } from './pages/Transacoes';
 import { CreditCards } from './pages/CreditCards';
-import { Planning } from './pages/Planning';
 import { Goals } from './pages/Goals';
 import { Investments } from './pages/Investments';
 import { Reports } from './pages/Reports';
@@ -39,7 +38,6 @@ function App() {
           <Route path="contas" element={<Contas />} />
           <Route path="transacoes" element={<Transacoes />} />
           <Route path="cartoes" element={<CreditCards />} />
-          <Route path="planejamento" element={<Planning />} />
           <Route path="metas" element={<Goals />} />
           <Route path="investimentos" element={<Investments />} />
           <Route path="relatorios" element={<Reports />} />
