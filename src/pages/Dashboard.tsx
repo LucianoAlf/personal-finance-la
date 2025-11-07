@@ -8,6 +8,7 @@ import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { MonthSelector } from '@/components/shared/MonthSelector';
 import { ExpensesByCategoryChart } from '@/components/dashboard/charts/ExpensesByCategoryChart';
 import { MonthlyTrendChart } from '@/components/dashboard/charts/MonthlyTrendChart';
+import { GoalsSummaryWidget } from '@/components/goals/GoalsSummaryWidget';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
@@ -213,16 +214,8 @@ export function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card 
-              className="border-2 border-dashed border-gray-300 hover:border-purple-500 transition-colors cursor-pointer group"
-              onClick={() => alert('Em breve: Sistema de Metas')}
-            >
-              <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
-                <Target size={32} className="text-gray-400 group-hover:text-purple-500 mb-2 transition-colors" />
-                <h3 className="font-semibold text-gray-900 mb-1">Minhas Metas</h3>
-                <p className="text-sm text-gray-600">Em breve</p>
-              </CardContent>
-            </Card>
+            {/* Widget de Metas - Substituir card "Em breve" */}
+            <GoalsSummaryWidget />
 
             <Card 
               className="border-2 border-dashed border-gray-300 hover:border-purple-500 transition-colors cursor-pointer group"

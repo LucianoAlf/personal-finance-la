@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronRight, ChevronDown, ChevronUp, Eye, Edit2, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, ChevronUp, Eye, Edit2, Trash2, Clock, CheckCircle2, XCircle, AlertCircle, Package } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -84,25 +84,41 @@ export function InvoiceHistoryTable({
   };
 
   const getStatusBadge = (status: string) => {
-    const styles = {
-      paid: 'bg-green-100 text-green-800',
-      open: 'bg-yellow-100 text-yellow-800',
-      overdue: 'bg-red-100 text-red-800',
-      partial: 'bg-orange-100 text-orange-800',
-      closed: 'bg-blue-100 text-blue-800',
+    const config = {
+      paid: {
+        style: 'bg-green-100 text-green-800',
+        icon: CheckCircle2,
+        label: 'Pago'
+      },
+      open: {
+        style: 'bg-yellow-100 text-yellow-800',
+        icon: Clock,
+        label: 'Pendente'
+      },
+      overdue: {
+        style: 'bg-red-100 text-red-800',
+        icon: XCircle,
+        label: 'Atrasado'
+      },
+      partial: {
+        style: 'bg-orange-100 text-orange-800',
+        icon: AlertCircle,
+        label: 'Parcial'
+      },
+      closed: {
+        style: 'bg-blue-100 text-blue-800',
+        icon: Package,
+        label: 'Fechada'
+      },
     } as const;
 
-    const labels = {
-      paid: '✅ Pago',
-      open: '⏳ Pendente',
-      overdue: '❌ Atrasado',
-      partial: '🔶 Parcial',
-      closed: '📦 Fechada',
-    } as const;
+    const statusConfig = config[status as keyof typeof config] || config.open;
+    const Icon = statusConfig.icon;
 
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status as keyof typeof styles] || styles.open}`}>
-        {labels[status as keyof typeof labels] || status}
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusConfig.style}`}>
+        <Icon className="h-3 w-3" />
+        {statusConfig.label}
       </span>
     );
   };

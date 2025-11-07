@@ -52,6 +52,103 @@ export interface Category {
   created_at: Date;
 }
 
+// ============================================
+// FINANCIAL GOALS - Sistema Unificado de Metas
+// ============================================
+
+export type GoalType = 'savings' | 'spending_limit';
+export type GoalStatus = 'active' | 'completed' | 'exceeded' | 'archived';
+export type PeriodType = 'monthly' | 'quarterly' | 'yearly';
+
+// Meta Financeira (Unificada)
+export interface FinancialGoal {
+  id: string;
+  user_id: string;
+  goal_type: GoalType;
+  name: string;
+  icon?: string;
+  target_amount: number;
+  current_amount: number;
+  
+  // Específico para Savings (Economia)
+  deadline?: Date;
+  
+  // Específico para Spending Limit (Controle de Gastos)
+  category_id?: string;
+  period_type?: PeriodType;
+  period_start?: Date;
+  period_end?: Date;
+  
+  // Gamificação
+  status: GoalStatus;
+  streak_count: number;
+  best_streak: number;
+  
+  created_at: Date;
+  updated_at: Date;
+}
+
+// Inputs para criar metas
+export interface CreateSavingsGoalInput {
+  name: string;
+  icon?: string;
+  target_amount: number;
+  current_amount?: number;
+  deadline: Date;
+}
+
+export interface CreateSpendingGoalInput {
+  name: string;
+  category_id: string;
+  target_amount: number;
+  period_type: PeriodType;
+  period_start: Date;
+  period_end: Date;
+}
+
+export type CreateGoalInput = CreateSavingsGoalInput | CreateSpendingGoalInput;
+
+// Meta com informações extras (para UI)
+export interface FinancialGoalWithCategory extends FinancialGoal {
+  category_name?: string;
+  category_icon?: string;
+  percentage: number;
+  remaining: number;
+  days_left?: number;
+}
+
+// Progresso de meta
+export interface GoalProgress {
+  percentage: number;
+  remaining: number;
+  status: 'safe' | 'warning' | 'exceeded';
+  days_left?: number;
+  average_daily?: number;
+  projected_total?: number;
+}
+
+// Badge de conquista
+export interface GoalBadge {
+  id: string;
+  icon: string;
+  name: string;
+  description: string;
+  unlocked: boolean;
+  unlocked_at?: Date;
+}
+
+// Estatísticas de metas
+export interface GoalStats {
+  total_goals: number;
+  active_goals: number;
+  completed_goals: number;
+  exceeded_goals: number;
+  total_savings: number;
+  best_streak: number;
+  completion_rate: number;
+}
+
+// LEGACY: Manter para compatibilidade
 export interface Goal {
   id: string;
   user_id: string;
