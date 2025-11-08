@@ -37,7 +37,7 @@ import { BILL_TYPE_LABELS, PRIORITY_LABELS, PAYMENT_METHOD_LABELS } from '@/type
 import { useCategories } from '@/hooks/useCategories';
 import { useAccounts } from '@/hooks/useAccounts';
 import { TagSelector } from './TagSelector';
-import { Plus, X, MessageCircle, Mail, Bell } from 'lucide-react';
+import { Plus, X, MessageCircle, Mail, Bell, Calendar, Send, ClipboardList } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -700,8 +700,9 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                     
                     {/* Seção: Quando Avisar */}
                     <div>
-                      <Label className="text-sm font-semibold mb-3 block">
-                        📅 Quando avisar?
+                      <Label className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        <Calendar className="h-4 w-4" />
+                        Quando avisar?
                       </Label>
                       
                       <FormField
@@ -793,8 +794,9 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
 
                     {/* Seção: Como Enviar */}
                     <div>
-                      <Label className="text-sm font-semibold mb-3 block">
-                        📬 Como enviar?
+                      <Label className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        <Send className="h-4 w-4" />
+                        Como enviar?
                       </Label>
                       
                       <FormField
@@ -881,8 +883,9 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
 
                     {/* Preview dos lembretes */}
                     <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
-                      <p className="text-xs font-semibold mb-2 text-blue-900 dark:text-blue-100">
-                        📋 Resumo dos lembretes:
+                      <p className="text-xs font-semibold mb-2 text-blue-900 dark:text-blue-100 flex items-center gap-2">
+                        <ClipboardList className="h-4 w-4" />
+                        Resumo dos lembretes:
                       </p>
                       <ul className="text-xs space-y-1 text-blue-800 dark:text-blue-200">
                         {form.watch('reminders')?.map((r, i) => (
