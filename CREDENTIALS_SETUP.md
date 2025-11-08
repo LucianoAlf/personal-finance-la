@@ -56,10 +56,14 @@ VITE_SUPABASE_ANON_KEY=<sua_anon_key_aqui>
 - **Documentação:** https://platform.openai.com/docs
 
 ### 💬 UAZAPI (WhatsApp)
-- **Uso:** Envio de lembretes via WhatsApp (Fase 3 - Dia 14)
+- **Uso:** Envio de lembretes via WhatsApp
 - **Função:** `send-reminders`, `whatsapp-webhook`
 - **Número conectado:** +55 21 98127-8047
+- **Server URL:** https://lamusic.uazapi.com
+- **Instance Token:** Visível no dashboard (campo "Instance Token")
 - **Documentação:** https://uazapi.com/docs
+
+**⚠️ IMPORTANTE:** O token de instância muda quando você reconecta o WhatsApp. Sempre verifique no dashboard e atualize no Supabase Secrets após reconectar.
 
 ---
 
