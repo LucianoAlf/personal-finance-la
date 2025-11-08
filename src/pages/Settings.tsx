@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/store/authStore';
 import { User, Save, Settings as SettingsIcon } from 'lucide-react';
+import { PushNotificationSettings } from '@/components/settings/PushNotificationSettings';
 
 export function Settings() {
   const { user } = useAuthStore();
@@ -63,6 +64,9 @@ export function Settings() {
             </Button>
           </CardContent>
         </Card>
+
+        {/* Push Notifications */}
+        <PushNotificationSettings />
 
         {/* WhatsApp */}
         <Card>

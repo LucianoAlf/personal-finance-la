@@ -1,21 +1,19 @@
 /**
  * Service para gerenciamento de Push Notifications
- *
- * NOTA: Esta versão é um stub temporário.
- * A implementação completa de Web Push Notifications será feita posteriormente
- * usando Web Push API + Service Workers + VAPID keys (conforme FASE 2 do planejamento).
- *
- * Para implementação futura, consulte:
- * - supabase/functions/send-bill-reminders/push.ts
- * - Documentação em docs/whatsapp-setup.md
+ * Implementação completa usando Web Push API + Service Workers + VAPID keys
  */
+
+import { supabase } from '@/lib/supabase';
 
 /**
  * Interface para token de push notification
  */
 export interface PushToken {
-  token: string;
-  type: 'web' | 'fcm' | 'apns';
+  endpoint: string;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
 }
 
 /**
@@ -49,27 +47,150 @@ export class PushNotificationService {
   }
 
   /**
+   * Registra o Service Worker
+   */
+  static async registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+    if (!this.isSupported()) return null;
+
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      console.log('[Push] Service Worker registrado:', registration);
+      return registration;
+    } catch (error) {
+      console.error('[Push] Erro ao registrar Service Worker:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Obtém a subscription do push
+   */
+  static async getSubscription(): Promise<PushSubscription | null> {
+    if (!this.isSupported()) return null;
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      return await registration.pushManager.getSubscription();
+    } catch (error) {
+      console.error('[Push] Erro ao obter subscription:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Cria uma nova subscription
+   */
+  static async subscribe(vapidPublicKey: string): Promise<PushSubscription | null> {
+    if (!this.isSupported()) return null;
+
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      
+      const applicationServerKey = this.urlBase64ToUint8Array(vapidPublicKey);
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey as BufferSource,
+      });
+
+      console.log('[Push] Subscription criada:', subscription);
+      return subscription;
+    } catch (error) {
+      console.error('[Push] Erro ao criar subscription:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Converte VAPID key de base64 para Uint8Array
+   */
+  private static urlBase64ToUint8Array(base64String: string): Uint8Array {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  /**
    * Registra o token de push notification no Supabase
    */
-  static async registerPushToken(userId: string, token: PushToken): Promise<void> {
-    // TODO: Implementar quando Web Push API estiver configurada
-    console.log('Push token registration (stub):', { userId, token });
+  static async registerPushToken(userId: string, subscription: PushSubscription): Promise<void> {
+    try {
+      const token: PushToken = {
+        endpoint: subscription.endpoint,
+        keys: {
+          p256dh: this.arrayBufferToBase64(subscription.getKey('p256dh')!),
+          auth: this.arrayBufferToBase64(subscription.getKey('auth')!),
+        },
+      };
+
+      const { error } = await supabase
+        .from('push_tokens')
+        .upsert({
+          user_id: userId,
+          endpoint: token.endpoint,
+          p256dh: token.keys.p256dh,
+          auth: token.keys.auth,
+          updated_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id',
+        });
+
+      if (error) throw error;
+      console.log('[Push] Token registrado no Supabase');
+    } catch (error) {
+      console.error('[Push] Erro ao registrar token:', error);
+      throw error;
+    }
   }
 
   /**
    * Remove o registro do token de push notification
    */
   static async unregisterPushToken(userId: string): Promise<void> {
-    // TODO: Implementar quando Web Push API estiver configurada
-    console.log('Push token unregistration (stub):', { userId });
+    try {
+      const subscription = await this.getSubscription();
+      if (subscription) {
+        await subscription.unsubscribe();
+      }
+
+      const { error } = await supabase
+        .from('push_tokens')
+        .delete()
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      console.log('[Push] Token removido do Supabase');
+    } catch (error) {
+      console.error('[Push] Erro ao remover token:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Converte ArrayBuffer para Base64
+   */
+  private static arrayBufferToBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return window.btoa(binary);
   }
 
   /**
    * Configura listeners para notificações recebidas
    */
   static async setupListeners(): Promise<void> {
-    // TODO: Implementar quando Web Push API estiver configurada
-    console.log('Push notification listeners setup (stub)');
+    if (!this.isSupported()) return;
+
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      console.log('[Push] Mensagem recebida do SW:', event.data);
+    });
   }
 
   /**

@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Bell, Mail, MessageCircle, Loader2, CheckCircle2 } from 'lucide-react';
+import { Bell, Mail, MessageCircle, Loader2, CheckCircle2, Calendar, Send, Lightbulb } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
 import { format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -143,8 +143,9 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
 
           {/* Quando lembrar */}
           <div>
-            <Label className="text-base font-semibold mb-3 block">
-              📅 Quando lembrar?
+            <Label className="text-base font-semibold mb-3 flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              Quando lembrar?
             </Label>
             <div className="space-y-3">
               {DAYS_OPTIONS.map((option) => {
@@ -155,8 +156,7 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
                   <motion.div
                     key={option.value}
                     whileHover={{ x: 4 }}
-                    className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer"
-                    onClick={() => toggleDay(option.value)}
+                    className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
                   >
                     <Checkbox
                       id={`day-${option.value}`}
@@ -180,15 +180,15 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
 
           {/* Como enviar */}
           <div>
-            <Label className="text-base font-semibold mb-3 block">
-              📬 Como enviar?
+            <Label className="text-base font-semibold mb-3 flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Como enviar?
             </Label>
             <div className="space-y-3">
               {/* Push Notification */}
               <motion.div
                 whileHover={{ x: 4 }}
-                className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer"
-                onClick={() => toggleChannel('push')}
+                className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
               >
                 <Checkbox
                   id="channel-push"
@@ -209,8 +209,7 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
               {/* Email */}
               <motion.div
                 whileHover={{ x: 4 }}
-                className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors cursor-pointer"
-                onClick={() => toggleChannel('email')}
+                className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
               >
                 <Checkbox
                   id="channel-email"
@@ -231,20 +230,20 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
               {/* WhatsApp */}
               <motion.div
                 whileHover={{ x: 4 }}
-                className="flex items-center space-x-3 p-3 rounded-lg border border-border/50 bg-muted/30 cursor-not-allowed opacity-60"
+                className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
               >
                 <Checkbox
                   id="channel-whatsapp"
-                  disabled
-                  checked={false}
+                  checked={selectedChannels.includes('whatsapp')}
+                  onCheckedChange={() => toggleChannel('whatsapp')}
                 />
-                <Label htmlFor="channel-whatsapp" className="flex-1">
+                <Label htmlFor="channel-whatsapp" className="flex-1 cursor-pointer">
                   <div className="flex items-center gap-2 font-medium">
                     <MessageCircle className="h-4 w-4" />
-                    WhatsApp
+                    WhatsApp ({user?.phone || 'Configurar número'})
                   </div>
                   <div className="text-xs text-muted-foreground mt-1">
-                    Em breve! Disponível na Fase 3
+                    Receba lembretes via WhatsApp
                   </div>
                 </Label>
               </motion.div>
@@ -253,8 +252,9 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
 
           {/* Dica */}
           <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-lg p-4">
-            <p className="text-xs text-blue-800 dark:text-blue-300">
-              💡 <span className="font-medium">Dica:</span> Recomendamos ativar múltiplos canais e lembretes em diferentes dias para não esquecer nenhuma conta!
+            <p className="text-xs text-blue-800 dark:text-blue-300 flex items-start gap-2">
+              <Lightbulb className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span><span className="font-medium">Dica:</span> Recomendamos ativar múltiplos canais e lembretes em diferentes dias para não esquecer nenhuma conta!</span>
             </p>
           </div>
         </div>
