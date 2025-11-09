@@ -6,21 +6,29 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useInvestments } from '@/hooks/useInvestments';
 import { useInvestmentPrices } from '@/hooks/useInvestmentPrices';
 import { useInvestmentTransactions } from '@/hooks/useInvestmentTransactions';
+import { usePortfolioMetrics } from '@/hooks/usePortfolioMetrics';
+import { useInvestmentAlerts } from '@/hooks/useInvestmentAlerts';
 import { PriceUpdater } from '@/components/investments/PriceUpdater';
 import { MarketStatus } from '@/components/investments/MarketStatus';
 import { InvestmentDialog } from '@/components/investments/InvestmentDialog';
 import { TransactionDialog } from '@/components/investments/TransactionDialog';
 import { TransactionTimeline } from '@/components/investments/TransactionTimeline';
+import { PortfolioSummaryCards } from '@/components/investments/PortfolioSummaryCards';
+import { AlertDialog } from '@/components/investments/AlertDialog';
+import { AlertsList } from '@/components/investments/AlertsList';
 import { formatCurrency } from '@/utils/formatters';
-import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell } from 'lucide-react';
 import type { CreateInvestmentInput, UpdateInvestmentInput, CreateTransactionInput } from '@/types/database.types';
 
 export function Investments() {
   const { investments, loading, refresh, addInvestment, updateInvestment, deleteInvestment } = useInvestments();
   const { transactions, addTransaction, deleteTransaction } = useInvestmentTransactions();
+  const { alerts, addAlert, deleteAlert, toggleAlert } = useInvestmentAlerts();
+  const metrics = usePortfolioMetrics(investments);
   
   const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
+  const [alertDialogOpen, setAlertDialogOpen] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('portfolio');
 
@@ -107,18 +115,6 @@ export function Investments() {
     );
   }
 
-  // Calcular totais (usando campos do banco)
-  const totalInvested = investments.reduce(
-    (sum, inv) => sum + (inv.total_invested || 0),
-    0
-  );
-  const totalCurrent = investments.reduce(
-    (sum, inv) => sum + (inv.current_value || inv.total_invested || 0),
-    0
-  );
-  const totalGain = totalCurrent - totalInvested;
-  const percentGain = totalInvested > 0 ? (totalGain / totalInvested) * 100 : 0;
-
   const getTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       stock: 'Ação',
@@ -173,55 +169,23 @@ export function Investments() {
           onOpenChange={setTransactionDialogOpen}
           onSave={handleAddTransaction}
         />
+
+        <AlertDialog
+          open={alertDialogOpen}
+          onOpenChange={setAlertDialogOpen}
+          onSave={addAlert}
+        />
         {/* Resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-sm text-gray-600 mb-1">Total Investido</p>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {formatCurrency(totalInvested)}
-              </h2>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-sm text-gray-600 mb-1">Valor Atual</p>
-              <h2 className="text-2xl font-bold text-gray-900">
-                {formatCurrency(totalCurrent)}
-              </h2>
-            </CardContent>
-          </Card>
-
-          <Card className={totalGain >= 0 ? 'border-l-4 border-green-500' : 'border-l-4 border-red-500'}>
-            <CardContent className="p-6">
-              <p className="text-sm text-gray-600 mb-1">Valorização</p>
-              <h2 className={`text-2xl font-bold ${totalGain >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {formatCurrency(totalGain)}
-              </h2>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-sm text-gray-600 mb-1">Rentabilidade</p>
-              <div className="flex items-center space-x-2">
-                {percentGain >= 0 ? (
-                  <TrendingUp className="text-green-600" size={24} />
-                ) : (
-                  <TrendingDown className="text-red-600" size={24} />
-                )}
-                <h2 className={`text-2xl font-bold ${percentGain >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {percentGain.toFixed(2)}%
-                </h2>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <PortfolioSummaryCards
+          totalInvested={metrics.totalInvested}
+          currentValue={metrics.currentValue}
+          totalReturn={metrics.totalReturn}
+          returnPercentage={metrics.returnPercentage}
+        />
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="portfolio">
               <BarChart3 className="mr-2 h-4 w-4" />
               Meus Investimentos
@@ -229,6 +193,10 @@ export function Investments() {
             <TabsTrigger value="transactions">
               <ArrowLeftRight className="mr-2 h-4 w-4" />
               Transações
+            </TabsTrigger>
+            <TabsTrigger value="alerts">
+              <Bell className="mr-2 h-4 w-4" />
+              Alertas
             </TabsTrigger>
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           </TabsList>
@@ -322,6 +290,26 @@ export function Investments() {
             <TransactionTimeline
               transactions={transactions}
               onDelete={deleteTransaction}
+            />
+          </TabsContent>
+
+          {/* Aba Alertas */}
+          <TabsContent value="alerts" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold">Alertas de Preço</h2>
+              <Button
+                size="sm"
+                onClick={() => setAlertDialogOpen(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Novo Alerta
+              </Button>
+            </div>
+
+            <AlertsList
+              alerts={alerts}
+              onDelete={deleteAlert}
+              onToggle={toggleAlert}
             />
           </TabsContent>
 
