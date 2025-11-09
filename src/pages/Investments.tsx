@@ -1,15 +1,28 @@
+import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useInvestments } from '@/hooks/useInvestments';
 import { useInvestmentPrices } from '@/hooks/useInvestmentPrices';
+import { useInvestmentTransactions } from '@/hooks/useInvestmentTransactions';
 import { PriceUpdater } from '@/components/investments/PriceUpdater';
 import { MarketStatus } from '@/components/investments/MarketStatus';
+import { InvestmentDialog } from '@/components/investments/InvestmentDialog';
+import { TransactionDialog } from '@/components/investments/TransactionDialog';
+import { TransactionTimeline } from '@/components/investments/TransactionTimeline';
 import { formatCurrency } from '@/utils/formatters';
-import { Plus, TrendingUp, TrendingDown, Loader2 } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight } from 'lucide-react';
+import type { CreateInvestmentInput, UpdateInvestmentInput, CreateTransactionInput } from '@/types/database.types';
 
 export function Investments() {
-  const { investments, loading, refresh } = useInvestments();
+  const { investments, loading, refresh, addInvestment, updateInvestment, deleteInvestment } = useInvestments();
+  const { transactions, addTransaction, deleteTransaction } = useInvestmentTransactions();
+  
+  const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
+  const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
+  const [editingInvestment, setEditingInvestment] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState('portfolio');
 
   // Preparar items para buscar cotações
   const priceItems = investments.map((inv) => ({
@@ -32,6 +45,21 @@ export function Investments() {
     items: priceItems,
     autoRefresh: true,
   });
+
+  // Handlers
+  const handleSaveInvestment = async (data: any) => {
+    if (editingInvestment) {
+      await updateInvestment(editingInvestment.id, data);
+    } else {
+      await addInvestment(data as CreateInvestmentInput);
+    }
+    setEditingInvestment(null);
+    refresh();
+  };
+
+  const handleAddTransaction = async (data: CreateTransactionInput) => {
+    await addTransaction(data);
+  };
 
   // Loading state
   if (loading) {
@@ -117,7 +145,13 @@ export function Investments() {
               lastUpdate={lastUpdate}
               loading={quotesLoading}
             />
-            <Button size="sm">
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditingInvestment(null);
+                setInvestmentDialogOpen(true);
+              }}
+            >
               <Plus size={16} className="mr-1" />
               Novo Investimento
             </Button>
@@ -126,6 +160,19 @@ export function Investments() {
       />
 
       <div className="p-6 space-y-6">
+        {/* Dialogs */}
+        <InvestmentDialog
+          open={investmentDialogOpen}
+          onOpenChange={setInvestmentDialogOpen}
+          investment={editingInvestment}
+          onSave={handleSaveInvestment}
+        />
+
+        <TransactionDialog
+          open={transactionDialogOpen}
+          onOpenChange={setTransactionDialogOpen}
+          onSave={handleAddTransaction}
+        />
         {/* Resumo */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card>
@@ -172,11 +219,40 @@ export function Investments() {
           </Card>
         </div>
 
-        {/* Tabela de Investimentos */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Portfólio</CardTitle>
-          </CardHeader>
+        {/* Tabs */}
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="portfolio">
+              <BarChart3 className="mr-2 h-4 w-4" />
+              Meus Investimentos
+            </TabsTrigger>
+            <TabsTrigger value="transactions">
+              <ArrowLeftRight className="mr-2 h-4 w-4" />
+              Transações
+            </TabsTrigger>
+            <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+          </TabsList>
+
+          {/* Aba Portfólio */}
+          <TabsContent value="portfolio" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold">Minha Carteira</h2>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingInvestment(null);
+                  setInvestmentDialogOpen(true);
+                }}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Adicionar
+              </Button>
+            </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Portfólio</CardTitle>
+              </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full">
@@ -228,6 +304,38 @@ export function Investments() {
             </div>
           </CardContent>
         </Card>
+          </TabsContent>
+
+          {/* Aba Transações */}
+          <TabsContent value="transactions" className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold">Histórico de Transações</h2>
+              <Button
+                size="sm"
+                onClick={() => setTransactionDialogOpen(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Nova Transação
+              </Button>
+            </div>
+
+            <TransactionTimeline
+              transactions={transactions}
+              onDelete={deleteTransaction}
+            />
+          </TabsContent>
+
+          {/* Aba Visão Geral */}
+          <TabsContent value="overview" className="space-y-4">
+            <div className="text-center py-12">
+              <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">Gráficos em Desenvolvimento</h3>
+              <p className="text-sm text-muted-foreground">
+                Os gráficos de alocação e performance serão implementados no DIA 3
+              </p>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
