@@ -236,25 +236,55 @@
 
 ---
 
-## ⚠️ PENDENTE (Opcional - Não bloqueia DIA 3)
+## ✅ EDGE FUNCTION + CRON JOBS IMPLEMENTADOS
 
 ### **Edge Function check-investment-alerts**
-**Status:** Planejada mas não implementada
+**Status:** ✅ **DEPLOYADA E ATIVA**
 
-**Motivo:** Edge Function para verificar alertas automaticamente via Cron seria implementada, mas não é crítica para o MVP. Alertas podem ser verificados manualmente ou implementados posteriormente.
+**ID:** e6452505-25c3-4e03-985f-6b7dcfb9160a  
+**Version:** 1  
+**Endpoint:** `https://sbnpmhmvcspwcyjhftlw.supabase.co/functions/v1/check-investment-alerts`
 
-**Funcionalidade:**
-- Buscar alertas ativos
-- Verificar cotações atuais (via BrAPI)
-- Comparar com valores alvo
-- Disparar notificações
-- Marcar como disparado
+**Funcionalidades:**
+✅ Buscar alertas ativos (is_active=true, triggered_at=null)  
+✅ Agrupar tickers únicos  
+✅ Buscar cotações via BrAPI (https://brapi.dev/api/quote/)  
+✅ Verificar 3 tipos de condição:
+  - price_above: Preço >= target_value
+  - price_below: Preço <= target_value
+  - percent_change: |variação| >= target_value
+✅ Atualizar current_value de todos os alertas  
+✅ Marcar triggered_at quando disparado  
+✅ Logs detalhados com emojis  
+✅ Autenticação via CRON_SECRET  
 
-**Cron Jobs:** 2 planejados
-- Market hours: A cada 5 minutos (10h-17h, seg-sex)
-- Off hours: A cada 1 hora
+**Response Example:**
+```json
+{
+  "message": "Alerts checked successfully",
+  "checked": 5,
+  "triggered": 2,
+  "timestamp": "2025-11-09T11:56:00.000Z"
+}
+```
 
-**Decisão:** Prosseguir para DIA 3. Edge Function pode ser implementada no DIA 4 (Polish) se necessário.
+### **Cron Jobs Criados:**
+
+**Job #14: check-alerts-market-hours**
+- Schedule: `*/5 10-17 * * 1-5` (a cada 5 minutos)
+- Horário: 10h-17h, segunda a sexta
+- Função: Verificação frequente durante pregão
+
+**Job #15: check-alerts-off-hours**
+- Schedule: `0 * * * *` (a cada hora)
+- Horário: Fora de 10h-17h ou fins de semana
+- Função: Verificação espaçada fora do pregão
+- Lógica condicional para não duplicar com market-hours
+
+**Ambos os jobs:**
+- Chamam a Edge Function via net.http_post
+- Usam CRON_SECRET para autenticação
+- Logs automáticos no Supabase
 
 ---
 
@@ -301,15 +331,19 @@
 
 ## 💯 STATUS FINAL
 
-**DIA 2:** ✅ **100% COMPLETO**
+**DIA 2:** ✅ **100% COMPLETO (com Edge Function e Cron Jobs)**
 
 **Entregáveis:**
 - ✅ Tabela investment_alerts criada
-- ✅ 2 Hooks implementados
-- ✅ 4 Componentes criados
+- ✅ 2 Hooks implementados (usePortfolioMetrics, useInvestmentAlerts)
+- ✅ 4 Componentes criados (PortfolioSummaryCards, AlertDialog, AlertsList, Progress)
 - ✅ PortfolioSummaryCards funcionando
 - ✅ Sistema de alertas completo
 - ✅ 4 abas funcionando
+- ✅ **Edge Function check-investment-alerts deployada**
+- ✅ **2 Cron Jobs configurados (market hours + off hours)**
+- ✅ **Integração com BrAPI para cotações**
+- ✅ **Verificação automática de alertas**
 - ✅ Validação completa
 - ✅ Zero erros
 
