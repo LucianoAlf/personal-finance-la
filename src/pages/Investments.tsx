@@ -22,6 +22,7 @@ import { PerformanceBarChart } from '@/components/investments/PerformanceBarChar
 import { DividendCalendar } from '@/components/investments/DividendCalendar';
 import { DividendHistoryTable } from '@/components/investments/DividendHistoryTable';
 import { OpportunityFeed } from '@/components/investments/OpportunityFeed';
+import { SmartRebalanceWidget } from '@/components/investments/SmartRebalanceWidget';
 import { useDividendCalendar, useDividendHistory } from '@/hooks/useDividendCalendar';
 import { formatCurrency } from '@/utils/formatters';
 import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell, DollarSign } from 'lucide-react';
@@ -366,6 +367,9 @@ export function Investments() {
 
             {/* Investment Radar - Ana Clara */}
             <OpportunityFeed />
+
+            {/* Smart Rebalance */}
+            <SmartRebalanceWidget investments={investments} />
           </TabsContent>
         </Tabs>
       </div>
