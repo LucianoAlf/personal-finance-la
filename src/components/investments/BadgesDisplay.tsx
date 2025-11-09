@@ -205,13 +205,13 @@ export function BadgesDisplay() {
 
                     {/* Conteúdo do card */}
                     <div className="flex flex-col items-center text-center gap-3">
-                      {/* Ícone dentro do card */}
+                      {/* Ícone dentro do card - CIRCULAR e menor */}
                       {(() => {
                         const Icon = getBadgeIcon(badge.id);
                         const colors = getBadgeColor(badge.id, badge.unlocked);
                         return (
-                          <div className={`p-4 rounded-2xl ${colors.bg}`}>
-                            <Icon className={`h-8 w-8 ${colors.icon}`} />
+                          <div className={`p-3 rounded-full ${colors.bg}`}>
+                            <Icon className={`h-6 w-6 ${colors.icon}`} />
                           </div>
                         );
                       })()}

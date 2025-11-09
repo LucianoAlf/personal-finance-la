@@ -29,43 +29,54 @@ serve(async (req) => {
     // 2. Para cada usuário, gerar oportunidades
     for (const user of users || []) {
       try {
-        // Chamar a Edge Function generate-opportunities para cada usuário
-        const { data, error } = await supabase.functions.invoke('generate-opportunities', {
-          body: { userId: user.id },
+        // Chamar a Edge Function generate-opportunities via fetch (mais confiável que invoke)
+        const generateResponse = await fetch(`${supabaseUrl}/functions/v1/generate-opportunities`, {
+          method: 'POST',
           headers: {
-            Authorization: `Bearer ${supabaseServiceKey}`,
+            'Authorization': `Bearer ${supabaseServiceKey}`,
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify({ userId: user.id }),
         });
 
-        if (error) {
-          console.error(`❌ Error for user ${user.id}:`, error);
+        if (!generateResponse.ok) {
+          const errorText = await generateResponse.text();
+          console.error(`❌ Error for user ${user.id}: ${generateResponse.status} - ${errorText}`);
           errors++;
           continue;
         }
 
+        const data = await generateResponse.json();
         const opportunitiesCount = data?.opportunities?.length || 0;
         totalOpportunities += opportunitiesCount;
         processedUsers++;
 
         console.log(`✅ User ${user.id}: ${opportunitiesCount} opportunities generated`);
 
-        // Se gerou oportunidades, enviar notificação por email
+        // Se gerou oportunidades, enviar notificação (WhatsApp + Email)
         if (opportunitiesCount > 0 && data?.opportunities) {
           try {
-            await supabase.functions.invoke('send-opportunity-notification', {
-              body: { 
-                userId: user.id,
-                opportunities: data.opportunities 
-              },
+            const notifResponse = await fetch(`${supabaseUrl}/functions/v1/send-opportunity-notification`, {
+              method: 'POST',
               headers: {
-                Authorization: `Bearer ${supabaseServiceKey}`,
+                'Authorization': `Bearer ${supabaseServiceKey}`,
                 'Content-Type': 'application/json',
               },
+              body: JSON.stringify({ 
+                userId: user.id,
+                opportunities: data.opportunities 
+              }),
             });
-            console.log(`📧 Email notification sent to user ${user.id}`);
+
+            if (notifResponse.ok) {
+              const notifData = await notifResponse.json();
+              console.log(`📧 Notifications sent to user ${user.id}: ${notifData.sent} success, ${notifData.failed} failed`);
+            } else {
+              const errorText = await notifResponse.text();
+              console.error(`⚠️ Failed to send notification to user ${user.id}: ${errorText}`);
+            }
           } catch (notifError) {
-            console.error(`⚠️ Failed to send notification to user ${user.id}:`, notifError);
+            console.error(`⚠️ Exception sending notification to user ${user.id}:`, notifError);
             // Não falhar o cron se notificação falhar
           }
         }
