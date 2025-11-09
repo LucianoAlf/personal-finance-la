@@ -16,6 +16,9 @@ import { TransactionTimeline } from '@/components/investments/TransactionTimelin
 import { PortfolioSummaryCards } from '@/components/investments/PortfolioSummaryCards';
 import { AlertDialog } from '@/components/investments/AlertDialog';
 import { AlertsList } from '@/components/investments/AlertsList';
+import { AssetAllocationChart } from '@/components/investments/AssetAllocationChart';
+import { PortfolioEvolutionChart } from '@/components/investments/PortfolioEvolutionChart';
+import { PerformanceBarChart } from '@/components/investments/PerformanceBarChart';
 import { formatCurrency } from '@/utils/formatters';
 import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell } from 'lucide-react';
 import type { CreateInvestmentInput, UpdateInvestmentInput, CreateTransactionInput } from '@/types/database.types';
@@ -314,14 +317,23 @@ export function Investments() {
           </TabsContent>
 
           {/* Aba Visão Geral */}
-          <TabsContent value="overview" className="space-y-4">
-            <div className="text-center py-12">
-              <BarChart3 className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Gráficos em Desenvolvimento</h3>
-              <p className="text-sm text-muted-foreground">
-                Os gráficos de alocação e performance serão implementados no DIA 3
-              </p>
+          <TabsContent value="overview" className="space-y-6">
+            {/* Grid de gráficos */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Alocação por Categoria */}
+              <AssetAllocationChart
+                data={Object.values(metrics.allocation)}
+              />
+
+              {/* Evolução do Portfólio */}
+              <PortfolioEvolutionChart
+                totalInvested={metrics.totalInvested}
+                currentValue={metrics.currentValue}
+              />
             </div>
+
+            {/* Performance por Ativo (full width) */}
+            <PerformanceBarChart investments={investments} />
           </TabsContent>
         </Tabs>
       </div>
