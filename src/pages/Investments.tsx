@@ -24,6 +24,7 @@ import { DividendHistoryTable } from '@/components/investments/DividendHistoryTa
 import { OpportunityFeed } from '@/components/investments/OpportunityFeed';
 import { SmartRebalanceWidget } from '@/components/investments/SmartRebalanceWidget';
 import { AnaInvestmentInsights } from '@/components/investments/AnaInvestmentInsights';
+import { BadgesDisplay } from '@/components/investments/BadgesDisplay';
 import { useDividendCalendar, useDividendHistory } from '@/hooks/useDividendCalendar';
 import { formatCurrency } from '@/utils/formatters';
 import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell, DollarSign } from 'lucide-react';
@@ -374,6 +375,9 @@ export function Investments() {
 
             {/* Smart Rebalance */}
             <SmartRebalanceWidget investments={investments} />
+
+            {/* Badges - Gamificação */}
+            <BadgesDisplay />
           </TabsContent>
         </Tabs>
       </div>

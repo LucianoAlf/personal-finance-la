@@ -646,3 +646,33 @@ export interface Budget {
   actual_amount: number;
   created_at: Date;
 }
+
+// =====================================================
+// BADGES SYSTEM (SPRINT 4)
+// =====================================================
+
+export interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  category: 'investment' | 'engagement' | 'performance';
+  condition_type: string;
+  condition_value: Record<string, any>;
+  created_at: Date;
+}
+
+export interface UserBadge {
+  id: string;
+  user_id: string;
+  badge_id: string;
+  unlocked_at: Date;
+  created_at: Date;
+}
+
+export interface UserBadgeDetailed extends UserBadge {
+  name: string;
+  description: string;
+  icon: string;
+  category: 'investment' | 'engagement' | 'performance';
+}
