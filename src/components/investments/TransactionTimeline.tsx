@@ -47,16 +47,16 @@ const transactionLabels = {
   split: 'Desdobramento',
 };
 
-function getBadgeVariant(type: string): 'default' | 'secondary' | 'success' | 'danger' {
+function getBadgeVariant(type: string): 'default' | 'success' | 'danger' | 'info' | 'warning' {
   switch (type) {
     case 'buy':
       return 'success';
     case 'sell':
       return 'danger';
     case 'dividend':
-      return 'default';
+      return 'info';
     case 'split':
-      return 'secondary';
+      return 'warning';
     default:
       return 'default';
   }
