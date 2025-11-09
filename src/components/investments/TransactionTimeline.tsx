@@ -4,12 +4,7 @@ import { ptBR } from 'date-fns/locale';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+// Removido DropdownMenu para evitar erro de elemento indefinido
 import {
   TrendingUp,
   TrendingDown,
@@ -31,6 +26,7 @@ const transactionIcons = {
   sell: TrendingDown,
   dividend: DollarSign,
   split: Zap,
+  bonus: Zap,
 };
 
 const transactionColors = {
@@ -38,6 +34,7 @@ const transactionColors = {
   sell: 'text-red-600 bg-red-50 border-red-200',
   dividend: 'text-blue-600 bg-blue-50 border-blue-200',
   split: 'text-purple-600 bg-purple-50 border-purple-200',
+  bonus: 'text-amber-600 bg-amber-50 border-amber-200',
 };
 
 const transactionLabels = {
@@ -45,6 +42,7 @@ const transactionLabels = {
   sell: 'Venda',
   dividend: 'Dividendo',
   split: 'Desdobramento',
+  bonus: 'Bonificação',
 };
 
 function getBadgeVariant(type: string): 'default' | 'success' | 'danger' | 'info' | 'warning' {
@@ -75,7 +73,7 @@ export function TransactionTimeline({
     const grouped: Record<string, InvestmentTransaction[]> = {};
 
     transactions.forEach((transaction) => {
-      const date = format(parseISO(transaction.transaction_date), 'yyyy-MM-dd');
+      const date = format(new Date(transaction.transaction_date as any), 'yyyy-MM-dd');
       if (!grouped[date]) {
         grouped[date] = [];
       }
@@ -145,10 +143,10 @@ export function TransactionTimeline({
             {/* Transactions for this date */}
             <div className="ml-[72px] space-y-3">
               {dayTransactions.map((transaction) => {
-                const type = transaction.transaction_type;
-                const Icon = transactionIcons[type];
-                const colorClass = transactionColors[type];
-                const label = transactionLabels[type];
+                const type = transaction.transaction_type as keyof typeof transactionIcons;
+                const Icon = (transactionIcons[type] ?? DollarSign) as React.ComponentType<any>;
+                const colorClass = transactionColors[type] ?? 'text-gray-600 bg-gray-50 border-gray-200';
+                const label = transactionLabels[type as keyof typeof transactionLabels] ?? String(type);
 
                 return (
                   <Card key={transaction.id} className="border-l-4">
@@ -167,7 +165,7 @@ export function TransactionTimeline({
                             <div className="flex items-center gap-2 mb-1">
                               <Badge variant="outline">{label}</Badge>
                               <span className="text-sm text-muted-foreground">
-                                {format(parseISO(transaction.transaction_date), 'HH:mm')}
+                                {format(new Date(transaction.transaction_date as any), 'HH:mm')}
                               </span>
                             </div>
 
@@ -209,26 +207,15 @@ export function TransactionTimeline({
 
                         {/* Actions */}
                         {onDelete && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 ml-2"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem
-                                onClick={() => onDelete(transaction.id)}
-                                className="text-red-600"
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Deletar
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 ml-2 text-red-600"
+                            onClick={() => onDelete(transaction.id)}
+                            aria-label="Deletar transação"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         )}
                       </div>
                     </CardContent>
