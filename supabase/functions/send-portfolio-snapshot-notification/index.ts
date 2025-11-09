@@ -17,7 +17,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    const resendFromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'noreply@mypersonalfinance.com.br';
+    const resendFromEmail = Deno.env.get('RESEND_FROM_EMAIL') || 'Ana Clara <noreply@mypersonalfinance.com.br>';
     const uazapiServerUrl = Deno.env.get('UAZAPI_SERVER_URL');
     const uazapiToken = Deno.env.get('UAZAPI_INSTANCE_TOKEN');
     const uazapiPhone = Deno.env.get('UAZAPI_PHONE_NUMBER');
@@ -148,19 +148,22 @@ Continue acompanhando seus investimentos! 🚀
           }
         }
 
-        // Enviar WhatsApp via UAZAPI
+        // Enviar WhatsApp via UAZAPI (mesmo formato da Ana Clara)
         if (uazapiServerUrl && uazapiToken && user.phone) {
+          console.log(`Tentando enviar WhatsApp para ${user.phone}...`);
           try {
-            const phoneNumber = user.phone.replace(/\D/g, '');
-            const whatsappResponse = await fetch(`${uazapiServerUrl}/v1/messages/text`, {
+            const phoneNumber = cleanPhone(user.phone);
+            console.log('Número formatado:', phoneNumber);
+            
+            const whatsappResponse = await fetch(`${uazapiServerUrl}/send/text`, {
               method: 'POST',
               headers: {
-                'Authorization': `Bearer ${uazapiToken}`,
                 'Content-Type': 'application/json',
+                'token': uazapiToken,
               },
               body: JSON.stringify({
-                phone: phoneNumber,
-                message: message,
+                number: phoneNumber,
+                text: message,
               }),
             });
 
@@ -207,3 +210,23 @@ Continue acompanhando seus investimentos! 🚀
     );
   }
 });
+
+// ==================== HELPERS ====================
+
+function cleanPhone(phone: string): string {
+  const cleaned = phone.replace(/\D/g, '');
+  
+  if (cleaned.length === 13) {
+    return cleaned;
+  }
+  
+  if (cleaned.length === 11) {
+    return '55' + cleaned;
+  }
+  
+  if (cleaned.length === 12 && cleaned.startsWith('0')) {
+    return '55' + cleaned.substring(1);
+  }
+  
+  return cleaned;
+}
