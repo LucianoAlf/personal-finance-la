@@ -19,8 +19,11 @@ import { AlertsList } from '@/components/investments/AlertsList';
 import { AssetAllocationChart } from '@/components/investments/AssetAllocationChart';
 import { PortfolioEvolutionChart } from '@/components/investments/PortfolioEvolutionChart';
 import { PerformanceBarChart } from '@/components/investments/PerformanceBarChart';
+import { DividendCalendar } from '@/components/investments/DividendCalendar';
+import { DividendHistoryTable } from '@/components/investments/DividendHistoryTable';
+import { useDividendCalendar, useDividendHistory } from '@/hooks/useDividendCalendar';
 import { formatCurrency } from '@/utils/formatters';
-import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell, DollarSign } from 'lucide-react';
 import type { CreateInvestmentInput, UpdateInvestmentInput, CreateTransactionInput } from '@/types/database.types';
 
 export function Investments() {
@@ -28,6 +31,8 @@ export function Investments() {
   const { transactions, addTransaction, deleteTransaction } = useInvestmentTransactions();
   const { alerts, addAlert, deleteAlert, toggleAlert } = useInvestmentAlerts();
   const metrics = usePortfolioMetrics(investments);
+  const dividendCalendar = useDividendCalendar({ investments, transactions });
+  const dividendHistory = useDividendHistory(transactions);
   
   const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
@@ -188,14 +193,18 @@ export function Investments() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="portfolio">
               <BarChart3 className="mr-2 h-4 w-4" />
-              Meus Investimentos
+              Portfólio
             </TabsTrigger>
             <TabsTrigger value="transactions">
               <ArrowLeftRight className="mr-2 h-4 w-4" />
               Transações
+            </TabsTrigger>
+            <TabsTrigger value="dividends">
+              <DollarSign className="mr-2 h-4 w-4" />
+              Dividendos
             </TabsTrigger>
             <TabsTrigger value="alerts">
               <Bell className="mr-2 h-4 w-4" />
@@ -294,6 +303,25 @@ export function Investments() {
               transactions={transactions}
               onDelete={deleteTransaction}
             />
+          </TabsContent>
+
+          {/* Aba Dividendos */}
+          <TabsContent value="dividends" className="space-y-6">
+            <div className="space-y-6">
+              <DividendCalendar
+                monthlyBreakdown={dividendCalendar.monthlyBreakdown}
+                totalEstimated={dividendCalendar.totalEstimated}
+                next30Days={dividendCalendar.next30Days}
+                next90Days={dividendCalendar.next90Days}
+              />
+
+              <DividendHistoryTable
+                transactions={dividendHistory.transactions}
+                totalReceived={dividendHistory.totalReceived}
+                yearlyTotals={dividendHistory.yearlyTotals}
+                count={dividendHistory.count}
+              />
+            </div>
           </TabsContent>
 
           {/* Aba Alertas */}
