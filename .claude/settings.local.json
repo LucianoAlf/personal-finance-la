@@ -4,7 +4,8 @@
       "Bash(npm run lint:*)",
       "Bash(npm run build:*)",
       "Bash(npx supabase db push:*)",
-      "Bash(npx supabase:*)"
+      "Bash(npx supabase:*)",
+      "Bash(nul)"
     ],
     "deny": [],
     "ask": []

@@ -136,14 +136,14 @@ export function Goals() {
         subtitle="Acompanhe seus objetivos e controle seus gastos"
         icon={<Target size={24} />}
         actions={
-          <Button size="lg" onClick={() => setCreateDialogOpen(true)}>
-            <Plus size={16} className="mr-1" />
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
             Nova Meta
           </Button>
         }
       />
 
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-6 space-y-6">
         {/* Hero Metrics (2 cards) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
           <Card className="p-6">

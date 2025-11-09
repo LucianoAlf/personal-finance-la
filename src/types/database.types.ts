@@ -419,16 +419,222 @@ export interface InvoiceDetailed extends CreditCardInvoice {
   days_until_due: number;
 }
 
+// =====================================================
+// INVESTIMENTOS - Sincronizado com tabela investments (Sprint 1)
+// =====================================================
 export interface Investment {
+  // Campos principais
   id: string;
   user_id: string;
-  type: 'stock' | 'fixed_income' | 'fund' | 'crypto';
-  symbol: string;
+  type: 'stock' | 'fund' | 'treasury' | 'crypto' | 'real_estate' | 'other';
+  name: string;
+  ticker: string | null;
+  
+  // Quantidades e preços
   quantity: number;
-  average_price: number;
-  current_price?: number;
-  institution?: string;
+  purchase_price: number;
+  current_price: number | null;
+  total_invested: number | null;
+  current_value: number | null;
+  
+  // Metadados
+  purchase_date: Date | null;
+  notes: string | null;
+  is_active: boolean;
+  
+  // SPRINT 1: Campos novos
+  category: 'fixed_income' | 'stock' | 'reit' | 'fund' | 'crypto' | 'international' | null;
+  subcategory: string | null;
+  dividend_yield: number | null;
+  maturity_date: Date | null;
+  annual_rate: number | null;
+  last_price_update: Date | null;
+  status: 'active' | 'sold' | 'matured';
+  account_id: string | null;
+  
+  // Timestamps
   created_at: Date;
+  updated_at: Date;
+}
+
+// Input para criar novo investimento
+export interface CreateInvestmentInput {
+  type: Investment['type'];
+  name: string;
+  ticker?: string;
+  quantity: number;
+  purchase_price: number;
+  current_price?: number;
+  purchase_date?: Date;
+  notes?: string;
+}
+
+// Input para atualizar investimento existente
+export interface UpdateInvestmentInput {
+  name?: string;
+  ticker?: string;
+  quantity?: number;
+  purchase_price?: number;
+  current_price?: number;
+  purchase_date?: Date;
+  notes?: string;
+  is_active?: boolean;
+  // Sprint 1
+  category?: Investment['category'];
+  subcategory?: string;
+  dividend_yield?: number;
+  maturity_date?: Date;
+  annual_rate?: number;
+  status?: Investment['status'];
+  account_id?: string;
+}
+
+// =====================================================
+// SPRINT 1: NOVAS INTERFACES
+// =====================================================
+
+// Investment Accounts (Corretoras/Bancos)
+export interface InvestmentAccount {
+  id: string;
+  user_id: string;
+  name: string;
+  institution_name: string | null;
+  account_type: 'brokerage' | 'bank' | 'crypto_exchange' | 'other';
+  currency: 'BRL' | 'USD' | 'EUR';
+  account_number: string | null;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateAccountInput {
+  name: string;
+  institution_name?: string;
+  account_type: InvestmentAccount['account_type'];
+  currency?: InvestmentAccount['currency'];
+  account_number?: string;
+}
+
+export interface UpdateAccountInput {
+  name?: string;
+  institution_name?: string;
+  account_type?: InvestmentAccount['account_type'];
+  account_number?: string;
+  is_active?: boolean;
+}
+
+// Investment Transactions (Histórico)
+export interface InvestmentTransaction {
+  id: string;
+  investment_id: string | null;
+  user_id: string;
+  transaction_type: 'buy' | 'sell' | 'dividend' | 'interest' | 'fee' | 'split' | 'bonus';
+  quantity: number | null;
+  price: number | null;
+  total_value: number;
+  fees: number;
+  tax: number;
+  transaction_date: Date;
+  notes: string | null;
+  created_at: Date;
+}
+
+export interface CreateTransactionInput {
+  investment_id?: string;
+  transaction_type: InvestmentTransaction['transaction_type'];
+  quantity?: number;
+  price?: number;
+  total_value: number;
+  fees?: number;
+  tax?: number;
+  transaction_date: Date;
+  notes?: string;
+}
+
+// Allocation Targets (Metas de Alocação)
+export interface InvestmentAllocationTarget {
+  id: string;
+  user_id: string;
+  asset_class: string;
+  target_percentage: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface CreateAllocationTargetInput {
+  asset_class: string;
+  target_percentage: number;
+}
+
+export interface UpdateAllocationTargetInput {
+  target_percentage?: number;
+}
+
+// Quotes History (Cache de Cotações)
+export interface InvestmentQuoteHistory {
+  id: string;
+  symbol: string;
+  price: number;
+  variation: number | null;
+  volume: number | null;
+  source: 'brapi' | 'coingecko' | 'tesouro' | 'bcb' | 'manual';
+  timestamp: Date;
+  metadata: Record<string, any> | null;
+}
+
+// Market Opportunities (Ana Clara)
+export interface MarketOpportunity {
+  id: string;
+  user_id: string;
+  ticker: string;
+  opportunity_type: 'buy_opportunity' | 'sell_signal' | 'dividend_alert' | 'price_target' | 'sector_rotation';
+  title: string;
+  description: string | null;
+  current_price: number | null;
+  target_price: number | null;
+  expected_return: number | null;
+  ana_clara_insight: string | null;
+  confidence_score: number | null;
+  expires_at: Date | null;
+  is_active: boolean;
+  is_dismissed: boolean;
+  dismissed_at: Date | null;
+  created_at: Date;
+}
+
+// Portfolio Metrics
+export interface PortfolioMetrics {
+  diversification_score: number;
+  portfolio_health_score: number;
+  total_dividends: number;
+  rebalancing_needed: boolean;
+  concentration_risk: 'BAIXO' | 'MÉDIO' | 'ALTO';
+  asset_allocation: Record<string, number>;
+}
+
+// Portfolio Summary (View)
+export interface PortfolioSummary {
+  user_id: string;
+  total_assets: number;
+  total_invested: number;
+  current_value: number;
+  total_return: number;
+  return_percentage: number;
+  categories_count: number;
+  accounts_count: number;
+  last_updated: Date;
+}
+
+// Investment Performance (View)
+export interface InvestmentPerformance {
+  user_id: string;
+  category: string;
+  asset_count: number;
+  total_value: number;
+  total_invested: number;
+  total_return: number;
+  avg_return_pct: number;
+  avg_dividend_yield: number | null;
 }
 
 export interface Budget {

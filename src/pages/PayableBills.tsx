@@ -96,24 +96,23 @@ export default function PayableBills() {
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        {/* Header Padronizado */}
-        <Header
-          title="Contas a Pagar"
-          subtitle="Gerencie suas contas e vencimentos"
-          icon={<Receipt className="h-8 w-8 text-indigo-600" />}
-          actions={
-            <>
-              <BillFilters filters={filters} onFiltersChange={setFilters} />
-              <Button onClick={() => setCreateDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nova Conta
-              </Button>
-            </>
-          }
-        />
+    <div className="min-h-screen bg-gray-50">
+      <Header
+        title="Contas a Pagar"
+        subtitle="Gerencie suas contas e vencimentos"
+        icon={<Receipt size={24} />}
+        actions={
+          <>
+            <BillFilters filters={filters} onFiltersChange={setFilters} />
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova Conta
+            </Button>
+          </>
+        }
+      />
 
+      <div className="p-6 space-y-6">
         {/* Cards de Resumo */}
         <BillSummaryCards
           pendingAmount={summary.pending_amount}
