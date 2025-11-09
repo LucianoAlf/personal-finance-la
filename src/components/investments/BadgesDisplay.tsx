@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Trophy, Lock, RefreshCw } from 'lucide-react';
+import { Trophy, Lock, RefreshCw, Target, Palette, Briefcase, Coins, Scale, Flame, Gem, LineChart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useBadges } from '@/hooks/useBadges';
 import { formatDistanceToNow } from 'date-fns';
@@ -34,6 +34,100 @@ export function BadgesDisplay() {
     investment: 'Investimento',
     engagement: 'Engajamento',
     performance: 'Performance',
+  };
+
+  // Mapeia badge_id para ícone Lucide + cores vibrantes
+  const getBadgeIcon = (badgeId: string) => {
+    switch (badgeId) {
+      case 'first_investment':
+        return Target;
+      case 'diversified':
+        return Palette;
+      case 'investor':
+        return Briefcase;
+      case 'dividend_earner':
+        return Coins;
+      case 'balanced':
+        return Scale;
+      case 'consistent':
+        return Flame;
+      case 'wealthy':
+        return Gem;
+      case 'long_term':
+        return LineChart;
+      default:
+        return Trophy;
+    }
+  };
+
+  // Cores por badge_id (fundos vibrantes estilo premium)
+  const getBadgeColor = (badgeId: string, unlocked: boolean) => {
+    if (!unlocked) {
+      return {
+        bg: 'bg-gray-100',
+        icon: 'text-gray-400',
+        border: 'border-gray-200',
+        cardBg: 'bg-gray-50',
+      };
+    }
+
+    const colors: Record<string, any> = {
+      first_investment: {
+        bg: 'bg-blue-500',
+        icon: 'text-white',
+        border: 'border-blue-300',
+        cardBg: 'bg-gradient-to-br from-blue-50 to-blue-100',
+      },
+      diversified: {
+        bg: 'bg-purple-500',
+        icon: 'text-white',
+        border: 'border-purple-300',
+        cardBg: 'bg-gradient-to-br from-purple-50 to-purple-100',
+      },
+      investor: {
+        bg: 'bg-indigo-500',
+        icon: 'text-white',
+        border: 'border-indigo-300',
+        cardBg: 'bg-gradient-to-br from-indigo-50 to-indigo-100',
+      },
+      dividend_earner: {
+        bg: 'bg-green-500',
+        icon: 'text-white',
+        border: 'border-green-300',
+        cardBg: 'bg-gradient-to-br from-green-50 to-green-100',
+      },
+      balanced: {
+        bg: 'bg-teal-500',
+        icon: 'text-white',
+        border: 'border-teal-300',
+        cardBg: 'bg-gradient-to-br from-teal-50 to-teal-100',
+      },
+      consistent: {
+        bg: 'bg-orange-500',
+        icon: 'text-white',
+        border: 'border-orange-300',
+        cardBg: 'bg-gradient-to-br from-orange-50 to-orange-100',
+      },
+      wealthy: {
+        bg: 'bg-amber-500',
+        icon: 'text-white',
+        border: 'border-amber-300',
+        cardBg: 'bg-gradient-to-br from-amber-50 to-amber-100',
+      },
+      long_term: {
+        bg: 'bg-emerald-500',
+        icon: 'text-white',
+        border: 'border-emerald-300',
+        cardBg: 'bg-gradient-to-br from-emerald-50 to-emerald-100',
+      },
+    };
+
+    return colors[badgeId] || {
+      bg: 'bg-gray-500',
+      icon: 'text-white',
+      border: 'border-gray-300',
+      cardBg: 'bg-gradient-to-br from-gray-50 to-gray-100',
+    };
   };
 
   return (
@@ -92,21 +186,28 @@ export function BadgesDisplay() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.2, delay: index * 0.05 }}
                     className={`
-                      relative p-4 rounded-lg border-2 transition-all
-                      ${
-                        badge.unlocked
-                          ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300 hover:border-amber-400'
-                          : 'bg-gray-50 border-gray-200 opacity-60'
-                      }
+                      relative p-4 rounded-xl border-2 transition-all hover:shadow-lg
+                      ${(() => {
+                        const colors = getBadgeColor(badge.id, badge.unlocked);
+                        return `${colors.cardBg} ${colors.border} ${badge.unlocked ? 'hover:scale-105' : 'opacity-60'}`;
+                      })()}
                     `}
                   >
-                    {/* Icon e Lock overlay */}
+                    {/* Ícone Lucide + Lock overlay */}
                     <div className="flex flex-col items-center text-center gap-2">
                       <div className="relative">
-                        <span className="text-4xl">{badge.icon}</span>
+                        {(() => {
+                          const Icon = getBadgeIcon(badge.id);
+                          const colors = getBadgeColor(badge.id, badge.unlocked);
+                          return (
+                            <div className={`p-3 rounded-2xl shadow-md ${colors.bg}`}>
+                              <Icon className={`h-7 w-7 ${colors.icon}`} />
+                            </div>
+                          );
+                        })()}
                         {!badge.unlocked && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
-                            <Lock className="h-5 w-5 text-white" />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-2xl">
+                            <Lock className="h-6 w-6 text-white drop-shadow-md" />
                           </div>
                         )}
                       </div>

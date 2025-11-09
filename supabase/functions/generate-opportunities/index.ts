@@ -18,13 +18,15 @@ interface Investment {
 
 interface Opportunity {
   user_id: string;
-  type: string;
+  opportunity_type: string;
+  ticker: string;
   title: string;
   description: string;
   confidence_score: number;
-  asset_class: string;
   expected_return?: number;
-  risk_level: string;
+  current_price?: number;
+  target_price?: number;
+  ana_clara_insight?: string;
   expires_at: string;
 }
 
@@ -40,19 +42,31 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verificar autenticação
-    const authHeader = req.headers.get('Authorization')!;
+    // Verificar autenticação ou aceitar userId do corpo para chamadas server-side
+    let userId: string | undefined;
+    const authHeader = req.headers.get('Authorization') || '';
     const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
 
-    if (userError || !user) {
+    try {
+      const { data: { user } } = await supabaseClient.auth.getUser(token);
+      if (user?.id) userId = user.id;
+    } catch (_) {}
+
+    if (!userId) {
+      try {
+        const body = await req.json();
+        if (body?.userId && typeof body.userId === 'string') {
+          userId = body.userId;
+        }
+      } catch (_) {}
+    }
+
+    if (!userId) {
       return new Response(JSON.stringify({ error: 'Unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
-
-    const userId = user.id;
 
     // 1. Buscar portfólio do usuário
     const { data: investments, error: investmentsError } = await supabaseClient
@@ -91,13 +105,13 @@ serve(async (req) => {
     if (allocation.renda_fixa < 30) {
       opportunities.push({
         user_id: userId,
-        type: 'fixed_income_opportunity',
+        opportunity_type: 'buy_opportunity',
+        ticker: 'TESOURO_SELIC',
         title: 'Renda fixa abaixo do recomendado',
         description: `Sua alocação em renda fixa está em ${allocation.renda_fixa.toFixed(1)}%. Considere aumentar para pelo menos 30% com Tesouro Direto ou CDBs de bancos sólidos.`,
         confidence_score: 85,
-        asset_class: 'renda_fixa',
         expected_return: 13.5,
-        risk_level: 'low',
+        ana_clara_insight: 'Diversificação: Aumentar renda fixa reduz volatilidade do portfólio.',
         expires_at: expiresAt.toISOString(),
       });
     }
@@ -106,13 +120,13 @@ serve(async (req) => {
     if (allocation.fiis === 0) {
       opportunities.push({
         user_id: userId,
-        type: 'reit_opportunity',
+        opportunity_type: 'buy_opportunity',
+        ticker: 'FII',
         title: 'Diversifique com Fundos Imobiliários',
         description: 'Você não possui FIIs no portfólio. FIIs oferecem renda passiva mensal e diversificação. Busque fundos com dividend yield acima de 8% a.a.',
         confidence_score: 75,
-        asset_class: 'fiis',
         expected_return: 9.5,
-        risk_level: 'medium',
+        ana_clara_insight: 'Renda passiva: FIIs distribuem pelo menos 95% dos lucros mensalmente.',
         expires_at: expiresAt.toISOString(),
       });
     }
@@ -127,12 +141,12 @@ serve(async (req) => {
     if (maxConcentration > 30) {
       opportunities.push({
         user_id: userId,
-        type: 'diversification_alert',
+        opportunity_type: 'sell_signal',
+        ticker: 'PORTFOLIO',
         title: 'Atenção: Concentração alta em um ativo',
         description: `Você tem ${maxConcentration.toFixed(1)}% do portfólio em um único ativo. Isso aumenta o risco. Considere diversificar mais.`,
         confidence_score: 90,
-        asset_class: 'diversos',
-        risk_level: 'high',
+        ana_clara_insight: 'Risco: Concentração acima de 30% em um ativo aumenta volatilidade significativamente.',
         expires_at: expiresAt.toISOString(),
       });
     }
@@ -141,13 +155,13 @@ serve(async (req) => {
     if (allocation.internacional === 0 && totalValue > 10000) {
       opportunities.push({
         user_id: userId,
-        type: 'international_opportunity',
+        opportunity_type: 'buy_opportunity',
+        ticker: 'IVVB11',
         title: 'Considere exposição internacional',
         description: 'Diversifique geograficamente com ETFs internacionais ou BDRs. Recomendado: 10-20% do portfólio em ativos no exterior.',
         confidence_score: 70,
-        asset_class: 'internacional',
         expected_return: 12.0,
-        risk_level: 'medium',
+        ana_clara_insight: 'Proteção cambial: Exposição internacional protege contra desvalorização do real.',
         expires_at: expiresAt.toISOString(),
       });
     }
@@ -161,13 +175,13 @@ serve(async (req) => {
     if (avgDividendYield < 5 && allocation.acoes_nacionais > 0) {
       opportunities.push({
         user_id: userId,
-        type: 'dividend_opportunity',
+        opportunity_type: 'dividend_alert',
+        ticker: 'DIVIDENDOS',
         title: 'Aumente sua renda passiva com dividendos',
         description: `Seu dividend yield médio está em ${avgDividendYield.toFixed(1)}%. Busque ações de empresas pagadoras de dividendos consistentes com yield acima de 6%.`,
         confidence_score: 80,
-        asset_class: 'acoes_nacionais',
         expected_return: 7.5,
-        risk_level: 'medium',
+        ana_clara_insight: 'Renda passiva: Empresas com histórico de dividendos oferecem mais previsibilidade.',
         expires_at: expiresAt.toISOString(),
       });
     }

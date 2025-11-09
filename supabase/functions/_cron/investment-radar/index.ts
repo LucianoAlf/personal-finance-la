@@ -32,6 +32,10 @@ serve(async (req) => {
         // Chamar a Edge Function generate-opportunities para cada usuário
         const { data, error } = await supabase.functions.invoke('generate-opportunities', {
           body: { userId: user.id },
+          headers: {
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+          },
         });
 
         if (error) {
