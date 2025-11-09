@@ -49,6 +49,26 @@ serve(async (req) => {
         processedUsers++;
 
         console.log(`✅ User ${user.id}: ${opportunitiesCount} opportunities generated`);
+
+        // Se gerou oportunidades, enviar notificação por email
+        if (opportunitiesCount > 0 && data?.opportunities) {
+          try {
+            await supabase.functions.invoke('send-opportunity-notification', {
+              body: { 
+                userId: user.id,
+                opportunities: data.opportunities 
+              },
+              headers: {
+                Authorization: `Bearer ${supabaseServiceKey}`,
+                'Content-Type': 'application/json',
+              },
+            });
+            console.log(`📧 Email notification sent to user ${user.id}`);
+          } catch (notifError) {
+            console.error(`⚠️ Failed to send notification to user ${user.id}:`, notifError);
+            // Não falhar o cron se notificação falhar
+          }
+        }
       } catch (error) {
         console.error(`❌ Exception for user ${user.id}:`, error);
         errors++;

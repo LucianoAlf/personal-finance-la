@@ -186,53 +186,75 @@ export function BadgesDisplay() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.2, delay: index * 0.05 }}
                     className={`
-                      relative p-4 rounded-xl border-2 transition-all hover:shadow-lg
-                      ${(() => {
-                        const colors = getBadgeColor(badge.id, badge.unlocked);
-                        return `${colors.cardBg} ${colors.border} ${badge.unlocked ? 'hover:scale-105' : 'opacity-60'}`;
-                      })()}
+                      relative p-4 rounded-xl border-2 transition-all
+                      ${
+                        badge.unlocked
+                          ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-300 hover:border-amber-400 hover:shadow-lg'
+                          : 'bg-gray-50 border-gray-200'
+                      }
                     `}
                   >
-                    {/* Ícone Lucide + Lock overlay */}
-                    <div className="flex flex-col items-center text-center gap-2">
-                      <div className="relative">
-                        {(() => {
-                          const Icon = getBadgeIcon(badge.id);
-                          const colors = getBadgeColor(badge.id, badge.unlocked);
-                          return (
-                            <div className={`p-3 rounded-2xl shadow-md ${colors.bg}`}>
-                              <Icon className={`h-7 w-7 ${colors.icon}`} />
-                            </div>
-                          );
-                        })()}
-                        {!badge.unlocked && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-2xl">
-                            <Lock className="h-6 w-6 text-white drop-shadow-md" />
-                          </div>
-                        )}
+                    {/* Cadeado no canto superior direito (apenas se bloqueado) */}
+                    {!badge.unlocked && (
+                      <div className="absolute top-2 right-2">
+                        <div className="p-1.5 bg-gray-200 rounded-lg">
+                          <Lock className="h-4 w-4 text-gray-500" />
+                        </div>
                       </div>
+                    )}
 
+                    {/* Conteúdo do card */}
+                    <div className="flex flex-col items-center text-center gap-3">
+                      {/* Ícone dentro do card */}
+                      {(() => {
+                        const Icon = getBadgeIcon(badge.id);
+                        const colors = getBadgeColor(badge.id, badge.unlocked);
+                        return (
+                          <div className={`p-4 rounded-2xl ${colors.bg}`}>
+                            <Icon className={`h-8 w-8 ${colors.icon}`} />
+                          </div>
+                        );
+                      })()}
+
+                      {/* Título e descrição */}
                       <div className="space-y-1">
-                        <p className="text-sm font-semibold text-gray-900">{badge.name}</p>
+                        <p className={`text-sm font-semibold ${badge.unlocked ? 'text-gray-900' : 'text-gray-500'}`}>
+                          {badge.name}
+                        </p>
                         <p className="text-xs text-muted-foreground line-clamp-2">
                           {badge.description}
                         </p>
-
-                        {badge.unlocked && badge.unlockedAt && (
-                          <Badge variant="outline" className="text-xs mt-2 bg-amber-50 border-amber-200">
-                            {formatDistanceToNow(new Date(badge.unlockedAt), {
-                              addSuffix: true,
-                              locale: ptBR,
-                            })}
-                          </Badge>
-                        )}
                       </div>
-                    </div>
 
-                    {/* Glow effect para badges desbloqueados */}
-                    {badge.unlocked && (
-                      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-amber-200/20 to-yellow-200/20 blur-xl rounded-lg" />
-                    )}
+                      {/* Troféus/Medalhas ou Barra de Progresso */}
+                      {badge.unlocked ? (
+                        <div className="flex gap-1 items-center">
+                          <Trophy className="h-4 w-4 text-amber-600 fill-amber-600" />
+                          <Trophy className="h-4 w-4 text-gray-300" />
+                          <Trophy className="h-4 w-4 text-gray-300" />
+                        </div>
+                      ) : (
+                        <div className="w-full space-y-1">
+                          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-blue-500 rounded-full transition-all"
+                              style={{ width: '0%' }}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500">0%</p>
+                        </div>
+                      )}
+
+                      {/* Data de desbloqueio */}
+                      {badge.unlocked && badge.unlockedAt && (
+                        <p className="text-xs text-amber-700 font-medium">
+                          {formatDistanceToNow(new Date(badge.unlockedAt), {
+                            addSuffix: true,
+                            locale: ptBR,
+                          })}
+                        </p>
+                      )}
+                    </div>
                   </motion.div>
                 ))}
               </AnimatePresence>
