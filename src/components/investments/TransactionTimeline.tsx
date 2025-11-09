@@ -47,6 +47,25 @@ const transactionLabels = {
   split: 'Desdobramento',
 };
 
+function getBadgeVariant(type: string): 'default' | 'secondary' | 'success' | 'danger' {
+  switch (type) {
+    case 'buy':
+      return 'success';
+    case 'sell':
+      return 'danger';
+    case 'dividend':
+      return 'default';
+    case 'split':
+      return 'secondary';
+    default:
+      return 'default';
+  }
+}
+
+function getTransactionLabel(type: string): string {
+  return transactionLabels[type as keyof typeof transactionLabels] || type;
+}
+
 export function TransactionTimeline({
   transactions,
   onDelete,
