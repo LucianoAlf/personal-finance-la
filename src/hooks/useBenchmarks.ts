@@ -1,10 +1,12 @@
 // SPRINT 5: Hook para buscar benchmarks do mercado (CDI, IPCA, IBOV)
+// SPRINT 5.1: Atualizado para buscar dados reais via Edge Function
 import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export interface Benchmark {
   name: string;
   return: number; // Retorno percentual no período
-  type: 'fixed_income' | 'inflation' | 'equity';
+  type: 'fixed_income' | 'inflation' | 'equity' | 'crypto' | 'commodity';
 }
 
 type Period = '1M' | '3M' | '6M' | '1Y';
@@ -41,6 +43,7 @@ const MOCK_BENCHMARKS: Record<Period, Benchmark[]> = {
 
 /**
  * Hook para buscar benchmarks do mercado
+ * SPRINT 5.1: Atualizado para buscar dados reais via Edge Function
  * 
  * @param period - Período para comparação ('1M', '3M', '6M', '1Y')
  * @returns Array de benchmarks com retornos no período
@@ -52,25 +55,41 @@ const MOCK_BENCHMARKS: Record<Period, Benchmark[]> = {
 export function useBenchmarks(period: Period = '1Y'): Benchmark[] {
   const [benchmarks, setBenchmarks] = useState<Benchmark[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simular carregamento assíncrono
-    setLoading(true);
+    async function fetchBenchmarks() {
+      setLoading(true);
+      setError(null);
 
-    // Em produção, aqui chamaríamos APIs reais:
-    // const fetchBenchmarks = async () => {
-    //   const cdi = await fetchCDI(period);
-    //   const ipca = await fetchIPCA(period);
-    //   const ibov = await fetchIBOVESPA(period);
-    //   setBenchmarks([cdi, ipca, ibov]);
-    // };
+      try {
+        // Buscar dados reais via Edge Function
+        const { data, error: invokeError } = await supabase.functions.invoke('fetch-benchmarks', {
+          body: { period },
+        });
 
-    const timer = setTimeout(() => {
-      setBenchmarks(MOCK_BENCHMARKS[period]);
-      setLoading(false);
-    }, 300); // Simular latência de rede
+        if (invokeError) {
+          console.error('Erro ao invocar função:', invokeError);
+          throw invokeError;
+        }
 
-    return () => clearTimeout(timer);
+        if (data && data.benchmarks) {
+          setBenchmarks(data.benchmarks);
+        } else {
+          throw new Error('Dados inválidos recebidos');
+        }
+      } catch (err) {
+        console.error('Erro ao buscar benchmarks:', err);
+        setError('Falha ao carregar benchmarks. Usando dados estimados.');
+        
+        // Fallback para dados mock
+        setBenchmarks(MOCK_BENCHMARKS[period]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchBenchmarks();
   }, [period]);
 
   return benchmarks;

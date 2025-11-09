@@ -22,7 +22,9 @@ import { FileText, Download, TrendingUp, TrendingDown, DollarSign } from 'lucide
 import { useInvestments } from '@/hooks/useInvestments';
 import { useInvestmentTransactions } from '@/hooks/useInvestmentTransactions';
 import { generateInvestmentReport, type ReportPeriod } from '@/utils/investmentReports';
+import { exportReportToPDF } from '@/utils/pdfExport';
 import { formatCurrency } from '@/utils/formatters';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 export function InvestmentReportDialog() {
@@ -30,9 +32,11 @@ export function InvestmentReportDialog() {
   const [period, setPeriod] = useState<ReportPeriod>('monthly');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
+  const [exporting, setExporting] = useState(false);
 
   const { investments } = useInvestments();
   const { transactions } = useInvestmentTransactions();
+  const { toast } = useToast();
 
   const report = useMemo(
     () => generateInvestmentReport(investments, transactions, period, year, month),
@@ -54,6 +58,26 @@ export function InvestmentReportDialog() {
     { value: 11, label: 'Novembro' },
     { value: 12, label: 'Dezembro' },
   ];
+
+  const handleExportPDF = () => {
+    setExporting(true);
+    try {
+      exportReportToPDF(report);
+      toast({
+        title: 'PDF exportado com sucesso!',
+        description: 'O relatório foi baixado para seu computador.',
+      });
+    } catch (error) {
+      console.error('Erro ao exportar PDF:', error);
+      toast({
+        title: 'Erro ao exportar PDF',
+        description: 'Não foi possível gerar o relatório. Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -265,9 +289,9 @@ export function InvestmentReportDialog() {
           <Button variant="outline" onClick={() => setOpen(false)}>
             Fechar
           </Button>
-          <Button disabled>
+          <Button onClick={handleExportPDF} disabled={exporting}>
             <Download className="mr-2 h-4 w-4" />
-            Exportar PDF
+            {exporting ? 'Exportando...' : 'Exportar PDF'}
           </Button>
         </DialogFooter>
       </DialogContent>
