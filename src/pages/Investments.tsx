@@ -25,6 +25,10 @@ import { OpportunityFeed } from '@/components/investments/OpportunityFeed';
 import { SmartRebalanceWidget } from '@/components/investments/SmartRebalanceWidget';
 import { AnaInvestmentInsights } from '@/components/investments/AnaInvestmentInsights';
 import { BadgesDisplay } from '@/components/investments/BadgesDisplay';
+import { DiversificationScoreCard } from '@/components/investments/DiversificationScoreCard';
+import { PerformanceHeatMap } from '@/components/investments/PerformanceHeatMap';
+import { BenchmarkComparison } from '@/components/investments/BenchmarkComparison';
+import { InvestmentReportDialog } from '@/components/investments/InvestmentReportDialog';
 import { useDividendCalendar, useDividendHistory } from '@/hooks/useDividendCalendar';
 import { formatCurrency } from '@/utils/formatters';
 import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell, DollarSign } from 'lucide-react';
@@ -153,6 +157,7 @@ export function Investments() {
               lastUpdate={lastUpdate}
               loading={quotesLoading}
             />
+            <InvestmentReportDialog />
             <Button
               size="sm"
               onClick={() => {
@@ -352,6 +357,15 @@ export function Investments() {
           <TabsContent value="overview" className="space-y-6">
             {/* Ana Clara Insights Widget - Destaque no topo */}
             <AnaInvestmentInsights investments={investments} />
+
+            {/* SPRINT 5: Diversification Score Card */}
+            <DiversificationScoreCard />
+
+            {/* SPRINT 5: Performance Heat Map */}
+            <PerformanceHeatMap />
+
+            {/* SPRINT 5: Benchmark Comparison */}
+            <BenchmarkComparison />
 
             {/* Grid de gráficos */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
