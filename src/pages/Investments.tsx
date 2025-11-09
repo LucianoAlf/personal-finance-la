@@ -23,6 +23,7 @@ import { DividendCalendar } from '@/components/investments/DividendCalendar';
 import { DividendHistoryTable } from '@/components/investments/DividendHistoryTable';
 import { OpportunityFeed } from '@/components/investments/OpportunityFeed';
 import { SmartRebalanceWidget } from '@/components/investments/SmartRebalanceWidget';
+import { AnaInvestmentInsights } from '@/components/investments/AnaInvestmentInsights';
 import { useDividendCalendar, useDividendHistory } from '@/hooks/useDividendCalendar';
 import { formatCurrency } from '@/utils/formatters';
 import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell, DollarSign } from 'lucide-react';
@@ -348,6 +349,9 @@ export function Investments() {
 
           {/* Aba Visão Geral */}
           <TabsContent value="overview" className="space-y-6">
+            {/* Ana Clara Insights Widget - Destaque no topo */}
+            <AnaInvestmentInsights investments={investments} />
+
             {/* Grid de gráficos */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Alocação por Categoria */}
