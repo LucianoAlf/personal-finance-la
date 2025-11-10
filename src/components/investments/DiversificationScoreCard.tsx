@@ -1,16 +1,17 @@
 // SPRINT 5: Card de Pontuação de Diversificação
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { Info, TrendingUp, AlertTriangle } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Info, TrendingUp, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   calculateDiversificationScore,
   getDiversificationLabel,
@@ -23,6 +24,7 @@ import { useInvestments } from '@/hooks/useInvestments';
 
 export function DiversificationScoreCard() {
   const { investments } = useInvestments();
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const { score, breakdown, recommendations, details } = useMemo(
     () => calculateDiversificationScore(investments),
@@ -68,14 +70,14 @@ export function DiversificationScoreCard() {
           <div className={`text-6xl font-bold ${scoreColor} mb-2`}>{score}</div>
           <p className="text-lg text-muted-foreground">de 100</p>
           <Badge
-            variant="secondary"
+            variant="outline"
             className="mt-2 text-sm"
           >
             {scoreDescription}
           </Badge>
         </motion.div>
 
-        {/* Breakdown dos Critérios */}
+        {/* Breakdown dos Critérios - Sempre visível */}
         <div className="space-y-4 mb-6">
           {(Object.entries(breakdown) as [keyof DiversificationBreakdown, number][]).map(
             ([key, value], index) => {
@@ -106,8 +108,39 @@ export function DiversificationScoreCard() {
           )}
         </div>
 
-        {/* Detalhes */}
-        <div className="grid grid-cols-2 gap-3 mb-6 p-4 bg-gray-50 rounded-lg">
+        {/* Botão Expandir/Recolher */}
+        <div className="flex justify-center mb-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="gap-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                Recolher detalhes
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4" />
+                Ver detalhes completos
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Detalhes e Recomendações - Colapsável */}
+        <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-6"
+          >
+        <div className="grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-lg">
           <div>
             <p className="text-xs text-muted-foreground">Classes de Ativos</p>
             <p className="text-lg font-semibold">{details.totalClasses}</p>
@@ -129,7 +162,7 @@ export function DiversificationScoreCard() {
         </div>
 
         {/* Recomendações */}
-        {recommendations.length > 0 && (
+        {recommendations.length > 0 ? (
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -160,10 +193,7 @@ export function DiversificationScoreCard() {
               ))}
             </ul>
           </motion.div>
-        )}
-
-        {/* Mensagem de sucesso se score >= 80 */}
-        {score >= 80 && recommendations.length === 0 && (
+        ) : score >= 80 ? (
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -183,7 +213,10 @@ export function DiversificationScoreCard() {
               </div>
             </div>
           </motion.div>
+        ) : null}
+          </motion.div>
         )}
+        </AnimatePresence>
       </CardContent>
     </Card>
   );

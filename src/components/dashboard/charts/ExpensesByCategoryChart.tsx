@@ -1,8 +1,8 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { PieChart as PieChartIcon } from 'lucide-react';
 import { ChartCard } from './ChartCard';
-import { useCategories } from '@/hooks/useCategories';
 import { formatCurrency } from '@/utils/formatters';
+import { useMemo } from 'react';
 import type { Transaction } from '@/types/transactions';
 
 interface ExpensesByCategoryChartProps {
@@ -18,40 +18,44 @@ interface ChartData {
 }
 
 export function ExpensesByCategoryChart({ transactions, selectedDate }: ExpensesByCategoryChartProps) {
-  const { getCategoryById } = useCategories();
+  // Filtrar apenas despesas pagas (as transações já vêm filtradas por mês no pai)
+  const expenses = useMemo(() => (
+    transactions.filter(t => t.type === 'expense' && t.is_paid)
+  ), [transactions]);
 
-  // Filtrar apenas despesas pagas
-  const expenses = transactions.filter(t => t.type === 'expense' && t.is_paid);
+  // Agrupar por categoria usando a categoria embutida na transação (evita esperar hook de categorias)
+  const grouped = useMemo(() => {
+    return expenses.reduce((acc, transaction: any) => {
+      const cat = transaction.category; // vem de useTransactionsQuery
+      const categoryName = cat?.name || 'Sem categoria';
+      const categoryColor = cat?.color || '#9ca3af';
 
-  // Agrupar por categoria
-  const grouped = expenses.reduce((acc, transaction) => {
-    const category = getCategoryById(transaction.category_id);
-    const categoryName = category?.name || 'Sem categoria';
-    const categoryColor = category?.color || '#9ca3af';
-    
-    if (!acc[categoryName]) {
-      acc[categoryName] = { value: 0, color: categoryColor };
-    }
-    acc[categoryName].value += Number(transaction.amount);
-    return acc;
-  }, {} as Record<string, { value: number; color: string }>);
+      if (!acc[categoryName]) {
+        acc[categoryName] = { value: 0, color: categoryColor };
+      }
+      acc[categoryName].value += Number(transaction.amount);
+      return acc;
+    }, {} as Record<string, { value: number; color: string }>);
+  }, [expenses]);
 
-  // Converter para array e ordenar (Top 5)
-  const chartData: ChartData[] = Object.entries(grouped)
-    .map(([name, data]) => ({
-      name,
-      value: data.value,
-      color: data.color,
-      percentage: 0, // Será calculado depois
-    }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 5);
+  // Converter para array, ordenar (Top 5) e calcular porcentagens
+  const { chartData, total } = useMemo(() => {
+    const arr: ChartData[] = Object.entries(grouped)
+      .map(([name, data]) => ({
+        name,
+        value: data.value,
+        color: data.color,
+        percentage: 0,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
 
-  // Calcular porcentagens
-  const total = chartData.reduce((sum, item) => sum + item.value, 0);
-  chartData.forEach(item => {
-    item.percentage = (item.value / total) * 100;
-  });
+    const t = arr.reduce((sum, item) => sum + item.value, 0);
+    arr.forEach((item) => {
+      item.percentage = t > 0 ? (item.value / t) * 100 : 0;
+    });
+    return { chartData: arr, total: t };
+  }, [grouped]);
 
   // Tooltip customizado
   const CustomTooltip = ({ active, payload }: any) => {
@@ -98,8 +102,7 @@ export function ExpensesByCategoryChart({ transactions, selectedDate }: Expenses
               outerRadius={90}
               label={renderLabel}
               labelLine={false}
-              animationBegin={0}
-              animationDuration={800}
+              isAnimationActive={false}
             >
               {chartData.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={entry.color} />

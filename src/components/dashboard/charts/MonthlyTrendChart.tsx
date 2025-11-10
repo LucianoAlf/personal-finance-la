@@ -3,6 +3,7 @@ import { TrendingUp } from 'lucide-react';
 import { ChartCard } from './ChartCard';
 import { formatCurrency } from '@/utils/formatters';
 import type { Transaction } from '@/types/transactions';
+import { useMemo } from 'react';
 
 interface MonthlyTrendChartProps {
   transactions: Transaction[];
@@ -16,43 +17,41 @@ interface ChartData {
 }
 
 export function MonthlyTrendChart({ transactions, selectedDate }: MonthlyTrendChartProps) {
-  // Gerar últimos 6 meses
-  const getLast6Months = () => {
-    const months = [];
+  // Gerar últimos 6 meses (memo)
+  const monthsWindow = useMemo(() => {
+    const months = [] as { month: string; fullDate: Date }[];
     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-    
     for (let i = 5; i >= 0; i--) {
       const date = new Date(selectedDate);
       date.setMonth(date.getMonth() - i);
-      months.push({
-        month: monthNames[date.getMonth()],
-        fullDate: date,
-      });
+      months.push({ month: monthNames[date.getMonth()], fullDate: date });
     }
     return months;
-  };
+  }, [selectedDate]);
 
-  // Calcular receitas e despesas por mês
-  const chartData: ChartData[] = getLast6Months().map(({ month, fullDate }) => {
-    const monthTransactions = transactions.filter(t => {
-      const tDate = new Date(t.transaction_date);
-      return (
-        tDate.getMonth() === fullDate.getMonth() &&
-        tDate.getFullYear() === fullDate.getFullYear() &&
-        t.is_paid
-      );
+  // Calcular receitas e despesas por mês (memo)
+  const chartData: ChartData[] = useMemo(() => {
+    return monthsWindow.map(({ month, fullDate }) => {
+      const monthTransactions = transactions.filter(t => {
+        const tDate = new Date(t.transaction_date);
+        return (
+          tDate.getMonth() === fullDate.getMonth() &&
+          tDate.getFullYear() === fullDate.getFullYear() &&
+          t.is_paid
+        );
+      });
+
+      const income = monthTransactions
+        .filter(t => t.type === 'income')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      const expense = monthTransactions
+        .filter(t => t.type === 'expense')
+        .reduce((sum, t) => sum + Number(t.amount), 0);
+
+      return { month, income, expense };
     });
-    
-    const income = monthTransactions
-      .filter(t => t.type === 'income')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-      
-    const expense = monthTransactions
-      .filter(t => t.type === 'expense')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-    
-    return { month, income, expense };
-  });
+  }, [monthsWindow, transactions]);
 
   // Tooltip customizado
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -121,7 +120,7 @@ export function MonthlyTrendChart({ transactions, selectedDate }: MonthlyTrendCh
             dot={{ fill: '#10b981', r: 4 }}
             activeDot={{ r: 6 }}
             name="Receitas"
-            animationDuration={1000}
+            isAnimationActive={false}
           />
           <Line 
             type="monotone" 
@@ -131,7 +130,7 @@ export function MonthlyTrendChart({ transactions, selectedDate }: MonthlyTrendCh
             dot={{ fill: '#ef4444', r: 4 }}
             activeDot={{ r: 6 }}
             name="Despesas"
-            animationDuration={1000}
+            isAnimationActive={false}
           />
         </LineChart>
       </ResponsiveContainer>

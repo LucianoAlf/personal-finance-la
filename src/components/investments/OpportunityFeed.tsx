@@ -1,9 +1,10 @@
 // SPRINT 4 DIA 1: Feed de oportunidades de mercado
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { OpportunityCard } from './OpportunityCard';
 import { useMarketOpportunities } from '@/hooks/useMarketOpportunities';
-import { Sparkles, RefreshCw, Lightbulb } from 'lucide-react';
+import { Sparkles, RefreshCw, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export function OpportunityFeed() {
@@ -14,6 +15,9 @@ export function OpportunityFeed() {
     generateOpportunities, 
     dismissOpportunity 
   } = useMarketOpportunities();
+  
+  const [isExpanded, setIsExpanded] = useState(false);
+  const INITIAL_VISIBLE_COUNT = 3;
 
   if (loading) {
     return (
@@ -93,7 +97,7 @@ export function OpportunityFeed() {
             </div>
             
             <AnimatePresence mode="popLayout">
-              {opportunities.map((opportunity, index) => (
+              {(isExpanded ? opportunities : opportunities.slice(0, INITIAL_VISIBLE_COUNT)).map((opportunity, index) => (
                 <motion.div
                   key={opportunity.id}
                   initial={{ opacity: 0, y: 20 }}
@@ -108,6 +112,30 @@ export function OpportunityFeed() {
                 </motion.div>
               ))}
             </AnimatePresence>
+            
+            {/* Botão Expandir/Recolher - só aparece se houver mais de 3 */}
+            {opportunities.length > INITIAL_VISIBLE_COUNT && (
+              <div className="flex justify-center mt-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="gap-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                >
+                  {isExpanded ? (
+                    <>
+                      <ChevronUp className="h-4 w-4" />
+                      Mostrar menos
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-4 w-4" />
+                      Ver todas ({opportunities.length - INITIAL_VISIBLE_COUNT} restantes)
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>

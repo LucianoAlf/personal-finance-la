@@ -1,9 +1,8 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { TransactionItem } from '@/components/dashboard/TransactionItem';
-import { InsightCard } from '@/components/dashboard/InsightCard';
 import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { MonthSelector } from '@/components/shared/MonthSelector';
 import { ExpensesByCategoryChart } from '@/components/dashboard/charts/ExpensesByCategoryChart';
@@ -12,25 +11,23 @@ import { GoalsSummaryWidget } from '@/components/goals/GoalsSummaryWidget';
 import { BudgetComplianceWidget } from '@/components/budget/BudgetComplianceWidget';
 import { CreditCardsWidget } from '@/components/creditcards/CreditCardsWidget';
 import { PayableBillsWidget } from '@/components/payable-bills/PayableBillsWidget';
+import { AnaDashboardWidget } from '@/components/dashboard/AnaDashboardWidget';
+import { InvestmentsWidget } from '@/components/dashboard/InvestmentsWidget';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { useTransactions } from '@/hooks/useTransactions';
-import { useAccounts } from '@/hooks/useAccounts';
+import { useTransactionsQuery } from '@/hooks/useTransactionsQuery';
+import { useAccountsQuery } from '@/hooks/useAccountsQuery';
+import { useCreditCardsQuery } from '@/hooks/useCreditCardsQuery';
+import { useInvoicesQuery } from '@/hooks/useInvoicesQuery';
+import { useBudgetsQuery } from '@/hooks/useBudgetsQuery';
 import { formatCurrency } from '@/utils/formatters';
 import {
   Wallet,
   TrendingUp,
   TrendingDown,
   CreditCard,
-  MessageSquare,
   FileText,
-  Target,
-  Calendar,
-  Bot,
-  Sparkles,
-  AlertCircle,
-  CheckCircle2,
   Home,
 } from 'lucide-react';
 
@@ -39,60 +36,71 @@ export function Dashboard() {
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
 
-  // HOOKS REAIS - SEM MOCK DATA
+  // ✅ HOOKS COM REACT QUERY (CACHE INSTANTÂNEO) - Todos com cache local!
+  const monthKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
+  
   const {
     transactions,
-    getTotalIncome,
-    getTotalExpenses,
-    getBalance,
     loading: transactionsLoading,
-  } = useTransactions();
+  } = useTransactionsQuery();
 
   const {
     accounts,
     getTotalBalance,
     loading: accountsLoading,
-  } = useAccounts();
+  } = useAccountsQuery();
 
-  // FILTRAR TRANSAÇÕES DO MÊS SELECIONADO
-  const filteredTransactions = transactions.filter(t => {
-    const transactionDate = new Date(t.transaction_date);
-    return (
-      transactionDate.getMonth() === selectedDate.getMonth() &&
-      transactionDate.getFullYear() === selectedDate.getFullYear()
-    );
-  });
+  const {
+    cards,
+    getTotalUsed,
+    loading: cardsLoading,
+  } = useCreditCardsQuery();
+
+  const {
+    invoices,
+    loading: invoicesLoading,
+  } = useInvoicesQuery();
+
+  const { 
+    budgets, 
+    loading: budgetsLoading 
+  } = useBudgetsQuery(monthKey);
+
+  // ✅ OTIMIZADO: Cachear filtro de transações com useMemo
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const transactionDate = new Date(t.transaction_date);
+      return (
+        transactionDate.getMonth() === selectedDate.getMonth() &&
+        transactionDate.getFullYear() === selectedDate.getFullYear()
+      );
+    });
+  }, [transactions, selectedDate]);
+
+  // ✅ OTIMIZADO: Cachear cálculos com useMemo
+  const { totalIncome, totalExpenses, recentTransactions } = useMemo(() => {
+    const income = filteredTransactions
+      .filter(t => t.type === 'income')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+    
+    const expenses = filteredTransactions
+      .filter(t => t.type === 'expense')
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+    
+    const recent = filteredTransactions.slice(0, 5);
+
+    return {
+      totalIncome: income,
+      totalExpenses: expenses,
+      recentTransactions: recent
+    };
+  }, [filteredTransactions]);
 
   // CÁLCULOS COM DADOS REAIS DO MÊS SELECIONADO
   const totalBalance = getTotalBalance();
-  const totalIncome = filteredTransactions
-    .filter(t => t.type === 'income' && t.is_paid)
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-  const totalExpenses = filteredTransactions
-    .filter(t => t.type === 'expense' && t.is_paid)
-    .reduce((sum, t) => sum + Number(t.amount), 0);
-  const totalCreditCards = 0; // Por enquanto (Fase 4)
+  const totalCreditCards = getTotalUsed();
 
-  const recentTransactions = filteredTransactions.slice(0, 5);
-
-  // CÁLCULOS PARA INSIGHTS
-  // 1. Economia no Caminho (Receitas - Despesas do mês)
-  const monthlySavings = totalIncome - totalExpenses;
-  const savingsPercentage = totalIncome > 0 ? ((monthlySavings / totalIncome) * 100).toFixed(0) : 0;
-  
-  // 2. Contas a Pagar (transações pendentes do mês)
-  const pendingTransactions = filteredTransactions.filter(t => !t.is_paid && t.type === 'expense');
-  const pendingCount = pendingTransactions.length;
-  const pendingAmount = pendingTransactions.reduce((sum, t) => sum + Number(t.amount), 0);
-  
-  // 3. Transações de crédito pendentes (para futuro)
-  const creditCardPending = 0; // Fase 4
-
-  // LOADING STATE
-  if (transactionsLoading || accountsLoading) {
-    return <DashboardSkeleton />;
-  }
-
+  // ✅ RENDERIZAR TUDO IMEDIATAMENTE (sem bloqueio)
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
@@ -115,6 +123,7 @@ export function Dashboard() {
             value={formatCurrency(totalBalance)}
             icon={Wallet}
             gradient="blue"
+            loading={accountsLoading && accounts.length === 0}
             trend={{ value: '+12.5%', direction: 'up' }}
             onClick={() => navigate('/contas')}
           />
@@ -123,6 +132,7 @@ export function Dashboard() {
             value={formatCurrency(totalIncome)}
             icon={TrendingUp}
             gradient="green"
+            loading={transactionsLoading && transactions.length === 0}
             badge={{ text: 'Confirmado', variant: 'success' }}
             onClick={() => navigate('/transacoes?type=income')}
           />
@@ -131,7 +141,18 @@ export function Dashboard() {
             value={formatCurrency(totalExpenses)}
             icon={TrendingDown}
             gradient="red"
-            subtitle="67% do orçamento"
+            loading={transactionsLoading && transactions.length === 0}
+            subtitle={(() => {
+              // ✅ Subtitle dinâmico: calcular percentual real do orçamento
+              const totalBudget = budgets.reduce((sum, b) => sum + Number(b.planned_amount), 0);
+              
+              if (totalBudget === 0) {
+                return 'Sem orçamento definido';
+              }
+              
+              const budgetPercentage = Math.round((totalExpenses / totalBudget) * 100);
+              return `${budgetPercentage}% do orçamento`;
+            })()}
             onClick={() => navigate('/transacoes?type=expense')}
           />
           <StatCard
@@ -139,7 +160,24 @@ export function Dashboard() {
             value={formatCurrency(totalCreditCards)}
             icon={CreditCard}
             gradient="orange"
-            badge={{ text: '2 faturas', variant: 'warning' }}
+            loading={(cardsLoading && cards.length === 0) || (invoicesLoading && invoices.length === 0)}
+            badge={(() => {
+              // ✅ Badge dinâmico: calcular faturas pendentes (open + closed)
+              const pendingInvoices = invoices.filter(i => 
+                i.status === 'open' || i.status === 'closed'
+              );
+              const count = pendingInvoices.length;
+              
+              if (count === 0) {
+                return { text: 'Em dia', variant: 'success' as const };
+              }
+              
+              return {
+                text: `${count} ${count === 1 ? 'fatura' : 'faturas'}`,
+                variant: 'warning' as const
+              };
+            })()}
+            onClick={() => navigate('/cartoes')}
           />
         </div>
 
@@ -156,55 +194,14 @@ export function Dashboard() {
         </div>
 
         {/* Ana Clara + Ações Rápidas */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in animation-delay-200">
-          {/* Ana Clara Widget */}
-          <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg">
-            <CardHeader>
-              <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                  <Bot size={24} />
-                </div>
-                <div>
-                  <CardTitle className="text-white">Ana Clara</CardTitle>
-                  <p className="text-sm text-white/80">Sua Coach Financeira</p>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4">
-                <div className="flex items-start space-x-2">
-                  <Sparkles size={20} className="mt-1 flex-shrink-0" />
-                  <div>
-                    <p className="font-medium mb-2">
-                      Parabéns! Você está no caminho certo para sua meta de economia mensal!
-                    </p>
-                    <p className="text-sm text-white/80">
-                      Faltam apenas R$ 450,00 para atingir os 20% de economia este mês.
-                    </p>
-                  </div>
-                </div>
-              </div>
-              <Button className="w-full bg-white text-purple-600 hover:bg-white/90">
-                Ver Mais Insights
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in animation-delay-200 items-start">
+          {/* Ana Clara Widget - GPT-4.1 mini + Cache 24h */}
+          <AnaDashboardWidget autoRefresh={true} />
 
-          {/* Ações Rápidas */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card 
-              className="border-2 border-dashed border-gray-300 hover:border-purple-500 transition-colors cursor-pointer group"
-              onClick={() => alert('Em breve: Lançar via WhatsApp')}
-            >
-              <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full">
-                <MessageSquare
-                  size={32}
-                  className="text-gray-400 group-hover:text-purple-500 mb-2 transition-colors"
-                />
-                <h3 className="font-semibold text-gray-900 mb-1">Lançar via WhatsApp</h3>
-                <p className="text-sm text-gray-600">Envie sua transação</p>
-              </CardContent>
-            </Card>
+          {/* Widgets de Resumo - 2x2 Grid Uniforme */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Widget de Investimentos */}
+            <InvestmentsWidget />
 
             {/* Widget de Contas a Pagar */}
             <PayableBillsWidget />
@@ -269,52 +266,6 @@ export function Dashboard() {
           <CreditCardsWidget />
         </div>
 
-        {/* Insight Cards - Dinâmicos */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in animation-delay-400">
-          {/* Economia no Caminho */}
-          <InsightCard
-            title="Economia no Caminho"
-            description={
-              monthlySavings >= 0
-                ? `Você economizou ${formatCurrency(monthlySavings)} este mês (${savingsPercentage}%)`
-                : `Déficit de ${formatCurrency(Math.abs(monthlySavings))} este mês`
-            }
-            icon={monthlySavings >= 0 ? CheckCircle2 : AlertCircle}
-            variant={monthlySavings >= 0 ? 'success' : 'danger'}
-          />
-
-          {/* Atenção aos Cartões */}
-          <InsightCard
-            title="Atenção aos Cartões"
-            description={
-              creditCardPending > 0
-                ? `${creditCardPending} faturas vencem em breve`
-                : 'Em breve: gestão de cartões de crédito'
-            }
-            icon={CreditCard}
-            variant={creditCardPending > 0 ? 'warning' : 'info'}
-          />
-
-          {/* Metas em Progresso */}
-          <InsightCard
-            title="Metas em Progresso"
-            description="Em breve: defina e acompanhe suas metas financeiras"
-            icon={Target}
-            variant="info"
-          />
-
-          {/* Contas a Pagar */}
-          <InsightCard
-            title="Contas a Pagar"
-            description={
-              pendingCount > 0
-                ? `${pendingCount} ${pendingCount === 1 ? 'conta pendente' : 'contas pendentes'} - ${formatCurrency(pendingAmount)}`
-                : 'Nenhuma conta pendente este mês'
-            }
-            icon={FileText}
-            variant={pendingCount > 0 ? 'warning' : 'success'}
-          />
-        </div>
       </div>
     </div>
   );

@@ -1,16 +1,36 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CreditCard, AlertCircle, TrendingUp, ChevronRight } from 'lucide-react';
-import { useCreditCards } from '@/hooks/useCreditCards';
+import { useCreditCardsQuery } from '@/hooks/useCreditCardsQuery';
 import { formatCurrency } from '@/utils/formatters';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 
 export function CreditCardsWidget() {
   const navigate = useNavigate();
-  const { cardsSummary, loading } = useCreditCards();
+  const { cards, loading } = useCreditCardsQuery();
 
-  if (loading) {
+  const cardsSummary = (cards || []).map((card: any) => {
+    const credit_limit = Number(card.credit_limit || 0);
+    const available_limit = Number(card.available_limit || 0);
+    const used_limit = Math.max(0, credit_limit - available_limit);
+    const usage_percentage = credit_limit > 0 ? (used_limit / credit_limit) * 100 : 0;
+    return {
+      id: card.id,
+      name: card.name,
+      color: card.color || '#6366f1',
+      credit_limit,
+      available_limit,
+      used_limit,
+      usage_percentage,
+      current_due_date: card.current_due_date,
+      current_invoice_amount: Number(card.current_invoice_amount || 0),
+    };
+  });
+
+  const showSkeleton = loading && cardsSummary.length === 0;
+
+  if (showSkeleton) {
     return (
       <Card>
         <CardHeader>

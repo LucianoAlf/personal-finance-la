@@ -28,12 +28,16 @@ export const useTransactions = () => {
         return;
       }
 
+      // ✅ OTIMIZADO: Buscar transações COM tags em 1 query (elimina N+1)
       let query = supabase
         .from('transactions')
         .select(`
           *,
           category:categories(id, name, icon, color),
-          account:accounts!account_id(id, name)
+          account:accounts!account_id(id, name),
+          transaction_tags(
+            tag:tags(id, name, color)
+          )
         `)
         .eq('user_id', user.id)
         .order('transaction_date', { ascending: false })
@@ -66,31 +70,13 @@ export const useTransactions = () => {
         throw fetchError;
       }
 
-      // Buscar tags para cada transação
-      if (data && data.length > 0) {
-        const transactionIds = data.map(t => t.id);
-        
-        const { data: tagsData } = await supabase
-          .from('transaction_tags')
-          .select(`
-            transaction_id,
-            tag:tags(id, name, color)
-          `)
-          .in('transaction_id', transactionIds);
+      // ✅ OTIMIZADO: Tags já vêm na query principal
+      const transactionsWithTags = (data || []).map(transaction => ({
+        ...transaction,
+        tags: transaction.transaction_tags?.map((tt: any) => tt.tag).filter(Boolean) || []
+      }));
 
-        // Mapear tags para cada transação
-        const transactionsWithTags = data.map(transaction => ({
-          ...transaction,
-          tags: tagsData
-            ?.filter(tt => tt.transaction_id === transaction.id)
-            .map(tt => tt.tag)
-            .filter(Boolean) || []
-        }));
-
-        setTransactions(transactionsWithTags);
-      } else {
-        setTransactions(data || []);
-      }
+      setTransactions(transactionsWithTags);
     } catch (err) {
       console.error('Erro ao buscar transações:', err);
       setError('Erro ao carregar transações. Tente novamente.');

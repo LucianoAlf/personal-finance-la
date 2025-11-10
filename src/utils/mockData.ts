@@ -1,5 +1,26 @@
+/**
+ * ⚠️ DEPRECATED - NÃO USAR EM PRODUÇÃO
+ * 
+ * Este arquivo contém dados mockados apenas para referência e testes.
+ * 
+ * ✅ USE OS HOOKS OFICIAIS AO INVÉS DESTE ARQUIVO:
+ * - useAccounts() → para contas bancárias
+ * - useTransactions() → para transações
+ * - useCategories() → para categorias
+ * - useCreditCards() → para cartões de crédito
+ * - useGoals() → para metas financeiras
+ * - useInvestments() → para investimentos
+ * 
+ * Todos os hooks estão disponíveis em: src/hooks/
+ * 
+ * @deprecated Use os hooks oficiais
+ * @see src/hooks/useAccounts.ts
+ * @see src/hooks/useTransactions.ts
+ */
+
 import { Account, Transaction, Category, CreditCard, Goal, Investment } from '@/types/database.types';
 
+/** @deprecated Use useCategories() */
 // Mock Categories
 export const mockCategories: Category[] = [
   { id: '1', user_id: '1', name: 'Moradia', icon: 'Home', color: '#8b5cf6', type: 'expense', created_at: new Date() },
@@ -14,6 +35,7 @@ export const mockCategories: Category[] = [
   { id: '10', user_id: '1', name: 'Freelance', icon: 'Briefcase', color: '#3b82f6', type: 'income', created_at: new Date() },
 ];
 
+/** @deprecated Use useAccounts() */
 // Mock Accounts
 export const mockAccounts: Account[] = [
   {
@@ -66,6 +88,7 @@ export const mockAccounts: Account[] = [
   },
 ];
 
+/** @deprecated Use useTransactions() */
 // Mock Transactions
 export const mockTransactions: Transaction[] = [
   {
@@ -176,6 +199,7 @@ export const mockTransactions: Transaction[] = [
   },
 ];
 
+/** @deprecated Use useCreditCards() */
 // Mock Credit Cards
 export const mockCreditCards: CreditCard[] = [
   {
@@ -214,6 +238,7 @@ export const mockCreditCards: CreditCard[] = [
   },
 ];
 
+/** @deprecated Use useGoals() */
 // Mock Goals
 export const mockGoals: Goal[] = [
   {
@@ -248,7 +273,8 @@ export const mockGoals: Goal[] = [
   },
 ];
 
-// Mock Investments (NÃO USADO - Página usa useInvestments hook)
+/** @deprecated Use useInvestments() - NÃO USADO - Página usa useInvestments hook */
+// Mock Investments
 export const mockInvestments: Investment[] = [
   {
     id: '1',

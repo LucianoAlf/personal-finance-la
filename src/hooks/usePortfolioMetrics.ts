@@ -135,13 +135,24 @@ export function getTypeLabel(type: string): string {
 
 export function getCategoryColor(category: string): string {
   const colors: Record<string, string> = {
-    renda_fixa: '#10b981', // green-500
-    acoes_nacionais: '#3b82f6', // blue-500
-    fiis: '#f59e0b', // amber-500
-    internacional: '#8b5cf6', // purple-500
-    cripto: '#ec4899', // pink-500
-    previdencia: '#6366f1', // indigo-500
-    outros: '#6b7280', // gray-500
+    // Tipos de investimento (inglês)
+    stock: '#3b82f6', // blue-500 - Ações
+    fixed_income: '#10b981', // green-500 - Renda Fixa
+    reit: '#f59e0b', // amber-500 - FIIs
+    crypto: '#ec4899', // pink-500 - Cripto
+    fund: '#8b5cf6', // purple-500 - Fundos
+    treasury: '#14b8a6', // teal-500 - Tesouro
+    real_estate: '#f97316', // orange-500 - Imóveis
+    other: '#6b7280', // gray-500 - Outros
+    
+    // Categorias (português) - manter compatibilidade
+    renda_fixa: '#10b981',
+    acoes_nacionais: '#3b82f6',
+    fiis: '#f59e0b',
+    internacional: '#8b5cf6',
+    cripto: '#ec4899',
+    previdencia: '#6366f1',
+    outros: '#6b7280',
   };
   return colors[category] || '#6b7280';
 }

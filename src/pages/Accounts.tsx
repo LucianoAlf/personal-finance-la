@@ -3,19 +3,20 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { IconBox } from '@/components/shared/IconBox';
-import { mockAccounts } from '@/utils/mockData';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useAccounts } from '@/hooks/useAccounts';
 import { formatCurrency } from '@/utils/formatters';
 import { BANKS } from '@/utils/constants';
 import { Plus, ArrowLeftRight, TrendingUp, Wallet, Landmark, PiggyBank, MoreVertical } from 'lucide-react';
 
 export function Accounts() {
-  const totalBalance = mockAccounts.reduce((sum, acc) => sum + acc.balance, 0);
-  const checkingTotal = mockAccounts
-    .filter((acc) => acc.type === 'checking')
-    .reduce((sum, acc) => sum + acc.balance, 0);
-  const walletsTotal = mockAccounts
-    .filter((acc) => acc.type === 'wallet')
-    .reduce((sum, acc) => sum + acc.balance, 0);
+  // ✅ Hook com dados reais do Supabase
+  const { accounts, loading, getTotalBalance, getBalanceByType } = useAccounts();
+
+  // ✅ Cálculos usando dados reais
+  const totalBalance = getTotalBalance();
+  const checkingTotal = getBalanceByType(['checking']);
+  const walletsTotal = getBalanceByType(['wallet']);
 
   const getAccountIcon = (type: string) => {
     switch (type) {
@@ -41,6 +42,30 @@ export function Accounts() {
     };
     return labels[type] || type;
   };
+
+  // ✅ Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header
+          title="Contas"
+          subtitle="Gerencie suas contas bancárias e carteiras"
+        />
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -93,7 +118,25 @@ export function Accounts() {
 
         {/* Lista de Contas */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mockAccounts.map((account) => {
+          {/* ✅ Empty state quando não há contas */}
+          {accounts.length === 0 ? (
+            <Card className="col-span-full">
+              <CardContent className="p-12 text-center">
+                <Wallet size={48} className="mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  Nenhuma conta cadastrada
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  Crie sua primeira conta para começar a gerenciar suas finanças
+                </p>
+                <Button>
+                  <Plus size={16} className="mr-1" />
+                  Adicionar Primeira Conta
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            accounts.map((account) => {
             const bank = BANKS.find((b) => b.value === account.bank);
             const Icon = getAccountIcon(account.type);
 
@@ -123,7 +166,8 @@ export function Accounts() {
                   <div className="mb-3">
                     <p className="text-sm text-gray-600 mb-1">Saldo Atual</p>
                     <h2 className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(account.balance)}
+                      {/* ⚠️ CRÍTICO: usar current_balance ao invés de balance */}
+                      {formatCurrency(account.current_balance)}
                     </h2>
                   </div>
 
@@ -131,18 +175,21 @@ export function Accounts() {
                 </CardContent>
               </Card>
             );
-          })}
+          })
+          )}
 
-          {/* Botão Nova Conta */}
-          <Card className="border-2 border-dashed border-gray-300 hover:border-purple-500 transition-colors cursor-pointer group">
-            <CardContent className="p-6 flex flex-col items-center justify-center h-full min-h-[250px]">
-              <Plus size={48} className="text-gray-400 group-hover:text-purple-500 mb-3" />
-              <h3 className="font-semibold text-gray-900 mb-1">Criar Nova Conta</h3>
-              <p className="text-sm text-gray-600 text-center">
-                Adicione uma conta bancária ou carteira
-              </p>
-            </CardContent>
-          </Card>
+          {/* Botão Nova Conta (só aparece se já tiver contas) */}
+          {accounts.length > 0 && (
+            <Card className="border-2 border-dashed border-gray-300 hover:border-purple-500 transition-colors cursor-pointer group">
+              <CardContent className="p-6 flex flex-col items-center justify-center h-full min-h-[250px]">
+                <Plus size={48} className="text-gray-400 group-hover:text-purple-500 mb-3" />
+                <h3 className="font-semibold text-gray-900 mb-1">Criar Nova Conta</h3>
+                <p className="text-sm text-gray-600 text-center">
+                  Adicione uma conta bancária ou carteira
+                </p>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

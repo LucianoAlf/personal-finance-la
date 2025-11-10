@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -16,8 +17,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
-import { BarChart2, TrendingUp, TrendingDown, Info } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { BarChart2, TrendingUp, TrendingDown, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useBenchmarks, getBenchmarkDescription, type Benchmark } from '@/hooks/useBenchmarks';
 import { usePortfolioReturn } from '@/hooks/useMonthlyReturns';
 import { cn } from '@/lib/utils';
@@ -33,6 +34,7 @@ const PERIOD_LABELS: Record<Period, string> = {
 
 export function BenchmarkComparison() {
   const [period, setPeriod] = useState<Period>('1Y');
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const portfolioReturn = usePortfolioReturn(period);
   const benchmarks = useBenchmarks(period);
@@ -139,8 +141,39 @@ export function BenchmarkComparison() {
           })}
         </div>
 
-        {/* Legenda/Info */}
-        <div className="mt-6 p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
+        {/* Botão Expandir/Recolher */}
+        <div className="flex justify-center mt-6">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="gap-2 text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="h-4 w-4" />
+                Recolher informações
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4" />
+                Ver como interpretar
+              </>
+            )}
+          </Button>
+        </div>
+
+        {/* Legenda/Info e Análise - Colapsável */}
+        <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-4 mt-6"
+          >
+        <div className="p-4 bg-blue-50 border-l-4 border-blue-400 rounded-lg">
           <div className="flex items-start gap-2">
             <Info className="h-5 w-5 text-blue-600 mt-0.5" />
             <div>
@@ -169,7 +202,7 @@ export function BenchmarkComparison() {
         </div>
 
         {/* Análise Rápida */}
-        {portfolioReturn > 0 && (
+        {portfolioReturn > 0 ? (
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -183,7 +216,10 @@ export function BenchmarkComparison() {
                 ' Você está vencendo a inflação!'}
             </p>
           </motion.div>
+        ) : null}
+          </motion.div>
         )}
+        </AnimatePresence>
       </CardContent>
     </Card>
   );

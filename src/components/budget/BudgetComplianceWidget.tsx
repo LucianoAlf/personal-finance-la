@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar, TrendingUp, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatCurrency } from '@/utils/formatters';
-import { useBudgets } from '@/hooks/useBudgets';
+import { useBudgetsQuery } from '@/hooks/useBudgetsQuery';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -17,14 +17,15 @@ export function BudgetComplianceWidget() {
     return `${y}-${m}`;
   }, []);
 
-  const { budgets, loading, totalPlanned, totalActual, totalDifference } = useBudgets(currentMonth);
+  const { budgets, loading, totalPlanned, totalActual, totalDifference } = useBudgetsQuery(currentMonth);
 
   const exceeded = budgets.filter((b) => b.status === 'exceeded').length;
   const warning = budgets.filter((b) => b.status === 'warning').length;
   const ok = budgets.filter((b) => b.status === 'ok').length;
   const compliance = budgets.length > 0 ? Math.round((ok / budgets.length) * 100) : 0;
 
-  if (loading) {
+  const showSkeleton = loading && budgets.length === 0;
+  if (showSkeleton) {
     return (
       <Card className="p-6 animate-pulse">
         <div className="h-6 w-32 bg-gray-200 rounded mb-4" />
@@ -66,8 +67,9 @@ export function BudgetComplianceWidget() {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
+      className="h-full"
     >
-      <Card className="p-6">
+      <Card className="p-6 h-full flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className={`h-10 w-10 rounded-lg ${statusBg} flex items-center justify-center`}>
@@ -84,7 +86,7 @@ export function BudgetComplianceWidget() {
         </div>
 
         {/* Barra de Compliance */}
-        <div className="mb-4">
+        <div className="mb-4 flex-1">
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-gray-600">Conformidade</span>
             <span className="font-semibold text-gray-900">{compliance}%</span>

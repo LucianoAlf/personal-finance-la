@@ -1,4 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Info } from 'lucide-react';
 import {
   LineChart,
   Line,
@@ -138,13 +139,16 @@ export function PortfolioEvolutionChart({
         </ResponsiveContainer>
 
         {/* Info card */}
-        <div className="mt-6 p-4 bg-muted rounded-lg">
-          <p className="text-sm text-muted-foreground mb-2">
-            ℹ️ Este gráfico mostra uma simulação baseada nos valores atuais.
-          </p>
-          <p className="text-xs text-muted-foreground">
-            O histórico real será gerado conforme você registrar transações ao longo do tempo.
-          </p>
+        <div className="mt-6 flex gap-3 rounded-lg bg-muted p-4">
+          <Info className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+          <div>
+            <p className="text-sm text-muted-foreground mb-2">
+              Este gráfico mostra uma simulação baseada nos valores atuais.
+            </p>
+            <p className="text-xs text-muted-foreground">
+              O histórico real será gerado conforme você registrar transações ao longo do tempo.
+            </p>
+          </div>
         </div>
       </CardContent>
     </Card>

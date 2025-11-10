@@ -4,16 +4,16 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { AlertCircle, Clock, ChevronRight, Receipt } from 'lucide-react';
-import { usePayableBills } from '@/hooks/usePayableBills';
+import { usePayableBillsQuery } from '@/hooks/usePayableBillsQuery';
 import { formatCurrency, formatDueDateWithContext } from '@/utils/billCalculations';
 import { Link } from 'react-router-dom';
 
 export function PayableBillsWidget() {
-  const { upcomingBills, overdueBills, summary, loading } = usePayableBills({
-    status: ['pending', 'overdue'],
-  });
+  const { upcomingBills, overdueBills, summary, loading } = usePayableBillsQuery();
 
-  if (loading) {
+  const showSkeleton = loading && upcomingBills.length === 0 && overdueBills.length === 0;
+
+  if (showSkeleton) {
     return (
       <Card>
         <div className="p-6">

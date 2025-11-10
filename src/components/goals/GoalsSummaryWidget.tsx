@@ -2,11 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Target, ArrowRight, TrendingUp, AlertCircle, Flame, Trophy } from 'lucide-react';
-import { useGoals } from '@/hooks/useGoals';
+import { useGoalsQuery } from '@/hooks/useGoalsQuery';
 import { formatCurrency } from '@/utils/formatters';
 
 export function GoalsSummaryWidget() {
-  const { goals, loading, getStats } = useGoals();
+  const { goals, loading, getStats } = useGoalsQuery();
   const navigate = useNavigate();
   const stats = getStats();
 
@@ -32,7 +32,9 @@ export function GoalsSummaryWidget() {
     stats.total_savings >= 10000,
   ].filter(Boolean).length;
 
-  if (loading) {
+  const showSkeleton = loading && goals.length === 0;
+
+  if (showSkeleton) {
     return (
       <Card className="p-6">
         <div className="animate-pulse space-y-4">
@@ -65,7 +67,7 @@ export function GoalsSummaryWidget() {
   }
 
   return (
-    <Card className="p-6">
+    <Card className="p-6 h-full flex flex-col">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-lg flex items-center gap-2">
           <Target className="h-5 w-5 text-primary-600" />
@@ -81,7 +83,7 @@ export function GoalsSummaryWidget() {
         </Button>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-4 flex-1">
         {/* Metas de Economia */}
         {savingsGoals.length > 0 && (
           <div className="bg-blue-50 p-4 rounded-lg">

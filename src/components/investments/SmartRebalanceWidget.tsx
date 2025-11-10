@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Target, TrendingUp, TrendingDown, CheckCircle2, Settings } from 'lucide-react';
+import { Target, TrendingUp, TrendingDown, CheckCircle2, Settings, Lightbulb } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAllocationTargets } from '@/hooks/useAllocationTargets';
 import { usePortfolioMetrics } from '@/hooks/usePortfolioMetrics';
@@ -236,9 +236,10 @@ export function SmartRebalanceWidget({ investments }: SmartRebalanceWidgetProps)
             </div>
           </AnimatePresence>
 
-          <div className="mt-6 p-4 bg-purple-50 rounded-lg border border-purple-200">
+          <div className="mt-6 flex gap-3 rounded-lg border border-purple-200 bg-purple-50 p-4">
+            <Lightbulb className="h-5 w-5 flex-shrink-0 text-purple-500" />
             <p className="text-sm text-purple-900">
-              💡 <strong>Dica:</strong> Estas são sugestões baseadas nas suas metas. Analise cada ação antes de executar.
+              <strong>Dica:</strong> Estas são sugestões baseadas nas suas metas. Analise cada ação antes de executar.
             </p>
           </div>
         </CardContent>
