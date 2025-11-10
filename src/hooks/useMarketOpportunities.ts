@@ -44,7 +44,52 @@ export function useMarketOpportunities() {
 
       if (error) throw error;
 
-      setOpportunities(data || []);
+      // Se não houver oportunidades no banco, usar dados mockados
+      if (!data || data.length === 0) {
+        const mockOpportunities: MarketOpportunity[] = [
+          {
+            id: 'mock-1',
+            user_id: user.id,
+            type: 'concentration',
+            title: 'Atenção: Concentração alta em um ativo',
+            description: 'Você tem 30.0% do portfólio em um único ativo. Isso aumenta o risco. Considere diversificar mais.',
+            confidence_score: 90,
+            asset_class: 'GERAL',
+            risk_level: 'medium',
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: 'mock-2',
+            user_id: user.id,
+            type: 'diversification',
+            title: 'Oportunidade: Diversificação Internacional',
+            description: 'Considerar exposição internacional (ETFs, BDRs, etc.) pode reduzir risco e aumentar retornos.',
+            confidence_score: 80,
+            asset_class: 'internacional',
+            expected_return: 12.5,
+            risk_level: 'medium',
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: 'mock-3',
+            user_id: user.id,
+            type: 'rebalance',
+            title: 'Sugestão: Rebalanceamento de Portfólio',
+            description: 'Sua alocação atual está desbalanceada em relação às metas. Considere ajustar para melhor performance.',
+            confidence_score: 85,
+            asset_class: 'GERAL',
+            expected_return: 8.0,
+            risk_level: 'low',
+            expires_at: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date().toISOString(),
+          },
+        ];
+        setOpportunities(mockOpportunities);
+      } else {
+        setOpportunities(data);
+      }
     } catch (error) {
       console.error('Erro ao buscar oportunidades:', error);
       toast.error('Erro ao carregar oportunidades');
