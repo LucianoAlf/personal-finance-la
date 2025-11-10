@@ -1,11 +1,8 @@
 // =====================================================
-// INVESTMENT SERVICE - Cache Layer
+// INVESTMENT SERVICE - Cache Layer (via Edge Function)
 // =====================================================
 
 import { supabase } from '@/lib/supabase';
-import { brapiService } from './brapi.service';
-import { coinGeckoService } from './coingecko.service';
-import { tesouroDiretoService } from './tesouro.service';
 import type { UnifiedQuote, QuoteError } from '@/types/api.types';
 import { getCacheTTL } from '@/utils/market-hours';
 import { isCacheExpired, batchArray, filterValidQuotes } from '@/utils/api-helpers';
@@ -49,10 +46,8 @@ export class InvestmentService {
         return this.mapCachedToUnified(cached);
       }
 
-      // 4. Salvar no cache
-      if (!('error' in quote)) {
-        await this.saveToCache(quote);
-      }
+      // 4. Cache é salvo pela Edge Function (não precisamos salvar aqui)
+      // A Edge Function usa service_role_key e bypassa RLS
 
       return quote;
     } catch (error) {
@@ -203,24 +198,47 @@ export class InvestmentService {
     ticker: string,
     type: 'stock' | 'crypto' | 'treasury'
   ): Promise<UnifiedQuote | QuoteError> {
-    switch (type) {
-      case 'stock':
-        return brapiService.getQuote(ticker);
+    try {
+      // Usar Edge Function para evitar CORS
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-quote`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session?.access_token || import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ symbol: ticker, type }),
+        }
+      );
 
-      case 'crypto':
-        const coinId = coinGeckoService.getCoinId(ticker);
-        return coinGeckoService.getPrice(coinId, 'brl');
+      if (!response.ok) {
+        throw new Error(`Edge Function error: ${response.status}`);
+      }
 
-      case 'treasury':
-        return tesouroDiretoService.getBondByName(ticker);
+      const quote = await response.json();
 
-      default:
+      // Se retornou erro da API
+      if (quote.error) {
         return {
           symbol: ticker,
-          error: `Tipo inválido: ${type}`,
-          source: 'cache',
+          error: quote.error,
+          source: 'edge-function',
           timestamp: new Date().toISOString(),
         };
+      }
+
+      return quote;
+    } catch (error) {
+      console.error(`[API] Erro ao buscar ${ticker}:`, error);
+      return {
+        symbol: ticker,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        source: 'edge-function',
+        timestamp: new Date().toISOString(),
+      };
     }
   }
 }

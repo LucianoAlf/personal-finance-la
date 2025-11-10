@@ -68,11 +68,8 @@ export function useBenchmarks(period: Period = '1Y'): Benchmark[] {
           body: { period },
         });
 
-        if (invokeError) {
-          console.error('Erro ao invocar função:', invokeError);
-          throw invokeError;
-        }
-
+        if (invokeError) throw invokeError;
+        
         if (data && data.benchmarks) {
           setBenchmarks(data.benchmarks);
         } else {
@@ -81,8 +78,8 @@ export function useBenchmarks(period: Period = '1Y'): Benchmark[] {
       } catch (err) {
         console.error('Erro ao buscar benchmarks:', err);
         setError('Falha ao carregar benchmarks. Usando dados estimados.');
-        
-        // Fallback para dados mock
+
+        // Fallback para dados mock em caso de erro
         setBenchmarks(MOCK_BENCHMARKS[period]);
       } finally {
         setLoading(false);

@@ -2,6 +2,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
 interface Benchmark {
   name: string;
   return: number;
@@ -18,6 +23,11 @@ const PERIOD_DAYS: Record<Period, number> = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
   try {
     const { period = '1Y' } = await req.json();
 
@@ -42,13 +52,13 @@ serve(async (req) => {
 
     return new Response(
       JSON.stringify({ benchmarks }),
-      { headers: { 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error) {
     console.error('Erro ao buscar benchmarks:', error);
     return new Response(
       JSON.stringify({ error: 'Erro ao buscar benchmarks' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

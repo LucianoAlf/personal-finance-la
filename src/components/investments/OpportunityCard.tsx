@@ -27,7 +27,9 @@ export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps
     }
   };
 
-  const getTypeIcon = (type: string) => {
+  const getTypeIcon = (type: string | undefined) => {
+    if (!type) return <TrendingUp className="h-5 w-5" />;
+
     if (type.includes('diversification') || type.includes('concentration')) {
       return <AlertTriangle className="h-5 w-5" />;
     }
@@ -72,11 +74,11 @@ export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps
                   <Badge variant="outline" className={getRiskColor(opportunity.risk_level)}>
                     {getRiskLabel(opportunity.risk_level)}
                   </Badge>
-                  <Badge variant="secondary" className="bg-purple-100 text-purple-700">
+                  <Badge variant="info" className="bg-purple-100 text-purple-700">
                     {opportunity.confidence_score}% confiança
                   </Badge>
                   {opportunity.expected_return && (
-                    <Badge variant="secondary" className="bg-green-100 text-green-700">
+                    <Badge variant="success" className="bg-green-100 text-green-700">
                       ~{opportunity.expected_return.toFixed(1)}% a.a.
                     </Badge>
                   )}
@@ -99,12 +101,12 @@ export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps
           </p>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-medium text-purple-600">
-              {opportunity.asset_class.replace(/_/g, ' ').toUpperCase()}
+              {opportunity.asset_class?.replace(/_/g, ' ').toUpperCase() || 'GERAL'}
             </span>
             <span>
-              Expira {formatDistanceToNow(new Date(opportunity.expires_at), { 
-                addSuffix: true, 
-                locale: ptBR 
+              Expira {formatDistanceToNow(new Date(opportunity.expires_at), {
+                addSuffix: true,
+                locale: ptBR
               })}
             </span>
           </div>

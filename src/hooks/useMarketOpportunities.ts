@@ -15,7 +15,6 @@ export interface MarketOpportunity {
   expected_return?: number;
   risk_level: string;
   expires_at: string;
-  dismissed: boolean;
   dismissed_at?: string;
   created_at: string;
 }
@@ -37,7 +36,7 @@ export function useMarketOpportunities() {
         .from('market_opportunities')
         .select('*')
         .eq('user_id', user.id)
-        .eq('dismissed', false)
+        .is('dismissed_at', null)
         .gt('expires_at', new Date().toISOString())
         .order('confidence_score', { ascending: false })
         .order('created_at', { ascending: false })
@@ -98,7 +97,7 @@ export function useMarketOpportunities() {
     try {
       const { error } = await supabase
         .from('market_opportunities')
-        .update({ dismissed: true, dismissed_at: new Date().toISOString() })
+        .update({ dismissed_at: new Date().toISOString() })
         .eq('id', opportunityId);
 
       if (error) throw error;
@@ -133,7 +132,7 @@ export function useMarketOpportunities() {
           const newOpportunity = payload.new as MarketOpportunity;
 
           // Adicionar à lista se não estiver dismissed
-          if (!newOpportunity.dismissed) {
+          if (!newOpportunity.dismissed_at) {
             setOpportunities(prev => [newOpportunity, ...prev]);
             
             // Notificação toast
