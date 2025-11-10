@@ -4,7 +4,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-authorization, cache-control',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Max-Age': '86400',
 };
@@ -76,9 +76,11 @@ serve(async (req) => {
   try {
     // Preferências do usuário via body (opcional)
     let preferences: any = undefined;
+    let forceRefresh = false;
     try {
       const body = await req.json();
       preferences = body?.preferences;
+      forceRefresh = body?.forceRefresh || false;
     } catch (_) {
       // ignore if no JSON
     }
@@ -89,7 +91,7 @@ serve(async (req) => {
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       { global: { headers: { Authorization: authHeader } } }
     );
 
@@ -98,28 +100,46 @@ serve(async (req) => {
       throw new Error('Usuário não autenticado');
     }
 
+    const userId = user.id;
+    console.log('[ana-dashboard-insights] User ID:', userId);
+
+    // 🔥 VERIFICAR CACHE (se não for forceRefresh)
+    if (!forceRefresh) {
+      const { data: cachedData, error: cacheError } = await supabase
+        .from('ana_insights_cache')
+        .select('insights, expires_at')
+        .eq('user_id', userId)
+        .eq('insight_type', 'dashboard')
+        .single();
+
+      if (!cacheError && cachedData) {
+        const expiresAt = new Date(cachedData.expires_at);
+        const now = new Date();
+
+        if (expiresAt > now) {
+          console.log('[ana-dashboard-insights] ✅ Retornando do CACHE (válido até', expiresAt.toISOString(), ')');
+          return new Response(JSON.stringify(cachedData.insights), {
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json',
+              'X-Cache-Hit': 'true',
+              'X-Cache-Expires': expiresAt.toISOString(),
+            },
+          });
+        } else {
+          console.log('[ana-dashboard-insights] ⏰ Cache expirado, regenerando...');
+        }
+      }
+    } else {
+      console.log('[ana-dashboard-insights] 🔄 forceRefresh=true, ignorando cache');
+    }
+
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY não configurada');
     }
 
-    // ✅ VERIFICAR CACHE PRIMEIRO (24h)
-    console.log('[ana-dashboard] Verificando cache...');
-    const { data: cached } = await supabase
-      .from('ana_insights_cache')
-      .select('insights, generated_at')
-      .eq('user_id', user.id)
-      .gt('expires_at', new Date().toISOString())
-      .single();
-
-    if (cached && cached.insights) {
-      console.log('[ana-dashboard] ✅ Cache válido encontrado - retornando insights do dia');
-      return new Response(JSON.stringify(cached.insights), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    console.log('[ana-dashboard] 🔄 Cache expirado ou não encontrado - gerando novos insights...');
+    console.log('[ana-dashboard] 🚀 Gerando novos insights...');
 
     // FETCH CONSOLIDADO DE DADOS
     console.log('[ana-dashboard] Buscando dados consolidados...');
@@ -526,16 +546,37 @@ IMPORTANTE:
 
     // ✅ SALVAR NO CACHE (24h)
     console.log('[ana-dashboard] Salvando insights no cache (válido por 24h)...');
-    await supabase.from('ana_insights_cache').upsert({
-      user_id: user.id,
-      insights: payload,
-      generated_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    });
-    console.log('[ana-dashboard] ✅ Cache salvo com sucesso');
+    // 💾 SALVAR NO CACHE (24 horas)
+    const cacheNow = new Date();
+    const expiresAt = new Date(cacheNow.getTime() + 24 * 60 * 60 * 1000);
+
+    const { error: upsertError } = await supabase
+      .from('ana_insights_cache')
+      .upsert({
+        user_id: userId,
+        insight_type: 'dashboard',
+        insights: payload,
+        generated_at: cacheNow.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        updated_at: cacheNow.toISOString(),
+      }, {
+        onConflict: 'user_id,insight_type'
+      });
+
+    if (upsertError) {
+      console.error('[ana-dashboard] Erro ao salvar cache:', upsertError);
+      // Não falhar a requisição por erro de cache
+    } else {
+      console.log('[ana-dashboard] ✅ Cache salvo (expira em 24h)');
+    }
 
     return new Response(JSON.stringify(payload), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json',
+        'X-Cache-Hit': 'false',
+        'X-Cache-Expires': expiresAt.toISOString(),
+      },
     });
 
   } catch (error) {

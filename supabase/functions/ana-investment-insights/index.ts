@@ -1,9 +1,10 @@
-// FASE 1: Ana Clara com GPT-4 Real - Investment Insights
+// FASE 1: Ana Clara com GPT-4 Real - Investment Insights (COM CACHE 24H)
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-authorization, cache-control, x-supabase-api-version',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Max-Age': '86400',
 };
@@ -47,7 +48,61 @@ serve(async (req) => {
   }
 
   try {
-    const { portfolio }: { portfolio: Portfolio } = await req.json();
+    const { portfolio, forceRefresh }: { portfolio: Portfolio; forceRefresh?: boolean } = await req.json();
+    
+    // Inicializar Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Obter user_id do JWT (preferir X-Supabase-Authorization)
+    const rawUserAuth = req.headers.get('x-supabase-authorization') || req.headers.get('authorization');
+    if (!rawUserAuth) {
+      throw new Error('Authorization token missing');
+    }
+
+    const userToken = rawUserAuth.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabase.auth.getUser(userToken);
+    
+    if (authError || !user) {
+      throw new Error('Unauthorized');
+    }
+
+    const userId = user.id;
+    console.log('[ana-investment-insights] User ID:', userId);
+
+    // 🔥 VERIFICAR CACHE (se não for forceRefresh)
+    if (!forceRefresh) {
+      const { data: cachedData, error: cacheError } = await supabase
+        .from('ana_insights_cache')
+        .select('insights, expires_at')
+        .eq('user_id', userId)
+        .eq('insight_type', 'investment')
+        .single();
+
+      if (!cacheError && cachedData) {
+        const expiresAt = new Date(cachedData.expires_at);
+        const now = new Date();
+
+        if (expiresAt > now) {
+          console.log('[ana-investment-insights] ✅ Retornando do CACHE (válido até', expiresAt.toISOString(), ')');
+          return new Response(JSON.stringify(cachedData.insights), {
+            headers: { 
+              ...corsHeaders, 
+              'Content-Type': 'application/json',
+              'X-Cache-Hit': 'true',
+              'X-Cache-Expires': expiresAt.toISOString(),
+            },
+          });
+        } else {
+          console.log('[ana-investment-insights] ⏰ Cache expirado, regenerando...');
+        }
+      }
+    } else {
+      console.log('[ana-investment-insights] 🔄 forceRefresh=true, ignorando cache');
+    }
+
+    // 🚀 GERAR NOVOS INSIGHTS (cache miss ou expirado)
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
     if (!OPENAI_API_KEY) {
@@ -185,7 +240,7 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4-turbo-preview',
+        model: 'gpt-4.1-mini', // ✅ Modelo mais rápido e econômico
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
@@ -235,8 +290,37 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
 
     console.log('[ana-insights] Insights gerados com sucesso. Score:', insights.healthScore);
 
+    // 💾 SALVAR NO CACHE (24 horas)
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +24h
+
+    const { error: upsertError } = await supabase
+      .from('ana_insights_cache')
+      .upsert({
+        user_id: userId,
+        insight_type: 'investment',
+        insights: insights,
+        generated_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        updated_at: now.toISOString(),
+      }, {
+        onConflict: 'user_id,insight_type'
+      });
+
+    if (upsertError) {
+      console.error('[ana-insights] Erro ao salvar cache:', upsertError);
+      // Não falhar a requisição por erro de cache
+    } else {
+      console.log('[ana-insights] ✅ Cache salvo (expira em 24h)');
+    }
+
     return new Response(JSON.stringify(insights), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: { 
+        ...corsHeaders, 
+        'Content-Type': 'application/json',
+        'X-Cache-Hit': 'false',
+        'X-Cache-Expires': expiresAt.toISOString(),
+      },
     });
 
   } catch (error) {

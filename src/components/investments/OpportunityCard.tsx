@@ -14,6 +14,9 @@ interface OpportunityCardProps {
 }
 
 export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps) {
+  // Debug: verificar dados
+  console.log('OpportunityCard rendering:', opportunity);
+  
   const getRiskColor = (risk: string) => {
     switch (risk) {
       case 'low':
@@ -67,18 +70,18 @@ export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps
                 {getTypeIcon(opportunity.type)}
               </div>
               <div className="flex-1">
-                <CardTitle className="text-base mb-1">
-                  {opportunity.title}
+                <CardTitle className="text-base mb-1 text-gray-900">
+                  {opportunity.title || 'Sem título'}
                 </CardTitle>
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge variant="outline" className={getRiskColor(opportunity.risk_level)}>
                     {getRiskLabel(opportunity.risk_level)}
                   </Badge>
-                  <Badge variant="info" className="bg-purple-100 text-purple-700">
+                  <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-200">
                     {opportunity.confidence_score}% confiança
                   </Badge>
                   {opportunity.expected_return && (
-                    <Badge variant="success" className="bg-green-100 text-green-700">
+                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200">
                       ~{opportunity.expected_return.toFixed(1)}% a.a.
                     </Badge>
                   )}
@@ -96,14 +99,14 @@ export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground mb-3">
-            {opportunity.description}
+          <p className="text-sm text-gray-700 mb-3">
+            {opportunity.description || 'Sem descrição disponível'}
           </p>
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex items-center justify-between text-xs">
             <span className="font-medium text-purple-600">
               {opportunity.asset_class?.replace(/_/g, ' ').toUpperCase() || 'GERAL'}
             </span>
-            <span>
+            <span className="text-gray-500">
               Expira {formatDistanceToNow(new Date(opportunity.expires_at), {
                 addSuffix: true,
                 locale: ptBR

@@ -30,7 +30,7 @@ export function AnaInvestmentInsights({ investments }: AnaInvestmentInsightsProp
           <div className="flex items-center justify-center py-8">
             <div className="text-center space-y-3">
               <div className="animate-pulse text-muted-foreground">
-                Consultando GPT-4 para análise personalizada
+                Ana Clara está analisando seu portfólio...
               </div>
               <Progress value={undefined} className="w-48 mx-auto" />
             </div>
@@ -112,9 +112,8 @@ export function AnaInvestmentInsights({ investments }: AnaInvestmentInsightsProp
           <div className="relative">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-medium text-gray-700">Saúde do Portfólio</span>
-              <span className={`text-4xl font-bold ${getScoreColor(healthScore)}`}>
+              <span className={`text-5xl font-bold ${getScoreColor(healthScore)}`}>
                 {healthScore}
-                <span className="text-lg text-muted-foreground">/100</span>
               </span>
             </div>
             <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
@@ -135,9 +134,9 @@ export function AnaInvestmentInsights({ investments }: AnaInvestmentInsightsProp
                 <span className="text-sm font-medium">Diversificação</span>
               </div>
               <div className="flex items-center gap-2">
-                <Progress value={(breakdown.diversification / 30) * 100} className="h-2" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  {breakdown.diversification}/30
+                <Progress value={(breakdown.diversification / 30) * 100} className="h-2 flex-1" />
+                <span className="text-xs font-semibold text-purple-600 min-w-[3rem] text-right">
+                  {((breakdown.diversification / 30) * 100).toFixed(0)}%
                 </span>
               </div>
             </div>
@@ -148,9 +147,9 @@ export function AnaInvestmentInsights({ investments }: AnaInvestmentInsightsProp
                 <span className="text-sm font-medium">Concentração</span>
               </div>
               <div className="flex items-center gap-2">
-                <Progress value={(breakdown.concentration / 25) * 100} className="h-2" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  {breakdown.concentration}/25
+                <Progress value={(breakdown.concentration / 25) * 100} className="h-2 flex-1" />
+                <span className="text-xs font-semibold text-purple-600 min-w-[3rem] text-right">
+                  {((breakdown.concentration / 25) * 100).toFixed(0)}%
                 </span>
               </div>
             </div>
@@ -161,9 +160,9 @@ export function AnaInvestmentInsights({ investments }: AnaInvestmentInsightsProp
                 <span className="text-sm font-medium">Retornos</span>
               </div>
               <div className="flex items-center gap-2">
-                <Progress value={(breakdown.returns / 25) * 100} className="h-2" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  {breakdown.returns}/25
+                <Progress value={(breakdown.returns / 25) * 100} className="h-2 flex-1" />
+                <span className="text-xs font-semibold text-purple-600 min-w-[3rem] text-right">
+                  {((breakdown.returns / 25) * 100).toFixed(0)}%
                 </span>
               </div>
             </div>
@@ -174,9 +173,9 @@ export function AnaInvestmentInsights({ investments }: AnaInvestmentInsightsProp
                 <span className="text-sm font-medium">Risco</span>
               </div>
               <div className="flex items-center gap-2">
-                <Progress value={(breakdown.risk / 20) * 100} className="h-2" />
-                <span className="text-xs font-medium text-muted-foreground">
-                  {breakdown.risk}/20
+                <Progress value={(breakdown.risk / 20) * 100} className="h-2 flex-1" />
+                <span className="text-xs font-semibold text-purple-600 min-w-[3rem] text-right">
+                  {((breakdown.risk / 20) * 100).toFixed(0)}%
                 </span>
               </div>
             </div>

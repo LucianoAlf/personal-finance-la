@@ -50,10 +50,19 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
   const [error, setError] = useState<string>();
 
   useEffect(() => {
+    let isMounted = true;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
     async function fetchGPTInsights() {
       // Só buscar se tiver investimentos e valor
       if (investments.length === 0 || metrics.currentValue === 0) {
         setIsLoading(false);
+        return;
+      }
+
+      // Se já está carregando, não fazer nova requisição
+      if (isLoading) {
+        console.log('[useAnaInsights] Já está carregando, ignorando...');
         return;
       }
 
@@ -88,12 +97,14 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
           })),
         };
 
-        console.log('[useAnaInsights] Invocando Edge Function...');
+        console.log('[useAnaInsights] 🚀 Invocando Edge Function (com cache)...');
 
         const { data, error: invokeError } = await supabase.functions.invoke(
           'ana-investment-insights',
-          { body: { portfolio } }
+          { body: { portfolio, forceRefresh: false } }
         );
+
+        if (!isMounted) return;
 
         if (invokeError) {
           throw new Error(invokeError.message || 'Erro ao buscar insights');
@@ -108,19 +119,28 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
           throw new Error(data.error);
         }
 
-        console.log('[useAnaInsights] Insights recebidos:', data);
+        console.log('[useAnaInsights] ✅ Insights recebidos');
         setGptInsights(data as AnaInsightsGPT);
         setIsLoading(false);
 
       } catch (err) {
+        if (!isMounted) return;
         console.error('[useAnaInsights] Erro:', err);
         setError(err instanceof Error ? err.message : 'Erro desconhecido');
         setIsLoading(false);
       }
     }
 
-    fetchGPTInsights();
-  }, [investments, metrics.currentValue, metrics.totalInvested, targets]);
+    // Debounce de 500ms para evitar múltiplas chamadas
+    timeoutId = setTimeout(() => {
+      fetchGPTInsights();
+    }, 500);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
+    };
+  }, [investments.length, metrics.currentValue]);
 
   // Calcular breakdown básico localmente (fallback)
   const breakdown = {
