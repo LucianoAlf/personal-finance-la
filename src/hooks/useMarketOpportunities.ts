@@ -146,7 +146,8 @@ export function useMarketOpportunities() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchOpportunities]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]); // Apenas user.id para evitar loop
 
   return {
     opportunities,

@@ -17,7 +17,7 @@ export interface CachedQuote {
   volume: number | null;
   source: string;
   metadata: Record<string, any> | null;
-  cached_at: string;
+  timestamp: string; // Corrigido: tabela usa 'timestamp', não 'cached_at'
 }
 
 export class InvestmentService {
@@ -33,8 +33,8 @@ export class InvestmentService {
       const cached = await this.getCachedQuote(ticker);
       const ttl = getCacheTTL(type);
 
-      if (cached && !isCacheExpired(cached.cached_at, ttl)) {
-        console.log(`[Cache HIT] ${ticker} (idade: ${this.getCacheAge(cached.cached_at)}min)`);
+      if (cached && !isCacheExpired(cached.timestamp, ttl)) {
+        console.log(`[Cache HIT] ${ticker} (idade: ${this.getCacheAge(cached.timestamp)}min)`);
         return this.mapCachedToUnified(cached);
       }
 
@@ -153,7 +153,7 @@ export class InvestmentService {
       .from('investment_quotes_history')
       .select('*')
       .eq('symbol', symbol.toUpperCase())
-      .order('cached_at', { ascending: false })
+      .order('timestamp', { ascending: false })
       .limit(1)
       .single();
 
@@ -169,7 +169,7 @@ export class InvestmentService {
       volume: quote.volume || null,
       source: quote.source,
       metadata: quote.metadata || null,
-      cached_at: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
     });
 
     if (error) {
@@ -185,7 +185,7 @@ export class InvestmentService {
       change: (cached.price * cached.variation) / 100,
       changePercent: cached.variation,
       volume: cached.volume || undefined,
-      timestamp: cached.cached_at,
+      timestamp: cached.timestamp,
       source: cached.source as any,
       metadata: cached.metadata || undefined,
     };
