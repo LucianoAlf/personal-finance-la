@@ -31,6 +31,11 @@ export function calculateRebalancing(
 ): RebalanceAction[] {
   const actions: RebalanceAction[] = [];
 
+  // Validar totalValue
+  if (!totalValue || totalValue <= 0 || isNaN(totalValue)) {
+    return actions;
+  }
+
   // Mapear current allocation para fácil acesso
   const currentMap = new Map<string, AllocationItem>();
   currentAllocation.forEach((item) => {
@@ -44,9 +49,19 @@ export function calculateRebalancing(
     const targetPct = target.target_percentage;
     const diff = targetPct - currentPct;
 
+    // Validar valores antes de calcular
+    if (isNaN(currentPct) || isNaN(targetPct) || isNaN(diff)) {
+      continue;
+    }
+
     // Somente sugerir ação se diferença for maior que threshold
     if (Math.abs(diff) > threshold) {
       const amount = (Math.abs(diff) / 100) * totalValue;
+
+      // Validar amount antes de adicionar
+      if (isNaN(amount) || amount <= 0) {
+        continue;
+      }
 
       actions.push({
         assetClass: formatAssetClass(target.asset_class),

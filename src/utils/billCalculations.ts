@@ -268,6 +268,11 @@ export function groupByMonth(bills: PayableBill[]): Map<string, PayableBill[]> {
  * Formata valor monetário
  */
 export function formatCurrency(value: number): string {
+  // Validar valor antes de formatar
+  if (value === null || value === undefined || isNaN(value)) {
+    return 'R$ 0,00';
+  }
+  
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
