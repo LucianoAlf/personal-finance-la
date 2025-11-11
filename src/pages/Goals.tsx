@@ -3,15 +3,13 @@ import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap, Calendar, Copy, Sparkles, Settings } from 'lucide-react';
+import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap, Calendar, Copy, Sparkles, Settings, ChevronDown } from 'lucide-react';
 import { motion, MotionConfig } from 'framer-motion';
 import { useGoals } from '@/hooks/useGoals';
 import { useSearchParams } from 'react-router-dom';
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
 import { useGamification } from '@/hooks/useGamification';
-import { GoalBadges } from '@/components/goals/GoalBadges';
 import { SpendingGoalCard } from '@/components/goals/SpendingGoalCard';
-import { SavingsGoalCard } from '@/components/goals/SavingsGoalCard';
 import { CreateGoalDialog } from '@/components/goals/CreateGoalDialog';
 import { EditGoalDialog } from '@/components/goals/EditGoalDialog';
 import { AddValueDialog } from '@/components/goals/AddValueDialog';
@@ -36,6 +34,7 @@ import { SavingsGoalsManager } from '@/components/settings/goals/SavingsGoalsMan
 import { FinancialCyclesManager } from '@/components/settings/cycles/FinancialCyclesManager';
 import { FinancialSettingsCard } from '@/components/settings/financial/FinancialSettingsCard';
 import { useSettings } from '@/hooks/useSettings';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 export function Goals() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -43,10 +42,10 @@ export function Goals() {
   const { profile, badges, unlockedBadges, xpForNextLevel, xpProgress, levelTitle, loading: gamificationLoading, celebrationQueue, showCelebration, dismissCelebration } = useGamification();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [defaultGoalType, setDefaultGoalType] = useState<'savings' | 'spending_limit'>('savings');
   const [addValueDialogOpen, setAddValueDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<FinancialGoalWithCategory | null>(null);
-  const [defaultGoalType, setDefaultGoalType] = useState<'savings' | 'spending_limit'>('savings');
   const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'progress' | 'budget' | 'config'>(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'budget' || tabParam === 'spending' || tabParam === 'progress' || tabParam === 'config') {
@@ -56,6 +55,8 @@ export function Goals() {
   });
   const [selectedBudgetDate, setSelectedBudgetDate] = useState<Date>(new Date());
   const [addBudgetDialogOpen, setAddBudgetDialogOpen] = useState(false);
+  const [savingsCreateTick, setSavingsCreateTick] = useState(0);
+  const [createDialogAllowedTypes, setCreateDialogAllowedTypes] = useState<Array<'savings' | 'spending_limit'>>(['savings', 'spending_limit']);
 
   const selectedMonthStr = useMemo(() => {
     const y = selectedBudgetDate.getFullYear();
@@ -151,6 +152,25 @@ export function Goals() {
 
   const handleCreateGoal = (type: 'savings' | 'spending_limit') => {
     setDefaultGoalType(type);
+    // Restringe os tipos permitidos quando for meta de gasto
+    if (type === 'spending_limit') {
+      setCreateDialogAllowedTypes(['spending_limit']);
+    } else {
+      setCreateDialogAllowedTypes(['savings', 'spending_limit']);
+    }
+    setCreateDialogOpen(true);
+  };
+
+  // Ações do Header
+  const openSavingsFromHeader = () => {
+    setActiveTab('savings');
+    setSavingsCreateTick((t) => t + 1);
+  };
+
+  const openSpendingFromHeader = () => {
+    setActiveTab('spending');
+    setDefaultGoalType('spending_limit');
+    setCreateDialogAllowedTypes(['spending_limit']);
     setCreateDialogOpen(true);
   };
 
@@ -178,10 +198,31 @@ export function Goals() {
         subtitle="Acompanhe seus objetivos e controle seus gastos"
         icon={<Target size={24} />}
         actions={
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nova Meta
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Meta
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuItem onClick={openSavingsFromHeader}>
+                <PiggyBank className="h-4 w-4 mr-2" />
+                <div>
+                  <div className="font-medium">Meta de Economia</div>
+                  <div className="text-xs text-muted-foreground">Economizar para um objetivo</div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openSpendingFromHeader}>
+                <Shield className="h-4 w-4 mr-2" />
+                <div>
+                  <div className="font-medium">Meta de Gasto</div>
+                  <div className="text-xs text-muted-foreground">Limitar gastos por categoria</div>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         }
       />
 
@@ -274,31 +315,9 @@ export function Goals() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Tab: Economia */}
+          {/* Tab: Economia - Sistema Unificado Superior */}
           <TabsContent value="savings">
-              {savingsGoals.length === 0 ? (
-              <div className="text-center py-12">
-                <Target className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhuma meta de economia</h3>
-                <p className="text-gray-600 mb-6">Crie sua primeira meta e comece a economizar!</p>
-                <Button onClick={() => handleCreateGoal('savings')}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Criar Meta de Economia
-                </Button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {savingsGoals.map((goal) => (
-                  <SavingsGoalCard
-                    key={goal.id}
-                    goal={goal}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onAddValue={handleAddValue}
-                  />
-                ))}
-              </div>
-            )}
+            <SavingsGoalsManager requestCreate={savingsCreateTick} />
           </TabsContent>
 
           {/* Tab: Gastos */}
@@ -439,17 +458,14 @@ export function Goals() {
               {/* Configurações Financeiras */}
               <FinancialSettingsCard
                 savingsGoal={savingsGoalPercentage}
-                closingDay={closingDay}
-                budgetAllocation={budgetAllocation}
-                budgetAlertThreshold={budgetAlertThreshold}
                 onSavingsGoalChange={handleSavingsGoalChange}
+                closingDay={closingDay}
                 onClosingDayChange={handleClosingDayChange}
+                budgetAllocation={budgetAllocation}
                 onBudgetAllocationChange={handleBudgetAllocationChange}
+                budgetAlertThreshold={budgetAlertThreshold}
                 onBudgetAlertThresholdChange={handleBudgetAlertThresholdChange}
               />
-
-              {/* Metas de Economia */}
-              <SavingsGoalsManager />
 
               {/* Ciclos Financeiros */}
               <FinancialCyclesManager />
@@ -486,11 +502,10 @@ export function Goals() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         defaultType={defaultGoalType}
+        allowedTypes={createDialogAllowedTypes}
         onCreated={async (goal) => {
-          // Garantir lista atualizada e buscar versão enriquecida
           let created = getGoalById(goal.id);
           if (!created) {
-            // Garantir que a lista esteja atualizada
             await refreshGoals();
             created = getGoalById(goal.id);
           }

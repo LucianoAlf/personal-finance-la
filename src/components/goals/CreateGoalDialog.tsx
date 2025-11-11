@@ -36,6 +36,8 @@ interface CreateGoalDialogProps {
   onOpenChange: (open: boolean) => void;
   defaultType?: 'savings' | 'spending_limit';
   onCreated?: (goal: FinancialGoal) => void;
+  // Quais tipos podem ser criados neste diálogo. Se apenas um for permitido, o seletor de tipo será ocultado.
+  allowedTypes?: Array<'savings' | 'spending_limit'>;
 }
 
 // Schema unificado que valida ambos os tipos dinamicamente
@@ -94,7 +96,7 @@ const goalFormSchema = z.object({
 
 type GoalFormData = z.infer<typeof goalFormSchema>;
 
-export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', onCreated }: CreateGoalDialogProps) {
+export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', onCreated, allowedTypes = ['savings', 'spending_limit'] }: CreateGoalDialogProps) {
   const [loading, setLoading] = useState(false);
   const { createSavingsGoal, createSpendingGoal } = useGoals();
   const { categories } = useCategories();
@@ -102,7 +104,8 @@ export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', 
   const form = useForm<GoalFormData>({
     resolver: zodResolver(goalFormSchema),
     defaultValues: {
-      type: defaultType,
+      // Garante que o tipo inicial respeite os tipos permitidos
+      type: (allowedTypes.includes(defaultType) ? defaultType : allowedTypes[0]) as 'savings' | 'spending_limit',
       period_type: 'monthly',
       current_amount: 0,
     },
@@ -129,12 +132,12 @@ export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', 
   useEffect(() => {
     if (open) {
       reset({
-        type: defaultType,
+        type: (allowedTypes.includes(defaultType) ? defaultType : allowedTypes[0]) as 'savings' | 'spending_limit',
         period_type: 'monthly',
         current_amount: 0,
       });
     }
-  }, [open, defaultType, reset]);
+  }, [open, defaultType, allowedTypes, reset]);
 
   const onSubmit = async (data: GoalFormData) => {
     setLoading(true);
@@ -189,49 +192,59 @@ export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', 
         <DialogHeader>
           <DialogTitle>Nova Meta Financeira</DialogTitle>
           <DialogDescription>
-            Crie uma meta de economia ou defina um limite de gastos por categoria.
+            {allowedTypes.length === 1
+              ? allowedTypes[0] === 'spending_limit'
+                ? 'Defina um limite de gastos por categoria.'
+                : 'Crie uma meta de economia para um objetivo.'
+              : 'Crie uma meta de economia ou defina um limite de gastos por categoria.'}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           {/* Seletor de tipo */}
-          <div className="space-y-2">
-            <Label>Tipo de Meta</Label>
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                type="button"
-                onClick={() => setValue('type', 'savings')}
-                aria-pressed={goalType === 'savings'}
-                className={`flex flex-col items-center justify-between rounded-md border-2 p-4 transition-colors ${
-                  goalType === 'savings' ? 'border-primary' : 'border-muted hover:bg-accent'
-                }`}
-              >
-                <div className="h-10 w-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-2">
-                  <PiggyBank className="h-5 w-5" />
-                </div>
-                <span className="font-semibold">Meta de Economia</span>
-                <span className="text-xs text-muted-foreground text-center mt-1">
-                  Economizar para um objetivo
-                </span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setValue('type', 'spending_limit')}
-                aria-pressed={goalType === 'spending_limit'}
-                className={`flex flex-col items-center justify-between rounded-md border-2 p-4 transition-colors ${
-                  goalType === 'spending_limit' ? 'border-primary' : 'border-muted hover:bg-accent'
-                }`}
-              >
-                <div className="h-10 w-10 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center mb-2">
-                  <Shield className="h-5 w-5" />
-                </div>
-                <span className="font-semibold">Meta de Gasto</span>
-                <span className="text-xs text-muted-foreground text-center mt-1">
-                  Definir limite por categoria
-                </span>
-              </button>
+          {allowedTypes.length > 1 && (
+            <div className="space-y-2">
+              <Label>Tipo de Meta</Label>
+              <div className="grid grid-cols-2 gap-4">
+                {allowedTypes.includes('savings') && (
+                  <button
+                    type="button"
+                    onClick={() => setValue('type', 'savings')}
+                    aria-pressed={goalType === 'savings'}
+                    className={`flex flex-col items-center justify-between rounded-md border-2 p-4 transition-colors ${
+                      goalType === 'savings' ? 'border-primary' : 'border-muted hover:bg-accent'
+                    }`}
+                  >
+                    <div className="h-10 w-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-2">
+                      <PiggyBank className="h-5 w-5" />
+                    </div>
+                    <span className="font-semibold">Meta de Economia</span>
+                    <span className="text-xs text-muted-foreground text-center mt-1">
+                      Economizar para um objetivo
+                    </span>
+                  </button>
+                )}
+                {allowedTypes.includes('spending_limit') && (
+                  <button
+                    type="button"
+                    onClick={() => setValue('type', 'spending_limit')}
+                    aria-pressed={goalType === 'spending_limit'}
+                    className={`flex flex-col items-center justify-between rounded-md border-2 p-4 transition-colors ${
+                      goalType === 'spending_limit' ? 'border-primary' : 'border-muted hover:bg-accent'
+                    }`}
+                  >
+                    <div className="h-10 w-10 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center mb-2">
+                      <Shield className="h-5 w-5" />
+                    </div>
+                    <span className="font-semibold">Meta de Gasto</span>
+                    <span className="text-xs text-muted-foreground text-center mt-1">
+                      Definir limite por categoria
+                    </span>
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Campos para Meta de Economia */}
           {goalType === 'savings' && (

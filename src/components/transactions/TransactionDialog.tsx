@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { DatePickerInput } from '@/components/ui/date-picker-input';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -373,7 +374,12 @@ export const TransactionDialog = ({
                   <FormItem>
                     <FormLabel>Data</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <DatePickerInput
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Selecione a data da transação"
+                        disableFuture={true}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

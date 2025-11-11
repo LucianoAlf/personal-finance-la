@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect, useRef } from 'react';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Target, Plus, Loader2 } from 'lucide-react';
 import { useGoalsManager } from '@/hooks/useGoalsManager';
@@ -7,7 +7,12 @@ import { GoalDialog } from './GoalDialog';
 import { GoalCard } from './GoalCard';
 import type { SavingsGoal, CreateGoalInput, UpdateGoalInput } from '@/types/settings.types';
 
-export function SavingsGoalsManager() {
+interface SavingsGoalsManagerProps {
+  // Quando este número for incrementado pelo pai, abre o diálogo de criação
+  requestCreate?: number;
+}
+
+export function SavingsGoalsManager({ requestCreate = 0 }: SavingsGoalsManagerProps) {
   const {
     goalsWithStats,
     activeGoals,
@@ -22,11 +27,20 @@ export function SavingsGoalsManager() {
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null);
+  const prevRequestCreate = useRef(requestCreate);
 
   const handleOpenDialog = (goal?: SavingsGoal) => {
     setSelectedGoal(goal || null);
     setDialogOpen(true);
   };
+
+  // Abrir o diálogo quando o pai solicitar (apenas quando houver mudança real)
+  useEffect(() => {
+    if (requestCreate > 0 && requestCreate !== prevRequestCreate.current) {
+      handleOpenDialog();
+      prevRequestCreate.current = requestCreate;
+    }
+  }, [requestCreate]);
 
   const handleSave = async (input: CreateGoalInput | UpdateGoalInput) => {
     if (selectedGoal) {
@@ -48,12 +62,6 @@ export function SavingsGoalsManager() {
   if (loading) {
     return (
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Target className="h-5 w-5" />
-            Metas de Economia
-          </CardTitle>
-        </CardHeader>
         <CardContent className="flex items-center justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </CardContent>
@@ -64,24 +72,7 @@ export function SavingsGoalsManager() {
   return (
     <>
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Metas de Economia
-              </CardTitle>
-              <CardDescription>
-                Progresso das suas metas individuais
-              </CardDescription>
-            </div>
-            <Button onClick={() => handleOpenDialog()} size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Criar Meta Rápida
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="pt-6">
           {/* Summary */}
           {activeGoals.length > 0 && (
             <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950 dark:to-blue-950 rounded-lg">

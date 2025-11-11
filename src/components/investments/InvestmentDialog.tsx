@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { DatePickerInput } from '@/components/ui/date-picker-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -294,7 +295,11 @@ export function InvestmentDialog({
                     <FormItem>
                       <FormLabel>Data da Compra</FormLabel>
                       <FormControl>
-                        <Input type="date" {...field} />
+                        <DatePickerInput
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Selecione a data da compra"
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -336,7 +341,11 @@ export function InvestmentDialog({
                       <FormItem>
                         <FormLabel>Data de Vencimento</FormLabel>
                         <FormControl>
-                          <Input type="date" {...field} />
+                          <DatePickerInput
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="Selecione a data de vencimento"
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>

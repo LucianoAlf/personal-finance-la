@@ -200,7 +200,12 @@ export function useGoalsManager() {
     
     const today = new Date();
     const targetDate = new Date(goal.target_date);
-    const daysRemaining = Math.max(0, Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
+    
+    // Validar se a data é válida
+    const isValidDate = !isNaN(targetDate.getTime());
+    const daysRemaining = isValidDate 
+      ? Math.max(0, Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+      : 0;
     
     const monthsRemaining = Math.max(1, daysRemaining / 30);
     const suggestedMonthly = remaining > 0 && monthsRemaining > 0 
@@ -210,8 +215,14 @@ export function useGoalsManager() {
     const isOverdue = daysRemaining === 0 && goal.status === 'active' && percentage < 100;
     
     const startDate = new Date(goal.start_date);
-    const totalDays = Math.ceil((targetDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const elapsedDays = Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const isValidStartDate = !isNaN(startDate.getTime());
+    
+    const totalDays = isValidDate && isValidStartDate
+      ? Math.ceil((targetDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
+    const elapsedDays = isValidStartDate
+      ? Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+      : 0;
     const expectedPercentage = totalDays > 0 ? (elapsedDays / totalDays) * 100 : 0;
     const isOnTrack = percentage >= expectedPercentage;
 

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DatePickerInput } from '@/components/ui/date-picker-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -273,11 +274,11 @@ export function InvoicePaymentDialog({
           {/* Data do Pagamento */}
           <div className="space-y-2">
             <Label htmlFor="payment_date">Data do Pagamento *</Label>
-            <Input
-              id="payment_date"
-              type="date"
-              max={format(new Date(), 'yyyy-MM-dd')}
-              {...register('payment_date')}
+            <DatePickerInput
+              value={watch('payment_date')}
+              onChange={(value) => setValue('payment_date', value)}
+              placeholder="Selecione a data do pagamento"
+              disableFuture={true}
               className={errors.payment_date ? 'border-red-500' : ''}
             />
             {errors.payment_date && (

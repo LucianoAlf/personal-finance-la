@@ -18,6 +18,7 @@ import * as LucideIcons from 'lucide-react';
 import { TransactionDialog } from '@/components/transactions/TransactionDialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { DatePickerInput } from '@/components/ui/date-picker-input';
 import { Textarea } from '@/components/ui/textarea';
 
 interface CategoryTransactionsDrawerProps {
@@ -572,10 +573,11 @@ export function CategoryTransactionsDrawer({
                 </div>
                 <div>
                   <label className="text-sm text-gray-600">Data</label>
-                  <Input
-                    type="date"
+                  <DatePickerInput
                     value={creditForm.purchase_date.toISOString().slice(0,10)}
-                    onChange={(e) => setCreditForm((f) => ({ ...f, purchase_date: new Date(e.target.value) }))}
+                    onChange={(value) => setCreditForm((f) => ({ ...f, purchase_date: new Date(value) }))}
+                    placeholder="Selecione a data da compra"
+                    disableFuture={true}
                   />
                 </div>
                 <div>

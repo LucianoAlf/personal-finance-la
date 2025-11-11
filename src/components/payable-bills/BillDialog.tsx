@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { DatePickerInput } from '@/components/ui/date-picker-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -582,7 +583,11 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                         <FormItem>
                           <FormLabel>Data Final (Opcional)</FormLabel>
                           <FormControl>
-                            <Input type="date" {...field} />
+                            <DatePickerInput
+                              value={field.value}
+                              onChange={field.onChange}
+                              placeholder="Selecione a data final"
+                            />
                           </FormControl>
                           <FormDescription>
                             Deixe em branco para recorrência infinita
