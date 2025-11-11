@@ -1,0 +1,363 @@
+// src/components/settings/WebhooksSettings.tsx
+// Tab de gerenciamento de webhooks N8N
+
+import { useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Webhook, Plus, MoreVertical, Edit, Trash2, TestTube, Eye, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { useWebhooks } from '@/hooks/useWebhooks';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+
+export function WebhooksSettings() {
+  const { webhooks, loading, testWebhook, deleteWebhook } = useWebhooks();
+  const [selectedWebhook, setSelectedWebhook] = useState<string | null>(null);
+
+  const handleTest = async (webhookId: string) => {
+    await testWebhook(webhookId, { test: true, timestamp: new Date().toISOString() });
+  };
+
+  const handleDelete = async (webhookId: string) => {
+    if (confirm('Tem certeza que deseja deletar este webhook?')) {
+      await deleteWebhook(webhookId);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12">
+        <div className="text-center space-y-2">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto" />
+          <p className="text-sm text-muted-foreground">Carregando webhooks...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <Webhook className="h-5 w-5 text-primary" />
+                <CardTitle>Webhooks & N8N</CardTitle>
+              </div>
+              <CardDescription className="mt-2">
+                Configure webhooks para integrar com N8N e automatizar fluxos
+              </CardDescription>
+            </div>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Webhook
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Estatísticas */}
+          <div className="grid grid-cols-4 gap-4">
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-2xl font-bold text-primary">{webhooks.length}</p>
+              <p className="text-xs text-muted-foreground">Total de Webhooks</p>
+            </div>
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-2xl font-bold text-green-600">
+                {webhooks.filter(w => w.is_active).length}
+              </p>
+              <p className="text-xs text-muted-foreground">Ativos</p>
+            </div>
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-2xl font-bold text-blue-600">
+                {webhooks.reduce((sum, w) => sum + (w.total_calls || 0), 0)}
+              </p>
+              <p className="text-xs text-muted-foreground">Total de Chamadas</p>
+            </div>
+            <div className="text-center p-4 bg-muted rounded-lg">
+              <p className="text-2xl font-bold text-amber-600">
+                {webhooks.length > 0
+                  ? Math.round(
+                      (webhooks.reduce((sum, w) => sum + (w.success_count || 0), 0) /
+                        Math.max(webhooks.reduce((sum, w) => sum + (w.total_calls || 0), 0), 1)) *
+                        100
+                    )
+                  : 0}
+                %
+              </p>
+              <p className="text-xs text-muted-foreground">Taxa de Sucesso</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabela de Webhooks */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Webhooks Configurados</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {webhooks.length === 0 ? (
+            <div className="text-center py-12">
+              <Webhook className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-sm text-muted-foreground mb-4">
+                Nenhum webhook configurado ainda
+              </p>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Criar Primeiro Webhook
+              </Button>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>URL</TableHead>
+                    <TableHead>Método</TableHead>
+                    <TableHead>Auth</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-center">Chamadas</TableHead>
+                    <TableHead className="text-center">Sucesso</TableHead>
+                    <TableHead className="text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {webhooks.map((webhook) => (
+                    <TableRow key={webhook.id}>
+                      <TableCell className="font-medium">
+                        {webhook.name}
+                        {webhook.description && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {webhook.description}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                          {webhook.url.length > 40
+                            ? webhook.url.substring(0, 40) + '...'
+                            : webhook.url}
+                        </code>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono text-xs">
+                          {webhook.method}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="text-xs">
+                          {webhook.auth_type === 'none' ? 'Nenhuma' : webhook.auth_type}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {webhook.is_active ? (
+                          <Badge className="bg-green-100 text-green-700 border-green-200">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Ativo
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="bg-gray-50">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            Inativo
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {webhook.total_calls || 0}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {webhook.total_calls && webhook.total_calls > 0 ? (
+                          <span
+                            className={
+                              ((webhook.success_count || 0) / webhook.total_calls) * 100 >= 80
+                                ? 'text-green-600 font-medium'
+                                : 'text-amber-600 font-medium'
+                            }
+                          >
+                            {Math.round(
+                              ((webhook.success_count || 0) / webhook.total_calls) * 100
+                            )}
+                            %
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleTest(webhook.id)}>
+                              <TestTube className="h-4 w-4 mr-2" />
+                              Testar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setSelectedWebhook(webhook.id)}>
+                              <Eye className="h-4 w-4 mr-2" />
+                              Ver Logs
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Edit className="h-4 w-4 mr-2" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(webhook.id)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Deletar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Logs Recentes (se houver webhook selecionado) */}
+      {selectedWebhook && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Logs Recentes</CardTitle>
+                <CardDescription>
+                  Últimas 10 chamadas do webhook selecionado
+                </CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => setSelectedWebhook(null)}>
+                Fechar
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data/Hora</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Código</TableHead>
+                    <TableHead>Tempo</TableHead>
+                    <TableHead>Retries</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {/* Dados mockados - substituir por logs reais */}
+                  {[
+                    {
+                      id: '1',
+                      timestamp: new Date(),
+                      status: 'success',
+                      statusCode: 200,
+                      responseTime: 245,
+                      retryCount: 0,
+                    },
+                    {
+                      id: '2',
+                      timestamp: new Date(Date.now() - 3600000),
+                      status: 'success',
+                      statusCode: 200,
+                      responseTime: 312,
+                      retryCount: 0,
+                    },
+                    {
+                      id: '3',
+                      timestamp: new Date(Date.now() - 7200000),
+                      status: 'error',
+                      statusCode: 500,
+                      responseTime: 1024,
+                      retryCount: 2,
+                    },
+                  ].map((log) => (
+                    <TableRow key={log.id}>
+                      <TableCell className="text-sm">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-3 w-3 text-muted-foreground" />
+                          {formatDistanceToNow(log.timestamp, {
+                            addSuffix: true,
+                            locale: ptBR,
+                          })}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {log.status === 'success' ? (
+                          <Badge className="bg-green-100 text-green-700 border-green-200">
+                            Sucesso
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive">Erro</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono">
+                          {log.statusCode}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {log.responseTime}ms
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {log.retryCount > 0 ? `${log.retryCount}x` : '-'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Informações */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Como usar Webhooks</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <p>
+            <strong>1.</strong> Crie um workflow no N8N e copie a URL do webhook
+          </p>
+          <p>
+            <strong>2.</strong> Adicione o webhook aqui configurando método HTTP e autenticação
+          </p>
+          <p>
+            <strong>3.</strong> Teste a conexão antes de ativar
+          </p>
+          <p>
+            <strong>4.</strong> Configure retry automático para maior confiabilidade
+          </p>
+          <p className="pt-2 border-t">
+            <strong>Dica:</strong> Use webhooks para automatizar notificações, sincronizações e
+            integrações com outros sistemas
+          </p>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

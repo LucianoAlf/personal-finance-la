@@ -1,135 +1,76 @@
+// src/pages/Settings.tsx
+// Página principal de configurações com 5 tabs
+
+import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useAuthStore } from '@/store/authStore';
-import { User, Save, Settings as SettingsIcon } from 'lucide-react';
-import { PushNotificationSettings } from '@/components/settings/PushNotificationSettings';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Settings as SettingsIcon, User, Sparkles, Link, Webhook, Bell } from 'lucide-react';
+import { useSettings } from '@/hooks/useSettings';
+
+// Settings tabs components
+import { AIProviderSettings } from '@/components/settings/AIProviderSettings';
+import { GeneralSettings } from '@/components/settings/GeneralSettings';
+import { NotificationsSettings } from '@/components/settings/NotificationsSettings';
+import { IntegrationsSettings } from '@/components/settings/IntegrationsSettings';
+import { WebhooksSettings } from '@/components/settings/WebhooksSettings';
 
 export function Settings() {
-  const { user } = useAuthStore();
+  const [activeTab, setActiveTab] = useState('general');
+  const { loading } = useSettings();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header 
-        title="Configurações" 
-        subtitle="Personalize sua experiência" 
-        icon={<SettingsIcon size={24} />} 
+    <div className="min-h-screen bg-background">
+      <Header
+        title="Configurações"
+        subtitle="Personalize sua experiência e configure integrações"
+        icon={<SettingsIcon size={24} />}
       />
 
-      <div className="p-6 space-y-6 max-w-4xl">
-        {/* Perfil */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Perfil</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center space-x-4 mb-6">
-              <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                {user?.name?.charAt(0) || 'U'}
-              </div>
-              <div>
-                <Button size="sm" variant="outline">
-                  Alterar Foto
-                </Button>
-              </div>
-            </div>
+      <div className="container mx-auto max-w-7xl p-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="general" className="gap-2">
+              <User className="h-4 w-4" />
+              Geral
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="gap-2">
+              <Sparkles className="h-4 w-4" />
+              IA
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="gap-2">
+              <Link className="h-4 w-4" />
+              Integrações
+            </TabsTrigger>
+            <TabsTrigger value="webhooks" className="gap-2">
+              <Webhook className="h-4 w-4" />
+              Webhooks
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="gap-2">
+              <Bell className="h-4 w-4" />
+              Notificações
+            </TabsTrigger>
+          </TabsList>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nome Completo</label>
-                <Input defaultValue={user?.name} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <Input defaultValue={user?.email} disabled />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Meta de Economia (%)
-                </label>
-                <Input type="number" defaultValue={user?.monthly_economy_goal} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Dia de Fechamento
-                </label>
-                <Input type="number" min="1" max="31" defaultValue={user?.closing_day} />
-              </div>
-            </div>
+          <TabsContent value="general" className="space-y-4">
+            <GeneralSettings />
+          </TabsContent>
 
-            <Button>
-              <Save size={16} className="mr-1" />
-              Salvar Alterações
-            </Button>
-          </CardContent>
-        </Card>
+          <TabsContent value="ai" className="space-y-4">
+            <AIProviderSettings />
+          </TabsContent>
 
-        {/* Push Notifications */}
-        <PushNotificationSettings />
+          <TabsContent value="integrations" className="space-y-4">
+            <IntegrationsSettings />
+          </TabsContent>
 
-        {/* WhatsApp */}
-        <Card>
-          <CardHeader>
-            <CardTitle>WhatsApp</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg mb-4">
-              <div>
-                <p className="font-semibold text-gray-900">Status da Conexão</p>
-                <p className="text-sm text-gray-600">Conectar seu WhatsApp para receber atualizações</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className="w-3 h-3 bg-red-500 rounded-full"></span>
-                <span className="text-sm text-gray-600">Desconectado</span>
-              </div>
-            </div>
-            <Button>Conectar WhatsApp</Button>
-          </CardContent>
-        </Card>
+          <TabsContent value="webhooks" className="space-y-4">
+            <WebhooksSettings />
+          </TabsContent>
 
-        {/* Aparência */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Aparência</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Tema</label>
-              <div className="flex space-x-4">
-                <Button variant="outline" className="flex-1">
-                  Claro
-                </Button>
-                <Button variant="outline" className="flex-1">
-                  Escuro
-                </Button>
-                <Button variant="outline" className="flex-1">
-                  Automático
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Sobre */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Sobre</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2 text-sm text-gray-600">
-              <p>
-                <strong>Versão:</strong> 1.0.0 (MVP)
-              </p>
-              <p>
-                <strong>Desenvolvido por:</strong> LA Music Team
-              </p>
-              <p>
-                <strong>Contato:</strong> contato@lamusicltda.com
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+          <TabsContent value="notifications" className="space-y-4">
+            <NotificationsSettings />
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
