@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 import type {
   UserSettings,
@@ -14,15 +13,28 @@ import type {
 } from '@/types/settings.types';
 
 export function useSettings() {
-  const { user } = useAuthStore();
+  const [userId, setUserId] = useState<string | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Buscar todas as configurações via Edge Function
+  // Get current user
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id || null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Buscar todas as configurações diretamente do banco (fallback)
   const fetchAllSettings = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setLoading(false);
       return;
     }
@@ -31,27 +43,55 @@ export function useSettings() {
       setLoading(true);
       setError(null);
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
+      // Buscar user_settings
+      let { data: settings, error: settingsError } = await supabase
+        .from('user_settings')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
 
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-user-settings`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
+      // Se não existir, criar com valores padrão
+      if (settingsError && settingsError.code === 'PGRST116') {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: newSettings, error: createError } = await supabase
+          .from('user_settings')
+          .insert({
+            user_id: userId,
+            display_name: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Usuário',
+            avatar_url: user?.user_metadata?.avatar_url,
+          })
+          .select()
+          .single();
 
-      if (!response.ok) {
-        throw new Error('Erro ao buscar configurações');
+        if (createError) throw createError;
+        settings = newSettings;
+      } else if (settingsError) {
+        throw settingsError;
       }
 
-      const data: UserSettingsResponse = await response.json();
-      
-      setUserSettings(data.user_settings);
-      setNotificationPreferences(data.notification_preferences);
+      // Buscar notification_preferences
+      let { data: prefs, error: prefsError } = await supabase
+        .from('notification_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      // Se não existir, criar com valores padrão
+      if (prefsError && prefsError.code === 'PGRST116') {
+        const { data: newPrefs, error: createPrefsError } = await supabase
+          .from('notification_preferences')
+          .insert({ user_id: userId })
+          .select()
+          .single();
+
+        if (createPrefsError) throw createPrefsError;
+        prefs = newPrefs;
+      } else if (prefsError) {
+        throw prefsError;
+      }
+
+      setUserSettings(settings);
+      setNotificationPreferences(prefs);
     } catch (err: any) {
       console.error('Error fetching settings:', err);
       setError(err.message);
@@ -59,17 +99,17 @@ export function useSettings() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   // Atualizar user_settings
   const updateUserSettings = useCallback(async (input: UpdateUserSettingsInput) => {
-    if (!user) return;
+    if (!userId) return;
 
     try {
       const { data, error } = await supabase
         .from('user_settings')
         .update(input)
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .select()
         .single();
 
@@ -83,18 +123,18 @@ export function useSettings() {
       toast.error('Erro ao atualizar configurações');
       throw err;
     }
-  }, [user]);
+  }, [userId]);
 
   // Atualizar notification_preferences
   const updateNotificationPreferences = useCallback(
     async (input: UpdateNotificationPreferencesInput) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         const { data, error } = await supabase
           .from('notification_preferences')
           .update(input)
-          .eq('user_id', user.id)
+          .eq('user_id', userId)
           .select()
           .single();
 
@@ -109,7 +149,7 @@ export function useSettings() {
         throw err;
       }
     },
-    [user]
+    [userId]
   );
 
   // Alterar tema (atalho)

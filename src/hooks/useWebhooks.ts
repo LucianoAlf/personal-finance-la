@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/authStore';
+// Removed useAuthStore import - using supabase.auth directly
 import { toast } from 'sonner';
 import type {
   WebhookEndpoint,
@@ -13,7 +13,20 @@ import type {
 } from '@/types/settings.types';
 
 export function useWebhooks() {
-  const { user } = useAuthStore();
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Get current user
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id || null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
   const [webhooks, setWebhooks] = useState<WebhookEndpoint[]>([]);
   const [logs, setLogs] = useState<WebhookLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,7 +35,7 @@ export function useWebhooks() {
 
   // Fetch webhooks
   const fetchWebhooks = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setLoading(false);
       return;
     }
@@ -34,7 +47,7 @@ export function useWebhooks() {
       const { data, error } = await supabase
         .from('webhook_endpoints')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -46,12 +59,12 @@ export function useWebhooks() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   // Fetch logs for a webhook
   const fetchLogs = useCallback(
     async (webhookId: string, limit: number = 100) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         const { data, error } = await supabase
@@ -69,13 +82,13 @@ export function useWebhooks() {
         toast.error('Erro ao carregar logs');
       }
     },
-    [user]
+    [userId]
   );
 
   // Create webhook (via Edge Function)
   const createWebhook = useCallback(
     async (input: CreateWebhookInput) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -111,13 +124,13 @@ export function useWebhooks() {
         throw err;
       }
     },
-    [user, fetchWebhooks]
+    [userId, fetchWebhooks]
   );
 
   // Update webhook (via Edge Function)
   const updateWebhook = useCallback(
     async (id: string, input: UpdateWebhookInput) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -153,13 +166,13 @@ export function useWebhooks() {
         throw err;
       }
     },
-    [user, fetchWebhooks]
+    [userId, fetchWebhooks]
   );
 
   // Delete webhook (via Edge Function)
   const deleteWebhook = useCallback(
     async (id: string) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -192,13 +205,13 @@ export function useWebhooks() {
         throw err;
       }
     },
-    [user]
+    [userId]
   );
 
   // Test webhook connection (via Edge Function)
   const testWebhook = useCallback(
     async (webhookId: string, testPayload?: any) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         setTesting(true);
@@ -238,13 +251,13 @@ export function useWebhooks() {
         setTesting(false);
       }
     },
-    [user, fetchLogs]
+    [userId, fetchLogs]
   );
 
   // Trigger webhook manually (via Edge Function)
   const triggerWebhook = useCallback(
     async (webhookId: string, payload: any) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -280,7 +293,7 @@ export function useWebhooks() {
         throw err;
       }
     },
-    [user, fetchLogs]
+    [userId, fetchLogs]
   );
 
   // Computed values
@@ -299,7 +312,7 @@ export function useWebhooks() {
 
   // Realtime subscription
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const channel = supabase
       .channel('webhook_endpoints_changes')
@@ -309,7 +322,7 @@ export function useWebhooks() {
           event: '*',
           schema: 'public',
           table: 'webhook_endpoints',
-          filter: `user_id=eq.${user.id}`,
+          filter: `user_id=eq.${userId}`,
         },
         () => {
           fetchWebhooks();
@@ -320,7 +333,7 @@ export function useWebhooks() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchWebhooks]);
+  }, [userId, fetchWebhooks]);
 
   return {
     // State

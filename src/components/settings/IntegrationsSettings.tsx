@@ -9,13 +9,26 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { MessageSquare, Calendar as CalendarIcon, CheckSquare, RefreshCw, QrCode, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MessageSquare, Calendar as CalendarIcon, CheckSquare, RefreshCw, QrCode, CheckCircle, XCircle, Clock, MessageCircleMore, BarChart3, History, GraduationCap } from 'lucide-react';
+
+// WhatsApp components e hooks
+import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
+import { useWhatsAppMessages } from '@/hooks/useWhatsAppMessages';
+import { QRCodeModal } from '@/components/whatsapp/QRCodeModal';
+import { MessageHistory } from '@/components/whatsapp/MessageHistory';
+import { WhatsAppStats } from '@/components/whatsapp/WhatsAppStats';
+import { WhatsAppOnboarding } from '@/components/whatsapp/WhatsAppOnboarding';
 
 export function IntegrationsSettings() {
+  // WhatsApp hooks
+  const { connection, isConnected, qrCode, connect, disconnect } = useWhatsAppConnection();
+  const { stats } = useWhatsAppMessages();
+  
   // WhatsApp state
-  const [whatsappConnected, setWhatsappConnected] = useState(false);
-  const [whatsappPhone, setWhatsappPhone] = useState('');
-  const [showQRCode, setShowQRCode] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [whatsappTab, setWhatsappTab] = useState('overview');
 
   // Google Calendar state
   const [googleConnected, setGoogleConnected] = useState(false);
@@ -29,19 +42,13 @@ export function IntegrationsSettings() {
   const [tickTickProject, setTickTickProject] = useState('');
   const [testingTickTick, setTestingTickTick] = useState(false);
 
-  const handleWhatsAppConnect = () => {
-    setShowQRCode(true);
-    // Simular conexão após 3 segundos
-    setTimeout(() => {
-      setWhatsappConnected(true);
-      setWhatsappPhone('+55 11 98765-4321');
-      setShowQRCode(false);
-    }, 3000);
+  const handleWhatsAppConnect = async () => {
+    setShowQRModal(true);
+    await connect();
   };
 
-  const handleWhatsAppDisconnect = () => {
-    setWhatsappConnected(false);
-    setWhatsappPhone('');
+  const handleWhatsAppDisconnect = async () => {
+    await disconnect();
   };
 
   const handleGoogleConnect = () => {
@@ -80,23 +87,35 @@ export function IntegrationsSettings() {
       {/* WhatsApp */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-green-600" />
-            <CardTitle>WhatsApp (UAZAPI)</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="h-5 w-5 text-green-600" />
+              <CardTitle>WhatsApp (UAZAPI)</CardTitle>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setShowOnboarding(true)}
+            >
+              <GraduationCap className="h-4 w-4 mr-2" />
+              Tutorial
+            </Button>
           </div>
           <CardDescription>
             Conecte seu WhatsApp para receber notificações e interagir com a Ana Clara
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           {/* Status */}
           <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
             <div className="space-y-1">
               <p className="font-semibold text-sm">Status da Conexão</p>
-              {whatsappConnected ? (
+              {isConnected ? (
                 <>
-                  <p className="text-sm text-muted-foreground">Número: {whatsappPhone}</p>
-                  <p className="text-xs text-muted-foreground">Conectado desde: {new Date().toLocaleDateString('pt-BR')}</p>
+                  <p className="text-sm text-muted-foreground">Número: {connection?.phone_number || 'Não configurado'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Conectado desde: {connection?.connected_at ? new Date(connection.connected_at).toLocaleDateString('pt-BR') : '-'}
+                  </p>
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">
@@ -105,7 +124,7 @@ export function IntegrationsSettings() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {whatsappConnected ? (
+              {isConnected ? (
                 <>
                   <CheckCircle className="h-5 w-5 text-green-600" />
                   <Badge className="bg-green-100 text-green-700 border-green-200">
@@ -123,35 +142,14 @@ export function IntegrationsSettings() {
             </div>
           </div>
 
-          {/* QR Code */}
-          {showQRCode && (
-            <Alert>
-              <QrCode className="h-4 w-4" />
-              <AlertDescription>
-                <div className="flex flex-col items-center gap-4 py-4">
-                  <div className="w-48 h-48 bg-white border-2 border-gray-300 rounded-lg flex items-center justify-center">
-                    <div className="text-center text-sm text-muted-foreground">
-                      <QrCode className="h-24 w-24 mx-auto mb-2" />
-                      <p>Escaneie com WhatsApp</p>
-                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mt-2" />
-                    </div>
-                  </div>
-                  <p className="text-sm text-center">
-                    Abra o WhatsApp no seu celular e escaneie o QR Code
-                  </p>
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
-
           {/* Ações */}
           <div className="flex gap-2">
-            {whatsappConnected ? (
+            {isConnected ? (
               <>
                 <Button variant="outline" onClick={handleWhatsAppDisconnect}>
                   Desconectar
                 </Button>
-                <Button variant="outline">
+                <Button variant="outline" onClick={handleWhatsAppConnect}>
                   <RefreshCw className="h-4 w-4 mr-2" />
                   Reconectar
                 </Button>
@@ -164,25 +162,83 @@ export function IntegrationsSettings() {
             )}
           </div>
 
-          {/* Estatísticas (se conectado) */}
-          {whatsappConnected && (
-            <div className="grid grid-cols-3 gap-4 pt-4 border-t">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-primary">142</p>
-                <p className="text-xs text-muted-foreground">Mensagens enviadas</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-green-600">98</p>
-                <p className="text-xs text-muted-foreground">Mensagens recebidas</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-blue-600">99%</p>
-                <p className="text-xs text-muted-foreground">Taxa de sucesso</p>
-              </div>
-            </div>
+          {/* Tabs WhatsApp (se conectado) */}
+          {isConnected && (
+            <Tabs value={whatsappTab} onValueChange={setWhatsappTab} className="mt-6">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="overview" className="gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  Estatísticas
+                </TabsTrigger>
+                <TabsTrigger value="history" className="gap-2">
+                  <History className="h-4 w-4" />
+                  Histórico
+                </TabsTrigger>
+                <TabsTrigger value="commands" className="gap-2">
+                  <MessageCircleMore className="h-4 w-4" />
+                  Comandos
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-4 mt-4">
+                <WhatsAppStats />
+              </TabsContent>
+
+              <TabsContent value="history" className="mt-4">
+                <MessageHistory />
+              </TabsContent>
+
+              <TabsContent value="commands" className="space-y-4 mt-4">
+                <div className="bg-muted/50 p-6 rounded-lg space-y-4">
+                  <h4 className="font-semibold">Comandos Disponíveis</h4>
+                  <div className="grid gap-3">
+                    {[
+                      { cmd: 'saldo', desc: 'Ver saldo total de todas as contas' },
+                      { cmd: 'resumo [dia/semana/mês]', desc: 'Resumo financeiro do período' },
+                      { cmd: 'contas', desc: 'Contas a vencer nos próximos 7 dias' },
+                      { cmd: 'meta [nome]', desc: 'Status de uma meta específica' },
+                      { cmd: 'investimentos', desc: 'Resumo do portfólio' },
+                      { cmd: 'cartões', desc: 'Faturas de cartão abertas' },
+                      { cmd: 'ajuda', desc: 'Lista todos os comandos' },
+                      { cmd: 'relatório [mês]', desc: 'Relatório completo do mês' },
+                    ].map((item) => (
+                      <div
+                        key={item.cmd}
+                        className="flex items-center justify-between p-3 bg-background rounded-lg border"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Badge variant="outline" className="font-mono text-xs">
+                            {item.cmd}
+                          </Badge>
+                          <span className="text-sm text-muted-foreground">{item.desc}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Alert>
+                    <MessageCircleMore className="h-4 w-4" />
+                    <AlertDescription className="text-sm">
+                      Você também pode enviar lançamentos por <strong>texto</strong>, <strong>áudio</strong> ou <strong>foto de nota fiscal</strong> - processamos automaticamente!
+                    </AlertDescription>
+                  </Alert>
+                </div>
+              </TabsContent>
+            </Tabs>
           )}
         </CardContent>
       </Card>
+
+      {/* Modals WhatsApp */}
+      <QRCodeModal 
+        open={showQRModal} 
+        onOpenChange={setShowQRModal}
+      />
+      
+      <WhatsAppOnboarding
+        open={showOnboarding}
+        onOpenChange={setShowOnboarding}
+        onComplete={() => console.log('Onboarding completo')}
+      />
 
       {/* Google Calendar */}
       <Card>

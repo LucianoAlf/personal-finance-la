@@ -3,7 +3,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 import type {
   AIProviderConfig,
@@ -13,15 +12,28 @@ import type {
 } from '@/types/settings.types';
 
 export function useAIProviders() {
-  const { user } = useAuthStore();
+  const [userId, setUserId] = useState<string | null>(null);
   const [providers, setProviders] = useState<AIProviderConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Get current user
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserId(user?.id || null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id || null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Fetch providers
   const fetchProviders = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setLoading(false);
       return;
     }
@@ -33,7 +45,7 @@ export function useAIProviders() {
       const { data, error } = await supabase
         .from('ai_provider_configs')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -45,12 +57,12 @@ export function useAIProviders() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [userId]);
 
   // Create provider (via Edge Function)
   const createProvider = useCallback(
     async (input: CreateAIProviderInput) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -86,13 +98,13 @@ export function useAIProviders() {
         throw err;
       }
     },
-    [user, fetchProviders]
+    [userId, fetchProviders]
   );
 
   // Update provider
   const updateProvider = useCallback(
     async (provider: AIProviderType, input: UpdateAIProviderInput) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         const { data: sessionData } = await supabase.auth.getSession();
@@ -128,20 +140,20 @@ export function useAIProviders() {
         throw err;
       }
     },
-    [user, fetchProviders]
+    [userId, fetchProviders]
   );
 
   // Delete provider
   const deleteProvider = useCallback(
     async (id: string) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         const { error } = await supabase
           .from('ai_provider_configs')
           .delete()
           .eq('id', id)
-          .eq('user_id', user.id);
+          .eq('user_id', userId);
 
         if (error) throw error;
 
@@ -155,13 +167,13 @@ export function useAIProviders() {
         throw err;
       }
     },
-    [user]
+    [userId]
   );
 
   // Validate API Key (via Edge Function)
   const validateApiKey = useCallback(
     async (provider: AIProviderType, apiKey: string, modelName?: string) => {
-      if (!user) return { valid: false, error: 'Não autenticado' };
+      if (!userId) return { valid: false, error: 'Não autenticado' };
 
       try {
         setValidating(true);
@@ -202,20 +214,20 @@ export function useAIProviders() {
         setValidating(false);
       }
     },
-    [user, fetchProviders]
+    [userId, fetchProviders]
   );
 
   // Set default provider
   const setDefaultProvider = useCallback(
     async (id: string) => {
-      if (!user) return;
+      if (!userId) return;
 
       try {
         // Primeiro, desmarcar todos
         const { error: updateError } = await supabase
           .from('ai_provider_configs')
           .update({ is_default: false })
-          .eq('user_id', user.id);
+          .eq('user_id', userId);
 
         if (updateError) throw updateError;
 
@@ -224,7 +236,7 @@ export function useAIProviders() {
           .from('ai_provider_configs')
           .update({ is_default: true })
           .eq('id', id)
-          .eq('user_id', user.id);
+          .eq('user_id', userId);
 
         if (setError) throw setError;
 
@@ -238,7 +250,7 @@ export function useAIProviders() {
         throw err;
       }
     },
-    [user, fetchProviders]
+    [userId, fetchProviders]
   );
 
   // Computed values
@@ -253,7 +265,7 @@ export function useAIProviders() {
 
   // Realtime subscription
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
 
     const channel = supabase
       .channel('ai_provider_configs_changes')
@@ -263,7 +275,7 @@ export function useAIProviders() {
           event: '*',
           schema: 'public',
           table: 'ai_provider_configs',
-          filter: `user_id=eq.${user.id}`,
+          filter: `user_id=eq.${userId}`,
         },
         () => {
           fetchProviders();
@@ -274,7 +286,7 @@ export function useAIProviders() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, fetchProviders]);
+  }, [userId, fetchProviders]);
 
   return {
     // State
