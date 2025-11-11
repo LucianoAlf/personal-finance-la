@@ -25,10 +25,19 @@ export interface UserSettings {
   monthly_savings_goal_percentage: number;
   monthly_closing_day: number;
   default_bill_reminder_days: number;
+  budget_allocation?: BudgetAllocation | null;
+  budget_alert_threshold?: number | null; // 50-100
   
   // Metadados
   created_at: string;
   updated_at: string;
+}
+
+export interface BudgetAllocation {
+  essentials: number; // % (50-70)
+  investments: number; // % (10-30)
+  leisure: number; // % (10-30)
+  others: number; // % (0-20)
 }
 
 export interface UpdateUserSettingsInput {
@@ -43,6 +52,8 @@ export interface UpdateUserSettingsInput {
   monthly_savings_goal_percentage?: number;
   monthly_closing_day?: number;
   default_bill_reminder_days?: number;
+  budget_allocation?: BudgetAllocation;
+  budget_alert_threshold?: number;
 }
 
 // ==================== AI PROVIDER CONFIGS ====================
@@ -382,6 +393,140 @@ export interface UpdateNotificationPreferencesInput {
   ana_tips_frequency?: SummaryFrequency;
 }
 
+// ==================== SAVINGS GOALS ====================
+
+export type GoalCategory = 
+  | 'travel' 
+  | 'house' 
+  | 'car' 
+  | 'emergency' 
+  | 'education' 
+  | 'retirement' 
+  | 'general';
+
+export type GoalPriority = 'low' | 'medium' | 'high' | 'critical';
+export type GoalStatus = 'active' | 'completed' | 'paused' | 'cancelled';
+export type ContributionFrequency = 'weekly' | 'biweekly' | 'monthly';
+
+export interface SavingsGoal {
+  id: string;
+  user_id: string;
+  name: string;
+  category: GoalCategory;
+  target_amount: number;
+  current_amount: number;
+  start_date: string; // ISO date
+  target_date: string; // ISO date (era deadline)
+  priority: GoalPriority;
+  status: GoalStatus;
+  icon?: string | null;
+  notify_milestones: boolean;
+  notify_contribution: boolean;
+  contribution_frequency?: ContributionFrequency | null;
+  contribution_day?: number | null; // 1-28
+  notify_delay: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateGoalInput {
+  name: string;
+  category: GoalCategory;
+  target_amount: number;
+  current_amount?: number;
+  start_date?: string; // ISO date, default: hoje
+  target_date: string; // ISO date, required
+  priority?: GoalPriority;
+  icon?: string;
+  notify_milestones?: boolean;
+  notify_contribution?: boolean;
+  contribution_frequency?: ContributionFrequency;
+  contribution_day?: number; // 1-28
+  notify_delay?: boolean;
+}
+
+export interface UpdateGoalInput extends Partial<CreateGoalInput> {
+  status?: GoalStatus;
+}
+
+export interface GoalContribution {
+  id: string;
+  goal_id: string;
+  user_id: string;
+  amount: number;
+  date: string; // ISO date
+  note?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateGoalContributionInput {
+  goal_id: string;
+  amount: number;
+  date?: string; // ISO date, default: hoje
+  note?: string;
+}
+
+// Computed properties para UI
+export interface GoalWithStats extends SavingsGoal {
+  percentage: number; // 0-100
+  remaining: number;
+  daysRemaining: number;
+  suggestedMonthly: number;
+  isOverdue: boolean;
+  isOnTrack: boolean;
+}
+
+// ==================== FINANCIAL CYCLES ====================
+
+export type CycleType = 'salary' | 'rent' | 'bills' | 'investment' | 'other';
+
+export interface CycleAutoAction {
+  type: 'reminder' | 'transaction' | 'budget_update';
+  config: Record<string, any>;
+}
+
+export interface FinancialCycle {
+  id: string;
+  user_id: string;
+  name: string;
+  type: CycleType;
+  day: number; // 1-28
+  active: boolean;
+  description?: string | null;
+  color?: string | null;
+  icon?: string | null;
+  notify_start: boolean;
+  notify_days_before?: number | null; // 1-7
+  linked_goals?: string[] | null; // array de goal IDs
+  auto_actions?: CycleAutoAction[] | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCycleInput {
+  name: string;
+  type: CycleType;
+  day: number; // 1-28
+  active?: boolean;
+  description?: string;
+  color?: string;
+  icon?: string;
+  notify_start?: boolean;
+  notify_days_before?: number; // 1-7
+  linked_goals?: string[];
+  auto_actions?: CycleAutoAction[];
+}
+
+export interface UpdateCycleInput extends Partial<CreateCycleInput> {}
+
+// Computed properties para UI
+export interface CycleWithStats extends FinancialCycle {
+  nextCycleDate: string; // ISO date
+  daysUntilNext: number;
+  linkedGoalsData?: SavingsGoal[];
+}
+
 // ==================== RESPONSE TYPE ====================
 
 export interface UserSettingsResponse {
@@ -465,6 +610,44 @@ export const LABELS = {
     daily: 'Diário',
     weekly: 'Semanal',
     monthly: 'Mensal',
+  },
+  
+  goalCategory: {
+    travel: 'Viagem',
+    house: 'Casa',
+    car: 'Carro',
+    emergency: 'Emergência',
+    education: 'Educação',
+    retirement: 'Aposentadoria',
+    general: 'Geral',
+  },
+  
+  goalPriority: {
+    low: 'Baixa',
+    medium: 'Média',
+    high: 'Alta',
+    critical: 'Crítica',
+  },
+  
+  goalStatus: {
+    active: 'Ativa',
+    completed: 'Concluída',
+    paused: 'Pausada',
+    cancelled: 'Cancelada',
+  },
+  
+  contributionFrequency: {
+    weekly: 'Semanal',
+    biweekly: 'Quinzenal',
+    monthly: 'Mensal',
+  },
+  
+  cycleType: {
+    salary: 'Salário',
+    rent: 'Aluguel',
+    bills: 'Contas',
+    investment: 'Investimento',
+    other: 'Outro',
   },
   
   dayOfWeek: {

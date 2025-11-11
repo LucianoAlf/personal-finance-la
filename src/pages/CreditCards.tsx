@@ -14,7 +14,7 @@ import { InvoiceHistory } from '@/components/invoices/InvoiceHistory';
 import { AnalyticsTab } from '@/components/analytics/AnalyticsTab';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useInvoices } from '@/hooks/useInvoices';
-import { formatCurrency } from '@/utils/formatters';
+import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { Plus, CreditCard, TrendingUp, Wallet, ShoppingCart, Receipt, BarChart3, History } from 'lucide-react';
 import { CreditCard as CreditCardType, CreditCardInvoice, CreditCardSummary } from '@/types/database.types';
 import { useToast } from '@/hooks/use-toast';
@@ -30,9 +30,9 @@ export function CreditCards() {
     fetchCards,
     fetchCardsSummary,
   } = useCreditCards();
-  
+
   const { invoices, invoicesDetailed } = useInvoices();
-  
+  const { formatCurrency } = useUserPreferences();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [purchaseDialogOpen, setPurchaseDialogOpen] = useState(false);

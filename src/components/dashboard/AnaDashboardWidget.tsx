@@ -72,7 +72,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-50 to-pink-50">
+      <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -86,24 +86,24 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
                 </motion.div>
               </div>
               <div className="space-y-1">
-                <h3 className="font-semibold text-lg">Ana Clara</h3>
-                <p className="text-sm text-muted-foreground">Sua Coach Financeira</p>
+                <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Ana Clara</h3>
+                <p className="text-sm text-muted-foreground dark:text-gray-400">Sua Coach Financeira</p>
                 <GamificationBadges meta={meta} />
               </div>
             </div>
             <div className="flex gap-1">
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={refresh}
-                className="hover:bg-purple-100"
+                className="hover:bg-purple-100 dark:hover:bg-purple-900/30"
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
-              
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="hover:bg-purple-100">
+                  <Button variant="ghost" size="icon" className="hover:bg-purple-100 dark:hover:bg-purple-900/30">
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -158,7 +158,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
 
           {/* Motivational Quote */}
           <div className="text-center pt-2">
-            <p className="text-sm italic text-purple-700">
+            <p className="text-sm italic text-purple-700 dark:text-purple-300">
               "{insights.motivationalQuote}"
             </p>
           </div>

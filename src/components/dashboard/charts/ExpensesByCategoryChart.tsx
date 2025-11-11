@@ -60,16 +60,16 @@ export function ExpensesByCategoryChart({ transactions, selectedDate }: Expenses
   // Tooltip customizado
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
-    
+
     const data = payload[0].payload as ChartData;
-    
+
     return (
-      <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
-        <p className="font-semibold text-gray-900 mb-1">{data.name}</p>
-        <p className="text-sm text-gray-600 mb-1">
+      <div className="bg-white dark:bg-gray-800 p-3 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
+        <p className="font-semibold text-gray-900 dark:text-white mb-1">{data.name}</p>
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
           {formatCurrency(data.value)}
         </p>
-        <p className="text-xs text-purple-600 font-medium">
+        <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">
           {data.percentage.toFixed(1)}% do total
         </p>
       </div>
@@ -109,11 +109,11 @@ export function ExpensesByCategoryChart({ transactions, selectedDate }: Expenses
               ))}
             </Pie>
             <Tooltip content={<CustomTooltip />} />
-            <Legend 
-              verticalAlign="bottom" 
+            <Legend
+              verticalAlign="bottom"
               height={36}
               formatter={(value, entry: any) => (
-                <span className="text-sm text-gray-700">
+                <span className="text-sm text-gray-700 dark:text-gray-300">
                   {value} - {formatCurrency(entry.payload.value)}
                 </span>
               )}
@@ -122,9 +122,9 @@ export function ExpensesByCategoryChart({ transactions, selectedDate }: Expenses
         </ResponsiveContainer>
         
         {/* Total */}
-        <div className="mt-4 pt-4 border-t text-center">
-          <p className="text-sm text-gray-600">Total de Despesas</p>
-          <p className="text-2xl font-bold text-gray-900">{formatCurrency(total)}</p>
+        <div className="mt-4 pt-4 border-t dark:border-gray-700 text-center">
+          <p className="text-sm text-gray-600 dark:text-gray-400">Total de Despesas</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(total)}</p>
         </div>
       </div>
     </ChartCard>

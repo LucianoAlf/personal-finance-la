@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
+import { ThemeProvider } from './contexts/ThemeContext';
 import { MainLayout } from './components/layout/MainLayout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { Toaster } from './components/ui/toaster';
@@ -41,16 +42,17 @@ const persister = createSyncStoragePersister({
 
 function App() {
   return (
-    <PersistQueryClientProvider 
-      client={queryClient} 
-      persistOptions={{ persister }}
-    >
-    <BrowserRouter
-      future={{
-        v7_startTransition: true,
-        v7_relativeSplatPath: true,
-      }}
-    >
+    <ThemeProvider defaultTheme="auto" storageKey="pf-theme">
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister }}
+      >
+        <BrowserRouter
+          future={{
+            v7_startTransition: true,
+            v7_relativeSplatPath: true,
+          }}
+        >
       <Routes>
         {/* Rota de Login (sem layout) */}
         <Route path="/login" element={<Login />} />
@@ -78,8 +80,9 @@ function App() {
         </Route>
       </Routes>
       <Toaster />
-    </BrowserRouter>
-    </PersistQueryClientProvider>
+        </BrowserRouter>
+      </PersistQueryClientProvider>
+    </ThemeProvider>
   );
 }
 

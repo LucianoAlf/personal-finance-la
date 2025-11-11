@@ -36,7 +36,7 @@ export function TransactionItem({
   return (
     <div
       className={cn(
-        'flex items-center justify-between p-4 rounded-lg border-l-4 hover:translate-x-1 transition-all duration-200 cursor-pointer bg-white hover:shadow-md',
+        'flex items-center justify-between p-4 rounded-lg border-l-4 hover:translate-x-1 transition-all duration-200 cursor-pointer bg-white dark:bg-gray-800 hover:shadow-md',
         type === 'income' ? 'border-green-500' : 'border-red-500'
       )}
       onClick={onClick}
@@ -45,24 +45,24 @@ export function TransactionItem({
         <div
           className={cn(
             'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
-            type === 'income' ? 'bg-green-100' : 'bg-red-100'
+            type === 'income' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
           )}
         >
           {IconComponent ? (
-            <IconComponent 
-              size={20} 
+            <IconComponent
+              size={20}
               className={cn(
-                type === 'income' ? 'text-green-600' : 'text-red-600'
-              )} 
+                type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+              )}
             />
           ) : (
             <span className="text-lg">{category?.icon || '💰'}</span>
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-900 truncate">{description}</p>
+          <p className="font-semibold text-gray-900 dark:text-white truncate">{description}</p>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <p className="text-sm text-gray-600 truncate">{category?.name || 'Sem categoria'}</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{category?.name || 'Sem categoria'}</p>
             {is_recurring && (
               <Badge variant="info" className="text-xs whitespace-nowrap">
                 Recorrente
@@ -81,12 +81,12 @@ export function TransactionItem({
         <p
           className={cn(
             'font-bold text-lg',
-            type === 'income' ? 'text-green-600' : 'text-red-600'
+            type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
           )}
         >
           {type === 'income' ? '+' : '-'} {formatCurrency(amount)}
         </p>
-        <p className="text-sm text-gray-500">{formatDate(date, 'dd/MM')}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(date, 'dd/MM')}</p>
       </div>
     </div>
   );

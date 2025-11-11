@@ -21,7 +21,7 @@ import { useAccountsQuery } from '@/hooks/useAccountsQuery';
 import { useCreditCardsQuery } from '@/hooks/useCreditCardsQuery';
 import { useInvoicesQuery } from '@/hooks/useInvoicesQuery';
 import { useBudgetsQuery } from '@/hooks/useBudgetsQuery';
-import { formatCurrency } from '@/utils/formatters';
+import { useUserPreferences } from '@/hooks/useUserPreferences';
 import {
   Wallet,
   TrendingUp,
@@ -35,6 +35,9 @@ export function Dashboard() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Preferências de formatação do usuário
+  const { formatCurrency } = useUserPreferences();
 
   // ✅ HOOKS COM REACT QUERY (CACHE INSTANTÂNEO) - Todos com cache local!
   const monthKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
@@ -102,7 +105,7 @@ export function Dashboard() {
 
   // ✅ RENDERIZAR TUDO IMEDIATAMENTE (sem bloqueio)
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Header
         title={`Olá, ${profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuário'}!`}
         subtitle="Bem-vindo ao seu painel financeiro"
@@ -246,11 +249,11 @@ export function Dashboard() {
                 ))
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                    <FileText size={32} className="text-gray-400" />
+                  <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                    <FileText size={32} className="text-gray-400 dark:text-gray-500" />
                   </div>
-                  <p className="text-gray-900 font-semibold mb-2">Nenhuma transação recente</p>
-                  <p className="text-sm text-gray-600 mb-4">Crie sua primeira transação para começar!</p>
+                  <p className="text-gray-900 dark:text-white font-semibold mb-2">Nenhuma transação recente</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Crie sua primeira transação para começar!</p>
                   <Button 
                     onClick={() => navigate('/transacoes')}
                     size="sm"

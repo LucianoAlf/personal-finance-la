@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 import { useUIStore } from '@/store/uiStore';
 import { useAuth } from '@/hooks/useAuth';
 import { usePayableBills } from '@/hooks/usePayableBills';
+import { useSettings } from '@/hooks/useSettings';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -52,6 +53,7 @@ export function Sidebar() {
   const location = useLocation();
   const { sidebarOpen, toggleSidebar, setAnaCoachOpen } = useUIStore();
   const { profile, user } = useAuth();
+  const { userSettings } = useSettings();
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
   
   // Buscar alertas de contas a pagar
@@ -80,18 +82,18 @@ export function Sidebar() {
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 h-screen bg-white border-r border-gray-200 z-50 transition-transform duration-300 flex flex-col',
+          'fixed top-0 left-0 h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 z-50 transition-all duration-300 flex flex-col',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
           'lg:translate-x-0 w-64'
         )}
       >
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+        <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
               <Wallet size={20} className="text-white" />
             </div>
-            <h1 className="text-xl font-bold text-gray-900">Finance LA</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Finance LA</h1>
           </div>
           <button onClick={toggleSidebar} className="lg:hidden">
             <X size={24} />
@@ -124,8 +126,8 @@ export function Sidebar() {
                 className={cn(
                   'flex items-center justify-between px-4 py-3 rounded-lg mb-1 transition-all duration-200',
                   isActive
-                    ? 'bg-primary-50 text-primary font-semibold'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? 'bg-primary-50 dark:bg-primary-900/20 text-primary dark:text-primary-400 font-semibold'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                 )}
               >
                 <div className="flex items-center space-x-3">
@@ -148,8 +150,8 @@ export function Sidebar() {
               className={cn(
                 'flex items-center justify-between w-full px-4 py-3 rounded-lg mb-1 transition-all duration-200',
                 moreOptionsOpen || moreOptionsItems.some(item => location.pathname === item.path)
-                  ? 'bg-gray-100 text-gray-900'
-                  : 'text-gray-700 hover:bg-gray-100'
+                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
               )}
             >
               <div className="flex items-center space-x-3">
@@ -179,8 +181,8 @@ export function Sidebar() {
                       className={cn(
                         'flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200',
                         isActive
-                          ? 'bg-primary-50 text-primary font-semibold'
-                          : 'text-gray-600 hover:bg-gray-50'
+                          ? 'bg-primary-50 dark:bg-primary-900/20 text-primary dark:text-primary-400 font-semibold'
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50'
                       )}
                     >
                       <Icon size={18} />
@@ -194,24 +196,28 @@ export function Sidebar() {
         </nav>
 
         {/* Footer com perfil */}
-        <div className="p-4 border-t border-gray-200 mt-auto">
-          <div className="flex items-center gap-3">
+        <div className="p-4 border-t border-gray-200 dark:border-gray-800 mt-auto">
+          <div className="flex items-center space-x-3 px-4 py-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage src={profile?.avatar_url || undefined} />
+              <AvatarImage 
+                key={userSettings?.avatar_url || 'no-avatar'}
+                src={userSettings?.avatar_url ? `${userSettings.avatar_url}?v=${encodeURIComponent(userSettings.updated_at || '')}` : (profile?.avatar_url || undefined)} 
+                alt="Avatar"
+              />
               <AvatarFallback className="bg-purple-600 text-white">
-                {getInitials(profile?.full_name)}
+                {getInitials(userSettings?.display_name || profile?.full_name)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {profile?.full_name || 'Carregando...'}
+              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                {userSettings?.display_name || profile?.full_name || 'Carregando...'}
               </p>
-              <p className="text-xs text-gray-500 truncate">
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 {user?.email}
               </p>
             </div>
           </div>
-          <button className="flex items-center space-x-3 px-4 py-3 w-full text-gray-700 hover:bg-gray-100 rounded-lg transition-colors mt-3">
+          <button className="flex items-center space-x-3 px-4 py-3 w-full text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors mt-3">
             <HelpCircle size={20} />
             <span>Ajuda</span>
           </button>

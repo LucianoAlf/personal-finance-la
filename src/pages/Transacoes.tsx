@@ -13,8 +13,8 @@ import { AdvancedFiltersModal, type FilterConfig } from '@/components/transactio
 import { useTransactions } from '@/hooks/useTransactions';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCategories } from '@/hooks/useCategories';
+import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { ACCOUNT_TYPES } from '@/constants/accounts';
-import { formatCurrency, formatRelativeDate } from '@/utils/formatters';
 import { format } from 'date-fns';
 import type { Transaction, TransactionType } from '@/types/transactions';
 import { TYPE_COLORS } from '@/constants/categories';
@@ -43,6 +43,7 @@ export const Transacoes = () => {
 
   const { accounts } = useAccounts();
   const { getCategoryById } = useCategories();
+  const { formatCurrency, formatDate, formatRelativeDate } = useUserPreferences();
 
   // ESTADOS
   const [dialogOpen, setDialogOpen] = useState(false);

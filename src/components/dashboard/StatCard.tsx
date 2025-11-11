@@ -45,13 +45,13 @@ export function StatCard({
 
       <div className="flex items-start justify-between mb-4">
         <div className="flex-1">
-          <p className="text-sm font-medium text-gray-600 mb-1">{title}</p>
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
           {loading ? (
-            <div className="h-7 w-28 bg-gray-200 rounded animate-pulse" />
+            <div className="h-7 w-28 bg-gray-200 dark:bg-gray-700 rounded animate-pulse" />
           ) : (
-            <h3 className="text-2xl font-bold text-gray-900">{value}</h3>
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{value}</h3>
           )}
-          {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
+          {subtitle && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{subtitle}</p>}
         </div>
         <IconBox icon={icon} gradient={gradient} size="md" />
       </div>

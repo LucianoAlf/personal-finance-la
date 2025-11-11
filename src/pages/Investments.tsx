@@ -30,7 +30,7 @@ import { PerformanceHeatMap } from '@/components/investments/PerformanceHeatMap'
 import { BenchmarkComparison } from '@/components/investments/BenchmarkComparison';
 import { InvestmentReportDialog } from '@/components/investments/InvestmentReportDialog';
 import { useDividendCalendar, useDividendHistory } from '@/hooks/useDividendCalendar';
-import { formatCurrency } from '@/utils/formatters';
+import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell, DollarSign } from 'lucide-react';
 import type { CreateInvestmentInput, UpdateInvestmentInput, CreateTransactionInput } from '@/types/database.types';
 
@@ -38,6 +38,7 @@ export function Investments() {
   const { investments, loading, refresh, addInvestment, updateInvestment, deleteInvestment } = useInvestments();
   const { transactions, addTransaction, deleteTransaction } = useInvestmentTransactions();
   const { alerts, addAlert, deleteAlert, toggleAlert } = useInvestmentAlerts();
+  const { formatCurrency } = useUserPreferences();
   const metrics = usePortfolioMetrics(investments);
   const dividendCalendar = useDividendCalendar({ investments, transactions });
   const dividendHistory = useDividendHistory(transactions);

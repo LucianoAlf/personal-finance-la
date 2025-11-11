@@ -20,6 +20,7 @@ import { BillAnalyticsDashboard } from '@/components/payable-bills/BillAnalytics
 import { ExportButton } from '@/components/payable-bills/ExportButton';
 import { ReminderConfigDialog } from '@/components/payable-bills/ReminderConfigDialog';
 import { PayableBill, CreateBillInput, MarkBillAsPaidInput } from '@/types/payable-bills.types';
+import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { toast } from 'sonner';
 
 export default function PayableBills() {
@@ -47,6 +48,9 @@ export default function PayableBills() {
     chartData: trendChartData,
     loading: trendLoading
   } = useRecurringTrend();
+
+  // Preferências de formatação do usuário
+  const { formatCurrency, formatDate } = useUserPreferences();
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);

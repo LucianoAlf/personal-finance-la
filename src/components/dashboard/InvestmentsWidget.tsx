@@ -66,43 +66,43 @@ export function InvestmentsWidget() {
       <CardContent className="space-y-3">
         {isEmpty ? (
           <div className="text-center py-4">
-            <Briefcase className="h-8 w-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-600">Nenhum investimento</p>
-            <p className="text-xs text-gray-500">Comece a investir agora</p>
+            <Briefcase className="h-8 w-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+            <p className="text-sm text-gray-600 dark:text-gray-400">Nenhum investimento</p>
+            <p className="text-xs text-gray-500 dark:text-gray-500">Comece a investir agora</p>
           </div>
         ) : (
           <>
             {/* Valor Total */}
             <div>
-              <p className="text-xs text-gray-600 mb-1">Valor Atual</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Valor Atual</p>
+              <p className="text-xl font-bold text-gray-900 dark:text-white">
                 {formatCurrency(totalValue)}
               </p>
             </div>
 
             {/* Retorno */}
-            <div className="flex items-center justify-between bg-gray-50 rounded-lg p-2">
+            <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800/50 rounded-lg p-2">
               <div className="flex items-center gap-1.5">
                 {isPositive ? (
-                  <TrendingUp className="h-4 w-4 text-green-600" />
+                  <TrendingUp className="h-4 w-4 text-green-600 dark:text-green-400" />
                 ) : (
-                  <TrendingDown className="h-4 w-4 text-red-600" />
+                  <TrendingDown className="h-4 w-4 text-red-600 dark:text-red-400" />
                 )}
-                <span className={`text-sm font-semibold ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                <span className={`text-sm font-semibold ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {isPositive ? '+' : ''}{returnPercentage.toFixed(2)}%
                 </span>
               </div>
-              <span className={`text-sm font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+              <span className={`text-sm font-medium ${isPositive ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                 {isPositive ? '+' : ''}{formatCurrency(totalReturn)}
               </span>
             </div>
 
             {/* Ativos */}
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-600">
+              <span className="text-gray-600 dark:text-gray-400">
                 {activeInvestments.length} {activeInvestments.length === 1 ? 'ativo' : 'ativos'}
               </span>
-              <span className="text-gray-500">
+              <span className="text-gray-500 dark:text-gray-500">
                 {formatCurrency(totalInvested)} investido
               </span>
             </div>

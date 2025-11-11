@@ -69,10 +69,10 @@ export function PayableBillsWidget() {
                     <AlertCircle className="h-4 w-4 text-red-500" />
                     <span className="text-xs font-medium text-red-500">Vencidas</span>
                   </div>
-                  <p className="text-lg font-bold text-red-600">
+                  <p className="text-lg font-bold text-red-600 dark:text-red-400">
                     {formatCurrency(summary.overdue_amount)}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground dark:text-gray-500">
                     {summary.overdue_count}{' '}
                     {summary.overdue_count === 1 ? 'conta' : 'contas'}
                   </p>
@@ -84,12 +84,12 @@ export function PayableBillsWidget() {
                 <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
                   <div className="flex items-center gap-2 mb-1">
                     <Clock className="h-4 w-4 text-yellow-500" />
-                    <span className="text-xs font-medium text-yellow-500">A Vencer</span>
+                    <span className="text-xs font-medium text-yellow-500 dark:text-yellow-400">A Vencer</span>
                   </div>
-                  <p className="text-lg font-bold text-yellow-600">
+                  <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
                     {formatCurrency(summary.pending_amount)}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground dark:text-gray-500">
                     {summary.pending_count}{' '}
                     {summary.pending_count === 1 ? 'conta' : 'contas'}
                   </p>
@@ -108,18 +108,18 @@ export function PayableBillsWidget() {
               {nextBills.map((bill) => (
                 <div
                   key={bill.id}
-                  className="flex items-start justify-between p-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors"
+                  className="flex items-start justify-between p-3 rounded-lg bg-muted/50 dark:bg-gray-800/50 hover:bg-muted dark:hover:bg-gray-800 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-sm truncate">
+                    <p className="font-medium text-sm truncate dark:text-white">
                       {bill.description}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <span
                         className={`text-xs font-medium ${
                           bill.status === 'overdue'
-                            ? 'text-red-500'
-                            : 'text-yellow-500'
+                            ? 'text-red-500 dark:text-red-400'
+                            : 'text-yellow-500 dark:text-yellow-400'
                         }`}
                       >
                         {formatDueDateWithContext(bill.due_date)}
@@ -131,7 +131,7 @@ export function PayableBillsWidget() {
                       )}
                     </div>
                   </div>
-                  <span className="font-semibold text-sm ml-2 shrink-0">
+                  <span className="font-semibold text-sm ml-2 shrink-0 dark:text-white">
                     {formatCurrency(bill.amount)}
                   </span>
                 </div>
