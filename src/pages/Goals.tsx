@@ -3,7 +3,7 @@ import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap, Calendar, Copy, Sparkles, Settings, ChevronDown } from 'lucide-react';
+import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap, Calendar, Copy, Sparkles, Settings, ChevronDown, TrendingUp } from 'lucide-react';
 import { motion, MotionConfig } from 'framer-motion';
 import { useGoals } from '@/hooks/useGoals';
 import { useSearchParams } from 'react-router-dom';
@@ -35,10 +35,15 @@ import { FinancialCyclesManager } from '@/components/settings/cycles/FinancialCy
 import { FinancialSettingsCard } from '@/components/settings/financial/FinancialSettingsCard';
 import { useSettings } from '@/hooks/useSettings';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { useInvestmentGoals } from '@/hooks/useInvestmentGoals';
+import { InvestmentGoalCard } from '@/components/investment-goals/InvestmentGoalCard';
+import { InvestmentGoalDialog } from '@/components/investment-goals/InvestmentGoalDialog';
+import { ContributionDialog } from '@/components/investment-goals/ContributionDialog';
 
 export function Goals() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { goals, loading, getGoalsByType, getStats, deleteGoal, getGoalById, refreshGoals } = useGoals();
+  const { goals: investmentGoals, loading: investmentLoading, activeGoals: activeInvestmentGoals, deleteGoal: deleteInvestmentGoal, createGoal: createInvestmentGoal, updateGoal: updateInvestmentGoal, addContribution } = useInvestmentGoals();
   const { profile, badges, unlockedBadges, xpForNextLevel, xpProgress, levelTitle, loading: gamificationLoading, celebrationQueue, showCelebration, dismissCelebration } = useGamification();
   const { toast } = useToast();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -46,10 +51,10 @@ export function Goals() {
   const [addValueDialogOpen, setAddValueDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<FinancialGoalWithCategory | null>(null);
-  const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'progress' | 'budget' | 'config'>(() => {
+  const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'investments' | 'progress' | 'budget' | 'config'>(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'budget' || tabParam === 'spending' || tabParam === 'progress' || tabParam === 'config') {
-      return tabParam as 'savings' | 'spending' | 'progress' | 'budget' | 'config';
+    if (tabParam === 'budget' || tabParam === 'spending' || tabParam === 'investments' || tabParam === 'progress' || tabParam === 'config') {
+      return tabParam as 'savings' | 'spending' | 'investments' | 'progress' | 'budget' | 'config';
     }
     return 'savings';
   });
@@ -57,6 +62,10 @@ export function Goals() {
   const [addBudgetDialogOpen, setAddBudgetDialogOpen] = useState(false);
   const [savingsCreateTick, setSavingsCreateTick] = useState(0);
   const [createDialogAllowedTypes, setCreateDialogAllowedTypes] = useState<Array<'savings' | 'spending_limit'>>(['savings', 'spending_limit']);
+  const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
+  const [selectedInvestmentGoal, setSelectedInvestmentGoal] = useState<any>(null);
+  const [contributionDialogOpen, setContributionDialogOpen] = useState(false);
+  const [goalToContribute, setGoalToContribute] = useState<any>(null);
 
   const selectedMonthStr = useMemo(() => {
     const y = selectedBudgetDate.getFullYear();
@@ -174,6 +183,32 @@ export function Goals() {
     setCreateDialogOpen(true);
   };
 
+  const openInvestmentsFromHeader = () => {
+    setActiveTab('investments');
+    setInvestmentDialogOpen(true);
+  };
+
+  const handleSaveInvestmentGoal = async (input: any) => {
+    if (selectedInvestmentGoal) {
+      // Editar meta existente
+      return await updateInvestmentGoal(selectedInvestmentGoal.id, input);
+    } else {
+      // Criar nova meta
+      const result = await createInvestmentGoal(input);
+      return result !== null;
+    }
+  };
+
+  const handleEditInvestmentGoal = (goal: any) => {
+    setSelectedInvestmentGoal(goal);
+    setInvestmentDialogOpen(true);
+  };
+
+  const handleContributeToGoal = (goal: any) => {
+    setGoalToContribute(goal);
+    setContributionDialogOpen(true);
+  };
+
   // Sincronizar activeTab com URL
   const handleTabChange = (newTab: string) => {
     setActiveTab(newTab as any);
@@ -219,6 +254,13 @@ export function Goals() {
                 <div>
                   <div className="font-medium">Meta de Gasto</div>
                   <div className="text-xs text-muted-foreground">Limitar gastos por categoria</div>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openInvestmentsFromHeader}>
+                <TrendingUp className="h-4 w-4 mr-2 text-purple-500" />
+                <div>
+                  <div className="font-medium">Meta de Investimento</div>
+                  <div className="text-xs text-muted-foreground">Crescer patrimônio com rentabilidade</div>
                 </div>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -292,14 +334,18 @@ export function Goals() {
 
         {/* Tabs de Navegação */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
-          <TabsList className="grid w-full grid-cols-5 mb-6">
+          <TabsList className="grid w-full grid-cols-6 mb-6">
             <TabsTrigger value="savings" className="flex items-center gap-2">
               <PiggyBank className="h-4 w-4" />
-              Economia ({savingsGoals.length})
+              Economia
             </TabsTrigger>
             <TabsTrigger value="spending" className="flex items-center gap-2">
               <Shield className="h-4 w-4" />
-              Gastos ({spendingGoals.length})
+              Gastos
+            </TabsTrigger>
+            <TabsTrigger value="investments" className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Investimentos
             </TabsTrigger>
             <TabsTrigger value="progress" className="flex items-center gap-2">
               <Zap className="h-4 w-4" />
@@ -340,6 +386,40 @@ export function Goals() {
                     goal={goal}
                     onEdit={handleEdit}
                     onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* Tab: Investimentos */}
+          <TabsContent value="investments">
+            {investmentLoading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Carregando metas de investimento...</p>
+              </div>
+            ) : activeInvestmentGoals.length === 0 ? (
+              <div className="text-center py-12">
+                <TrendingUp className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhuma meta de investimento</h3>
+                <p className="text-gray-600 mb-6">
+                  Crie metas de longo prazo para crescer seu patrimônio com rentabilidade!
+                </p>
+                <Button onClick={openInvestmentsFromHeader}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Criar Meta de Investimento
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {activeInvestmentGoals.map((goal) => (
+                  <InvestmentGoalCard
+                    key={goal.id}
+                    goal={goal}
+                    onEdit={handleEditInvestmentGoal}
+                    onContribute={handleContributeToGoal}
+                    onDelete={deleteInvestmentGoal}
                   />
                 ))}
               </div>
@@ -526,6 +606,30 @@ export function Goals() {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         goal={selectedGoal}
+      />
+
+      <InvestmentGoalDialog
+        open={investmentDialogOpen}
+        onOpenChange={(open) => {
+          setInvestmentDialogOpen(open);
+          if (!open) {
+            setSelectedInvestmentGoal(null);
+          }
+        }}
+        goal={selectedInvestmentGoal}
+        onSave={handleSaveInvestmentGoal}
+      />
+
+      <ContributionDialog
+        open={contributionDialogOpen}
+        onOpenChange={(open) => {
+          setContributionDialogOpen(open);
+          if (!open) {
+            setGoalToContribute(null);
+          }
+        }}
+        goal={goalToContribute}
+        onSave={addContribution}
       />
     </div>
   );
