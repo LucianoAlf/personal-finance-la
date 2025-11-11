@@ -8,14 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, Save, Moon, Sun, Monitor, Globe, Calendar, DollarSign, Upload } from 'lucide-react';
+import { User, Save, Moon, Sun, Monitor, Globe, Upload } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { SavingsGoalsManager } from './goals/SavingsGoalsManager';
-import { FinancialCyclesManager } from './cycles/FinancialCyclesManager';
-import { FinancialSettingsCard } from './financial/FinancialSettingsCard';
-import type { BudgetAllocation } from '@/types/settings.types';
 
 export function GeneralSettings() {
   const { userSettings, updateUserSettings, setTheme, loading } = useSettings();
@@ -30,25 +26,10 @@ export function GeneralSettings() {
   const [dateFormat, setDateFormat] = useState(userSettings?.date_format || 'DD/MM/YYYY');
   const [numberFormat, setNumberFormat] = useState(userSettings?.number_format || 'pt-BR');
   const [theme, setThemeState] = useState(userSettings?.theme || 'auto');
-  const [savingsGoal, setSavingsGoal] = useState(userSettings?.monthly_savings_goal_percentage || 20);
-  const [closingDay, setClosingDay] = useState(userSettings?.monthly_closing_day || 1);
-  const [budgetAllocation, setBudgetAllocation] = useState<BudgetAllocation>(
-    userSettings?.budget_allocation || {
-      essentials: 50,
-      investments: 20,
-      leisure: 20,
-      others: 10,
-    }
-  );
-  const [budgetAlertThreshold, setBudgetAlertThreshold] = useState(
-    userSettings?.budget_alert_threshold || 80
-  );
 
   // Validation errors
   const [errors, setErrors] = useState({
     displayName: '',
-    savingsGoal: '',
-    closingDay: '',
   });
 
   // Buscar email do usuário autenticado
@@ -73,17 +54,6 @@ export function GeneralSettings() {
       setDateFormat(userSettings.date_format || 'DD/MM/YYYY');
       setNumberFormat(userSettings.number_format || 'pt-BR');
       setThemeState(userSettings.theme || 'auto');
-      setSavingsGoal(userSettings.monthly_savings_goal_percentage || 20);
-      setClosingDay(userSettings.monthly_closing_day || 1);
-      setBudgetAllocation(
-        userSettings.budget_allocation || {
-          essentials: 50,
-          investments: 20,
-          leisure: 20,
-          others: 10,
-        }
-      );
-      setBudgetAlertThreshold(userSettings.budget_alert_threshold || 80);
     }
   }, [userSettings]);
 
@@ -106,28 +76,6 @@ export function GeneralSettings() {
     return '';
   };
 
-  // Validação em tempo real para savingsGoal
-  const validateSavingsGoal = (value: number) => {
-    if (value < 0) {
-      return 'Meta de economia não pode ser negativa';
-    }
-    if (value > 100) {
-      return 'Meta de economia não pode exceder 100%';
-    }
-    return '';
-  };
-
-  // Validação em tempo real para closingDay
-  const validateClosingDay = (value: number) => {
-    if (value < 1) {
-      return 'Dia de fechamento deve ser no mínimo 1';
-    }
-    if (value > 28) {
-      return 'Dia de fechamento deve ser no máximo 28';
-    }
-    return '';
-  };
-
   // Handler para displayName com validação
   const handleDisplayNameChange = (value: string) => {
     setDisplayName(value);
@@ -135,31 +83,13 @@ export function GeneralSettings() {
     setErrors(prev => ({ ...prev, displayName: error }));
   };
 
-  // Handler para savingsGoal com validação
-  const handleSavingsGoalChange = (value: number) => {
-    setSavingsGoal(value);
-    const error = validateSavingsGoal(value);
-    setErrors(prev => ({ ...prev, savingsGoal: error }));
-  };
-
-  // Handler para closingDay com validação
-  const handleClosingDayChange = (value: number) => {
-    setClosingDay(value);
-    const error = validateClosingDay(value);
-    setErrors(prev => ({ ...prev, closingDay: error }));
-  };
-
   const handleSave = async () => {
     // Validar todos os campos antes de salvar
     const nameError = validateDisplayName(displayName);
-    const goalError = validateSavingsGoal(savingsGoal);
-    const dayError = validateClosingDay(closingDay);
 
-    if (nameError || goalError || dayError) {
+    if (nameError) {
       setErrors({
         displayName: nameError,
-        savingsGoal: goalError,
-        closingDay: dayError,
       });
       toast.error('Por favor, corrija os erros antes de salvar');
       return;
@@ -175,10 +105,6 @@ export function GeneralSettings() {
         date_format: dateFormat,
         number_format: numberFormat,
         theme: theme as 'light' | 'dark' | 'auto',
-        monthly_savings_goal_percentage: savingsGoal,
-        monthly_closing_day: closingDay,
-        budget_allocation: budgetAllocation,
-        budget_alert_threshold: budgetAlertThreshold,
       });
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -477,25 +403,6 @@ export function GeneralSettings() {
           </div>
         </CardContent>
       </Card>
-
-      {/* Configurações Financeiras */}
-      <FinancialSettingsCard
-        savingsGoal={savingsGoal}
-        closingDay={closingDay}
-        budgetAllocation={budgetAllocation}
-        budgetAlertThreshold={budgetAlertThreshold}
-        onSavingsGoalChange={handleSavingsGoalChange}
-        onClosingDayChange={handleClosingDayChange}
-        onBudgetAllocationChange={setBudgetAllocation}
-        onBudgetAlertThresholdChange={setBudgetAlertThreshold}
-      />
-
-      {/* Metas de Economia */}
-      <SavingsGoalsManager />
-
-      {/* Ciclos Financeiros */}
-      <FinancialCyclesManager />
-
 
       {/* Botão Salvar */}
       <div className="flex justify-end">

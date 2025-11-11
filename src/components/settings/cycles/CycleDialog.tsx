@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Calendar, Settings, Trash2 } from 'lucide-react';
+import { Shuffle, X, Trash2, AlertCircle, DollarSign, Home, FileText, TrendingUp, RefreshCw, CreditCard, Target, BarChart3, Lightbulb, Loader2, Calendar, Settings } from 'lucide-react';
 import type { FinancialCycle, CreateCycleInput, UpdateCycleInput, CycleType } from '@/types/settings.types';
 import { LABELS } from '@/types/settings.types';
 
@@ -49,7 +49,16 @@ interface CycleDialogProps {
   onDelete?: (id: string) => Promise<boolean>;
 }
 
-const CYCLE_ICONS = ['💰', '🏠', '📄', '📈', '🔄', '💳', '🎯', '📊'];
+const CYCLE_ICONS = [
+  { icon: DollarSign, label: 'Salário' },
+  { icon: Home, label: 'Aluguel' },
+  { icon: FileText, label: 'Contas' },
+  { icon: TrendingUp, label: 'Investimento' },
+  { icon: RefreshCw, label: 'Recorrente' },
+  { icon: CreditCard, label: 'Cartão' },
+  { icon: Target, label: 'Meta' },
+  { icon: BarChart3, label: 'Análise' },
+];
 const CYCLE_COLORS = [
   '#3b82f6', // blue
   '#10b981', // green
@@ -82,7 +91,7 @@ export function CycleDialog({ open, onOpenChange, cycle, onSave, onDelete }: Cyc
       active: true,
       description: '',
       color: CYCLE_COLORS[0],
-      icon: '💰',
+      icon: 'Salário',
       notify_start: false,
       notify_days_before: 3,
     },
@@ -103,7 +112,7 @@ export function CycleDialog({ open, onOpenChange, cycle, onSave, onDelete }: Cyc
         active: cycle.active,
         description: cycle.description || '',
         color: cycle.color || CYCLE_COLORS[0],
-        icon: cycle.icon || '💰',
+        icon: cycle.icon || 'Salário',
         notify_start: cycle.notify_start,
         notify_days_before: cycle.notify_days_before || 3,
       });
@@ -236,20 +245,24 @@ export function CycleDialog({ open, onOpenChange, cycle, onSave, onDelete }: Cyc
               <div className="space-y-2">
                 <Label>Ícone</Label>
                 <div className="flex gap-2 flex-wrap">
-                  {CYCLE_ICONS.map((icon) => (
-                    <button
-                      key={icon}
-                      type="button"
-                      onClick={() => setValue('icon', icon)}
-                      className={`text-2xl p-2 rounded-lg border-2 transition-colors ${
-                        watchIcon === icon
-                          ? 'border-primary bg-primary/10'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      {icon}
-                    </button>
-                  ))}
+                  {CYCLE_ICONS.map((item) => {
+                    const IconComponent = item.icon;
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => setValue('icon', item.label)}
+                        className={`p-2 rounded-lg border-2 transition-colors ${
+                          watchIcon === item.label
+                            ? 'border-primary bg-primary/10'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        title={item.label}
+                      >
+                        <IconComponent className="h-5 w-5" />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -317,9 +330,12 @@ export function CycleDialog({ open, onOpenChange, cycle, onSave, onDelete }: Cyc
               )}
 
               <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-                  💡 Dica
-                </p>
+                <div className="flex items-center gap-2 mb-2">
+                  <Lightbulb className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    Dica
+                  </p>
+                </div>
                 <p className="text-sm text-blue-700 dark:text-blue-300">
                   Ciclos financeiros ajudam você a organizar suas finanças por períodos. Por
                   exemplo, um ciclo de "Salário" no dia 5 indica quando você recebe e pode

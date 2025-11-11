@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { DollarSign, Info } from 'lucide-react';
+import { DollarSign, Info, AlertTriangle } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -249,9 +249,10 @@ export function FinancialSettingsCard({
           </div>
 
           {!isAllocationValid && (
-            <p className="text-sm text-red-600">
-              ⚠️ A soma das alocações deve ser exatamente 100%
-            </p>
+            <div className="flex items-center gap-2 text-sm text-red-600">
+              <AlertTriangle className="h-4 w-4" />
+              <p>A soma das alocações deve ser exatamente 100%</p>
+            </div>
           )}
         </div>
 

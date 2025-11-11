@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreVertical, Edit, Copy, Trash2, Calendar } from 'lucide-react';
+import { MoreVertical, Edit, Copy, Trash2, Calendar, DollarSign, Home, FileText, TrendingUp, RefreshCw, CreditCard, Target, BarChart3 } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { CycleWithStats } from '@/types/settings.types';
 import { LABELS } from '@/types/settings.types';
@@ -31,19 +31,20 @@ export function CycleCard({
   onToggleActive,
   onUpdateDay,
 }: CycleCardProps) {
-  const getTypeIcon = (type: string) => {
-    switch (type) {
-      case 'salary':
-        return '💰';
-      case 'rent':
-        return '🏠';
-      case 'bills':
-        return '📄';
-      case 'investment':
-        return '📈';
-      default:
-        return '🔄';
-    }
+  // Mapeamento de ícones
+  const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+    'Salário': DollarSign,
+    'Aluguel': Home,
+    'Contas': FileText,
+    'Investimento': TrendingUp,
+    'Recorrente': RefreshCw,
+    'Cartão': CreditCard,
+    'Meta': Target,
+    'Análise': BarChart3,
+  };
+
+  const getIconComponent = (iconName: string | undefined) => {
+    return ICON_MAP[iconName || 'Salário'] || DollarSign;
   };
 
   const getTypeColorClass = (type: string) => {
@@ -78,7 +79,10 @@ export function CycleCard({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className={cn('p-2 rounded-lg', getTypeColorClass(cycle.type))}>
-              <span className="text-2xl">{cycle.icon || getTypeIcon(cycle.type)}</span>
+              {(() => {
+                const IconComponent = getIconComponent(cycle.icon);
+                return <IconComponent className="h-6 w-6" />;
+              })()}
             </div>
             <div>
               <h3 className="font-semibold">{cycle.name}</h3>

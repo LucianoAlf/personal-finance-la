@@ -20,9 +20,24 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MoreVertical, Edit, DollarSign, BarChart3, Trash2, Loader2 } from 'lucide-react';
+import { MoreVertical, Edit, DollarSign, BarChart3, Trash2, Loader2, Target, Plane, Home, Car, GraduationCap, Palmtree, Heart, Smartphone, Gamepad2 } from 'lucide-react';
 import type { GoalWithStats } from '@/types/settings.types';
 import { LABELS } from '@/types/settings.types';
+
+// Mapeamento de ícones
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  'Meta': Target,
+  'Viagem': Plane,
+  'Casa': Home,
+  'Carro': Car,
+  'Educação': GraduationCap,
+  'Dinheiro': DollarSign,
+  'Férias': Palmtree,
+  'Casamento': Heart,
+  'Eletrônico': Smartphone,
+  'Lazer': Gamepad2,
+  'Target': Target, // fallback
+};
 
 interface GoalCardProps {
   goal: GoalWithStats;
@@ -96,7 +111,12 @@ export function GoalCard({ goal, onEdit, onDelete, onAddContribution }: GoalCard
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="text-3xl">{goal.icon || '🎯'}</div>
+              <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                {(() => {
+                  const IconComponent = ICON_MAP[goal.icon || 'Target'] || Target;
+                  return <IconComponent className="h-6 w-6 text-primary" />;
+                })()}
+              </div>
               <div>
                 <h3 className="font-semibold text-lg">{goal.name}</h3>
                 <div className="flex gap-2 mt-1">

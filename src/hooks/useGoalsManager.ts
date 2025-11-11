@@ -203,7 +203,9 @@ export function useGoalsManager() {
     const daysRemaining = Math.max(0, Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)));
     
     const monthsRemaining = Math.max(1, daysRemaining / 30);
-    const suggestedMonthly = remaining / monthsRemaining;
+    const suggestedMonthly = remaining > 0 && monthsRemaining > 0 
+      ? Math.max(0, remaining / monthsRemaining)
+      : 0;
     
     const isOverdue = daysRemaining === 0 && goal.status === 'active' && percentage < 100;
     

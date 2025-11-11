@@ -3,7 +3,7 @@ import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap, Calendar, Copy, Sparkles } from 'lucide-react';
+import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap, Calendar, Copy, Sparkles, Settings } from 'lucide-react';
 import { motion, MotionConfig } from 'framer-motion';
 import { useGoals } from '@/hooks/useGoals';
 import { useSearchParams } from 'react-router-dom';
@@ -32,6 +32,10 @@ import { BudgetSummaryCards } from '@/components/budget/BudgetSummaryCards';
 import { BudgetInsights } from '@/components/budget/BudgetInsights';
 import { BudgetGrid } from '@/components/budget/BudgetGrid';
 import { AddBudgetCategoryDialog } from '@/components/budget/AddBudgetCategoryDialog';
+import { SavingsGoalsManager } from '@/components/settings/goals/SavingsGoalsManager';
+import { FinancialCyclesManager } from '@/components/settings/cycles/FinancialCyclesManager';
+import { FinancialSettingsCard } from '@/components/settings/financial/FinancialSettingsCard';
+import { useSettings } from '@/hooks/useSettings';
 
 export function Goals() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -43,10 +47,10 @@ export function Goals() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<FinancialGoalWithCategory | null>(null);
   const [defaultGoalType, setDefaultGoalType] = useState<'savings' | 'spending_limit'>('savings');
-  const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'progress' | 'budget'>(() => {
+  const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'progress' | 'budget' | 'config'>(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'budget' || tabParam === 'spending' || tabParam === 'progress') {
-      return tabParam as 'savings' | 'spending' | 'progress' | 'budget';
+    if (tabParam === 'budget' || tabParam === 'spending' || tabParam === 'progress' || tabParam === 'config') {
+      return tabParam as 'savings' | 'spending' | 'progress' | 'budget' | 'config';
     }
     return 'savings';
   });
@@ -60,6 +64,44 @@ export function Goals() {
   }, [selectedBudgetDate]);
 
   const { budgets, loading: budgetsLoading, totalPlanned, totalActual, totalDifference, copyFromPreviousMonth, getSuggestions, saveBudget, refreshBudgets } = useBudgets(selectedMonthStr);
+  const { userSettings, updateUserSettings } = useSettings();
+
+  // Estados para configurações financeiras
+  const [savingsGoalPercentage, setSavingsGoalPercentage] = useState(userSettings?.monthly_savings_goal_percentage || 20);
+  const [closingDay, setClosingDay] = useState(userSettings?.monthly_closing_day || 1);
+  const [budgetAllocation, setBudgetAllocation] = useState(userSettings?.budget_allocation || { essentials: 50, investments: 20, leisure: 20, others: 10 });
+  const [budgetAlertThreshold, setBudgetAlertThreshold] = useState(userSettings?.budget_alert_threshold || 80);
+
+  // Sincronizar com userSettings
+  useEffect(() => {
+    if (userSettings) {
+      setSavingsGoalPercentage(userSettings.monthly_savings_goal_percentage || 20);
+      setClosingDay(userSettings.monthly_closing_day || 1);
+      setBudgetAllocation(userSettings.budget_allocation || { essentials: 50, investments: 20, leisure: 20, others: 10 });
+      setBudgetAlertThreshold(userSettings.budget_alert_threshold || 80);
+    }
+  }, [userSettings]);
+
+  // Handlers para atualizar configurações
+  const handleSavingsGoalChange = async (value: number) => {
+    setSavingsGoalPercentage(value);
+    await updateUserSettings({ monthly_savings_goal_percentage: value });
+  };
+
+  const handleClosingDayChange = async (value: number) => {
+    setClosingDay(value);
+    await updateUserSettings({ monthly_closing_day: value });
+  };
+
+  const handleBudgetAllocationChange = async (allocation: any) => {
+    setBudgetAllocation(allocation);
+    await updateUserSettings({ budget_allocation: allocation });
+  };
+
+  const handleBudgetAlertThresholdChange = async (threshold: number) => {
+    setBudgetAlertThreshold(threshold);
+    await updateUserSettings({ budget_alert_threshold: threshold });
+  };
 
   // Hook de notificações
   useGoalNotifications({ goals });
@@ -209,7 +251,7 @@ export function Goals() {
 
         {/* Tabs de Navegação */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
-          <TabsList className="grid w-full grid-cols-4 mb-6">
+          <TabsList className="grid w-full grid-cols-5 mb-6">
             <TabsTrigger value="savings" className="flex items-center gap-2">
               <PiggyBank className="h-4 w-4" />
               Economia ({savingsGoals.length})
@@ -225,6 +267,10 @@ export function Goals() {
             <TabsTrigger value="budget" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               Orçamento
+            </TabsTrigger>
+            <TabsTrigger value="config" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Configurações
             </TabsTrigger>
           </TabsList>
 
@@ -385,6 +431,29 @@ export function Goals() {
               />
               </motion.div>
             </MotionConfig>
+          </TabsContent>
+
+          {/* Tab: Configurações */}
+          <TabsContent value="config">
+            <div className="space-y-6">
+              {/* Configurações Financeiras */}
+              <FinancialSettingsCard
+                savingsGoal={savingsGoalPercentage}
+                closingDay={closingDay}
+                budgetAllocation={budgetAllocation}
+                budgetAlertThreshold={budgetAlertThreshold}
+                onSavingsGoalChange={handleSavingsGoalChange}
+                onClosingDayChange={handleClosingDayChange}
+                onBudgetAllocationChange={handleBudgetAllocationChange}
+                onBudgetAlertThresholdChange={handleBudgetAlertThresholdChange}
+              />
+
+              {/* Metas de Economia */}
+              <SavingsGoalsManager />
+
+              {/* Ciclos Financeiros */}
+              <FinancialCyclesManager />
+            </div>
           </TabsContent>
         </Tabs>
       </div>

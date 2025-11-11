@@ -22,7 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { Loader2, Target, Calendar, Bell, Trash2 } from 'lucide-react';
+import { Target, X, Trash2, Calendar, AlertCircle, Plane, Home, Car, GraduationCap, DollarSign, Palmtree, Heart, Smartphone, Gamepad2, Lightbulb, Loader2 } from 'lucide-react';
 import type { SavingsGoal, CreateGoalInput, UpdateGoalInput, GoalCategory, GoalPriority } from '@/types/settings.types';
 import { LABELS } from '@/types/settings.types';
 
@@ -52,7 +52,18 @@ interface GoalDialogProps {
   onDelete?: (id: string) => Promise<boolean>;
 }
 
-const GOAL_ICONS = ['🎯', '✈️', '🏠', '🚗', '🎓', '💰', '🏖️', '💍', '📱', '🎮'];
+const GOAL_ICONS = [
+  { icon: Target, label: 'Meta' },
+  { icon: Plane, label: 'Viagem' },
+  { icon: Home, label: 'Casa' },
+  { icon: Car, label: 'Carro' },
+  { icon: GraduationCap, label: 'Educação' },
+  { icon: DollarSign, label: 'Dinheiro' },
+  { icon: Palmtree, label: 'Férias' },
+  { icon: Heart, label: 'Casamento' },
+  { icon: Smartphone, label: 'Eletrônico' },
+  { icon: Gamepad2, label: 'Lazer' },
+];
 
 export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalDialogProps) {
   const [isSaving, setIsSaving] = useState(false);
@@ -76,7 +87,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
       start_date: new Date().toISOString().split('T')[0],
       target_date: '',
       priority: 'medium',
-      icon: '🎯',
+      icon: 'Target',
       notify_milestones: true,
       notify_contribution: false,
       notify_delay: false,
@@ -112,7 +123,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
         start_date: goal.start_date,
         target_date: goal.target_date,
         priority: goal.priority,
-        icon: goal.icon || '🎯',
+        icon: goal.icon || 'Target',
         notify_milestones: goal.notify_milestones,
         notify_contribution: goal.notify_contribution,
         contribution_frequency: goal.contribution_frequency || undefined,
@@ -249,20 +260,24 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
               <div className="space-y-2">
                 <Label>Ícone</Label>
                 <div className="flex gap-2 flex-wrap">
-                  {GOAL_ICONS.map((icon) => (
-                    <button
-                      key={icon}
-                      type="button"
-                      onClick={() => setValue('icon', icon)}
-                      className={`text-2xl p-2 rounded-lg border-2 transition-colors ${
-                        watchIcon === icon
-                          ? 'border-primary bg-primary/10'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      {icon}
-                    </button>
-                  ))}
+                  {GOAL_ICONS.map((item) => {
+                    const IconComponent = item.icon;
+                    return (
+                      <button
+                        key={item.label}
+                        type="button"
+                        onClick={() => setValue('icon', item.label)}
+                        className={`p-2 rounded-lg border-2 transition-colors ${
+                          watchIcon === item.label
+                            ? 'border-primary bg-primary/10'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        title={item.label}
+                      >
+                        <IconComponent className="h-5 w-5" />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </TabsContent>
@@ -313,9 +328,12 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
 
               {suggestedMonthly > 0 && (
                 <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg">
-                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                    💡 Contribuição Mensal Sugerida
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <Lightbulb className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      Contribuição Mensal Sugerida
+                    </p>
+                  </div>
                   <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mt-1">
                     R$ {suggestedMonthly.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
