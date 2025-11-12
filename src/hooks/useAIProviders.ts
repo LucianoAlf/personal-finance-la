@@ -62,11 +62,16 @@ export function useAIProviders() {
   // Create provider (via Edge Function)
   const createProvider = useCallback(
     async (input: CreateAIProviderInput) => {
-      if (!userId) return;
+      if (!userId) return { error: 'Não autenticado. Faça login para criar um provedor.' };
 
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData.session?.access_token;
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !sessionData.session) {
+          console.error('Session error:', sessionError);
+          toast.error('Sessão expirada. Faça login novamente.');
+          throw new Error('Não autenticado');
+        }
+        const token = sessionData.session.access_token;
 
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-ai-config`,
@@ -74,6 +79,7 @@ export function useAIProviders() {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${token}`,
+              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify(input),
@@ -107,8 +113,13 @@ export function useAIProviders() {
       if (!userId) return;
 
       try {
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData.session?.access_token;
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError || !sessionData.session) {
+          console.error('Session error:', sessionError);
+          toast.error('Sessão expirada. Faça login novamente.');
+          throw new Error('Não autenticado');
+        }
+        const token = sessionData.session.access_token;
 
         const response = await fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-ai-config`,
@@ -116,6 +127,7 @@ export function useAIProviders() {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${token}`,
+              apikey: import.meta.env.VITE_SUPABASE_ANON_KEY as string,
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({ provider, ...input }),
@@ -173,31 +185,45 @@ export function useAIProviders() {
   // Validate API Key (via Edge Function)
   const validateApiKey = useCallback(
     async (provider: AIProviderType, apiKey: string, modelName?: string) => {
-      if (!userId) return { valid: false, error: 'Não autenticado' };
+      if (!userId) return { valid: false, error: 'Não autenticado. Faça login para validar a chave.' };
 
       try {
         setValidating(true);
 
-        const { data: sessionData } = await supabase.auth.getSession();
-        const token = sessionData.session?.access_token;
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !sessionData.session) {
+          console.error('Session error:', sessionError);
+          toast.error('Sessão expirada. Faça login novamente.');
+          return { valid: false, error: 'Sessão expirada' };
+        }
 
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/validate-api-key`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ provider, api_key: apiKey, model_name: modelName }),
-          }
-        );
+        const token = sessionData.session.access_token;
+        
+        console.log('Validating API key with token:', token ? 'present' : 'missing');
 
-        const data = await response.json();
+        const payload = { provider, api_key: apiKey, model_name: modelName };
 
-        if (!response.ok) {
-          toast.error(data.error || 'API Key inválida');
-          return { valid: false, error: data.error };
+        const { data, error } = await supabase.functions.invoke('validate-api-key', {
+          body: JSON.stringify(payload),
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (error) {
+          console.error('Validation failed:', error?.status || 'unknown', error);
+          toast.error(error.message || 'API Key inválida');
+          return { valid: false, error: error.message };
+        }
+
+        // Respeita o resultado vindo da função
+        console.log('Validation result:', data);
+        if (!data || (data as any).valid !== true) {
+          const errMsg = (data as any)?.error || 'API Key inválida';
+          toast.error(errMsg);
+          return { valid: false, error: errMsg } as any;
         }
 
         toast.success('API Key validada com sucesso!');
@@ -205,7 +231,7 @@ export function useAIProviders() {
         // Atualizar lista local
         await fetchProviders();
         
-        return data;
+        return data as any;
       } catch (err: any) {
         console.error('Error validating API key:', err);
         toast.error('Erro ao validar API Key');

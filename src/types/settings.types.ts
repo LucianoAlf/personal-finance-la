@@ -137,25 +137,22 @@ export interface AIModel {
 
 export const AI_MODELS: Record<AIProviderType, AIModel[]> = {
   openai: [
-    { id: 'gpt-4o', name: 'GPT-4o', description: 'Mais recente e poderoso', contextWindow: 128000, costPer1kTokens: 0.005, isFree: false },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Rápido e econômico', contextWindow: 128000, costPer1kTokens: 0.00015, isFree: false },
-    { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Anterior, ainda potente', contextWindow: 128000, costPer1kTokens: 0.01, isFree: false },
-    { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: 'Econômico', contextWindow: 16385, costPer1kTokens: 0.0005, isFree: false },
+    { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', description: 'Mais recente, rápido e econômico', contextWindow: 128000, costPer1kTokens: 0.00015, isFree: false },
+    { id: 'gpt-4o', name: 'GPT-4o', description: 'Poderoso e versátil', contextWindow: 128000, costPer1kTokens: 0.005, isFree: false },
+    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Balanceado e eficiente', contextWindow: 128000, costPer1kTokens: 0.00015, isFree: false },
   ],
   gemini: [
-    { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro', description: 'Mais avançado', contextWindow: 1000000, costPer1kTokens: 0.00125, isFree: false },
-    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash', description: 'Rápido e eficiente', contextWindow: 1000000, costPer1kTokens: 0.000075, isFree: false },
-    { id: 'gemini-pro', name: 'Gemini Pro', description: 'Versão gratuita', contextWindow: 32760, costPer1kTokens: 0, isFree: true },
+    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Ultra rápido e eficiente', contextWindow: 1000000, costPer1kTokens: 0.000075, isFree: false },
+    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Mais avançado e poderoso', contextWindow: 2000000, costPer1kTokens: 0.00125, isFree: false },
   ],
   claude: [
-    { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', description: 'Mais poderoso', contextWindow: 200000, costPer1kTokens: 0.015, isFree: false },
-    { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet', description: 'Balanceado', contextWindow: 200000, costPer1kTokens: 0.003, isFree: false },
-    { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', description: 'Rápido', contextWindow: 200000, costPer1kTokens: 0.00025, isFree: false },
+    { id: 'claude-sonnet-3.7', name: 'Claude Sonnet 3.7', description: 'Balanceado e inteligente', contextWindow: 200000, costPer1kTokens: 0.003, isFree: false },
+    { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', description: 'Rápido e preciso', contextWindow: 200000, costPer1kTokens: 0.00025, isFree: false },
   ],
   openrouter: [
-    { id: 'google/gemma-2-9b-it:free', name: 'Gemma 2 9B', description: 'Gratuito', contextWindow: 8192, costPer1kTokens: 0, isFree: true },
-    { id: 'meta-llama/llama-3.2-3b-instruct:free', name: 'Llama 3.2 3B', description: 'Gratuito', contextWindow: 8192, costPer1kTokens: 0, isFree: true },
-    { id: 'microsoft/phi-3-mini-128k-instruct:free', name: 'Phi-3 Mini', description: 'Gratuito', contextWindow: 128000, costPer1kTokens: 0, isFree: true },
+    { id: 'glm-4.6', name: 'GLM 4.6', description: 'Modelo chinês avançado', contextWindow: 128000, costPer1kTokens: 0.0001, isFree: false },
+    { id: 'kimi-k2', name: 'Kimi K2', description: 'Contexto ultra longo', contextWindow: 200000, costPer1kTokens: 0.0002, isFree: false },
+    { id: 'qwen3-max', name: 'Qwen3-Max', description: 'Multilíngue e eficiente', contextWindow: 32000, costPer1kTokens: 0.00015, isFree: false },
   ],
 };
 

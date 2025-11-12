@@ -7,6 +7,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 interface UpdateAIConfigRequest {
@@ -28,29 +29,51 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      }
-    );
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser();
-
-    if (userError || !user) {
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+    if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Não autenticado" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const body: UpdateAIConfigRequest = await req.json();
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        global: {
+          headers: { Authorization: authHeader },
+        },
+      }
+    );
+
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    let userId: string | null = null;
+    try {
+      const base64 = jwt.split(".")[1]?.replace(/-/g, "+").replace(/_/g, "/");
+      const payloadJson = atob(base64 || "");
+      const payload = JSON.parse(payloadJson);
+      userId = payload?.sub || null;
+    } catch (_) {}
+
+    if (!userId) {
+      return new Response(
+        JSON.stringify({ error: "Não autenticado" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const rawBody = await req.text();
+    let body: UpdateAIConfigRequest;
+    try {
+      body = JSON.parse(rawBody || "{}");
+    } catch (parseError) {
+      console.error("Invalid JSON payload:", rawBody, parseError);
+      return new Response(
+        JSON.stringify({ error: "Payload inválido. Envie JSON com provider e model_name." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Validações
     if (!body.provider || !body.model_name) {
@@ -62,7 +85,7 @@ serve(async (req) => {
 
     // Preparar dados para upsert
     const configData: any = {
-      user_id: user.id,
+      user_id: userId,
       provider: body.provider,
       model_name: body.model_name,
       temperature: body.temperature ?? 0.7,

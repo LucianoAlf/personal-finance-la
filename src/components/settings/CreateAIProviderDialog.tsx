@@ -42,6 +42,7 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange }: CreateA
   const [responseTone, setResponseTone] = useState<'formal' | 'friendly' | 'casual'>('friendly');
   const [systemPrompt, setSystemPrompt] = useState('Você é Ana Clara, uma assistente financeira especializada em educação financeira pessoal. Seu objetivo é ajudar os usuários a entenderem melhor suas finanças, oferecendo dicas práticas e acessíveis.');
   const [isDefault, setIsDefault] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const models = AI_MODELS[provider];
   const selectedModelData = models.find((m) => m.id === selectedModel);
@@ -79,6 +80,7 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange }: CreateA
     if (!selectedModel || !apiKey) return;
 
     try {
+      setSaving(true);
       await createProvider({
         provider,
         api_key: apiKey,
@@ -91,11 +93,16 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange }: CreateA
         is_default: isDefault,
       });
 
+      // Aguardar um pouco para garantir que o estado foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 500));
+
       // Reset and close
       resetForm();
       onOpenChange(false);
     } catch (error) {
       console.error('Error creating provider:', error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -191,13 +198,16 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange }: CreateA
                       setIsKeyValid(null);
                     }}
                     placeholder="sk-..."
+                    className="pr-10"
+                    autoComplete="off"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="absolute right-0 top-0"
+                    className="absolute right-0 top-0 h-full"
                     onClick={() => setShowApiKey(!showApiKey)}
+                    tabIndex={-1}
                   >
                     {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
@@ -360,8 +370,15 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange }: CreateA
               <ArrowRight className="h-4 w-4 ml-2" />
             </Button>
           ) : (
-            <Button onClick={handleSave}>
-              Salvar Configuração
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar Configuração'
+              )}
             </Button>
           )}
         </div>
