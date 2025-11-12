@@ -11,13 +11,17 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getDefaultAIConfig } from '../_shared/ai.ts';
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')!;
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 interface TranscribeRequest {
   audio_url: string;
   audio_format?: string;
   language?: string;
+  user_id?: string;
 }
 
 serve(async (req) => {
@@ -33,7 +37,7 @@ serve(async (req) => {
   }
 
   try {
-    const { audio_url, audio_format, language }: TranscribeRequest = await req.json();
+    const { audio_url, audio_format, language, user_id }: TranscribeRequest = await req.json();
     
     console.log('🎙️ Transcrevendo áudio:', audio_url);
     
@@ -51,6 +55,25 @@ serve(async (req) => {
     const format = audio_format || detectAudioFormat(audio_url);
     const filename = `audio.${format}`;
     
+    // Resolver API Key: usar config do usuário se for OpenAI, senão fallback env
+    let apiKeyToUse: string | undefined;
+    if (user_id) {
+      try {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const aiConfig = await getDefaultAIConfig(supabase, user_id);
+        if (aiConfig && aiConfig.provider === 'openai' && aiConfig.apiKey) {
+          apiKeyToUse = aiConfig.apiKey;
+        }
+      } catch (_) {}
+    }
+    if (!apiKeyToUse) {
+      apiKeyToUse = Deno.env.get('OPENAI_API_KEY') || '';
+    }
+
+    if (!apiKeyToUse) {
+      throw new Error('Nenhuma API Key disponível para OpenAI Whisper');
+    }
+
     // Criar FormData para Whisper API
     const formData = new FormData();
     formData.append('file', new Blob([audioBuffer]), filename);
@@ -62,7 +85,7 @@ serve(async (req) => {
     const whisperResponse = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': `Bearer ${apiKeyToUse}`,
       },
       body: formData,
     });

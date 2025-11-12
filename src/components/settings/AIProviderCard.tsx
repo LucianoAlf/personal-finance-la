@@ -5,15 +5,21 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, AlertCircle, Sparkles, Settings, Bot, Target, Shuffle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CheckCircle, AlertCircle, Sparkles, Settings, Bot, Target, Shuffle, Star, RefreshCw, Loader2 } from 'lucide-react';
 import type { AIProviderConfig, AIProviderType } from '@/types/settings.types';
-import { LABELS } from '@/types/settings.types';
+import { LABELS, AI_MODELS } from '@/types/settings.types';
+import { toast } from 'sonner';
+import { useState } from 'react';
 
 interface AIProviderCardProps {
   provider: AIProviderType;
   config?: AIProviderConfig;
   isDefault?: boolean;
   onClick: () => void;
+  onUpdateModel: (provider: AIProviderType, newModel: string) => Promise<void>;
+  onSetDefault: (id: string) => Promise<void>;
+  onTestConnection: (provider: AIProviderType, apiKey: string, modelName?: string) => Promise<{ valid: boolean; error?: string } | any>;
 }
 
 const PROVIDER_COLORS = {
@@ -30,17 +36,66 @@ const PROVIDER_ICONS = {
   openrouter: Shuffle,
 } as const;
 
-export function AIProviderCard({ provider, config, isDefault, onClick }: AIProviderCardProps) {
+export function AIProviderCard({ provider, config, isDefault, onClick, onUpdateModel, onSetDefault, onTestConnection }: AIProviderCardProps) {
+  const [changingModel, setChangingModel] = useState(false);
+  const [testing, setTesting] = useState(false);
+  
   const isConfigured = !!config;
   const isValidated = config?.is_validated ?? false;
   const gradientClass = PROVIDER_COLORS[provider];
   const icon = PROVIDER_ICONS[provider];
   const label = LABELS.aiProvider[provider];
+  const models = AI_MODELS[provider];
+
+  const handleModelChange = async (newModel: string) => {
+    if (!config || !config.api_key_encrypted) return;
+    
+    const modelName = models.find(m => m.id === newModel)?.name || newModel;
+    
+    try {
+      setChangingModel(true);
+      await onUpdateModel(provider, newModel);
+      toast.success(`Modelo alterado para ${modelName}`);
+    } catch (error) {
+      toast.error('Erro ao alterar modelo');
+    } finally {
+      setChangingModel(false);
+    }
+  };
+
+  const handleTestConnection = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!config?.api_key_encrypted || !config?.model_name) return;
+    
+    try {
+      setTesting(true);
+      const result = await onTestConnection(provider, config.api_key_encrypted, config.model_name);
+      
+      if (result.valid) {
+        toast.success('Conexão testada com sucesso!');
+      } else {
+        toast.error(result.error || 'Falha ao testar conexão');
+      }
+    } catch (error) {
+      toast.error('Erro ao testar conexão');
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const handleSetDefault = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!config?.id) return;
+    try {
+      await onSetDefault(config.id);
+    } catch (error) {
+      toast.error('Erro ao definir como padrão');
+    }
+  };
 
   return (
     <Card
-      className="relative cursor-pointer transition-all hover:shadow-lg hover:-translate-y-1 group"
-      onClick={onClick}
+      className="relative transition-all hover:shadow-lg hover:-translate-y-1 group"
     >
       {/* Badge Default */}
       {isDefault && (
@@ -62,29 +117,78 @@ export function AIProviderCard({ provider, config, isDefault, onClick }: AIProvi
         <h3 className="text-lg font-semibold mb-2">{label}</h3>
 
         {/* Status */}
-        <div className="space-y-2 mb-4">
+        <div className="space-y-3 mb-4">
           {isConfigured ? (
             <>
-              <div className="flex items-center gap-2 text-sm">
-                {isValidated ? (
-                  <>
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <span className="text-green-600 font-medium">Validado</span>
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="h-4 w-4 text-amber-600" />
-                    <span className="text-amber-600 font-medium">Não validado</span>
-                  </>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm">
+                    {isValidated ? (
+                      <>
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                        <span className="text-green-600 font-medium">Validado</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-4 w-4 text-amber-600" />
+                        <span className="text-amber-600 font-medium">Não validado</span>
+                      </>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleTestConnection}
+                    disabled={testing}
+                    className="h-7 px-2 text-xs"
+                  >
+                    {testing ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                        Testando
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Testar
+                      </>
+                    )}
+                  </Button>
+                </div>
+                
+                {config.last_validated_at && (
+                  <p className="text-xs text-muted-foreground">
+                    Testado {new Date(config.last_validated_at).toLocaleDateString('pt-BR', { 
+                      day: '2-digit', 
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
                 )}
               </div>
 
-              {/* Modelo configurado */}
-              {config.model_name && (
-                <p className="text-sm text-muted-foreground">
-                  Modelo: <span className="font-medium">{config.model_name}</span>
+              {/* Seletor de Modelo */}
+              <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+                <label className="text-xs font-medium text-muted-foreground">
+                  Modelo {changingModel && <span className="text-blue-600">(salvando...)</span>}
+                </label>
+                <Select value={config.model_name} onValueChange={handleModelChange} disabled={changingModel}>
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map((model) => (
+                      <SelectItem key={model.id} value={model.id}>
+                        {model.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Alterações são salvas automaticamente
                 </p>
-              )}
+              </div>
 
               {/* Últimos 4 da API Key */}
               {config.api_key_last_4 && (
@@ -101,15 +205,29 @@ export function AIProviderCard({ provider, config, isDefault, onClick }: AIProvi
           )}
         </div>
 
-        {/* Botão de ação */}
-        <Button
-          variant={isConfigured ? 'outline' : 'default'}
-          size="sm"
-          className="w-full group-hover:bg-primary group-hover:text-primary-foreground"
-        >
-          <Settings className="h-4 w-4 mr-2" />
-          {isConfigured ? 'Configurar' : 'Adicionar'}
-        </Button>
+        {/* Botões de ação */}
+        <div className="flex gap-2">
+          {isConfigured && !isDefault && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSetDefault}
+              className="flex-1"
+            >
+              <Star className="h-4 w-4 mr-1" />
+              Padrão
+            </Button>
+          )}
+          <Button
+            variant={isConfigured ? 'outline' : 'default'}
+            size="sm"
+            onClick={onClick}
+            className={isConfigured && !isDefault ? 'flex-1' : 'w-full'}
+          >
+            <Settings className="h-4 w-4 mr-2" />
+            {isConfigured ? 'Configurar' : 'Adicionar'}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

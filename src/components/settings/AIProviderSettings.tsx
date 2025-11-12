@@ -12,7 +12,7 @@ import type { AIProviderType } from '@/types/settings.types';
 import { LABELS } from '@/types/settings.types';
 
 export function AIProviderSettings() {
-  const { providers, defaultProvider, validatedProviders, loading } = useAIProviders();
+  const { providers, defaultProvider, validatedProviders, loading, updateProvider, setDefaultProvider, validateApiKey } = useAIProviders();
   const [selectedProvider, setSelectedProvider] = useState<AIProviderType | null>(null);
 
   const providersList: AIProviderType[] = ['openai', 'gemini', 'claude', 'openrouter'];
@@ -61,6 +61,13 @@ export function AIProviderSettings() {
                 )}
               </AlertDescription>
             </Alert>
+          ) : providers.length > 0 ? (
+            <Alert className="border-amber-200 bg-amber-50">
+              <AlertCircle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-amber-700">
+                Nenhum provedor padrão definido. Selecione um provedor para ser usado por padrão.
+              </AlertDescription>
+            </Alert>
           ) : (
             <Alert className="border-amber-200 bg-amber-50">
               <AlertCircle className="h-4 w-4 text-amber-600" />
@@ -103,6 +110,9 @@ export function AIProviderSettings() {
                 config={config}
                 isDefault={isDefault}
                 onClick={() => handleCardClick(provider)}
+                onUpdateModel={(prov, newModel) => updateProvider(prov, { model_name: newModel })}
+                onSetDefault={(id) => setDefaultProvider(id)}
+                onTestConnection={(prov, apiKey, modelName) => validateApiKey(prov, apiKey, modelName)}
               />
             );
           })}
@@ -138,9 +148,8 @@ export function AIProviderSettings() {
         <CreateAIProviderDialog
           provider={selectedProvider}
           open={!!selectedProvider}
-          onOpenChange={(open) => {
-            if (!open) setSelectedProvider(null);
-          }}
+          onOpenChange={(open) => !open && setSelectedProvider(null)}
+          existingConfig={getProviderConfig(selectedProvider)}
         />
       )}
     </div>

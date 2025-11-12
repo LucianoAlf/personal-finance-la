@@ -138,11 +138,11 @@ serve(async (req) => {
  */
 async function extractTransactionData(aiConfig: any, data: any) {
   const provider = aiConfig.provider;
-  const model = aiConfig.model;
-  const apiKey = aiConfig.api_key; // Descriptografar em produção
+  const model = aiConfig.model_name || aiConfig.model;
+  const apiKey = aiConfig.api_key_encrypted || aiConfig.api_key; // Descriptografar em produção
   
-  // Construir prompt
-  const prompt = buildExtractionPrompt(data);
+  // Construir prompt (respeitando system_prompt do usuário se existir)
+  const prompt = buildExtractionPrompt(data, aiConfig.system_prompt);
   
   // Chamar LLM apropriado
   let response;
@@ -170,7 +170,7 @@ async function extractTransactionData(aiConfig: any, data: any) {
 /**
  * Constrói prompt para extração de dados
  */
-function buildExtractionPrompt(data: any): string {
+function buildExtractionPrompt(data: any, extraSystemPrompt?: string): string {
   const systemPrompt = `Você é um assistente financeiro especializado em extrair dados de transações.
 Extraia os seguintes campos:
 - amount (número, apenas valor numérico sem R$ ou vírgulas)
@@ -180,7 +180,8 @@ Extraia os seguintes campos:
 - date (YYYY-MM-DD, se não mencionado use a data de hoje)
 
 Retorne APENAS um JSON válido com esses campos, sem texto adicional.`;
-
+  const prefix = extraSystemPrompt ? `${extraSystemPrompt}\n\n` : '';
+  
   let userPrompt = '';
   
   if (data.raw_text) {
@@ -194,7 +195,7 @@ Retorne APENAS um JSON válido com esses campos, sem texto adicional.`;
     userPrompt = `Dados: ${JSON.stringify(data)}`;
   }
   
-  return `${systemPrompt}\n\n${userPrompt}`;
+  return `${prefix}${systemPrompt}\n\n${userPrompt}`;
 }
 
 /**

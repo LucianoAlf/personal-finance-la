@@ -13,6 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getDefaultAIConfig, callChat } from './_shared/ai.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -152,7 +153,7 @@ async function processMessageAsync(
     
     // Se for áudio, transcrever primeiro
     if (message.type === 'audio' && message.media?.url) {
-      const transcription = await transcribeAudio(message.media.url);
+      const transcription = await transcribeAudio(message.media.url, userId);
       if (transcription.success) {
         content = transcription.text;
       } else {
@@ -162,7 +163,7 @@ async function processMessageAsync(
     
     // Se for imagem, extrair dados
     if (message.type === 'image' && message.media?.url) {
-      const extraction = await extractReceiptData(message.media.url);
+      const extraction = await extractReceiptData(message.media.url, userId);
       if (extraction.success) {
         intent = 'transaction';
         // Processar como lançamento
@@ -249,20 +250,33 @@ async function detectIntent(supabase: any, userId: string, content: string) {
     
     return { intent: 'conversation', extracted_data: null };
   }
-  
-  // TODO: Chamar LLM para detectar intenção
-  // Por ora, retornar lógica simples
-  const lowerContent = content.toLowerCase();
-  
-  if (lowerContent.includes('gastei') || lowerContent.includes('paguei') || lowerContent.includes('recebi')) {
-    return { intent: 'transaction', extracted_data: null };
+  // Chamar LLM para classificar intenção
+  const cfg = await getDefaultAIConfig(supabase, userId);
+  if (!cfg) return { intent: 'conversation', extracted_data: null };
+
+  const system = (cfg.systemPrompt ? cfg.systemPrompt + '\n\n' : '') + `Você é Ana Clara. Classifique a mensagem do usuário em uma das intenções: quick_command | transaction | conversation.
+Se for quick_command, não invente parâmetros.
+Se for transaction, EXTRAIA um JSON com os campos possíveis: amount, type, category, description, date, merchant_name.
+Responda ESTRITAMENTE neste JSON:
+{"intent":"<quick_command|transaction|conversation>","extracted_data": <obj ou null>}`;
+  const user = `Mensagem: ${content}`;
+
+  let text: string = '';
+  try {
+    text = await callChat(cfg, [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ]);
+  } catch (_) {
+    return { intent: 'conversation', extracted_data: null };
   }
-  
-  const commands = ['saldo', 'resumo', 'contas', 'meta', 'investimentos', 'cartões', 'ajuda', 'relatório'];
-  if (commands.some(cmd => lowerContent.startsWith(cmd))) {
-    return { intent: 'quick_command', extracted_data: null };
-  }
-  
+
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed.intent === 'string') {
+      return { intent: parsed.intent, extracted_data: parsed.extracted_data || null };
+    }
+  } catch (_) {}
   return { intent: 'conversation', extracted_data: null };
 }
 
@@ -304,17 +318,27 @@ async function processTransaction(supabase: any, userId: string, extractedData: 
  * Chat com Ana Clara
  */
 async function chatWithAna(supabase: any, userId: string, content: string) {
-  // TODO: Implementar chat com Ana Clara
-  return {
-    success: true,
-    message: 'Olá! Sou a Ana Clara, sua assistente financeira. Como posso ajudar?',
-  };
+  const cfg = await getDefaultAIConfig(supabase, userId);
+  if (!cfg) {
+    return { success: true, message: 'Olá! Sou a Ana Clara, sua assistente financeira. Configure um provedor de IA nas Configurações para respostas personalizadas.' };
+  }
+  const system = (cfg.systemPrompt ? cfg.systemPrompt + '\n\n' : '') + 'Você é Ana Clara, assistente financeira brasileira. Seja clara, prática e amigável.';
+  const messages = [
+    { role: 'system', content: system },
+    { role: 'user', content },
+  ] as any;
+  try {
+    const reply = await callChat(cfg, messages);
+    return { success: true, message: reply || '...' };
+  } catch (e) {
+    return { success: true, message: 'Tive um problema ao responder agora. Tente novamente em instantes.' };
+  }
 }
 
 /**
  * Transcreve áudio usando Whisper API
  */
-async function transcribeAudio(audioUrl: string) {
+async function transcribeAudio(audioUrl: string, userId: string) {
   // Chamar Edge Function transcribe-audio
   const response = await fetch(`${SUPABASE_URL}/functions/v1/transcribe-audio`, {
     method: 'POST',
@@ -322,7 +346,7 @@ async function transcribeAudio(audioUrl: string) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
     },
-    body: JSON.stringify({ audio_url: audioUrl }),
+    body: JSON.stringify({ audio_url: audioUrl, user_id: userId }),
   });
   
   return await response.json();
@@ -331,7 +355,7 @@ async function transcribeAudio(audioUrl: string) {
 /**
  * Extrai dados de nota fiscal usando Vision API
  */
-async function extractReceiptData(imageUrl: string) {
+async function extractReceiptData(imageUrl: string, userId: string) {
   // Chamar Edge Function extract-receipt-data
   const response = await fetch(`${SUPABASE_URL}/functions/v1/extract-receipt-data`, {
     method: 'POST',
@@ -339,7 +363,7 @@ async function extractReceiptData(imageUrl: string) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
     },
-    body: JSON.stringify({ image_url: imageUrl }),
+    body: JSON.stringify({ image_url: imageUrl, user_id: userId }),
   });
   
   return await response.json();

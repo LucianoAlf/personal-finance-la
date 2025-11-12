@@ -46,11 +46,18 @@ export function useAIProviders() {
         .from('ai_provider_configs')
         .select('*')
         .eq('user_id', userId)
-        .order('created_at', { ascending: true });
+        .order('updated_at', { ascending: false });
 
       if (error) throw error;
 
-      setProviders(data || []);
+      // Deduplicar por provider, mantendo o mais recente
+      const deduped = (data || []).reduce((acc: Record<string, any>, item: any) => {
+        const existing = acc[item.provider];
+        if (!existing) acc[item.provider] = item;
+        // como já está ordenado por updated_at desc, a primeira ocorrência é a mais recente
+        return acc;
+      }, {} as Record<string, any>);
+      setProviders(Object.values(deduped) as any);
     } catch (err: any) {
       console.error('Error fetching AI providers:', err);
       setError(err.message);
@@ -93,7 +100,7 @@ export function useAIProviders() {
 
         const data = await response.json();
         
-        // Atualizar lista local
+        // Após criar/atualizar via função, refazer o fetch para obter o registro correto do servidor
         await fetchProviders();
         
         toast.success(`Provedor ${input.provider.toUpperCase()} configurado!`);
@@ -228,7 +235,13 @@ export function useAIProviders() {
 
         toast.success('API Key validada com sucesso!');
         
-        // Atualizar lista local
+        // Otimista: marcar como validado imediatamente
+        setProviders((prev) => prev.map((p) =>
+          p.provider === provider
+            ? { ...p, is_validated: true, validation_error: null, last_validated_at: new Date().toISOString() }
+            : p
+        ));
+        // Em seguida sincroniza com o servidor
         await fetchProviders();
         
         return data as any;

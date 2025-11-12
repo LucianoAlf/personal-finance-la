@@ -21,27 +21,31 @@ interface CreateAIProviderDialogProps {
   provider: AIProviderType;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  existingConfig?: any; // Config existente para edição
 }
 
-export function CreateAIProviderDialog({ provider, open, onOpenChange }: CreateAIProviderDialogProps) {
-  const { createProvider, validateApiKey, validating } = useAIProviders();
+export function CreateAIProviderDialog({ provider, open, onOpenChange, existingConfig }: CreateAIProviderDialogProps) {
+  const { createProvider, validateApiKey, validating, updateProvider } = useAIProviders();
+  
+  // Se já existe config, iniciar no step 3 (configurações avançadas)
+  const isEditing = !!existingConfig;
   
   // Steps state
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(isEditing ? 3 : 1);
   const totalSteps = 3;
 
-  // Form state
-  const [selectedModel, setSelectedModel] = useState<string>('');
+  // Form state - inicializar com valores existentes se for edição
+  const [selectedModel, setSelectedModel] = useState<string>(existingConfig?.model_name || '');
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
-  const [isKeyValid, setIsKeyValid] = useState<boolean | null>(null);
+  const [isKeyValid, setIsKeyValid] = useState<boolean | null>(existingConfig?.is_validated || null);
   const [validationError, setValidationError] = useState<string>('');
-  const [temperature, setTemperature] = useState(0.7);
-  const [maxTokens, setMaxTokens] = useState(1000);
-  const [responseStyle, setResponseStyle] = useState<'short' | 'medium' | 'long'>('medium');
-  const [responseTone, setResponseTone] = useState<'formal' | 'friendly' | 'casual'>('friendly');
-  const [systemPrompt, setSystemPrompt] = useState('Você é Ana Clara, uma assistente financeira especializada em educação financeira pessoal. Seu objetivo é ajudar os usuários a entenderem melhor suas finanças, oferecendo dicas práticas e acessíveis.');
-  const [isDefault, setIsDefault] = useState(false);
+  const [temperature, setTemperature] = useState(existingConfig?.temperature || 0.7);
+  const [maxTokens, setMaxTokens] = useState(existingConfig?.max_tokens || 1000);
+  const [responseStyle, setResponseStyle] = useState<'short' | 'medium' | 'long'>(existingConfig?.response_style || 'medium');
+  const [responseTone, setResponseTone] = useState<'formal' | 'friendly' | 'casual'>(existingConfig?.response_tone || 'friendly');
+  const [systemPrompt, setSystemPrompt] = useState(existingConfig?.system_prompt || 'Você é Ana Clara, uma assistente financeira especializada em educação financeira pessoal. Seu objetivo é ajudar os usuários a entenderem melhor suas finanças, oferecendo dicas práticas e acessíveis.');
+  const [isDefault, setIsDefault] = useState(existingConfig?.is_default || false);
   const [saving, setSaving] = useState(false);
 
   const models = AI_MODELS[provider];
@@ -77,21 +81,37 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange }: CreateA
   };
 
   const handleSave = async () => {
-    if (!selectedModel || !apiKey) return;
+    // Se for edição, não precisa de API key
+    if (!isEditing && (!selectedModel || !apiKey)) return;
+    if (isEditing && !selectedModel) return;
 
     try {
       setSaving(true);
-      await createProvider({
-        provider,
-        api_key: apiKey,
-        model_name: selectedModel,
-        temperature,
-        max_tokens: maxTokens,
-        response_style: responseStyle,
-        response_tone: responseTone,
-        system_prompt: systemPrompt,
-        is_default: isDefault,
-      });
+      
+      if (isEditing) {
+        // Atualizar configuração existente (sem API key)
+        await updateProvider(provider, {
+          temperature,
+          max_tokens: maxTokens,
+          response_style: responseStyle,
+          response_tone: responseTone,
+          system_prompt: systemPrompt,
+          is_default: isDefault,
+        });
+      } else {
+        // Criar nova configuração
+        await createProvider({
+          provider,
+          api_key: apiKey,
+          model_name: selectedModel,
+          temperature,
+          max_tokens: maxTokens,
+          response_style: responseStyle,
+          response_tone: responseTone,
+          system_prompt: systemPrompt,
+          is_default: isDefault,
+        });
+      }
 
       // Aguardar um pouco para garantir que o estado foi atualizado
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -100,25 +120,27 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange }: CreateA
       resetForm();
       onOpenChange(false);
     } catch (error) {
-      console.error('Error creating provider:', error);
+      console.error('Error saving provider:', error);
     } finally {
       setSaving(false);
     }
   };
 
   const resetForm = () => {
-    setCurrentStep(1);
-    setSelectedModel('');
-    setApiKey('');
-    setShowApiKey(false);
-    setIsKeyValid(null);
-    setValidationError('');
-    setTemperature(0.7);
-    setMaxTokens(1000);
-    setResponseStyle('medium');
-    setResponseTone('friendly');
-    setSystemPrompt('Você é Ana Clara...');
-    setIsDefault(false);
+    setCurrentStep(isEditing ? 3 : 1);
+    if (!isEditing) {
+      setSelectedModel('');
+      setApiKey('');
+      setShowApiKey(false);
+      setIsKeyValid(null);
+      setValidationError('');
+      setTemperature(0.7);
+      setMaxTokens(1000);
+      setResponseStyle('medium');
+      setResponseTone('friendly');
+      setSystemPrompt('Você é Ana Clara...');
+      setIsDefault(false);
+    }
   };
 
   // Validations
@@ -130,24 +152,26 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange }: CreateA
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            Configurar {LABELS.aiProvider[provider]}
+            {isEditing ? 'Configurações Avançadas' : `Configurar ${LABELS.aiProvider[provider]}`}
           </DialogTitle>
-          <div className="flex items-center gap-2 mt-2">
-            {[1, 2, 3].map((step) => (
-              <div
-                key={step}
-                className={`h-2 flex-1 rounded-full transition-colors ${
-                  step <= currentStep ? 'bg-primary' : 'bg-muted'
-                }`}
-              />
-            ))}
-          </div>
+          {!isEditing && (
+            <div className="flex items-center gap-2 mt-2">
+              {[1, 2, 3].map((step) => (
+                <div
+                  key={step}
+                  className={`h-2 flex-1 rounded-full transition-colors ${
+                    step <= currentStep ? 'bg-primary' : 'bg-muted'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
         </DialogHeader>
 
         {/* STEP 1: Provedor e Modelo */}
         {currentStep === 1 && (
           <div className="space-y-4">
-            <div>
+            <div className="space-y-2">
               <Label>Escolha o modelo</Label>
               <Select value={selectedModel} onValueChange={setSelectedModel}>
                 <SelectTrigger>
@@ -185,7 +209,7 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange }: CreateA
         {/* STEP 2: API Key e Teste */}
         {currentStep === 2 && (
           <div className="space-y-4">
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="apiKey">API Key</Label>
               <div className="flex gap-2">
                 <div className="relative flex-1">

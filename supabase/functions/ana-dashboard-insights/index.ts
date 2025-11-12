@@ -1,6 +1,7 @@
 // WIDGET ANA CLARA DASHBOARD - Edge Function
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getDefaultAIConfig, callChat } from './_shared/ai.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -41,6 +42,15 @@ interface DashboardContext {
       expenses: number;
       balance: number;
     };
+  };
+  creditCards: {
+    totalLimit: number;
+    totalUsed: number;
+    totalAvailable: number;
+    utilizationRate: number;
+    activeCardsCount: number;
+    upcomingInvoices: Array<{ card: string; amount: number; dueDate: string }>;
+    overdueInvoices: Array<{ card: string; amount: number; dueDate: string }>;
   };
   currentMonth: string;
   previousMonth: string;
@@ -132,11 +142,6 @@ serve(async (req) => {
       }
     } else {
       console.log('[ana-dashboard-insights] 🔄 forceRefresh=true, ignorando cache');
-    }
-
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY não configurada');
     }
 
     console.log('[ana-dashboard] 🚀 Gerando novos insights...');
@@ -418,34 +423,59 @@ IMPORTANTE:
 - Para insights de transações ou tendências, quando fizer sentido, inclua "visualization": {"type":"chart","data":{"points":[n1,n2,n3,n4,n5,n6,n7]}} com 7 pontos (1 por semana)
 - Seja específica: use nomes, valores, percentuais reais`;
 
-    console.log('[ana-dashboard] Chamando OpenAI GPT-4...');
+    // Buscar configuração do provedor do usuário
+    const aiConfig = await getDefaultAIConfig(supabase, userId);
+    let insightsText: string | undefined;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-mini', // ✅ Modelo mais rápido e econômico
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.8,
-        max_tokens: 1500,
-        response_format: { type: 'json_object' },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[ana-dashboard] OpenAI error:', response.status, errorText);
-      throw new Error(`OpenAI API error: ${response.status}`);
+    if (aiConfig) {
+      console.log('[ana-dashboard] 🔧 Usando provider do usuário:', aiConfig.provider, aiConfig.model);
+      const combinedSystem = (aiConfig.systemPrompt ? aiConfig.systemPrompt + '\n\n' : '') + systemPrompt;
+      const messages = [
+        { role: 'system', content: combinedSystem },
+        { role: 'user', content: userPrompt },
+      ] as any;
+      insightsText = await callChat(
+        {
+          provider: aiConfig.provider,
+          model: aiConfig.model,
+          apiKey: aiConfig.apiKey,
+          temperature: Math.min(1.5, Math.max(0, aiConfig.temperature || 0.8)),
+          maxTokens: Math.min(2000, aiConfig.maxTokens || 1500),
+          systemPrompt: aiConfig.systemPrompt,
+        },
+        messages,
+      );
+    } else {
+      // Fallback para OpenAI usando variável de ambiente
+      const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+      if (!OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY não configurada e nenhum provedor de IA definido');
+      }
+      console.log('[ana-dashboard] ⚠️ Usando fallback OpenAI');
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4.1-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.8,
+          max_tokens: 1500,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[ana-dashboard] OpenAI error:', response.status, errorText);
+        throw new Error(`OpenAI API error: ${response.status}`);
+      }
+      const data = await response.json();
+      insightsText = data.choices[0]?.message?.content;
     }
-
-    const data = await response.json();
-    const insightsText = data.choices[0]?.message?.content;
 
     if (!insightsText) {
       throw new Error('Resposta vazia do GPT-4');
@@ -544,11 +574,11 @@ IMPORTANTE:
 
     const payload = { ...insights, meta } as any;
 
-    // ✅ SALVAR NO CACHE (24h)
-    console.log('[ana-dashboard] Salvando insights no cache (válido por 24h)...');
-    // 💾 SALVAR NO CACHE (24 horas)
+    // ✅ SALVAR NO CACHE (8h)
+    console.log('[ana-dashboard] Salvando insights no cache (válido por 8h)...');
+    // 💾 SALVAR NO CACHE (8 horas)
     const cacheNow = new Date();
-    const expiresAt = new Date(cacheNow.getTime() + 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(cacheNow.getTime() + 8 * 60 * 60 * 1000);
 
     const { error: upsertError } = await supabase
       .from('ana_insights_cache')
@@ -567,7 +597,7 @@ IMPORTANTE:
       console.error('[ana-dashboard] Erro ao salvar cache:', upsertError);
       // Não falhar a requisição por erro de cache
     } else {
-      console.log('[ana-dashboard] ✅ Cache salvo (expira em 24h)');
+      console.log('[ana-dashboard] ✅ Cache salvo (expira em 8h)');
     }
 
     return new Response(JSON.stringify(payload), {

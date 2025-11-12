@@ -12,12 +12,16 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getDefaultAIConfig, callVision } from '../_shared/ai.ts';
 
-const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')!;
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 interface ExtractRequest {
   image_url: string;
   image_format?: string;
+  user_id?: string;
 }
 
 serve(async (req) => {
@@ -33,7 +37,7 @@ serve(async (req) => {
   }
 
   try {
-    const { image_url, image_format }: ExtractRequest = await req.json();
+    const { image_url, image_format, user_id }: ExtractRequest = await req.json();
     
     console.log('📸 Extraindo dados de nota fiscal:', image_url);
     
@@ -54,8 +58,8 @@ serve(async (req) => {
     const mimeType = image_format || 'image/jpeg';
     const dataUrl = `data:${mimeType};base64,${base64Image}`;
     
-    // Prompt para extração
-    const systemPrompt = `Você é um assistente especializado em extrair dados de notas fiscais brasileiras.
+    // Prompt para extração (pode ser prefixado por system_prompt do usuário)
+    const baseSystemPrompt = `Você é um assistente especializado em extrair dados de notas fiscais brasileiras.
 Analise a imagem e extraia os seguintes dados:
 - merchant_name (nome do estabelecimento)
 - merchant_cnpj (CNPJ se disponível)
@@ -67,50 +71,65 @@ Analise a imagem e extraia os seguintes dados:
 
 Retorne APENAS um JSON válido com esses campos, sem texto adicional.
 Se algum campo não estiver disponível, use null.`;
+    
+    // Buscar configuração do usuário (se user_id fornecido)
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const aiConfig = user_id ? await getDefaultAIConfig(supabase, user_id) : null;
 
-    // Chamar GPT-4 Vision
-    const visionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4-vision-preview',
-        messages: [
+    let content: string;
+    try {
+      if (aiConfig) {
+        const combinedSystem = (aiConfig.systemPrompt ? aiConfig.systemPrompt + '\n\n' : '') + baseSystemPrompt;
+        content = await callVision(
           {
-            role: 'system',
-            content: systemPrompt,
+            provider: aiConfig.provider,
+            model: aiConfig.model,
+            apiKey: aiConfig.apiKey,
+            temperature: Math.max(0.1, aiConfig.temperature || 0.2),
+            maxTokens: Math.max(500, aiConfig.maxTokens || 1500),
           },
+          dataUrl,
+          combinedSystem,
+          'Extraia os dados desta nota fiscal:'
+        );
+      } else {
+        const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+        if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY não configurada e nenhum provedor padrão definido');
+        // Fallback para OpenAI Vision
+        content = await callVision(
           {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Extraia os dados desta nota fiscal:',
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: dataUrl,
-                  detail: 'high',
-                },
-              },
-            ],
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+            apiKey: OPENAI_API_KEY,
+            temperature: 0.2,
+            maxTokens: 1500,
           },
-        ],
-        max_tokens: 1500,
-        temperature: 0.2,
-      }),
-    });
-    
-    if (!visionResponse.ok) {
-      const error = await visionResponse.json();
-      throw new Error(`GPT-4 Vision error: ${error.error?.message || 'Unknown error'}`);
+          dataUrl,
+          baseSystemPrompt,
+          'Extraia os dados desta nota fiscal:'
+        );
+      }
+    } catch (e) {
+      // Fallback para OpenAI Vision caso provider do usuário não suporte
+      const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+      if (OPENAI_API_KEY) {
+        const fallback = await callVision(
+          {
+            provider: 'openai',
+            model: 'gpt-4o-mini',
+            apiKey: OPENAI_API_KEY,
+            temperature: 0.2,
+            maxTokens: 1500,
+          },
+          dataUrl,
+          baseSystemPrompt,
+          'Extraia os dados desta nota fiscal:'
+        );
+        content = fallback;
+      } else {
+        throw new Error(`Falha na análise de imagem: ${e.message || e}`);
+      }
     }
-    
-    const result = await visionResponse.json();
-    const content = result.choices[0].message.content;
     
     console.log('📝 Resposta do GPT-4 Vision:', content);
     

@@ -83,18 +83,28 @@ serve(async (req) => {
       );
     }
 
-    // Preparar dados para upsert
+    // Buscar configuração existente (mais recente) para preservar campos não enviados
+    const { data: existing } = await supabaseClient
+      .from("ai_provider_configs")
+      .select("id, is_default, is_active, api_key_encrypted, is_validated, validation_error, temperature, max_tokens, response_style, response_tone, system_prompt")
+      .eq("user_id", userId)
+      .eq("provider", body.provider)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    // Preparar dados para upsert preservando valores existentes
     const configData: any = {
       user_id: userId,
       provider: body.provider,
       model_name: body.model_name,
-      temperature: body.temperature ?? 0.7,
-      max_tokens: body.max_tokens ?? 1000,
-      response_style: body.response_style ?? "medium",
-      response_tone: body.response_tone ?? "friendly",
-      system_prompt: body.system_prompt,
-      is_default: body.is_default ?? false,
-      is_active: body.is_active ?? true,
+      temperature: body.temperature ?? existing?.temperature ?? 0.7,
+      max_tokens: body.max_tokens ?? existing?.max_tokens ?? 1000,
+      response_style: body.response_style ?? existing?.response_style ?? "medium",
+      response_tone: body.response_tone ?? existing?.response_tone ?? "friendly",
+      system_prompt: body.system_prompt ?? existing?.system_prompt,
+      is_default: body.is_default ?? existing?.is_default ?? false,
+      is_active: body.is_active ?? existing?.is_active ?? true,
     };
 
     // Se API Key foi fornecida, processar
@@ -106,23 +116,61 @@ serve(async (req) => {
       // Por enquanto, armazenar diretamente (TEMPORÁRIO)
       configData.api_key_encrypted = body.api_key;
       
-      // Resetar validação quando API key mudar
-      configData.is_validated = false;
-      configData.validation_error = null;
+      // Verificar se a chave mudou comparando com a existente
+      // Só resetar validação se a chave realmente mudou
+      if (existing && existing.api_key_encrypted !== body.api_key) {
+        configData.is_validated = false;
+        configData.validation_error = null;
+      }
     }
 
-    // Upsert (insert ou update se já existir)
-    const { data: config, error: upsertError } = await supabaseClient
-      .from("ai_provider_configs")
-      .upsert(configData, {
-        onConflict: "user_id,provider",
+    // Persistência: update por id quando existir; insert caso contrário
+    if (existing?.id) {
+      const updates: any = {
+        model_name: body.model_name,
+        temperature: configData.temperature,
+        max_tokens: configData.max_tokens,
+        response_style: configData.response_style,
+        response_tone: configData.response_tone,
+        system_prompt: configData.system_prompt,
+      };
+      if (typeof body.is_active !== 'undefined') updates.is_active = configData.is_active;
+      if (typeof body.is_default !== 'undefined') updates.is_default = configData.is_default;
+      if (body.api_key) {
+        updates.api_key_encrypted = configData.api_key_encrypted;
+        updates.api_key_last_4 = configData.api_key_last_4;
+        if (configData.is_validated === false) {
+          updates.is_validated = false;
+          updates.validation_error = null;
+        }
+      }
+
+      const { data, error } = await supabaseClient
+        .from('ai_provider_configs')
+        .update(updates)
+        .eq('id', existing.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
+
+    const { data, error } = await supabaseClient
+      .from('ai_provider_configs')
+      .insert({
+        ...configData,
       })
       .select()
       .single();
 
-    if (upsertError) throw upsertError;
+    if (error) throw error;
 
-    return new Response(JSON.stringify(config), {
+    return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

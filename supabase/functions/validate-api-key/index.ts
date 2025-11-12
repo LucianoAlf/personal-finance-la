@@ -71,7 +71,7 @@ async function validateGemini(apiKey: string, model: string = "gemini-2.5-flash"
   return { valid: true, message: "API Key válida" } as const;
 }
 
-async function validateClaude(apiKey: string, model: string = "claude-haiku-4.5") {
+async function validateClaude(apiKey: string, model: string = "claude-haiku-4-5-20251001") {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -203,22 +203,55 @@ serve(async (req) => {
         throw new Error("Provedor não suportado");
     }
 
-    // Upsert: criar ou atualizar status de validação no banco conforme resultado
-    const { error: upsertError } = await supabaseClient
+    // Recupera configuração existente (se houver) para preservar ID e modelo
+    const { data: existingConfig } = await supabaseClient
       .from("ai_provider_configs")
-      .upsert({
-        user_id: userId,
-        provider: body.provider,
-        model_name: body.model_name || "default",
-        is_validated: result.valid,
-        last_validated_at: new Date().toISOString(),
-        validation_error: result.valid ? null : (result.error ?? null),
-        api_key_encrypted: body.api_key, // TODO: Criptografar em produção
-        api_key_last_4: body.api_key.slice(-4),
-      });
+      .select("id, model_name, api_key_encrypted")
+      .eq("user_id", userId)
+      .eq("provider", body.provider)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (upsertError) {
-      console.error("Upsert error:", upsertError);
+    const modelNameToPersist = body.model_name || existingConfig?.model_name || "default";
+
+    if (existingConfig?.id) {
+      // Update direto na linha mais recente
+      const { error: updateError } = await supabaseClient
+        .from("ai_provider_configs")
+        .update({
+          model_name: modelNameToPersist,
+          is_validated: result.valid,
+          last_validated_at: new Date().toISOString(),
+          validation_error: result.valid ? null : (result.error ?? null),
+          api_key_encrypted: body.api_key,
+          api_key_last_4: body.api_key.slice(-4),
+        })
+        .eq("id", existingConfig.id);
+
+      if (updateError) {
+        console.error("Update error:", updateError);
+      }
+    } else {
+      // Insert quando não há config ainda
+      const { error: insertError } = await supabaseClient
+        .from("ai_provider_configs")
+        .insert({
+          user_id: userId,
+          provider: body.provider,
+          model_name: modelNameToPersist,
+          is_validated: result.valid,
+          last_validated_at: new Date().toISOString(),
+          validation_error: result.valid ? null : (result.error ?? null),
+          api_key_encrypted: body.api_key,
+          api_key_last_4: body.api_key.slice(-4),
+          is_active: true,
+          is_default: false,
+        });
+
+      if (insertError) {
+        console.error("Insert error:", insertError);
+      }
     }
 
     return new Response(JSON.stringify(result), {

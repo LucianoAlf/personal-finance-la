@@ -146,8 +146,8 @@ export const AI_MODELS: Record<AIProviderType, AIModel[]> = {
     { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Mais avançado e poderoso', contextWindow: 2000000, costPer1kTokens: 0.00125, isFree: false },
   ],
   claude: [
-    { id: 'claude-sonnet-3.7', name: 'Claude Sonnet 3.7', description: 'Balanceado e inteligente', contextWindow: 200000, costPer1kTokens: 0.003, isFree: false },
-    { id: 'claude-haiku-4.5', name: 'Claude Haiku 4.5', description: 'Rápido e preciso', contextWindow: 200000, costPer1kTokens: 0.00025, isFree: false },
+    { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', description: 'Mais rápido para respostas rápidas', contextWindow: 200000, costPer1kTokens: 0.0008, isFree: false },
+    { id: 'claude-sonnet-4-5-20250929', name: 'Sonnet 4.5', description: 'Mais inteligente para tarefas do dia a dia', contextWindow: 200000, costPer1kTokens: 0.003, isFree: false },
   ],
   openrouter: [
     { id: 'glm-4.6', name: 'GLM 4.6', description: 'Modelo chinês avançado', contextWindow: 128000, costPer1kTokens: 0.0001, isFree: false },

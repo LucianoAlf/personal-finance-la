@@ -1,6 +1,7 @@
 // FASE 1: Ana Clara com GPT-4 Real - Investment Insights (COM CACHE 24H)
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { getDefaultAIConfig, callChat } from './_shared/ai.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -103,11 +104,6 @@ serve(async (req) => {
     }
 
     // 🚀 GERAR NOVOS INSIGHTS (cache miss ou expirado)
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-
-    if (!OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY não configurada no Supabase');
-    }
 
     // Validar dados do portfólio
     if (!portfolio || typeof portfolio.totalInvested !== 'number') {
@@ -231,39 +227,63 @@ Critérios para healthScore:
 
 Seja específica e use os dados reais fornecidos. Não use placeholders genéricos.`;
 
-    console.log('[ana-insights] Chamando OpenAI API...');
+    // Buscar configuração do provedor do usuário
+    const aiConfig = await getDefaultAIConfig(supabase, userId);
+    let insightsText: string | undefined;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-mini', // ✅ Modelo mais rápido e econômico
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.7,
-        max_tokens: 2000,
-        response_format: { type: 'json_object' },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('[ana-insights] OpenAI API error:', response.status, errorText);
-      throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+    if (aiConfig) {
+      console.log('[ana-insights] 🔧 Usando provider do usuário:', aiConfig.provider, aiConfig.model);
+      const combinedSystem = (aiConfig.systemPrompt ? aiConfig.systemPrompt + '\n\n' : '') + systemPrompt;
+      const messages = [
+        { role: 'system', content: combinedSystem },
+        { role: 'user', content: userPrompt },
+      ] as any;
+      insightsText = await callChat(
+        {
+          provider: aiConfig.provider,
+          model: aiConfig.model,
+          apiKey: aiConfig.apiKey,
+          temperature: Math.min(1.5, Math.max(0, aiConfig.temperature || 0.7)),
+          maxTokens: Math.min(2500, aiConfig.maxTokens || 2000),
+          systemPrompt: aiConfig.systemPrompt,
+        },
+        messages,
+      );
+    } else {
+      const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+      if (!OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY não configurada e nenhum provedor de IA definido');
+      }
+      console.log('[ana-insights] ⚠️ Usando fallback OpenAI');
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4.1-mini',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+        }),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[ana-insights] OpenAI API error:', response.status, errorText);
+        throw new Error(`OpenAI API error: ${response.status} - ${errorText}`);
+      }
+      const data = await response.json();
+      insightsText = data.choices?.[0]?.message?.content;
     }
 
-    const data = await response.json();
-    
-    if (!data.choices || !data.choices[0]?.message?.content) {
-      throw new Error('Resposta inválida da OpenAI API');
+    if (!insightsText) {
+      throw new Error('Resposta vazia do provedor de IA');
     }
 
-    const insightsText = data.choices[0].message.content;
     console.log('[ana-insights] Resposta recebida:', insightsText.substring(0, 200));
 
     let insights: GPTInsightsResponse;
@@ -290,9 +310,9 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
 
     console.log('[ana-insights] Insights gerados com sucesso. Score:', insights.healthScore);
 
-    // 💾 SALVAR NO CACHE (24 horas)
+    // 💾 SALVAR NO CACHE (8 horas)
     const now = new Date();
-    const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // +24h
+    const expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000); // +8h
 
     const { error: upsertError } = await supabase
       .from('ana_insights_cache')
@@ -311,7 +331,7 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
       console.error('[ana-insights] Erro ao salvar cache:', upsertError);
       // Não falhar a requisição por erro de cache
     } else {
-      console.log('[ana-insights] ✅ Cache salvo (expira em 24h)');
+      console.log('[ana-insights] ✅ Cache salvo (expira em 8h)');
     }
 
     return new Response(JSON.stringify(insights), {
