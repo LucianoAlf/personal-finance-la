@@ -1,0 +1,380 @@
+{
+  "name": "📱 WhatsApp - Receber Mensagem (v1 Simples)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-receive",
+        "options": {}
+      },
+      "id": "webhook-1",
+      "name": "Webhook UAZAPI",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "personal-finance-whatsapp"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrair dados do webhook UAZAPI\nconst webhookData = $input.item.json;\n\n// Estrutura do UAZAPI:\n// {\n//   \"event\": \"message.received\",\n//   \"data\": {\n//     \"key\": { \"remoteJid\": \"5521999999999@s.whatsapp.net\" },\n//     \"message\": { \"conversation\": \"texto da mensagem\" },\n//     \"messageTimestamp\": 1699999999\n//   }\n// }\n\n// Extrair telefone (remover @s.whatsapp.net)\nconst phoneRaw = webhookData.data?.key?.remoteJid || '';\nconst phone = phoneRaw.replace('@s.whatsapp.net', '');\n\n// Extrair mensagem\nconst message = webhookData.data?.message?.conversation || '';\n\n// Timestamp\nconst timestamp = webhookData.data?.messageTimestamp || Date.now();\n\n// Retornar dados limpos\nreturn {\n  phone: phone,\n  message: message,\n  timestamp: timestamp,\n  event: webhookData.event,\n  raw: webhookData\n};"
+      },
+      "id": "code-parse",
+      "name": "Parse Webhook Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.phone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "condition-2",
+              "leftValue": "={{ $json.message }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-valid",
+      "name": "Dados Válidos?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, full_name, email, phone \nFROM users \nWHERE phone = '{{ $json.phone }}' \nLIMIT 1;",
+        "options": {}
+      },
+      "id": "postgres-get-user",
+      "name": "Buscar Usuário",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [900, 200],
+      "credentials": {
+        "postgres": {
+          "id": "SUBSTITUA_PELO_ID",
+          "name": "Supabase Personal Finance"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-user",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-user-exists",
+      "name": "Usuário Existe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO whatsapp_messages (\n  user_id,\n  phone_number,\n  message_type,\n  direction,\n  content,\n  processing_status,\n  created_at\n) VALUES (\n  '{{ $json.id }}',\n  '{{ $('Parse Webhook Data').item.json.phone }}',\n  'text',\n  'inbound',\n  '{{ $('Parse Webhook Data').item.json.message }}',\n  'pending',\n  NOW()\n)\nRETURNING id;",
+        "options": {}
+      },
+      "id": "postgres-insert-msg",
+      "name": "Salvar Mensagem",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1340, 100],
+      "credentials": {
+        "postgres": {
+          "id": "SUBSTITUA_PELO_ID",
+          "name": "Supabase Personal Finance"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dados do usuário\nconst user = $('Buscar Usuário').item.json;\nconst message = $('Parse Webhook Data').item.json.message;\n\n// Montar resposta\nconst response = `Olá ${user.full_name}! 👋\n\nRecebi sua mensagem:\n\"${message}\"\n\n✅ Mensagem salva com sucesso!\n\nEm breve a Ana Clara vai processar e responder.\n\n💡 Digite \"ajuda\" para ver os comandos disponíveis.`;\n\nreturn {\n  phone: $('Parse Webhook Data').item.json.phone,\n  message: response\n};"
+      },
+      "id": "code-response",
+      "name": "Montar Resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 100]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.uazapi.com/v1/instance/{{ $env.UAZAPI_INSTANCE_ID }}/messages/text",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "headerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $json.phone }}@s.whatsapp.net\",\n  \"text\": {{ JSON.stringify($json.message) }}\n}",
+        "options": {}
+      },
+      "id": "http-send-whatsapp",
+      "name": "Enviar WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1780, 100],
+      "credentials": {
+        "headerAuth": {
+          "id": "SUBSTITUA_PELO_ID",
+          "name": "UAZAPI WhatsApp"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Mensagem recebida e processada\",\n  \"user_id\": \"{{ $('Buscar Usuário').item.json.id }}\",\n  \"message_id\": \"{{ $('Salvar Mensagem').item.json.id }}\"\n}",
+        "options": {}
+      },
+      "id": "respond-webhook",
+      "name": "Responder Webhook OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2000, 100]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Usuário não cadastrado\nconst phone = $('Parse Webhook Data').item.json.phone;\n\nconst errorMsg = `Olá! 👋\n\nVocê ainda não está cadastrado no Personal Finance LA.\n\n📱 Número: ${phone}\n\n✨ Acesse nosso app e faça seu cadastro:\nhttps://app.personalfinancela.com\n\nAté breve! 🚀`;\n\nreturn {\n  phone: phone,\n  message: errorMsg\n};"
+      },
+      "id": "code-error-user",
+      "name": "Usuário Não Cadastrado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.uazapi.com/v1/instance/{{ $env.UAZAPI_INSTANCE_ID }}/messages/text",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "headerAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"to\": \"{{ $json.phone }}@s.whatsapp.net\",\n  \"text\": {{ JSON.stringify($json.message) }}\n}",
+        "options": {}
+      },
+      "id": "http-send-error",
+      "name": "Enviar Erro WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300],
+      "credentials": {
+        "headerAuth": {
+          "id": "SUBSTITUA_PELO_ID",
+          "name": "UAZAPI WhatsApp"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"error\": \"Usuário não cadastrado\",\n  \"phone\": \"{{ $('Parse Webhook Data').item.json.phone }}\"\n}",
+        "options": {}
+      },
+      "id": "respond-error",
+      "name": "Responder Webhook Erro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": false,\n  \"error\": \"Dados inválidos\",\n  \"received\": {{ JSON.stringify($('Parse Webhook Data').item.json) }}\n}",
+        "options": {}
+      },
+      "id": "respond-invalid",
+      "name": "Responder Dados Inválidos",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [900, 400]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook UAZAPI": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Webhook Data": {
+      "main": [
+        [
+          {
+            "node": "Dados Válidos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dados Válidos?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Usuário",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder Dados Inválidos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Usuário": {
+      "main": [
+        [
+          {
+            "node": "Usuário Existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Usuário Existe?": {
+      "main": [
+        [
+          {
+            "node": "Salvar Mensagem",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Usuário Não Cadastrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Montar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar Resposta": {
+      "main": [
+        [
+          {
+            "node": "Enviar WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Responder Webhook OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Usuário Não Cadastrado": {
+      "main": [
+        [
+          {
+            "node": "Enviar Erro WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Erro WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Responder Webhook Erro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "instanceId": "personal-finance-la"
+  },
+  "id": "workflow-whatsapp-v1",
+  "tags": [
+    {
+      "name": "whatsapp",
+      "id": "tag-whatsapp"
+    },
+    {
+      "name": "production",
+      "id": "tag-prod"
+    }
+  ]
+}

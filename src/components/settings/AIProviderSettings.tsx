@@ -12,7 +12,7 @@ import type { AIProviderType } from '@/types/settings.types';
 import { LABELS } from '@/types/settings.types';
 
 export function AIProviderSettings() {
-  const { providers, defaultProvider, validatedProviders, loading, updateProvider, setDefaultProvider, validateApiKey } = useAIProviders();
+  const { providers, defaultProvider, validatedProviders, loading, updateProvider, setDefaultProvider, validateApiKey, refresh } = useAIProviders();
   const [selectedProvider, setSelectedProvider] = useState<AIProviderType | null>(null);
 
   const providersList: AIProviderType[] = ['openai', 'gemini', 'claude', 'openrouter'];
@@ -148,7 +148,13 @@ export function AIProviderSettings() {
         <CreateAIProviderDialog
           provider={selectedProvider}
           open={!!selectedProvider}
-          onOpenChange={(open) => !open && setSelectedProvider(null)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedProvider(null);
+              // Forçar refresh para atualizar UI imediatamente
+              refresh();
+            }
+          }}
           existingConfig={getProviderConfig(selectedProvider)}
         />
       )}

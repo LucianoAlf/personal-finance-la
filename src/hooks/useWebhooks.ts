@@ -46,7 +46,13 @@ export function useWebhooks() {
 
       const { data, error } = await supabase
         .from('webhook_endpoints')
-        .select('*')
+        .select(`
+          *,
+          method:http_method,
+          success_count:success_calls,
+          failure_count:failed_calls,
+          auth_type:auth_type
+        `)
         .eq('user_id', userId)
         .order('created_at', { ascending: false });
 

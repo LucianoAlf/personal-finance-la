@@ -249,7 +249,7 @@ async function getMeta(supabase: any, userId: string, goalName: string) {
   if (!goalName) {
     // Listar todas as metas
     const { data: goals, error } = await supabase
-      .from('goals')
+      .from('savings_goals') // savings_goals é a tabela oficial de metas
       .select('name, target_amount, current_amount')
       .eq('user_id', userId)
       .eq('status', 'active')
@@ -285,7 +285,7 @@ async function getMeta(supabase: any, userId: string, goalName: string) {
   
   // Buscar meta específica
   const { data: goal, error } = await supabase
-    .from('goals')
+    .from('savings_goals')
     .select('*')
     .eq('user_id', userId)
     .ilike('name', `%${goalName}%`)
@@ -351,42 +351,99 @@ async function getInvestimentos(supabase: any, userId: string) {
  * Status de faturas de cartão
  */
 async function getCartoes(supabase: any, userId: string) {
-  const { data: bills, error } = await supabase
-    .from('payable_bills')
-    .select('description, amount, due_date, status')
+  const { data: cards, error } = await supabase
+    .from('credit_cards')
+    .select('id, name, brand, last_four_digits, credit_limit, available_limit, closing_day, due_day, is_active, is_archived')
     .eq('user_id', userId)
-    .eq('bill_type', 'credit_card')
-    .in('status', ['pending', 'overdue'])
-    .order('due_date', { ascending: true });
+    .eq('is_archived', false)
+    .order('name', { ascending: true });
   
   if (error) throw error;
   
-  if (bills.length === 0) {
+  const activeCards = (cards || []).filter((card: any) => card.is_active !== false);
+  
+  if (activeCards.length === 0) {
     return {
       success: true,
-      message: '💳 *Cartões de Crédito*\n\nVocê não tem faturas abertas no momento.',
-      data: { bills: [] },
+      message: '💳 *Cartões de Crédito*\n\nVocê ainda não tem cartões ativos cadastrados.',
+      data: { cards: [] },
     };
   }
   
-  const total = bills.reduce((sum: number, b: any) => sum + b.amount, 0);
+  const { data: invoices, error: invoiceError } = await supabase
+    .from('credit_card_invoices')
+    .select('credit_card_id, status, due_date, reference_month, total_amount, remaining_amount')
+    .eq('user_id', userId)
+    .order('due_date', { ascending: true });
   
-  let message = `💳 *Faturas de Cartão (${bills.length})*\n\n`;
+  if (invoiceError) throw invoiceError;
   
-  bills.forEach((bill: any) => {
-    const dueDate = new Date(bill.due_date);
-    const statusEmoji = bill.status === 'overdue' ? '🔴' : '🟡';
-    
-    message += `${statusEmoji} ${bill.description}\n`;
-    message += `   R$ ${formatCurrency(bill.amount)} - Vence ${formatDate(dueDate)}\n\n`;
+  const invoicesByCard = new Map<string, any[]>();
+  (invoices || []).forEach((invoice: any) => {
+    if (!invoicesByCard.has(invoice.credit_card_id)) {
+      invoicesByCard.set(invoice.credit_card_id, []);
+    }
+    invoicesByCard.get(invoice.credit_card_id)!.push(invoice);
   });
   
-  message += `💰 Total: R$ ${formatCurrency(total)}`;
+  const pickInvoice = (list: any[] = []) => {
+    const openOrPartial = list.find((inv) => inv.status === 'open' || inv.status === 'partial');
+    if (openOrPartial) return openOrPartial;
+    return list[0] || null;
+  };
+  
+  let message = `💳 *Cartões de Crédito (${activeCards.length})*\n\n`;
+  let totalOpen = 0;
+  
+  activeCards.forEach((card: any) => {
+    const invoice = pickInvoice(invoicesByCard.get(card.id));
+    const limiter = typeof card.credit_limit === 'number' ? card.credit_limit : 0;
+    const available = typeof card.available_limit === 'number' ? card.available_limit : 0;
+    const used = Math.max(limiter - available, 0);
+    
+    let invoiceLine = '   ✅ Nenhuma fatura aberta';
+    if (invoice) {
+      const dueDate = invoice.due_date ? formatDate(new Date(invoice.due_date)) : null;
+      const amountBase = invoice.status === 'open' || invoice.status === 'partial'
+        ? (invoice.remaining_amount ?? invoice.total_amount ?? 0)
+        : (invoice.total_amount ?? 0);
+      
+      if (invoice.status === 'open' || invoice.status === 'partial') {
+        totalOpen += amountBase;
+      }
+      
+      const statusEmoji = invoice.status === 'partial'
+        ? '🟡'
+        : invoice.status === 'open'
+          ? '🟠'
+          : '🟢';
+      const statusLabel = invoice.status === 'partial'
+        ? 'Pagamento parcial'
+        : invoice.status === 'open'
+          ? 'Fatura aberta'
+          : 'Última fatura';
+      
+      invoiceLine = `${statusEmoji} ${statusLabel}${dueDate ? ` · vence ${dueDate}` : ''}\n` +
+        `   Valor: R$ ${formatCurrency(amountBase)}`;
+    }
+    
+    message += `💠 ${card.name} • final ${card.last_four_digits || '----'}\n`;
+    message += `   Limite R$ ${formatCurrency(limiter)} · Usado R$ ${formatCurrency(used)}\n`;
+    message += `${invoiceLine}\n\n`;
+  });
+  
+  if (totalOpen > 0) {
+    message += `🔔 Total em aberto: R$ ${formatCurrency(totalOpen)}`;
+  }
   
   return {
     success: true,
     message,
-    data: { bills, total, count: bills.length },
+    data: {
+      cards: activeCards,
+      invoices,
+      total_open_amount: totalOpen,
+    },
   };
 }
 

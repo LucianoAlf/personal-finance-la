@@ -21,12 +21,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Webhook, Plus, MoreVertical, Edit, Trash2, TestTube, Eye, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useWebhooks } from '@/hooks/useWebhooks';
+import { WebhookFormDialog } from './WebhookFormDialog';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import type { WebhookEndpoint } from '@/types/settings.types';
 
 export function WebhooksSettings() {
-  const { webhooks, loading, testWebhook, deleteWebhook } = useWebhooks();
+  const { webhooks, logs, loading, testWebhook, deleteWebhook, createWebhook, updateWebhook, fetchLogs } = useWebhooks();
   const [selectedWebhook, setSelectedWebhook] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingWebhook, setEditingWebhook] = useState<WebhookEndpoint | null>(null);
 
   const handleTest = async (webhookId: string) => {
     await testWebhook(webhookId, { test: true, timestamp: new Date().toISOString() });
@@ -36,6 +40,26 @@ export function WebhooksSettings() {
     if (confirm('Tem certeza que deseja deletar este webhook?')) {
       await deleteWebhook(webhookId);
     }
+  };
+
+  const handleOpenDialog = (webhook?: WebhookEndpoint) => {
+    setEditingWebhook(webhook || null);
+    setDialogOpen(true);
+  };
+
+  const handleSaveWebhook = async (data: any) => {
+    if (editingWebhook) {
+      await updateWebhook(editingWebhook.id, data);
+    } else {
+      await createWebhook(data);
+    }
+    setDialogOpen(false);
+    setEditingWebhook(null);
+  };
+
+  const handleViewLogs = async (webhookId: string) => {
+    setSelectedWebhook(webhookId);
+    await fetchLogs(webhookId, 20);
   };
 
   if (loading) {
@@ -64,7 +88,7 @@ export function WebhooksSettings() {
                 Configure webhooks para integrar com N8N e automatizar fluxos
               </CardDescription>
             </div>
-            <Button>
+            <Button onClick={() => handleOpenDialog()}>
               <Plus className="h-4 w-4 mr-2" />
               Adicionar Webhook
             </Button>
@@ -118,7 +142,7 @@ export function WebhooksSettings() {
               <p className="text-sm text-muted-foreground mb-4">
                 Nenhum webhook configurado ainda
               </p>
-              <Button>
+              <Button onClick={() => handleOpenDialog()}>
                 <Plus className="h-4 w-4 mr-2" />
                 Criar Primeiro Webhook
               </Button>
@@ -212,11 +236,11 @@ export function WebhooksSettings() {
                               <TestTube className="h-4 w-4 mr-2" />
                               Testar
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setSelectedWebhook(webhook.id)}>
+                            <DropdownMenuItem onClick={() => handleViewLogs(webhook.id)}>
                               <Eye className="h-4 w-4 mr-2" />
                               Ver Logs
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenDialog(webhook)}>
                               <Edit className="h-4 w-4 mr-2" />
                               Editar
                             </DropdownMenuItem>
@@ -268,38 +292,19 @@ export function WebhooksSettings() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {/* Dados mockados - substituir por logs reais */}
-                  {[
-                    {
-                      id: '1',
-                      timestamp: new Date(),
-                      status: 'success',
-                      statusCode: 200,
-                      responseTime: 245,
-                      retryCount: 0,
-                    },
-                    {
-                      id: '2',
-                      timestamp: new Date(Date.now() - 3600000),
-                      status: 'success',
-                      statusCode: 200,
-                      responseTime: 312,
-                      retryCount: 0,
-                    },
-                    {
-                      id: '3',
-                      timestamp: new Date(Date.now() - 7200000),
-                      status: 'error',
-                      statusCode: 500,
-                      responseTime: 1024,
-                      retryCount: 2,
-                    },
-                  ].map((log) => (
+                  {logs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        Nenhum log encontrado
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    logs.map((log) => (
                     <TableRow key={log.id}>
                       <TableCell className="text-sm">
                         <div className="flex items-center gap-2">
                           <Clock className="h-3 w-3 text-muted-foreground" />
-                          {formatDistanceToNow(log.timestamp, {
+                          {formatDistanceToNow(new Date(log.triggered_at), {
                             addSuffix: true,
                             locale: ptBR,
                           })}
@@ -316,17 +321,18 @@ export function WebhooksSettings() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-mono">
-                          {log.statusCode}
+                          {log.status_code}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {log.responseTime}ms
+                        {log.response_time_ms}ms
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {log.retryCount > 0 ? `${log.retryCount}x` : '-'}
+                        {log.retry_count > 0 ? `${log.retry_count}x` : '-'}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )))
+                  }
                 </TableBody>
               </Table>
             </div>
@@ -358,6 +364,14 @@ export function WebhooksSettings() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Dialog de Criação/Edição */}
+      <WebhookFormDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        webhook={editingWebhook}
+        onSave={handleSaveWebhook}
+      />
     </div>
   );
 }

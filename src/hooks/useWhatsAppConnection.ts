@@ -60,7 +60,7 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
       setError(null);
 
       const { data, error: fetchError } = await supabase
-        .from('whatsapp_connection_status')
+        .from('whatsapp_connections')
         .select('*')
         .eq('user_id', userId)
         .single();
@@ -86,10 +86,11 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
       } else {
         // Criar registro inicial se não existir
         const { data: newConnection, error: createError } = await supabase
-          .from('whatsapp_connection_status')
+          .from('whatsapp_connections')
           .insert({
             user_id: userId,
-            is_connected: false,
+            connected: false,
+            status: 'disconnected',
           })
           .select()
           .single();
@@ -113,23 +114,26 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
       setIsLoading(true);
       setError(null);
 
-      // TODO: Chamar Edge Function ou N8N para gerar QR Code UAZAPI
-      // Por ora, simular QR Code
-      const mockQrCode = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
-      const expiryDate = new Date(Date.now() + 2 * 60 * 1000); // 2 minutos
+      // ✅ Chamar Edge Function para gerar QR Code real via UAZAPI
+      console.log('[useWhatsAppConnection] Chamando generate-qr-code...');
+      
+      const { data, error: functionError } = await supabase.functions.invoke('generate-qr-code', {
+        body: { user_id: userId },
+      });
 
-      const { error: updateError } = await supabase
-        .from('whatsapp_connection_status')
-        .update({
-          qr_code: mockQrCode,
-          qr_code_expires_at: expiryDate.toISOString(),
-        })
-        .eq('user_id', userId);
+      if (functionError) {
+        console.error('[useWhatsAppConnection] Erro na Edge Function:', functionError);
+        throw functionError;
+      }
 
-      if (updateError) throw updateError;
+      if (!data?.success || !data?.qrCode) {
+        throw new Error(data?.error || 'Falha ao gerar QR Code');
+      }
 
-      setQrCode(mockQrCode);
-      setQrCodeExpiry(expiryDate);
+      console.log('[useWhatsAppConnection] ✅ QR Code gerado com sucesso');
+
+      setQrCode(data.qrCode);
+      setQrCodeExpiry(new Date(data.expiresAt));
       
       await fetchConnection();
     } catch (err) {
@@ -149,12 +153,12 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
       setError(null);
 
       const { error: updateError } = await supabase
-        .from('whatsapp_connection_status')
+        .from('whatsapp_connections')
         .update({
-          is_connected: false,
+          connected: false,
+          status: 'disconnected',
           phone_number: null,
-          session_id: null,
-          disconnected_at: new Date().toISOString(),
+          last_disconnect: new Date().toISOString(),
         })
         .eq('user_id', userId);
 
@@ -197,7 +201,7 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
         {
           event: '*',
           schema: 'public',
-          table: 'whatsapp_connection_status',
+          table: 'whatsapp_connections',
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
@@ -229,7 +233,7 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
 
   return {
     connection,
-    isConnected: connection?.is_connected || false,
+    isConnected: connection?.connected || false,
     isLoading,
     error,
     qrCode,

@@ -17,6 +17,7 @@ import type {
   MessageDirection,
   IntentType,
   ProcessingStatus,
+  WhatsAppMessageType,
 } from '@/types/whatsapp.types';
 
 interface MessageFilters {
@@ -125,48 +126,61 @@ export function useWhatsAppMessages(
     if (!userId) return;
 
     try {
-      const { data, error: statsError } = await supabase
-        .from('whatsapp_connection_status')
-        .select('total_messages_sent, total_messages_received, last_message_at')
-        .eq('user_id', userId)
-        .single();
+      // Buscar estatísticas detalhadas das mensagens
+      const { data: messagesData } = await supabase
+        .from('whatsapp_messages')
+        .select('processing_status, intent, direction, message_type, created_at')
+        .eq('user_id', userId);
 
-      if (statsError && statsError.code !== 'PGRST116') throw statsError;
+      const totalMessages = messagesData?.length || 0;
+      const totalSent = messagesData?.filter((m) => m.direction === 'outbound').length || 0;
+      const totalReceived = messagesData?.filter((m) => m.direction === 'inbound').length || 0;
+      const successCount = messagesData?.filter((m) => m.processing_status === 'completed').length || 0;
+      const failedCount = messagesData?.filter((m) => m.processing_status === 'failed').length || 0;
+      const pendingCount = messagesData?.filter((m) => m.processing_status === 'pending').length || 0;
 
-      if (data) {
-        // Buscar estatísticas detalhadas
-        const { data: messagesData } = await supabase
-          .from('whatsapp_messages')
-          .select('processing_status, intent')
-          .eq('user_id', userId);
+      const intentCounts = messagesData?.reduce((acc, m) => {
+        if (m.intent) {
+          acc[m.intent] = (acc[m.intent] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<string, number>) || {};
 
-        const totalMessages = messagesData?.length || 0;
-        const successCount = messagesData?.filter((m) => m.processing_status === 'completed').length || 0;
-        const failedCount = messagesData?.filter((m) => m.processing_status === 'failed').length || 0;
-        const pendingCount = messagesData?.filter((m) => m.processing_status === 'pending').length || 0;
+      const mostUsedCommand = Object.entries(intentCounts)
+        .filter(([intent]) => intent === 'quick_command')
+        .sort(([, a], [, b]) => b - a)[0]?.[0] || null;
 
-        const intentCounts = messagesData?.reduce((acc, m) => {
-          if (m.intent) {
-            acc[m.intent] = (acc[m.intent] || 0) + 1;
-          }
-          return acc;
-        }, {} as Record<string, number>) || {};
+      const lastMessage = messagesData?.[0];
+      const lastMessageAt = lastMessage?.created_at ? new Date(lastMessage.created_at) : null;
 
-        const mostUsedCommand = Object.entries(intentCounts)
-          .filter(([intent]) => intent === 'quick_command')
-          .sort(([, a], [, b]) => b - a)[0]?.[0] || null;
+      // Agrupar por tipo e intent para estatísticas
+      const messagesByType = messagesData?.reduce((acc, m) => {
+        acc[m.message_type] = (acc[m.message_type] || 0) + 1;
+        return acc;
+      }, {} as Record<WhatsAppMessageType, number>) || {};
 
-        setStats({
-          totalMessages,
-          totalSent: data.total_messages_sent || 0,
-          totalReceived: data.total_messages_received || 0,
-          successRate: totalMessages > 0 ? (successCount / totalMessages) * 100 : 0,
-          failedCount,
-          pendingCount,
-          mostUsedCommand,
-          lastMessageAt: data.last_message_at ? new Date(data.last_message_at) : null,
-        });
-      }
+      const messagesByIntent = messagesData?.reduce((acc, m) => {
+        if (m.intent) {
+          acc[m.intent] = (acc[m.intent] || 0) + 1;
+        }
+        return acc;
+      }, {} as Record<IntentType, number>) || {};
+
+      const commandCounts = Object.entries(intentCounts)
+        .filter(([intent]) => intent === 'quick_command')
+        .map(([command, count]) => ({ command, count }))
+        .sort((a, b) => b.count - a.count);
+
+      setStats({
+        total_messages: totalMessages,
+        messages_sent: totalSent,
+        messages_received: totalReceived,
+        avg_response_time_seconds: 0, // TODO: calcular tempo médio de resposta
+        success_rate: totalMessages > 0 ? (successCount / totalMessages) * 100 : 0,
+        most_used_commands: commandCounts,
+        messages_by_type: messagesByType,
+        messages_by_intent: messagesByIntent,
+      });
     } catch (err) {
       console.error('Erro ao buscar estatísticas:', err);
     }

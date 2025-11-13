@@ -108,17 +108,33 @@ export interface WhatsAppConversationContext {
 export interface WhatsAppConnectionStatus {
   id: string;
   user_id: string;
-  is_connected: boolean;
-  phone_number?: string;
+  
+  // Dados da instância UAZAPI
+  instance_id: string;
+  instance_token: string;
+  instance_name?: string;
+  
+  // Status da conexão
+  status: string; // 'disconnected' | 'connecting' | 'connected'
+  connected: boolean;
+  logged_in: boolean;
+  jid?: string;
+  
+  // QR Code para conexão
   qr_code?: string;
   qr_code_expires_at?: string;
-  total_messages_sent: number;
-  total_messages_received: number;
-  last_message_at?: string;
-  session_id?: string;
-  instance_id?: string;
-  connected_at?: string;
-  disconnected_at?: string;
+  
+  // Informações do perfil
+  phone_number?: string;
+  profile_name?: string;
+  profile_pic_url?: string;
+  is_business: boolean;
+  
+  // Desconexão
+  last_disconnect?: string;
+  last_disconnect_reason?: string;
+  
+  // Timestamps
   created_at: string;
   updated_at: string;
 }

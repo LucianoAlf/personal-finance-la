@@ -150,9 +150,8 @@ export const AI_MODELS: Record<AIProviderType, AIModel[]> = {
     { id: 'claude-sonnet-4-5-20250929', name: 'Sonnet 4.5', description: 'Mais inteligente para tarefas do dia a dia', contextWindow: 200000, costPer1kTokens: 0.003, isFree: false },
   ],
   openrouter: [
-    { id: 'glm-4.6', name: 'GLM 4.6', description: 'Modelo chinês avançado', contextWindow: 128000, costPer1kTokens: 0.0001, isFree: false },
-    { id: 'kimi-k2', name: 'Kimi K2', description: 'Contexto ultra longo', contextWindow: 200000, costPer1kTokens: 0.0002, isFree: false },
-    { id: 'qwen3-max', name: 'Qwen3-Max', description: 'Multilíngue e eficiente', contextWindow: 32000, costPer1kTokens: 0.00015, isFree: false },
+    { id: 'z-ai/glm-4.6', name: 'GLM 4.6', description: 'MoE 355B params, 93.9% AIME, 82.8% LiveCodeBench', contextWindow: 202800, costPer1kTokens: 0.0004, isFree: false },
+    { id: 'moonshot/kimi-k2', name: 'Kimi K2', description: 'MoE 1.04T params, 256K context, 90.6% tool-calling', contextWindow: 256000, costPer1kTokens: 0.0006, isFree: false },
   ],
 };
 
@@ -328,6 +327,7 @@ export interface NotificationPreferences {
   do_not_disturb_enabled: boolean;
   do_not_disturb_start_time: string | null;
   do_not_disturb_end_time: string | null;
+  do_not_disturb_days_of_week: number[]; // ✨ NOVO
   
   // Horários permitidos (geral)
   allowed_hours_start: string;
@@ -336,27 +336,53 @@ export interface NotificationPreferences {
   // Resumos Automáticos
   daily_summary_enabled: boolean;
   daily_summary_time: string;
+  daily_summary_days_of_week: number[]; // ✨ NOVO
   
   weekly_summary_enabled: boolean;
-  weekly_summary_day_of_week: number;
+  weekly_summary_day_of_week: number; // Manter compatibilidade
+  weekly_summary_days_of_week: number[]; // ✨ NOVO
   weekly_summary_time: string;
   
   monthly_summary_enabled: boolean;
-  monthly_summary_day_of_month: number;
+  monthly_summary_day_of_month: number; // Manter compatibilidade
+  monthly_summary_days_of_month: number[]; // ✨ NOVO
   monthly_summary_time: string;
   
   // Alertas Específicos
   bill_reminders_enabled: boolean;
-  bill_reminders_days_before: number;
+  bill_reminders_days_before: number; // Manter compatibilidade
+  bill_reminders_days_before_array: number[]; // ✨ NOVO
+  bill_reminders_time: string; // ✨ NOVO
   
   budget_alerts_enabled: boolean;
-  budget_alert_threshold_percentage: number;
+  budget_alert_threshold_percentage: number; // Manter compatibilidade
+  budget_alert_thresholds: number[]; // ✨ NOVO
+  budget_alert_cooldown_hours: number; // ✨ NOVO
   
   goal_milestones_enabled: boolean;
+  goal_milestone_percentages: number[]; // ✨ NOVO
   achievements_enabled: boolean;
   
   ana_tips_enabled: boolean;
   ana_tips_frequency: SummaryFrequency;
+  ana_tips_time: string; // ✨ NOVO
+  ana_tips_day_of_week: number; // ✨ NOVO
+  ana_tips_day_of_month: number; // ✨ NOVO
+  
+  // Novos Alertas ✨
+  overdue_bill_alerts_enabled: boolean;
+  overdue_bill_alert_days: number[];
+  
+  low_balance_alerts_enabled: boolean;
+  low_balance_threshold: number;
+  
+  large_transaction_alerts_enabled: boolean;
+  large_transaction_threshold: number;
+  
+  investment_summary_enabled: boolean;
+  investment_summary_frequency: string;
+  investment_summary_day_of_week: number;
+  investment_summary_time: string;
   
   // Metadados
   created_at: string;
@@ -367,27 +393,63 @@ export interface UpdateNotificationPreferencesInput {
   push_enabled?: boolean;
   email_enabled?: boolean;
   whatsapp_enabled?: boolean;
+  
   do_not_disturb_enabled?: boolean;
   do_not_disturb_start_time?: string;
   do_not_disturb_end_time?: string;
+  do_not_disturb_days_of_week?: number[]; // ✨ NOVO
+  
   allowed_hours_start?: string;
   allowed_hours_end?: string;
+  
   daily_summary_enabled?: boolean;
   daily_summary_time?: string;
+  daily_summary_days_of_week?: number[]; // ✨ NOVO
+  
   weekly_summary_enabled?: boolean;
   weekly_summary_day_of_week?: number;
+  weekly_summary_days_of_week?: number[]; // ✨ NOVO
   weekly_summary_time?: string;
+  
   monthly_summary_enabled?: boolean;
   monthly_summary_day_of_month?: number;
+  monthly_summary_days_of_month?: number[]; // ✨ NOVO
   monthly_summary_time?: string;
+  
   bill_reminders_enabled?: boolean;
   bill_reminders_days_before?: number;
+  bill_reminders_days_before_array?: number[]; // ✨ NOVO
+  bill_reminders_time?: string; // ✨ NOVO
+  
   budget_alerts_enabled?: boolean;
   budget_alert_threshold_percentage?: number;
+  budget_alert_thresholds?: number[]; // ✨ NOVO
+  budget_alert_cooldown_hours?: number; // ✨ NOVO
+  
   goal_milestones_enabled?: boolean;
+  goal_milestone_percentages?: number[]; // ✨ NOVO
   achievements_enabled?: boolean;
+  
   ana_tips_enabled?: boolean;
   ana_tips_frequency?: SummaryFrequency;
+  ana_tips_time?: string; // ✨ NOVO
+  ana_tips_day_of_week?: number; // ✨ NOVO
+  ana_tips_day_of_month?: number; // ✨ NOVO
+  
+  // Novos Alertas ✨
+  overdue_bill_alerts_enabled?: boolean;
+  overdue_bill_alert_days?: number[];
+  
+  low_balance_alerts_enabled?: boolean;
+  low_balance_threshold?: number;
+  
+  large_transaction_alerts_enabled?: boolean;
+  large_transaction_threshold?: number;
+  
+  investment_summary_enabled?: boolean;
+  investment_summary_frequency?: string;
+  investment_summary_day_of_week?: number;
+  investment_summary_time?: string;
 }
 
 // ==================== SAVINGS GOALS ====================

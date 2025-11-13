@@ -38,37 +38,36 @@ export function WhatsAppStats() {
   const cards = [
     {
       title: 'Total de Mensagens',
-      value: stats.totalMessages.toString(),
-      description: `${stats.totalSent} enviadas, ${stats.totalReceived} recebidas`,
+      value: stats.total_messages.toString(),
+      description: `${stats.messages_sent} enviadas, ${stats.messages_received} recebidas`,
       icon: MessageCircle,
       iconColor: 'text-blue-600',
       iconBg: 'bg-blue-100 dark:bg-blue-900/20',
     },
     {
       title: 'Taxa de Sucesso',
-      value: `${stats.successRate.toFixed(1)}%`,
-      description: `${stats.failedCount} falhas, ${stats.pendingCount} pendentes`,
+      value: `${stats.success_rate.toFixed(1)}%`,
+      description: 'Mensagens processadas com sucesso',
       icon: CheckCircle2,
       iconColor: 'text-green-600',
       iconBg: 'bg-green-100 dark:bg-green-900/20',
     },
     {
-      title: 'Comando Mais Usado',
-      value: stats.mostUsedCommand || 'Nenhum',
-      description: 'Comando mais popular',
+      title: 'Comandos Mais Usados',
+      value: stats.most_used_commands?.[0]?.command || 'Nenhum',
+      description: stats.most_used_commands?.[0]?.count 
+        ? `${stats.most_used_commands[0].count} vezes`
+        : 'Comando mais popular',
       icon: Command,
       iconColor: 'text-purple-600',
       iconBg: 'bg-purple-100 dark:bg-purple-900/20',
     },
     {
-      title: 'Última Mensagem',
-      value: stats.lastMessageAt
-        ? formatDistanceToNow(stats.lastMessageAt, {
-            addSuffix: true,
-            locale: ptBR,
-          })
-        : 'Nunca',
-      description: 'Última atividade',
+      title: 'Tempo Médio de Resposta',
+      value: stats.avg_response_time_seconds > 0
+        ? `${stats.avg_response_time_seconds.toFixed(1)}s`
+        : 'N/A',
+      description: 'Tempo médio de processamento',
       icon: TrendingUp,
       iconColor: 'text-orange-600',
       iconBg: 'bg-orange-100 dark:bg-orange-900/20',
