@@ -1,0 +1,16 @@
+{
+  "model": "gpt-4o-mini",
+  "messages": [
+    {
+      "role": "system",
+      "content": "Extraia dados de transacao em JSON com os campos: type, amount, description, category"
+    },
+    {
+      "role": "user",
+      "content": "Gastei 50 reais no almoco hoje"
+    }
+  ],
+  "temperature": 0.3,
+  "max_tokens": 200,
+  "response_format": { "type": "json_object" }
+}
