@@ -87,8 +87,8 @@ serve(async (req)=>{
       throw txError;
     }
     console.log('✅ Transação criada:', transaction.id);
-    // Formatar mensagem de confirmação
-    const confirmationMessage = formatConfirmationMessage(transaction);
+    // Formatar mensagem de confirmação com dados extraídos
+    const confirmationMessage = formatConfirmationMessage(transaction, extractedData.data);
     return new Response(JSON.stringify({
       success: true,
       message: confirmationMessage,
@@ -100,10 +100,9 @@ serve(async (req)=>{
       }
     });
   } catch (error) {
-    console.error('❌ Erro ao categorizar transação:', error);
+    console.error('❌ Erro:', error instanceof Error ? error.message : String(error));
     return new Response(JSON.stringify({
-      success: false,
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     }), {
       status: 500,
       headers: {
@@ -154,11 +153,26 @@ function cleanMarkdownFromJSON(text: string): string {
  * Constrói prompt para extração de dados
  */ function buildExtractionPrompt(data, extraSystemPrompt) {
   const systemPrompt = `Você é um assistente financeiro especializado em extrair dados de transações.
+
+CATEGORIAS VÁLIDAS (use EXATAMENTE estes nomes):
+- food (alimentação: restaurantes, supermercados, delivery, café)
+- transport (transporte: uber, combustível, estacionamento, ônibus)
+- health (saúde: farmácia, médico, exames, hospital)
+- education (educação: cursos, livros, mensalidade, material)
+- entertainment (lazer: cinema, streaming, viagens, shows)
+- shopping (compras: roupas, calçados, eletrônicos, presentes)
+- bills (contas: água, luz, internet, telefone, aluguel)
+- salary (salário: renda recebida, ordenado, pagamento)
+- investment (investimento: aplicações, renda fixa, ações)
+- other (outros: categorias não listadas acima)
+
+⚠️ CRÍTICO: SEMPRE retorne uma categoria válida da lista. NUNCA "undefined" ou null.
+
 Extraia os seguintes campos:
 - amount (número, apenas valor numérico sem R$ ou vírgulas)
 - type (income ou expense)
-- category (uma de: food, transport, health, education, entertainment, shopping, bills, salary, investment, other)
-- description (texto curto e descritivo)
+- category (UMA das categorias da lista acima)
+- description (texto curto e descritivo em português)
 - date (YYYY-MM-DD, se não mencionado use a data de hoje)
 
 Retorne APENAS um JSON válido com esses campos, sem texto adicional.`;
@@ -219,9 +233,10 @@ async function callOpenAI(apiKey, model, prompt, config) {
     console.log('✅ JSON parseado com sucesso:', JSON.stringify(data));
     return { success: true, data: { ...data, confidence: 0.9 } };
   } catch (e) {
-    console.error('❌ Erro no JSON.parse:', e.message);
+    const errorMessage = e instanceof Error ? e.message : String(e);
+    console.error('❌ Erro no JSON.parse:', errorMessage);
     console.error('❌ String que falhou:', cleaned);
-    return { success: false, error: `Parse error: ${e.message}` };
+    return { success: false, error: `Parse error: ${errorMessage}` };
   }
 }
 /**
@@ -415,9 +430,16 @@ async function callOpenAI(apiKey, model, prompt, config) {
 }
 /**
  * Formata mensagem de confirmação
- */ function formatConfirmationMessage(transaction) {
-  const typeEmoji = transaction.type === 'income' ? '💵' : '💸';
-  const categoryLabels = {
+ */ function formatConfirmationMessage(transaction: any, extractedData: any = null) {
+  // Usar dados extraídos se disponíveis, senão usar da transação
+  const type = extractedData?.type || transaction.type;
+  const category = extractedData?.category || transaction.category;
+  const description = extractedData?.description || transaction.description;
+  const amount = extractedData?.amount || transaction.amount;
+  
+  const typeEmoji = type === 'income' ? '💰' : '💸';
+  
+  const categoryLabels: Record<string, string> = {
     food: '🍔 Alimentação',
     transport: '🚗 Transporte',
     health: '🏥 Saúde',
@@ -429,10 +451,31 @@ async function callOpenAI(apiKey, model, prompt, config) {
     investment: '📈 Investimento',
     other: '📦 Outros'
   };
-  const categoryLabel = categoryLabels[transaction.category] || transaction.category;
-  const amount = new Intl.NumberFormat('pt-BR', {
+  
+  // ✅ Fallback robusto para categoria
+  let categoryDisplay = '';
+  if (category && category !== 'undefined' && category !== 'null' && category !== '') {
+    categoryDisplay = categoryLabels[category] || `📂 ${category}`;
+  }
+  
+  const formattedAmount = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL'
-  }).format(transaction.amount);
-  return `${typeEmoji} *Lançamento Registrado!*\n\n` + `${categoryLabel}\n` + `${transaction.description}\n` + `${amount}\n\n` + `_Registrado com sucesso!_`;
+  }).format(amount);
+  
+  // ✅ Montar mensagem apenas com campos válidos
+  let message = `${typeEmoji} *Lançamento Registrado!*\n\n`;
+  
+  if (categoryDisplay) {
+    message += `${categoryDisplay}\n`;
+  }
+  
+  if (description) {
+    message += `📝 ${description}\n`;
+  }
+  
+  message += `${formattedAmount}\n\n`;
+  message += `_Registrado com sucesso!_`;
+  
+  return message;
 }
