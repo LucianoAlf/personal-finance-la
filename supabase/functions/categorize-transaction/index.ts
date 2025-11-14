@@ -57,16 +57,39 @@ serve(async (req)=>{
         }
       });
     }
-    // Buscar category_id pelo nome retornado pela IA
-    const categoryName = extractedData.data.category;
+    // Mapear slug da IA para nome em português
+    const categorySlugMap: Record<string, string> = {
+      'food': 'Alimentação',
+      'transport': 'Transporte',
+      'health': 'Saúde',
+      'education': 'Educação',
+      'entertainment': 'Lazer',
+      'shopping': 'Outros', // Compras gerais
+      'bills': 'Moradia', // Contas fixas
+      'salary': 'Salário',
+      'investment': 'Investimentos',
+      'other': 'Outros'
+    };
+    
+    const categorySlug = extractedData.data.category;
+    const categoryName = categorySlugMap[categorySlug] || 'Outros';
+    const transactionType = extractedData.data.type;
+    
+    console.log(`🔍 Mapeando categoria: slug="${categorySlug}" → name="${categoryName}", type="${transactionType}"`);
+    
+    // Buscar category_id pelo nome E tipo
     const { data: category } = await supabase
       .from('categories')
-      .select('id')
-      .eq('slug', categoryName)
+      .select('id, name')
+      .eq('name', categoryName)
+      .eq('type', transactionType)
+      .eq('is_default', true)
       .single();
     
-    if (!category) {
-      console.warn(`⚠️ Categoria "${categoryName}" não encontrada, usando "other"`);
+    if (category) {
+      console.log(`✅ Categoria encontrada: ${category.name} (${category.id})`);
+    } else {
+      console.warn(`⚠️ Categoria "${categoryName}" (${transactionType}) não encontrada, usando "Outros"`);
     }
     
     // Criar transação

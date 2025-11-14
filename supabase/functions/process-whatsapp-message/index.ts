@@ -1,5 +1,5 @@
 // ============================================
-// VERSÃO V17 - NLP TRANSACTION DETECTION ✅
+// VERSÃO V18 - BOTÕES INTERATIVOS ✨🔘
 // Edge Functions → process-whatsapp-message → Editar
 // ============================================
 // 
@@ -7,15 +7,198 @@
 // 1. Comando 'meta': goals → financial_goals, target_date → deadline, +goal_type filter (v12)
 // 2. Comando 'cartões': last_four → last_four_digits, +is_archived filter (v12)
 // 3. Comando 'cartões': Query fatura corrigida - campos diretos sem JOIN (v13)
-// 4. ✨ NOVO: Detecção NLP de transações via keywords (v17)
+// 4. ✨ Detecção NLP de transações via keywords (v17)
 //    - Array de 15 keywords para detectar mensagens de transação
 //    - Integração com categorize-transaction Edge Function
 //    - Logs DEBUG detalhados para troubleshooting
 //    - Intent tracking: 'transaction' para NLP, command para estruturados
+// 5. 🔘 BOTÕES INTERATIVOS (v18)
+//    - Confirmação interativa via botões UAZAPI
+//    - Status pending_confirmation antes de salvar
+//    - Handler para cliques [✅ Confirmar] [✏️ Corrigir]
+//    - Logs detalhados do fluxo de botões
 // 
 // ============================================
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// ============================================
+// 🔘 FUNÇÃO: ENVIAR BOTÕES INTERATIVOS UAZAPI
+// ============================================
+async function sendInteractiveButtons(to: string, options: any) {
+  console.log('🚨🚨🚨 [v18] FUNÇÃO sendInteractiveButtons CHAMADA! 🚨🚨🚨');
+  console.log('🔘 Para:', to);
+  console.log('🔘 Options:', JSON.stringify(options, null, 2));
+  
+  const uazapiUrl = 'https://lamusic.uazapi.com';
+  const uazapiToken = Deno.env.get('UAZAPI_TOKEN') || '0a5d59d3-f368-419b-b9e8-701375814522';
+  
+  // Montar choices no formato UAZAPI: "Texto Botão|id_botao"
+  const choices = [
+    `✅ ${options.confirmText || 'Confirmar'}|confirm_${options.transactionId}`,
+    `✏️ ${options.editText || 'Corrigir'}|edit_${options.transactionId}`
+  ];
+  
+  const payload = {
+    number: to,
+    type: 'button',
+    text: options.text,
+    choices: choices,
+    footerText: options.footer || 'Ana Clara - Personal Finance'
+  };
+  
+  console.log('📦 [v18] Payload botões:', JSON.stringify(payload, null, 2));
+  console.log('🌐 [v18] URL:', `${uazapiUrl}/send/menu`);
+  
+  try {
+    const response = await fetch(`${uazapiUrl}/send/menu`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'token': uazapiToken
+      },
+      body: JSON.stringify(payload)
+    });
+    
+    const responseText = await response.text();
+    console.log('📊 [v18] Status UAZAPI:', response.status);
+    console.log('📄 [v18] Resposta UAZAPI:', responseText);
+    
+    if (!response.ok) {
+      console.error('❌ [v18] Erro UAZAPI:', responseText);
+      return { success: false, error: responseText };
+    }
+    
+    return { success: true, data: responseText };
+  } catch (error) {
+    console.error('❌ [v18] Erro crítico ao enviar botões:', error);
+    return { success: false, error: String(error) };
+  }
+}
+
+// ============================================
+// 🎯 FUNÇÃO: PROCESSAR CLIQUE NO BOTÃO
+// ============================================
+async function handleButtonClick(buttonId: string, userId: string, supabase: any) {
+  console.log('🎯 [v18] Processando clique no botão:', buttonId);
+  console.log('👤 [v18] User ID:', userId);
+  
+  // Extrair ação e transaction_id do buttonId
+  // Formato: "confirm_69e4b43f..." ou "edit_69e4b43f..."
+  const [action, transactionId] = buttonId.split('_');
+  
+  console.log('🔍 [v18] Ação:', action);
+  console.log('🔍 [v18] Transaction ID:', transactionId);
+  
+  if (action === 'confirm') {
+    // Buscar dados completos da transação antes de confirmar
+    const { data: transaction, error: fetchError } = await supabase
+      .from('transactions')
+      .select('*, categories(name)')
+      .eq('id', transactionId)
+      .eq('user_id', userId)
+      .single();
+    
+    if (fetchError || !transaction) {
+      console.error('❌ [v18] Erro ao buscar transação:', fetchError);
+      return `❌ Transação não encontrada.`;
+    }
+    
+    // Confirmar transação: mudar status para 'completed'
+    const { data, error } = await supabase
+      .from('transactions')
+      .update({ 
+        status: 'completed',
+        is_paid: true,
+        confirmed_at: new Date().toISOString()
+      })
+      .eq('id', transactionId)
+      .eq('user_id', userId)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('❌ [v18] Erro ao confirmar:', error);
+      return `❌ Erro ao confirmar transação: ${error.message}`;
+    }
+    
+    console.log('✅ [v18] Transação confirmada:', data);
+    
+    // Mensagem profissional com todos os detalhes
+    const typeEmoji = transaction.type === 'income' ? '💰' : '💸';
+    const typeText = transaction.type === 'income' ? 'Receita' : 'Despesa';
+    const amountFormatted = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(transaction.amount);
+    const categoryName = transaction.categories?.name || 'Outros';
+    const date = new Date().toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+    
+    return `✅ *Lançamento Confirmado!*\n\n` +
+           `${typeEmoji} *Tipo:* ${typeText}\n` +
+           `💵 *Valor:* ${amountFormatted}\n` +
+           `📂 *Categoria:* ${categoryName}\n` +
+           `📝 *Descrição:* ${transaction.description}\n` +
+           `📅 *Data:* ${date}\n\n` +
+           `🎯 *Seu registro foi salvo com sucesso!*\n\n` +
+           `_Digite "saldo" para ver seu saldo atualizado_\n` +
+           `_ou "resumo" para ver o resumo do mês._`;
+  }
+  
+  if (action === 'edit') {
+    // Buscar dados da transação antes de cancelar
+    const { data: transaction, error: fetchError } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('id', transactionId)
+      .eq('user_id', userId)
+      .single();
+    
+    if (fetchError || !transaction) {
+      console.error('❌ [v18] Erro ao buscar transação:', fetchError);
+      return `❌ Transação não encontrada.`;
+    }
+    
+    // Cancelar e pedir correção
+    const { error } = await supabase
+      .from('transactions')
+      .update({ status: 'cancelled' })
+      .eq('id', transactionId)
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('❌ [v18] Erro ao cancelar:', error);
+      return `❌ Erro ao cancelar transação: ${error.message}`;
+    }
+    
+    console.log('✏️ [v18] Transação cancelada para edição');
+    
+    // Mensagem auto-explicativa mostrando o que foi cancelado
+    const typeText = transaction.type === 'income' ? 'Receita' : 'Despesa';
+    const amountFormatted = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(transaction.amount);
+    
+    return `✏️ *Transação Cancelada para Correção*\n\n` +
+           `📋 *O que você tinha registrado:*\n` +
+           `• Tipo: ${typeText}\n` +
+           `• Valor: ${amountFormatted}\n` +
+           `• Descrição: ${transaction.description}\n\n` +
+           `🔄 *Para corrigir, envie novamente:*\n\n` +
+           `📝 *Exemplos:*\n` +
+           `• "Gastei 120 reais no supermercado"\n` +
+           `• "Recebi 1500 de freelance"\n` +
+           `• "Paguei 85 no restaurante"\n\n` +
+           `💡 Basta escrever naturalmente que eu entendo!`;
+  }
+  
+  return '❌ Ação não reconhecida';
+}
 serve(async (req)=>{
   // CORS
   if (req.method === 'OPTIONS') {
@@ -37,14 +220,20 @@ serve(async (req)=>{
     const isN8NPayload = payload.body && payload.body.EventType;
     const event = isN8NPayload ? payload.body.EventType : payload.event;
     console.log('🔍 Tipo de evento:', event);
-    if (!event || event !== 'message' && event !== 'messages') {
+    // ✅ Aceitar eventos de botão mesmo que não sejam exatamente 'message'/'messages'
+    const allowedEvents = ['message', 'messages', 'interactive', 'button', 'button_reply', 'menu'];
+    const hasButtonSignal = Boolean(
+      payload?.data?.message?.buttonOrListid ||
+      payload?.data?.message?.buttonOrListId ||
+      payload?.body?.message?.buttonOrListid ||
+      payload?.body?.message?.buttonOrListId ||
+      payload?.data?.message?.selectedButtonId ||
+      payload?.body?.message?.selectedButtonId
+    );
+    if (event && !allowedEvents.includes(String(event)) && !hasButtonSignal) {
       console.log('⏭️ Evento ignorado:', event);
-      return new Response(JSON.stringify({
-        ok: true
-      }), {
-        headers: {
-          'Content-Type': 'application/json'
-        }
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' }
       });
     }
     // Extrai dados conforme estrutura
@@ -54,29 +243,51 @@ serve(async (req)=>{
       from = payload.body.message?.sender || '';
       phone = payload.body.chat?.phone?.replace(/\D/g, '') || from.split('@')[0];
       messageData = payload.body.message || {};
-      messageType = messageData.type || 'text';
+      // ✅ CRÍTICO: N8N usa messageType, não type
+      messageType = messageData.messageType || messageData.type || messageData?.interactive?.type || 'text';
       content = messageData.content || messageData.text || '';
+      
+      console.log('📱 [N8N] From:', from);
+      console.log('📱 [N8N] Phone:', phone);
+      console.log('📝 [N8N] MessageType:', messageType);
+      console.log('🔘 [N8N] ButtonId:', messageData.buttonOrListid);
     } else {
       // Payload direto UAZAPI
       from = payload.data?.from || '';
       phone = from.split('@')[0];
       messageData = payload.data?.message || {};
-      messageType = messageData.type || 'text';
+      messageType = messageData.type || messageData?.interactive?.type || 'text';
       content = messageData.text || messageData.caption || '';
+      
+      console.log('📱 [Direct] From:', from);
+      console.log('📱 [Direct] Phone:', phone);
+      console.log('📝 [Direct] MessageType:', messageType);
     }
     console.log('📱 Telefone:', phone);
     console.log('💬 Tipo:', messageType);
     console.log('📝 Conteúdo:', content);
     console.log('📝 Tipo de conteúdo:', typeof content);
-    // ✅ VALIDAÇÃO ROBUSTA
-    if (!phone || !content || typeof content !== 'string') {
-      console.log('⚠️ Dados incompletos ou conteúdo não-textual');
-      return new Response(JSON.stringify({
-        ok: true
-      }), {
-        headers: {
-          'Content-Type': 'application/json'
-        }
+    
+    // ✅ VALIDAÇÃO ROBUSTA - mas permite botões sem content
+    const isButtonMessage = (
+      messageType === 'TemplateButtonReplyMessage' ||
+      messageType === 'button' ||
+      messageType === 'interactive' ||
+      messageData?.buttonOrListid
+    );
+    
+    if (!phone) {
+      console.log('⚠️ Telefone não encontrado');
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Se não é botão, precisa ter conteúdo
+    if (!isButtonMessage && (!content || typeof content !== 'string')) {
+      console.log('⚠️ Dados incompletos ou conteúdo não-textual (não é botão)');
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { 'Content-Type': 'application/json' }
       });
     }
     // Busca usuário
@@ -105,6 +316,59 @@ serve(async (req)=>{
       });
     }
     console.log('✅ Usuário encontrado:', user.full_name);
+    
+    // ============================================
+    // 🎯 HANDLER: CLIQUE EM BOTÃO
+    // ============================================
+    // ✅ Detectar cliques de botão com mais variantes de payload
+    const buttonId = (
+      messageData?.buttonOrListid ||
+      messageData?.buttonOrListId ||
+      messageData?.selectedButtonId ||
+      messageData?.buttonId ||
+      messageData?.interactive?.button_reply?.id ||
+      messageData?.interactive?.list_reply?.id
+    );
+    
+    // ✅ CRÍTICO: N8N usa "TemplateButtonReplyMessage"
+    const isButtonClick = (
+      messageType === 'button' || 
+      messageType === 'interactive' || 
+      messageType === 'TemplateButtonReplyMessage' ||
+      buttonId
+    );
+    
+    if (isButtonClick && buttonId) {
+      console.log('🎯 [v18] CLIQUE EM BOTÃO DETECTADO!');
+      console.log('🎯 [v18] MessageType:', messageType);
+      console.log('🎯 [v18] Button ID:', buttonId);
+      
+      const buttonResponse = await handleButtonClick(String(buttonId), user.id, supabase);
+      
+      // Enviar resposta do botão
+      await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp-message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+        },
+        body: JSON.stringify({
+          phone_number: phone,
+          message_type: 'text',
+          content: buttonResponse
+        })
+      });
+      
+      return new Response(JSON.stringify({
+        ok: true,
+        message: 'Button processed'
+      }), {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+    }
+    
     // Salva mensagem
     const { data: message, error: messageError } = await supabase.from('whatsapp_messages').insert({
       user_id: user.id,
@@ -159,6 +423,7 @@ serve(async (req)=>{
     
     let responseText = '';
     let finalIntent = command;
+    let buttonsSent = false; // 🔘 Flag para controlar envio de botões
     
     if (isTransactionMessage) {
       console.log('🧠 ===== MENSAGEM DE TRANSAÇÃO DETECTADA =====');
@@ -187,9 +452,65 @@ serve(async (req)=>{
         console.log('📊 DEBUG - nlpResult:', JSON.stringify(nlpResult, null, 2));
         
         if (nlpResult.success) {
-          responseText = nlpResult.message;
           finalIntent = 'transaction';
-          console.log('✅ Transação criada via NLP! ID:', nlpResult.transaction_id);
+          console.log('✅ [v18] Transação detectada! ID:', nlpResult.transaction_id);
+          console.log('📊 [v18] Dados extraídos:', JSON.stringify(nlpResult.data, null, 2));
+          
+          // ============================================
+          // 🔄 MUDAR STATUS PARA PENDING_CONFIRMATION
+          // ============================================
+          console.log('🔄 [v18] Atualizando status para pending_confirmation...');
+          const { error: updateError } = await supabase
+            .from('transactions')
+            .update({ 
+              status: 'pending_confirmation',
+              is_paid: false
+            })
+            .eq('id', nlpResult.transaction_id);
+          
+          if (updateError) {
+            console.error('❌ [v18] Erro ao atualizar status:', updateError);
+          } else {
+            console.log('✅ [v18] Status atualizado para pending_confirmation');
+          }
+          
+          // ============================================
+          // 🔘 ENVIAR BOTÕES INTERATIVOS
+          // ============================================
+          const transactionData = nlpResult.data;
+          const typeEmoji = transactionData.type === 'income' ? '💰' : '💸';
+          const amountFormatted = new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL'
+          }).format(transactionData.amount);
+          
+          const confirmationText = `🤔 *Confirme os dados:*\n\n` +
+                                   `${typeEmoji} Tipo: ${transactionData.type === 'income' ? 'Receita' : 'Despesa'}\n` +
+                                   `💵 Valor: ${amountFormatted}\n` +
+                                   `📂 Categoria: ${transactionData.category || 'Outros'}\n` +
+                                   `📝 Descrição: ${transactionData.description}\n\n` +
+                                   `_Clique em um botão abaixo:_`;
+          
+          console.log('🔘 [v18] Enviando botões interativos...');
+          
+          const buttonResult = await sendInteractiveButtons(phone, {
+            text: confirmationText,
+            confirmText: 'Confirmar',
+            editText: 'Corrigir',
+            transactionId: nlpResult.transaction_id,
+            footer: 'Ana Clara - Personal Finance'
+          });
+          
+          if (buttonResult.success) {
+            console.log('✅ [v18] Botões enviados com sucesso!');
+            responseText = confirmationText; // Para salvar no histórico
+            buttonsSent = true; // 🔘 Marcar que botões foram enviados
+          } else {
+            console.error('❌ [v18] Erro ao enviar botões:', buttonResult.error);
+            // Fallback: enviar mensagem de texto simples
+            responseText = nlpResult.message;
+            buttonsSent = false; // Falha nos botões, enviar texto
+          }
         } else {
           responseText = `❌ Não consegui processar sua transação.\n\n` +
                         `Detalhes: ${nlpResult.error || nlpResult.message}\n\n` +
@@ -371,20 +692,24 @@ serve(async (req)=>{
     // ============================================
     // 📤 ENVIO DE RESPOSTA
     // ============================================
-    // Envia resposta
-    console.log('📤 Enviando resposta...');
-    await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp-message`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-      },
-      body: JSON.stringify({
-        phone_number: phone,
-        message_type: 'text',
-        content: responseText
-      })
-    });
+    // Só envia resposta de texto se NÃO enviou botões
+    if (!buttonsSent) {
+      console.log('📤 Enviando resposta via send-whatsapp-message...');
+      await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp-message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+        },
+        body: JSON.stringify({
+          phone_number: phone,
+          message_type: 'text',
+          content: responseText
+        })
+      });
+    } else {
+      console.log('🔘 [v18] Botões já enviados, pulando envio de texto duplicado');
+    }
     // Atualiza mensagem como processada
     await supabase.from('whatsapp_messages').update({
       processing_status: 'completed',
