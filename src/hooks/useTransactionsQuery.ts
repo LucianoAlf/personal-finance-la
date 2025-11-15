@@ -27,8 +27,8 @@ const fetchTransactions = async (filters?: TransactionFilters): Promise<Transact
       )
     `)
     .eq('user_id', user.id)
-    .order('transaction_date', { ascending: false })
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .order('transaction_date', { ascending: false });
 
   // Aplicar filtros
   if (filters?.type) query = query.eq('type', filters.type);

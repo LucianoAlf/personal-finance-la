@@ -1,4 +1,5 @@
-import { formatCurrency, formatDate } from '@/utils/formatters';
+import { useMemo } from 'react';
+import { formatCurrency, formatRelativeDate } from '@/utils/formatters';
 import { cn } from '@/lib/cn';
 import { Badge } from '@/components/ui/badge';
 import { useCategories } from '@/hooks/useCategories';
@@ -8,7 +9,7 @@ interface TransactionItemProps {
   type: 'income' | 'expense' | 'transfer';
   description: string;
   category_id: string;
-  date: Date;
+  date: Date | string;
   amount: number;
   is_paid?: boolean;
   is_recurring?: boolean;
@@ -32,6 +33,17 @@ export function TransactionItem({
   const IconComponent = category?.icon 
     ? (LucideIcons as any)[category.icon] || LucideIcons.Wallet
     : LucideIcons.Wallet;
+
+  const transactionDate = useMemo(() => {
+    if (date instanceof Date) {
+      return date;
+    }
+
+    // Garantir que datas (YYYY-MM-DD) sejam interpretadas no timezone local
+    return new Date(`${date}T00:00:00`);
+  }, [date]);
+
+  const displayDate = useMemo(() => formatRelativeDate(transactionDate), [transactionDate]);
 
   return (
     <div
@@ -86,7 +98,7 @@ export function TransactionItem({
         >
           {type === 'income' ? '+' : '-'} {formatCurrency(amount)}
         </p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(date, 'dd/MM')}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{displayDate}</p>
       </div>
     </div>
   );

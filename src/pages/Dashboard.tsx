@@ -90,7 +90,15 @@ export function Dashboard() {
       .filter(t => t.type === 'expense')
       .reduce((sum, t) => sum + Number(t.amount), 0);
     
-    const recent = filteredTransactions.slice(0, 5);
+    // ✅ CRÍTICO: Ordenar por created_at DESC (mais recentes primeiro!)
+    // Não por transaction_date, senão transações com data futura aparecem primeiro
+    const recent = [...filteredTransactions]
+      .sort((a, b) => {
+        const dateA = new Date(a.created_at || a.transaction_date);
+        const dateB = new Date(b.created_at || b.transaction_date);
+        return dateB.getTime() - dateA.getTime(); // DESC
+      })
+      .slice(0, 5);
 
     return {
       totalIncome: income,
@@ -241,7 +249,7 @@ export function Dashboard() {
                     type={transaction.type}
                     description={transaction.description}
                     category_id={transaction.category_id}
-                    date={new Date(transaction.transaction_date)}
+                    date={new Date(`${transaction.transaction_date}T00:00:00`)}
                     amount={transaction.amount}
                     is_paid={transaction.is_paid}
                     is_recurring={transaction.is_recurring}

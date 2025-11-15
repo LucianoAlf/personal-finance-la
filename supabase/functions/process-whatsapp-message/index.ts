@@ -23,10 +23,10 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // ============================================
-// 🔘 FUNÇÃO: ENVIAR BOTÕES INTERATIVOS UAZAPI
+// 🔘 FUNÇÃO: ENVIAR BOTÕES INTERATIVOS UAZAPI (v19: Editar/Excluir)
 // ============================================
 async function sendInteractiveButtons(to: string, options: any) {
-  console.log('🚨🚨🚨 [v18] FUNÇÃO sendInteractiveButtons CHAMADA! 🚨🚨🚨');
+  console.log('🚨🚨🚨 [v19] FUNÇÃO sendInteractiveButtons CHAMADA! 🚨🚨🚨');
   console.log('🔘 Para:', to);
   console.log('🔘 Options:', JSON.stringify(options, null, 2));
   
@@ -34,9 +34,10 @@ async function sendInteractiveButtons(to: string, options: any) {
   const uazapiToken = Deno.env.get('UAZAPI_TOKEN') || '0a5d59d3-f368-419b-b9e8-701375814522';
   
   // Montar choices no formato UAZAPI: "Texto Botão|id_botao"
+  // v19: Mudança de [Confirmar/Corrigir] para [Editar/Excluir]
   const choices = [
-    `✅ ${options.confirmText || 'Confirmar'}|confirm_${options.transactionId}`,
-    `✏️ ${options.editText || 'Corrigir'}|edit_${options.transactionId}`
+    `✏️ Editar|edit_${options.transactionId}`,
+    `🗑️ Excluir|delete_${options.transactionId}`
   ];
   
   const payload = {
@@ -47,8 +48,8 @@ async function sendInteractiveButtons(to: string, options: any) {
     footerText: options.footer || 'Ana Clara - Personal Finance'
   };
   
-  console.log('📦 [v18] Payload botões:', JSON.stringify(payload, null, 2));
-  console.log('🌐 [v18] URL:', `${uazapiUrl}/send/menu`);
+  console.log('📦 [v19] Payload botões:', JSON.stringify(payload, null, 2));
+  console.log('🌐 [v19] URL:', `${uazapiUrl}/send/menu`);
   
   try {
     const response = await fetch(`${uazapiUrl}/send/menu`, {
@@ -61,109 +62,175 @@ async function sendInteractiveButtons(to: string, options: any) {
     });
     
     const responseText = await response.text();
-    console.log('📊 [v18] Status UAZAPI:', response.status);
-    console.log('📄 [v18] Resposta UAZAPI:', responseText);
+    console.log('📊 [v19] Status UAZAPI:', response.status);
+    console.log('📄 [v19] Resposta UAZAPI:', responseText);
     
     if (!response.ok) {
-      console.error('❌ [v18] Erro UAZAPI:', responseText);
+      console.error('❌ [v19] Erro UAZAPI:', responseText);
       return { success: false, error: responseText };
     }
     
     return { success: true, data: responseText };
   } catch (error) {
-    console.error('❌ [v18] Erro crítico ao enviar botões:', error);
+    console.error('❌ [v19] Erro crítico ao enviar botões:', error);
     return { success: false, error: String(error) };
   }
 }
 
 // ============================================
-// 🎯 FUNÇÃO: PROCESSAR CLIQUE NO BOTÃO
+// 🎯 FUNÇÃO: PROCESSAR CLIQUE NO BOTÃO (v19: Editar/Excluir)
 // ============================================
-async function handleButtonClick(buttonId: string, userId: string, supabase: any) {
-  console.log('🎯 [v18] Processando clique no botão:', buttonId);
-  console.log('👤 [v18] User ID:', userId);
+// ============================================
+// FUNÇÕES DE CONTEXTO CONVERSACIONAL (v20)
+// ============================================
+async function saveContext(userId: string, phone: string, contextType: string, contextData: any, supabase: any) {
+  const payload = {
+    user_id: userId,
+    phone: phone,
+    context_type: contextType,
+    context_data: contextData,
+    last_interaction: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutos
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    const { error } = await supabase
+      .from('conversation_context')
+      .upsert(payload, { onConflict: 'user_id,phone' });
+
+    if (error) throw error;
+    console.log('💾 [v20] Contexto salvo/atualizado com upsert');
+  } catch (err: any) {
+    console.error('❌ Erro ao salvar contexto (upsert):', err);
+    // Fallback quando UNIQUE não existe: 42P10
+    if (err?.code === '42P10') {
+      console.log('🛟 [v20] Fallback saveContext: realizando update/insert manual sem UNIQUE');
+      const { data: existing, error: selError } = await supabase
+        .from('conversation_context')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('phone', phone)
+        .maybeSingle();
+
+      if (selError) {
+        console.error('❌ [v20] Erro ao buscar contexto (fallback):', selError);
+        return;
+      }
+
+      if (existing) {
+        const { error: updError } = await supabase
+          .from('conversation_context')
+          .update(payload)
+          .eq('id', existing.id);
+        if (updError) console.error('❌ [v20] Erro no update de contexto (fallback):', updError);
+        else console.log('💾 [v20] Contexto atualizado (fallback)');
+      } else {
+        const { error: insError } = await supabase
+          .from('conversation_context')
+          .insert(payload);
+        if (insError) console.error('❌ [v20] Erro no insert de contexto (fallback):', insError);
+        else console.log('💾 [v20] Contexto inserido (fallback)');
+      }
+    }
+  }
+}
+
+async function getActiveContext(userId: string, phone: string, supabase: any) {
+  console.log('🔍 [v20] Buscando contexto para:', { userId, phone });
+  console.log('🔍 [v20] Timestamp atual:', new Date().toISOString());
+  
+  const { data, error } = await supabase
+    .from('conversation_context')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('phone', phone)
+    .gt('expires_at', new Date().toISOString())
+    .order('last_interaction', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  
+  console.log('📊 [v20] Resultado da busca de contexto:');
+  console.log('  - Dados:', JSON.stringify(data, null, 2));
+  console.log('  - Erro:', error);
+  
+  if (error) console.error('❌ Erro ao buscar contexto:', error);
+  if (!data) console.log('📭 [v20] Nenhum contexto ativo encontrado');
+  if (data) console.log('📬 [v20] CONTEXTO ENCONTRADO!', data.context_type);
+  
+  return data;
+}
+
+async function clearContext(userId: string, phone: string, supabase: any) {
+  await supabase
+    .from('conversation_context')
+    .delete()
+    .eq('user_id', userId)
+    .eq('phone', phone);
+}
+
+function extractMessageText(messageData: any): string {
+  const candidates = [
+    messageData?.text,
+    messageData?.content,
+    messageData?.caption,
+    messageData?.conversation,
+    messageData?.body,
+    messageData?.extendedTextMessage,
+    messageData?.message,
+    messageData?.message?.conversation,
+    messageData?.message?.text
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+
+    if (typeof candidate === 'string') {
+      return candidate;
+    }
+
+    if (typeof candidate === 'object') {
+      if (typeof candidate?.text === 'string') return candidate.text;
+      if (typeof candidate?.body === 'string') return candidate.body;
+      if (typeof candidate?.caption === 'string') return candidate.caption;
+      if (typeof candidate?.conversation === 'string') return candidate.conversation;
+    }
+  }
+
+  return '';
+}
+
+async function handleButtonClick(buttonId: string, userId: string, phone: string, supabase: any) {
+  console.log('🎯 [v20] Processando clique no botão:', buttonId);
+  console.log('👤 [v20] User ID:', userId);
   
   // Extrair ação e transaction_id do buttonId
-  // Formato: "confirm_69e4b43f..." ou "edit_69e4b43f..."
-  const [action, transactionId] = buttonId.split('_');
+  // v20: Formato: "edit_69e4b43f..." ou "delete_69e4b43f..."
+  const parts = buttonId.split('_');
+  const action = parts[0];
+  const transactionId = parts.slice(1).join('_'); // UUID completo
   
-  console.log('🔍 [v18] Ação:', action);
-  console.log('🔍 [v18] Transaction ID:', transactionId);
+  console.log('🔍 [v20] Ação:', action);
+  console.log('🔍 [v20] Transaction ID:', transactionId);
   
-  if (action === 'confirm') {
-    // Buscar dados completos da transação antes de confirmar
+  // ============================================
+  // AÇÃO: EXCLUIR
+  // ============================================
+  if (action === 'delete') {
+    // Buscar transação antes de excluir
     const { data: transaction, error: fetchError } = await supabase
       .from('transactions')
-      .select('*, categories(name)')
+      .select('*, categories(name), accounts:accounts!transactions_account_id_fkey(name)')
       .eq('id', transactionId)
       .eq('user_id', userId)
       .single();
     
     if (fetchError || !transaction) {
-      console.error('❌ [v18] Erro ao buscar transação:', fetchError);
+      console.error('❌ [v19] Erro ao buscar transação:', fetchError);
       return `❌ Transação não encontrada.`;
     }
     
-    // Confirmar transação: mudar status para 'completed'
-    const { data, error } = await supabase
-      .from('transactions')
-      .update({ 
-        status: 'completed',
-        is_paid: true,
-        confirmed_at: new Date().toISOString()
-      })
-      .eq('id', transactionId)
-      .eq('user_id', userId)
-      .select()
-      .single();
-    
-    if (error) {
-      console.error('❌ [v18] Erro ao confirmar:', error);
-      return `❌ Erro ao confirmar transação: ${error.message}`;
-    }
-    
-    console.log('✅ [v18] Transação confirmada:', data);
-    
-    // Mensagem profissional com todos os detalhes
-    const typeEmoji = transaction.type === 'income' ? '💰' : '💸';
-    const typeText = transaction.type === 'income' ? 'Receita' : 'Despesa';
-    const amountFormatted = new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(transaction.amount);
-    const categoryName = transaction.categories?.name || 'Outros';
-    const date = new Date().toLocaleDateString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-    
-    return `✅ *Lançamento Confirmado!*\n\n` +
-           `${typeEmoji} *Tipo:* ${typeText}\n` +
-           `💵 *Valor:* ${amountFormatted}\n` +
-           `📂 *Categoria:* ${categoryName}\n` +
-           `📝 *Descrição:* ${transaction.description}\n` +
-           `📅 *Data:* ${date}\n\n` +
-           `🎯 *Seu registro foi salvo com sucesso!*\n\n` +
-           `_Digite "saldo" para ver seu saldo atualizado_\n` +
-           `_ou "resumo" para ver o resumo do mês._`;
-  }
-  
-  if (action === 'edit') {
-    // Buscar dados da transação antes de cancelar
-    const { data: transaction, error: fetchError } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('id', transactionId)
-      .eq('user_id', userId)
-      .single();
-    
-    if (fetchError || !transaction) {
-      console.error('❌ [v18] Erro ao buscar transação:', fetchError);
-      return `❌ Transação não encontrada.`;
-    }
-    
-    // Cancelar e pedir correção
+    // Soft delete (mudar status para cancelled)
     const { error } = await supabase
       .from('transactions')
       .update({ status: 'cancelled' })
@@ -171,34 +238,563 @@ async function handleButtonClick(buttonId: string, userId: string, supabase: any
       .eq('user_id', userId);
     
     if (error) {
-      console.error('❌ [v18] Erro ao cancelar:', error);
-      return `❌ Erro ao cancelar transação: ${error.message}`;
+      console.error('❌ [v19] Erro ao excluir:', error);
+      return `❌ Erro ao excluir transação: ${error.message}`;
     }
     
-    console.log('✏️ [v18] Transação cancelada para edição');
+    console.log('🗑️ [v19] Transação excluída (soft delete)');
     
-    // Mensagem auto-explicativa mostrando o que foi cancelado
+    // Mensagem de confirmação
+    const typeEmoji = transaction.type === 'income' ? '💰' : '💸';
     const typeText = transaction.type === 'income' ? 'Receita' : 'Despesa';
     const amountFormatted = new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL'
     }).format(transaction.amount);
+    const categoryName = transaction.categories?.name || 'Outros';
     
-    return `✏️ *Transação Cancelada para Correção*\n\n` +
-           `📋 *O que você tinha registrado:*\n` +
-           `• Tipo: ${typeText}\n` +
-           `• Valor: ${amountFormatted}\n` +
-           `• Descrição: ${transaction.description}\n\n` +
-           `🔄 *Para corrigir, envie novamente:*\n\n` +
-           `📝 *Exemplos:*\n` +
-           `• "Gastei 120 reais no supermercado"\n` +
-           `• "Recebi 1500 de freelance"\n` +
-           `• "Paguei 85 no restaurante"\n\n` +
-           `💡 Basta escrever naturalmente que eu entendo!`;
+    return `🗑️ *Transação Excluída*\n\n` +
+           `${typeEmoji} *Tipo:* ${typeText}\n` +
+           `💵 *Valor:* ${amountFormatted}\n` +
+           `📂 *Categoria:* ${categoryName}\n` +
+           `📝 *Descrição:* ${transaction.description}\n` +
+           `🏦 *Cartão:* ${transaction.accounts?.name || 'N/A'}\n\n` +
+           `✅ *Registro removido com sucesso!*\n\n` +
+           `_Digite "saldo" para ver seu saldo atualizado._`;
+  }
+  
+  // ============================================
+  // AÇÃO: EDITAR
+  // ============================================
+  if (action === 'edit') {
+    // Buscar transação completa
+    const { data: transaction, error: fetchError } = await supabase
+      .from('transactions')
+      .select('*, categories(name), accounts:accounts!transactions_account_id_fkey(name)')
+      .eq('id', transactionId)
+      .eq('user_id', userId)
+      .single();
+    
+    if (fetchError || !transaction) {
+      console.error('❌ [v20] Erro ao buscar transação:', fetchError);
+      return `❌ Transação não encontrada.`;
+    }
+    
+    console.log('✏️ [v20] Salvando contexto de edição');
+    
+    // 🆕 SALVAR CONTEXTO CONVERSACIONAL (v20)
+    await saveContext(userId, phone, 'editing_transaction', {
+      transaction_id: transactionId,
+      current_data: {
+        amount: transaction.amount,
+        description: transaction.description,
+        category: transaction.categories?.name,
+        category_id: transaction.category_id,
+        date: transaction.transaction_date,
+        account: transaction.accounts?.name
+      }
+    }, supabase);
+    
+    // Mensagem com dados atuais e opções de edição
+    const typeEmoji = transaction.type === 'income' ? '💰' : '💸';
+    const typeText = transaction.type === 'income' ? 'Receita' : 'Despesa';
+    const amountFormatted = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL'
+    }).format(transaction.amount);
+    const date = new Date(transaction.transaction_date).toLocaleDateString('pt-BR');
+    
+    return `✏️ *Modo de Edição Ativado!*\n\n` +
+           `📋 *Transação:*\n` +
+           `${typeEmoji} ${typeText}\n` +
+           `💵 ${amountFormatted}\n` +
+           `📂 ${transaction.categories?.name || 'Outros'}\n` +
+           `📝 ${transaction.description}\n` +
+           `📅 ${date}\n` +
+           `🏦 ${transaction.accounts?.name || 'N/A'}\n\n` +
+           `🎯 *Agora é só me dizer o que quer mudar!*\n\n` +
+           `Exemplos:\n` +
+           `• \`150\` (muda o valor)\n` +
+           `• \`Uber Black\` (muda a descrição)\n` +
+           `• \`categoria alimentação\` (muda categoria)\n` +
+           `• \`data 15/11\` (muda a data)\n` +
+           `• \`pronto\` ou \`cancelar\` (sair da edição)\n\n` +
+           `💡 _Fale naturalmente, eu entendo!_`;
   }
   
   return '❌ Ação não reconhecida';
 }
+
+// ============================================
+// ✏️ FUNÇÃO: PROCESSAR COMANDOS DE EDIÇÃO (v19)
+// ============================================
+async function handleEditCommand(content: string, userId: string, phone: string, supabase: any) {
+  console.log('✏️ [v19] ===== COMANDO DE EDIÇÃO =====');
+  console.log('✏️ [v19] Content:', content);
+  console.log('✏️ [v19] User ID:', userId);
+  console.log('✏️ [v19] Phone:', phone);
+  
+  const lowerContent = content.toLowerCase();
+  
+  // Buscar última transação das últimas 24h do usuário (mais flexível)
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  console.log('🔍 [v19] Buscando transações com filtros:');
+  console.log('  - user_id:', userId);
+  console.log('  - source: whatsapp');
+  console.log('  - created_at >=:', yesterday.toISOString());
+  
+  const { data: lastTransaction, error: fetchError } = await supabase
+    .from('transactions')
+    .select('*, categories(name), accounts:accounts!transactions_account_id_fkey(name)')
+    .eq('user_id', userId)
+    .eq('source', 'whatsapp')
+    .gte('created_at', yesterday.toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+  
+  console.log('📊 [v19] Resultado da busca:');
+  console.log('  - Transação encontrada:', lastTransaction ? 'SIM' : 'NÃO');
+  console.log('  - Erro:', fetchError);
+  console.log('  - Data completa:', JSON.stringify(lastTransaction, null, 2));
+  
+  if (fetchError || !lastTransaction) {
+    console.warn('⚠️ [v19] Nenhuma transação WhatsApp encontrada (últimas 24h)');
+    console.error('⚠️ [v19] Erro completo:', JSON.stringify(fetchError, null, 2));
+    
+    // Tentar buscar SEM filtro de source para debug
+    const { data: anyTransaction } = await supabase
+      .from('transactions')
+      .select('id, description, source, created_at')
+      .eq('user_id', userId)
+      .gte('created_at', yesterday.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(5);
+    
+    console.log('🔍 [v19] Últimas 5 transações (qualquer source):', JSON.stringify(anyTransaction, null, 2));
+    
+    return '❌ Nenhuma transação encontrada nas últimas 24 horas.\n\n💡 Crie uma transação primeiro:\n"Gastei 50 no mercado"';
+  }
+  
+  console.log('✅ [v19] Transação encontrada:', lastTransaction.id);
+  
+  // ============================================
+  // COMANDO: EDITAR VALOR
+  // ============================================
+  if (lowerContent.includes('editar valor')) {
+    const match = content.match(/editar valor (\d+[.,]?\d*)/i);
+    if (!match) {
+      return '❌ Formato incorreto.\n\n✅ Use: "editar valor 150"';
+    }
+    
+    const newValue = parseFloat(match[1].replace(',', '.'));
+    const oldValue = lastTransaction.amount;
+    
+    // Atualizar transação
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({ amount: newValue, updated_at: new Date().toISOString() })
+      .eq('id', lastTransaction.id);
+    
+    if (updateError) {
+      console.error('❌ [v19] Erro ao atualizar:', updateError);
+      return '❌ Erro ao editar valor. Tente novamente.';
+    }
+    
+    // Registrar edição no histórico
+    await supabase.from('transaction_edits').insert({
+      transaction_id: lastTransaction.id,
+      user_id: userId,
+      edit_type: 'edit_value',
+      old_value: oldValue.toString(),
+      new_value: newValue.toString(),
+      edited_via: 'whatsapp'
+    });
+    
+    console.log('✅ [v19] Valor atualizado');
+    
+    return `✅ *Valor Atualizado!*\n\n` +
+           `📝 ${lastTransaction.description}\n` +
+           `💵 Antes: R$ ${oldValue.toFixed(2)}\n` +
+           `💵 Depois: R$ ${newValue.toFixed(2)}\n\n` +
+           `✨ _Alteração salva com sucesso!_`;
+  }
+  
+  // ============================================
+  // COMANDO: EDITAR DESCRIÇÃO
+  // ============================================
+  if (lowerContent.includes('editar descri')) {
+    const match = content.match(/editar descri[çc][ãa]o (.+)/i);
+    if (!match) {
+      return '❌ Formato incorreto.\n\n✅ Use: "editar descrição Uber Black"';
+    }
+    
+    const newDescription = match[1].trim();
+    const oldDescription = lastTransaction.description;
+    
+    // Atualizar transação
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({ description: newDescription, updated_at: new Date().toISOString() })
+      .eq('id', lastTransaction.id);
+    
+    if (updateError) {
+      console.error('❌ [v19] Erro ao atualizar:', updateError);
+      return '❌ Erro ao editar descrição. Tente novamente.';
+    }
+    
+    // Registrar edição
+    await supabase.from('transaction_edits').insert({
+      transaction_id: lastTransaction.id,
+      user_id: userId,
+      edit_type: 'edit_description',
+      old_value: oldDescription,
+      new_value: newDescription,
+      edited_via: 'whatsapp'
+    });
+    
+    console.log('✅ [v19] Descrição atualizada');
+    
+    return `✅ *Descrição Atualizada!*\n\n` +
+           `💵 Valor: R$ ${lastTransaction.amount.toFixed(2)}\n` +
+           `📝 Antes: ${oldDescription}\n` +
+           `📝 Depois: ${newDescription}\n\n` +
+           `✨ _Alteração salva com sucesso!_`;
+  }
+  
+  // ============================================
+  // COMANDO: EDITAR CATEGORIA
+  // ============================================
+  if (lowerContent.includes('editar categoria')) {
+    const match = content.match(/editar categoria (.+)/i);
+    if (!match) {
+      return '❌ Formato incorreto.\n\n✅ Use: "editar categoria alimentação"';
+    }
+    
+    const newCategoryName = match[1].trim().toLowerCase();
+    
+    // Buscar categoria por nome (busca parcial)
+    const { data: category } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('user_id', userId)
+      .ilike('name', `%${newCategoryName}%`)
+      .limit(1)
+      .single();
+    
+    if (!category) {
+      return `❌ Categoria "${newCategoryName}" não encontrada.\n\n` +
+             `📂 Categorias disponíveis:\n` +
+             `• Alimentação\n• Transporte\n• Saúde\n• Educação\n• Lazer\n• Moradia\n• Outros`;
+    }
+    
+    const oldCategoryName = lastTransaction.categories?.name || 'N/A';
+    
+    // Atualizar transação
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({ category_id: category.id, updated_at: new Date().toISOString() })
+      .eq('id', lastTransaction.id);
+    
+    if (updateError) {
+      console.error('❌ [v19] Erro ao atualizar:', updateError);
+      return '❌ Erro ao editar categoria. Tente novamente.';
+    }
+    
+    // Registrar edição
+    await supabase.from('transaction_edits').insert({
+      transaction_id: lastTransaction.id,
+      user_id: userId,
+      edit_type: 'edit_category',
+      old_value: oldCategoryName,
+      new_value: category.name,
+      edited_via: 'whatsapp'
+    });
+    
+    console.log('✅ [v19] Categoria atualizada');
+    
+    return `✅ *Categoria Atualizada!*\n\n` +
+           `📝 ${lastTransaction.description}\n` +
+           `📂 Antes: ${oldCategoryName}\n` +
+           `📂 Depois: ${category.name}\n\n` +
+           `✨ _Alteração salva com sucesso!_`;
+  }
+  
+  // ============================================
+  // COMANDO: EDITAR DATA
+  // ============================================
+  if (lowerContent.includes('editar data')) {
+    const match = content.match(/editar data (\d{1,2})\/(\d{1,2})/i);
+    if (!match) {
+      return '❌ Formato incorreto.\n\n✅ Use: "editar data 15/11"';
+    }
+    
+    const day = match[1].padStart(2, '0');
+    const month = match[2].padStart(2, '0');
+    const year = new Date().getFullYear();
+    const newDate = `${year}-${month}-${day}`;
+    
+    const oldDate = lastTransaction.transaction_date;
+    
+    // Atualizar transação
+    const { error: updateError } = await supabase
+      .from('transactions')
+      .update({ transaction_date: newDate, updated_at: new Date().toISOString() })
+      .eq('id', lastTransaction.id);
+    
+    if (updateError) {
+      console.error('❌ [v19] Erro ao atualizar:', updateError);
+      return '❌ Erro ao editar data. Tente novamente.';
+    }
+    
+    // Registrar edição
+    await supabase.from('transaction_edits').insert({
+      transaction_id: lastTransaction.id,
+      user_id: userId,
+      edit_type: 'edit_date',
+      old_value: oldDate,
+      new_value: newDate,
+      edited_via: 'whatsapp'
+    });
+    
+    console.log('✅ [v19] Data atualizada');
+    
+    const formattedOld = new Date(oldDate).toLocaleDateString('pt-BR');
+    const formattedNew = new Date(newDate).toLocaleDateString('pt-BR');
+    
+    return `✅ *Data Atualizada!*\n\n` +
+           `📝 ${lastTransaction.description}\n` +
+           `📅 Antes: ${formattedOld}\n` +
+           `📅 Depois: ${formattedNew}\n\n` +
+           `✨ _Alteração salva com sucesso!_`;
+  }
+  
+  // Comando não reconhecido
+  return `❓ Comando não reconhecido.\n\n` +
+         `*Comandos disponíveis:*\n` +
+         `• editar valor 150\n` +
+         `• editar descrição Uber Black\n` +
+         `• editar categoria alimentação\n` +
+         `• editar data 15/11`;
+}
+
+// ============================================
+// 🧠 FUNÇÃO: PROCESSAR MENSAGEM COM CONTEXTO (v20)
+// Interpreta mensagens baseadas no contexto ativo
+// ============================================
+async function handleMessageWithContext(content: string, context: any, userId: string, phone: string, supabase: any) {
+  console.log('🧠 [v20] Processando com contexto:', context.context_type);
+  const lowerContent = content.toLowerCase().trim();
+  
+  // Comandos para sair da edição
+  if (lowerContent === 'pronto' || lowerContent === 'cancelar' || lowerContent === 'sair') {
+    await clearContext(userId, phone, supabase);
+    return '✅ Modo de edição encerrado!\n\n_Qualquer dúvida, é só chamar._';
+  }
+  
+  // CONTEXTO: EDITING_TRANSACTION
+  if (context.context_type === 'editing_transaction') {
+    const transactionId = context.context_data?.transaction_id;
+    const currentData = context.context_data?.current_data || {};
+    
+    if (!transactionId) {
+      await clearContext(userId, phone, supabase);
+      return '❌ Erro no contexto. Tente novamente.';
+    }
+    
+    // 1. INTERPRETAR NÚMERO PURO → VALOR
+    if (/^\d+[.,]?\d*$/.test(lowerContent)) {
+      const newValue = parseFloat(lowerContent.replace(',', '.'));
+      const oldValue = currentData.amount;
+      
+      const { error } = await supabase
+        .from('transactions')
+        .update({ amount: newValue, updated_at: new Date().toISOString() })
+        .eq('id', transactionId)
+        .eq('user_id', userId);
+      
+      if (error) {
+        return '❌ Erro ao atualizar valor. Tente novamente.';
+      }
+      
+      // Registrar edição
+      await supabase.from('transaction_edits').insert({
+        transaction_id: transactionId,
+        user_id: userId,
+        edit_type: 'edit_value',
+        old_value: String(oldValue),
+        new_value: String(newValue),
+        edited_via: 'whatsapp'
+      });
+      
+      // Atualizar contexto
+      currentData.amount = newValue;
+      await saveContext(userId, phone, 'editing_transaction', {
+        transaction_id: transactionId,
+        current_data: currentData
+      }, supabase);
+      
+      const oldFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(oldValue);
+      const newFormatted = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(newValue);
+      
+      return `✅ *Valor Atualizado!*\n\n` +
+             `📝 ${currentData.description}\n` +
+             `💵 Antes: ${oldFormatted}\n` +
+             `💵 Depois: ${newFormatted}\n\n` +
+             `💡 _Quer mudar mais alguma coisa? (categoria/descrição/data)_\n` +
+             `_Ou digite "pronto" para finalizar._`;
+    }
+    
+    // 2. INTERPRETAR "categoria X" ou "X" (nome de categoria)
+    if (lowerContent.includes('categoria') || /^[a-záàâãéèêíïóôõöúçñ\s]+$/i.test(lowerContent)) {
+      const categoryQuery = lowerContent.replace('categoria', '').trim();
+      
+      const { data: category } = await supabase
+        .from('categories')
+        .select('id, name')
+        .ilike('name', `%${categoryQuery}%`)
+        .limit(1)
+        .maybeSingle();
+      
+      if (!category) {
+        return `❌ Categoria "${categoryQuery}" não encontrada.\n\n` +
+               `💡 _Tente: alimentação, transporte, saúde, etc._`;
+      }
+      
+      const oldCategory = currentData.category;
+      
+      const { error } = await supabase
+        .from('transactions')
+        .update({ category_id: category.id, updated_at: new Date().toISOString() })
+        .eq('id', transactionId)
+        .eq('user_id', userId);
+      
+      if (error) {
+        return '❌ Erro ao atualizar categoria. Tente novamente.';
+      }
+      
+      // Registrar edição
+      await supabase.from('transaction_edits').insert({
+        transaction_id: transactionId,
+        user_id: userId,
+        edit_type: 'edit_category',
+        old_value: oldCategory,
+        new_value: category.name,
+        edited_via: 'whatsapp'
+      });
+      
+      // Atualizar contexto
+      currentData.category = category.name;
+      currentData.category_id = category.id;
+      await saveContext(userId, phone, 'editing_transaction', {
+        transaction_id: transactionId,
+        current_data: currentData
+      }, supabase);
+      
+      return `✅ *Categoria Atualizada!*\n\n` +
+             `📝 ${currentData.description}\n` +
+             `📂 Antes: ${oldCategory}\n` +
+             `📂 Depois: ${category.name}\n\n` +
+             `💡 _Quer mudar mais alguma coisa?_\n` +
+             `_Ou digite "pronto" para finalizar._`;
+    }
+    
+    // 3. INTERPRETAR "data DD/MM" ou só "DD/MM"
+    if (lowerContent.includes('data') || /^\d{1,2}\/\d{1,2}/.test(lowerContent)) {
+      const dateMatch = content.match(/(\d{1,2})\/(\d{1,2})/);
+      if (!dateMatch) {
+        return '❌ Formato de data inválido. Use: DD/MM ou data DD/MM';
+      }
+      
+      const [, day, month] = dateMatch;
+      const year = new Date().getFullYear();
+      const newDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+      const oldDate = currentData.date;
+      
+      const { error } = await supabase
+        .from('transactions')
+        .update({ transaction_date: newDate, updated_at: new Date().toISOString() })
+        .eq('id', transactionId)
+        .eq('user_id', userId);
+      
+      if (error) {
+        return '❌ Erro ao atualizar data. Tente novamente.';
+      }
+      
+      // Registrar edição
+      await supabase.from('transaction_edits').insert({
+        transaction_id: transactionId,
+        user_id: userId,
+        edit_type: 'edit_date',
+        old_value: oldDate,
+        new_value: newDate,
+        edited_via: 'whatsapp'
+      });
+      
+      // Atualizar contexto
+      currentData.date = newDate;
+      await saveContext(userId, phone, 'editing_transaction', {
+        transaction_id: transactionId,
+        current_data: currentData
+      }, supabase);
+      
+      const formattedOld = new Date(oldDate).toLocaleDateString('pt-BR');
+      const formattedNew = new Date(newDate).toLocaleDateString('pt-BR');
+      
+      return `✅ *Data Atualizada!*\n\n` +
+             `📝 ${currentData.description}\n` +
+             `📅 Antes: ${formattedOld}\n` +
+             `📅 Depois: ${formattedNew}\n\n` +
+             `💡 _Quer mudar mais alguma coisa?_\n` +
+             `_Ou digite "pronto" para finalizar._`;
+    }
+    
+    // 4. INTERPRETAR TEXTO LIVRE → DESCRIÇÃO
+    if (lowerContent.length > 2 && !lowerContent.includes('editar')) {
+      const newDescription = content.trim();
+      const oldDescription = currentData.description;
+      
+      const { error } = await supabase
+        .from('transactions')
+        .update({ description: newDescription, updated_at: new Date().toISOString() })
+        .eq('id', transactionId)
+        .eq('user_id', userId);
+      
+      if (error) {
+        return '❌ Erro ao atualizar descrição. Tente novamente.';
+      }
+      
+      // Registrar edição
+      await supabase.from('transaction_edits').insert({
+        transaction_id: transactionId,
+        user_id: userId,
+        edit_type: 'edit_description',
+        old_value: oldDescription,
+        new_value: newDescription,
+        edited_via: 'whatsapp'
+      });
+      
+      // Atualizar contexto
+      currentData.description = newDescription;
+      await saveContext(userId, phone, 'editing_transaction', {
+        transaction_id: transactionId,
+        current_data: currentData
+      }, supabase);
+      
+      return `✅ *Descrição Atualizada!*\n\n` +
+             `💵 Valor: R$ ${currentData.amount.toFixed(2)}\n` +
+             `📝 Antes: ${oldDescription}\n` +
+             `📝 Depois: ${newDescription}\n\n` +
+             `💡 _Quer mudar mais alguma coisa?_\n` +
+             `_Ou digite "pronto" para finalizar._`;
+    }
+  }
+  
+  return '❓ Não entendi. Tente novamente ou digite "cancelar" para sair.';
+}
+
 serve(async (req)=>{
   // CORS
   if (req.method === 'OPTIONS') {
@@ -245,7 +841,7 @@ serve(async (req)=>{
       messageData = payload.body.message || {};
       // ✅ CRÍTICO: N8N usa messageType, não type
       messageType = messageData.messageType || messageData.type || messageData?.interactive?.type || 'text';
-      content = messageData.content || messageData.text || '';
+      content = extractMessageText(messageData);
       
       console.log('📱 [N8N] From:', from);
       console.log('📱 [N8N] Phone:', phone);
@@ -257,7 +853,7 @@ serve(async (req)=>{
       phone = from.split('@')[0];
       messageData = payload.data?.message || {};
       messageType = messageData.type || messageData?.interactive?.type || 'text';
-      content = messageData.text || messageData.caption || '';
+      content = extractMessageText(messageData);
       
       console.log('📱 [Direct] From:', from);
       console.log('📱 [Direct] Phone:', phone);
@@ -267,6 +863,27 @@ serve(async (req)=>{
     console.log('💬 Tipo:', messageType);
     console.log('📝 Conteúdo:', content);
     console.log('📝 Tipo de conteúdo:', typeof content);
+    
+    // 🛑 CRÍTICO: IGNORAR MENSAGENS DO PRÓPRIO BOT (evita loop infinito)
+    console.log('🔍 [DEBUG fromMe] messageData:', JSON.stringify(messageData, null, 2));
+    console.log('🔍 [DEBUG fromMe] messageData.fromMe:', messageData?.fromMe);
+    console.log('🔍 [DEBUG fromMe] payload.body?.message?.fromMe:', payload.body?.message?.fromMe);
+    
+    const fromMe = messageData?.fromMe || payload.body?.message?.fromMe || false;
+    console.log('🤖 [FINAL] FromMe:', fromMe);
+    console.log('🤖 [FINAL] Type of fromMe:', typeof fromMe);
+    console.log('🤖 [FINAL] fromMe === true?', fromMe === true);
+    console.log('🤖 [FINAL] Boolean(fromMe)?', Boolean(fromMe));
+    
+    // 🛑 VERIFICAÇÃO MAIS ROBUSTA
+    if (fromMe === true || fromMe === 'true' || fromMe === 1 || Boolean(fromMe) === true) {
+      console.log('⏭️ ✅✅✅ IGNORANDO mensagem do próprio bot (fromMe detectado)');
+      return new Response(JSON.stringify({ ok: true, ignored: 'fromMe' }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    console.log('⚠️ NÃO É FROMME, continuando processamento...');
     
     // ✅ VALIDAÇÃO ROBUSTA - mas permite botões sem content
     const isButtonMessage = (
@@ -339,11 +956,11 @@ serve(async (req)=>{
     );
     
     if (isButtonClick && buttonId) {
-      console.log('🎯 [v18] CLIQUE EM BOTÃO DETECTADO!');
-      console.log('🎯 [v18] MessageType:', messageType);
-      console.log('🎯 [v18] Button ID:', buttonId);
+      console.log('🎯 [v20] CLIQUE EM BOTÃO DETECTADO!');
+      console.log('🎯 [v20] MessageType:', messageType);
+      console.log('🎯 [v20] Button ID:', buttonId);
       
-      const buttonResponse = await handleButtonClick(String(buttonId), user.id, supabase);
+      const buttonResponse = await handleButtonClick(String(buttonId), user.id, phone, supabase);
       
       // Enviar resposta do botão
       await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp-message`, {
@@ -369,11 +986,28 @@ serve(async (req)=>{
       });
     }
     
+    // Mapear messageType para valores válidos do ENUM
+    // ENUM aceita: text, audio, image, document, video, location, contact
+    const messageTypeMap: Record<string, string> = {
+      'Conversation': 'text',
+      'TemplateButtonReplyMessage': 'text',
+      'text': 'text',
+      'audio': 'audio',
+      'image': 'image',
+      'document': 'document',
+      'video': 'video',
+      'location': 'location',
+      'contact': 'contact'
+    };
+    
+    const validMessageType = messageTypeMap[messageType] || 'text';
+    console.log(`📝 Mapeando messageType: "${messageType}" → "${validMessageType}"`);
+    
     // Salva mensagem
     const { data: message, error: messageError } = await supabase.from('whatsapp_messages').insert({
       user_id: user.id,
       phone_number: phone,
-      message_type: messageType,
+      message_type: validMessageType,
       direction: 'inbound',
       content: content,
       intent: null,
@@ -396,6 +1030,79 @@ serve(async (req)=>{
         headers: {
           'Content-Type': 'application/json'
         }
+      });
+    }
+    
+    // ============================================
+    // 🧠 VERIFICAR CONTEXTO CONVERSACIONAL (v20)
+    // Prioridade máxima: se há contexto, processar com ele
+    // ============================================
+    console.log('🔍🔍🔍 [v20] ANTES de buscar contexto');
+    console.log('🔍🔍🔍 [v20] user.id:', user.id);
+    console.log('🔍🔍🔍 [v20] phone:', phone);
+    
+    const activeContext = await getActiveContext(user.id, phone, supabase);
+    
+    console.log('🔍🔍🔍 [v20] DEPOIS de buscar contexto');
+    console.log('🔍🔍🔍 [v20] activeContext:', activeContext);
+    
+    if (activeContext) {
+      console.log('🧠✅✅✅ [v20] CONTEXTO ATIVO DETECTADO!!!:', activeContext.context_type);
+      console.log('🧠✅✅✅ [v20] Dados do contexto:', JSON.stringify(activeContext, null, 2));
+      const contextResponse = await handleMessageWithContext(content, activeContext, user.id, phone, supabase);
+      
+      // Enviar resposta do contexto
+      await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp-message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+        },
+        body: JSON.stringify({
+          phone_number: phone,
+          message_type: 'text',
+          content: contextResponse
+        })
+      });
+      
+      return new Response(JSON.stringify({
+        ok: true,
+        message: 'Mensagem processada com contexto'
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // ============================================
+    // ✏️ DETECÇÃO DE COMANDOS DE EDIÇÃO (v20)
+    // Só chega aqui se NÃO houver contexto ativo
+    // ============================================
+    const EDIT_KEYWORDS = ['editar valor', 'editar descri', 'editar categoria', 'editar data'];
+    const isEditCommand = EDIT_KEYWORDS.some(keyword => command.includes(keyword));
+    
+    if (isEditCommand) {
+      console.log('✏️ [v20] Comando de edição detectado (sem contexto)');
+      const editResponse = await handleEditCommand(content, user.id, phone, supabase);
+      
+      // Enviar resposta do comando de edição
+      await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/send-whatsapp-message`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+        },
+        body: JSON.stringify({
+          phone_number: phone,
+          message_type: 'text',
+          content: editResponse
+        })
+      });
+      
+      return new Response(JSON.stringify({
+        ok: true,
+        message: 'Comando de edição processado'
+      }), {
+        headers: { 'Content-Type': 'application/json' }
       });
     }
     
@@ -457,14 +1164,14 @@ serve(async (req)=>{
           console.log('📊 [v18] Dados extraídos:', JSON.stringify(nlpResult.data, null, 2));
           
           // ============================================
-          // 🔄 MUDAR STATUS PARA PENDING_CONFIRMATION
+          // 🔄 MUDAR STATUS PARA COMPLETED
           // ============================================
-          console.log('🔄 [v18] Atualizando status para pending_confirmation...');
+          console.log('🔄 [v18] Atualizando status para completed...');
           const { error: updateError } = await supabase
             .from('transactions')
             .update({ 
-              status: 'pending_confirmation',
-              is_paid: false
+              status: 'completed',
+              is_paid: true
             })
             .eq('id', nlpResult.transaction_id);
           
@@ -484,19 +1191,22 @@ serve(async (req)=>{
             currency: 'BRL'
           }).format(transactionData.amount);
           
-          const confirmationText = `🤔 *Confirme os dados:*\n\n` +
-                                   `${typeEmoji} Tipo: ${transactionData.type === 'income' ? 'Receita' : 'Despesa'}\n` +
-                                   `💵 Valor: ${amountFormatted}\n` +
-                                   `📂 Categoria: ${transactionData.category || 'Outros'}\n` +
-                                   `📝 Descrição: ${transactionData.description}\n\n` +
-                                   `_Clique em um botão abaixo:_`;
+          // v19: Mensagem de confirmação com status "Pago"
+          const confirmationText = `✅ *Lançamento Registrado!*\n\n` +
+                                   `${typeEmoji} ${transactionData.type === 'income' ? 'Receita' : 'Despesa'}\n` +
+                                   `📂 ${transactionData.category || 'Outros'}\n` +
+                                   `📝 ${transactionData.description}\n` +
+                                   `💵 ${amountFormatted}\n\n` +
+                                   `✅ Pago\n\n` +
+                                   `_Para editar, envie:_\n` +
+                                   `• "editar valor 150"\n` +
+                                   `• "editar descrição Uber Black"\n` +
+                                   `• "editar categoria alimentação"`;
           
-          console.log('🔘 [v18] Enviando botões interativos...');
+          console.log('🔘 [v19] Enviando botões interativos...');
           
           const buttonResult = await sendInteractiveButtons(phone, {
             text: confirmationText,
-            confirmText: 'Confirmar',
-            editText: 'Corrigir',
             transactionId: nlpResult.transaction_id,
             footer: 'Ana Clara - Personal Finance'
           });

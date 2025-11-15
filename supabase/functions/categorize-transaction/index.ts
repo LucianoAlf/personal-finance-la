@@ -92,15 +92,40 @@ serve(async (req)=>{
       console.warn(`⚠️ Categoria "${categoryName}" (${transactionType}) não encontrada, usando "Outros"`);
     }
     
+    // ✅ CRÍTICO: Buscar account_id se não fornecido
+    let accountId = data.account_id;
+    if (!accountId) {
+      console.log('🔍 account_id não fornecido, buscando conta ativa do usuário...');
+      const { data: account, error: accountError } = await supabase
+        .from('accounts')
+        .select('id')
+        .eq('user_id', user_id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single();
+      
+      if (account) {
+        accountId = account.id;
+        console.log('✅ Conta encontrada:', accountId);
+      } else {
+        console.warn('⚠️ Nenhuma conta ativa encontrada para o usuário');
+      }
+    }
+    
+    // ✅ CRÍTICO: Sempre usar data atual (não confiar na AI)
+    const transactionDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    console.log('📅 Data da transação:', transactionDate);
+    
     // Criar transação
     const { data: transaction, error: txError } = await supabase.from('transactions').insert({
       user_id,
-      account_id: data.account_id || null, // Account ID se fornecido
+      account_id: accountId, // ✅ Sempre preenchido
       amount: extractedData.data.amount,
       type: extractedData.data.type,
       category_id: category?.id || null, // UUID da categoria ou null
       description: extractedData.data.description,
-      transaction_date: extractedData.data.date || new Date().toISOString().split('T')[0], // YYYY-MM-DD
+      transaction_date: transactionDate, // ✅ Sempre data atual
       is_paid: true,
       source: 'whatsapp',
       whatsapp_message_id: data.message_id

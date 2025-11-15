@@ -40,8 +40,8 @@ export const useTransactions = () => {
           )
         `)
         .eq('user_id', user.id)
-        .order('transaction_date', { ascending: false })
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .order('transaction_date', { ascending: false });
 
       // Aplicar filtros se fornecidos
       if (filters?.type) {
