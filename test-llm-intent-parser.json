@@ -1,0 +1,25 @@
+{
+  "message": "muda pra 150 e categoria alimentação",
+  "context": {
+    "transaction": {
+      "id": "test-123",
+      "amount": 100.00,
+      "description": "Compra no mercado",
+      "category": "Outros",
+      "category_id": "cat-123",
+      "transaction_date": "2025-11-15T00:00:00Z",
+      "type": "expense"
+    },
+    "available_categories": [
+      { "id": "cat-1", "name": "Alimentação", "type": "expense" },
+      { "id": "cat-2", "name": "Transporte", "type": "expense" },
+      { "id": "cat-3", "name": "Moradia", "type": "expense" },
+      { "id": "cat-4", "name": "Saúde", "type": "expense" },
+      { "id": "cat-5", "name": "Lazer", "type": "expense" },
+      { "id": "cat-6", "name": "Educação", "type": "expense" },
+      { "id": "cat-7", "name": "Outros", "type": "expense" },
+      { "id": "cat-8", "name": "Salário", "type": "income" },
+      { "id": "cat-9", "name": "Investimentos", "type": "income" }
+    ]
+  }
+}

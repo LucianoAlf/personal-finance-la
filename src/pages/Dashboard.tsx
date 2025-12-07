@@ -70,13 +70,15 @@ export function Dashboard() {
   } = useBudgetsQuery(monthKey);
 
   // ✅ OTIMIZADO: Cachear filtro de transações com useMemo
+  // ✅ CORREÇÃO: Filtrar por string (YYYY-MM) sem conversão de timezone
   const filteredTransactions = useMemo(() => {
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonth = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const selectedYearMonth = `${selectedYear}-${selectedMonth}`;
+    
     return transactions.filter(t => {
-      const transactionDate = new Date(t.transaction_date);
-      return (
-        transactionDate.getMonth() === selectedDate.getMonth() &&
-        transactionDate.getFullYear() === selectedDate.getFullYear()
-      );
+      // Compara apenas YYYY-MM (sem new Date que causa bug de timezone)
+      return t.transaction_date.startsWith(selectedYearMonth);
     });
   }, [transactions, selectedDate]);
 

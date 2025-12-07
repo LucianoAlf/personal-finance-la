@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
-// ✅ Buscar cartões de crédito
+// ✅ Buscar cartões de crédito (APENAS ATIVOS E NÃO ARQUIVADOS)
 const fetchCreditCards = async (): Promise<any[]> => {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return [];
@@ -10,6 +10,8 @@ const fetchCreditCards = async (): Promise<any[]> => {
     .from('credit_cards')
     .select('*')
     .eq('user_id', user.id)
+    .eq('is_active', true)      // ✅ Apenas cartões ativos
+    .eq('is_archived', false)   // ✅ Não arquivados
     .order('name');
 
   if (error) throw error;

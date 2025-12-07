@@ -1,10 +1,13 @@
 /**
  * EDGE FUNCTION: send-whatsapp-message
- * v6 FINAL - Especificação oficial UAZAPI
- */ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-// Configuração UAZAPI (conforme documentação oficial)
-const UAZAPI_BASE_URL = 'https://lamusic.uazapi.com';
-const UAZAPI_TOKEN = '0a5d59d3-f368-419b-b9e8-701375814522';
+ * v7 - Corrigido: Token via variável de ambiente (não hardcoded)
+ */ 
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+
+// Configuração UAZAPI via variáveis de ambiente (SEGURO)
+const UAZAPI_BASE_URL = Deno.env.get('UAZAPI_BASE_URL') || Deno.env.get('UAZAPI_SERVER_URL') || 'https://lamusic.uazapi.com';
+const UAZAPI_TOKEN = Deno.env.get('UAZAPI_TOKEN') || Deno.env.get('UAZAPI_INSTANCE_TOKEN');
+
 serve(async (req)=>{
   // CORS
   if (req.method === 'OPTIONS') {
@@ -17,6 +20,18 @@ serve(async (req)=>{
     });
   }
   try {
+    // Validar configuração UAZAPI
+    if (!UAZAPI_TOKEN) {
+      console.error('❌ UAZAPI_TOKEN não configurado nas variáveis de ambiente');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'UAZAPI_TOKEN não configurado. Configure via: supabase secrets set UAZAPI_TOKEN=seu_token'
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     const request = await req.json();
     console.log('📤 Enviando mensagem WhatsApp');
     console.log('📱 Destino:', request.phone_number);

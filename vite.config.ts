@@ -18,6 +18,10 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    port: 5174,
+    host: 'localhost',
+  },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

@@ -1,0 +1,412 @@
+/**
+ * NLP CLASSIFIER - Sistema Inteligente de Classificação
+ * Baseado na arquitetura do Copiloto
+ * 
+ * Usa GPT-4 com Function Calling para:
+ * - Interpretar linguagem natural e gírias
+ * - Extrair intenção + entidades
+ * - Manter contexto de conversa
+ * - Gerar respostas amigáveis
+ */
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+// ============================================
+// TIPOS
+// ============================================
+
+export interface IntencaoClassificada {
+  intencao: string;
+  confianca: number;
+  entidades: {
+    valor?: number;
+    categoria?: string;
+    descricao?: string;
+    data?: string;
+    periodo?: string;
+    conta?: string;
+    plataforma?: string;
+  };
+  explicacao: string;
+  resposta_conversacional: string;
+  comando_original?: string;
+}
+
+// ============================================
+// FUNCTION CALLING SCHEMA
+// ============================================
+
+const INTENT_CLASSIFICATION_FUNCTION = {
+  name: 'classificar_comando',
+  description: 'Classifica intenção e extrai entidades de comando financeiro',
+  parameters: {
+    type: 'object',
+    properties: {
+      intencao: {
+        type: 'string',
+        enum: [
+          'REGISTRAR_RECEITA',
+          'REGISTRAR_DESPESA',
+          'CONSULTAR_SALDO',
+          'RELATORIO',
+          'CONSULTAR_METAS',
+          'SAUDACAO',
+          'AJUDA',
+          'EDITAR_TRANSACAO',
+          'EXCLUIR_TRANSACAO',
+          'LISTAR_CONTAS',
+          'SELECIONAR_CONTA',
+          'OUTRO'
+        ]
+      },
+      confianca: {
+        type: 'number',
+        minimum: 0,
+        maximum: 1
+      },
+      entidades: {
+        type: 'object',
+        properties: {
+          valor: { type: 'number' },
+          categoria: { type: 'string' },
+          descricao: { type: 'string' },
+          data: { type: 'string' },
+          periodo: { 
+            type: 'string',
+            enum: ['hoje', 'ontem', 'semana', 'mes']
+          },
+          conta: { type: 'string' },
+          plataforma: { type: 'string' }
+        }
+      },
+      explicacao: { type: 'string' },
+      resposta_conversacional: { type: 'string' }
+    },
+    required: ['intencao', 'confianca', 'entidades', 'resposta_conversacional']
+  }
+};
+
+// ============================================
+// SYSTEM PROMPT
+// ============================================
+
+function gerarSystemPrompt(
+  memoriaUsuario: string,
+  historicoConversa: string,
+  dataHoraAtual: string,
+  contasDisponiveis: string
+): string {
+  return `Você é a "Ana Clara", assistente financeira inteligente do app Personal Finance.
+Você é amigável, direta, entende gírias e expressões informais brasileiras.
+
+## CONTEXTO TEMPORAL
+${dataHoraAtual}
+
+## CONTAS DISPONÍVEIS DO USUÁRIO
+${contasDisponiveis}
+
+## HISTÓRICO RECENTE DA CONVERSA (últimas mensagens)
+${historicoConversa}
+
+## MEMÓRIA DO USUÁRIO (gírias, preferências aprendidas)
+${memoriaUsuario}
+
+## SUA TAREFA
+Interprete a mensagem do usuário e extraia TODAS as informações em uma única resposta.
+
+## INTENÇÕES POSSÍVEIS
+1. REGISTRAR_RECEITA: Recebeu dinheiro (salário, freelance, venda)
+2. REGISTRAR_DESPESA: Gastou com algo
+3. CONSULTAR_SALDO: Pergunta sobre saldo, quanto tem
+4. RELATORIO: Pede resumo, relatório
+5. CONSULTAR_METAS: Pergunta sobre metas
+6. SAUDACAO: Cumprimento simples (oi, olá, bom dia)
+7. AJUDA: Pede ajuda, comandos
+8. EDITAR_TRANSACAO: Quer editar algo ("era X", "muda pra")
+9. EXCLUIR_TRANSACAO: Quer excluir ("exclui essa", "apaga")
+10. LISTAR_CONTAS: Quer ver contas disponíveis
+11. SELECIONAR_CONTA: Está respondendo qual conta usar
+12. OUTRO: Não relacionado a finanças
+
+## REGRAS CRÍTICAS DE INTERPRETAÇÃO
+
+### Gírias de Dinheiro
+- "conto", "pila", "mango", "pau" = real (moeda)
+- "50 conto" = R$ 50
+- "torrei", "gastei", "paguei" = despesa
+
+### Apelidos de Bancos (MUITO IMPORTANTE!)
+- "roxinho", "roxinha", "conta roxa", "nu", "nuno bank", "nuno benk" = Nubank
+- "laranjinha", "inter", "banco inter" = Inter
+- "amarelinho", "bb", "banco do brasil" = Banco do Brasil
+- "vermelhinho", "santander", "santan" = Santander
+- "azulzinho", "caixa", "cef" = Caixa
+- "itaú", "itau", "ita", "no itaú" = Itaú
+- "bradesco", "brades" = Bradesco
+- "c6", "c6 bank" = C6 Bank
+- "picpay", "pic pay" = PicPay
+
+### Interpretação de Datas
+- "agora", "já", "acabei de" → data/hora ATUAL
+- "hoje" → data de HOJE
+- "ontem" → dia ANTERIOR
+- Se não mencionar data → assume AGORA
+
+### Categorias de Despesa (use APENAS estas)
+- alimentacao: comida, bebida, restaurante, mercado, café, almoço, jantar
+- transporte: uber, 99, taxi, ônibus, metrô
+- lazer: cinema, show, festa, bar
+- saude: farmácia, médico, remédio
+- educacao: curso, livro, escola
+- moradia: aluguel, conta de luz, água, internet
+- vestuario: roupa, sapato, acessório
+- outros: qualquer outra coisa
+
+## CONTEXTO DE CONVERSA
+Se o histórico mostra que Ana perguntou "Em qual conta?" e o usuário responde apenas com nome de banco:
+- INTENÇÃO deve ser SELECIONAR_CONTA
+- Extraia a conta mencionada no campo "conta"
+- Use o contexto anterior para completar a transação
+
+## FORMATO DE RESPOSTA
+Retorne APENAS JSON válido, sem markdown:
+{
+  "intencao": "REGISTRAR_DESPESA",
+  "confianca": 0.95,
+  "entidades": {
+    "valor": 50,
+    "categoria": "alimentacao",
+    "descricao": "Mercado",
+    "conta": "Nubank"
+  },
+  "explicacao": "Usuário gastou 50 no mercado, conta Nubank",
+  "resposta_conversacional": "✅ Registrei R$ 50 no mercado, conta Nubank! 🛒"
+}
+
+## FORMATAÇÃO DA RESPOSTA CONVERSACIONAL
+- SEMPRE use emojis relevantes
+- SEMPRE use *asteriscos* para negrito
+- Separe informações em linhas
+- Seja amigável e direto
+- Se faltar informação, pergunte de forma natural`;
+}
+
+// ============================================
+// BUSCAR HISTÓRICO DE CONVERSA
+// ============================================
+
+async function buscarHistoricoConversa(
+  supabase: any,
+  userId: string,
+  limite: number = 8
+): Promise<string> {
+  try {
+    const { data: mensagens } = await supabase
+      .from('whatsapp_messages')
+      .select('content, direction, created_at')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(limite);
+
+    if (!mensagens || mensagens.length === 0) {
+      return 'Nenhuma conversa anterior.';
+    }
+
+    // Inverter para ordem cronológica
+    const ordenadas = mensagens.reverse();
+    
+    return ordenadas.map((m: any) => {
+      const hora = new Date(m.created_at).toLocaleTimeString('pt-BR', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+      const remetente = m.direction === 'inbound' ? 'Usuário' : 'Ana';
+      return `[${hora}] ${remetente}: ${m.content}`;
+    }).join('\n');
+  } catch (error) {
+    console.error('Erro ao buscar histórico:', error);
+    return 'Erro ao carregar histórico.';
+  }
+}
+
+// ============================================
+// BUSCAR CONTAS DO USUÁRIO
+// ============================================
+
+async function buscarContasUsuario(
+  supabase: any,
+  userId: string
+): Promise<string> {
+  try {
+    const { data: contas } = await supabase
+      .from('accounts')
+      .select('id, name, bank_name, type')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+
+    if (!contas || contas.length === 0) {
+      return 'Nenhuma conta cadastrada.';
+    }
+
+    return contas.map((c: any, i: number) => 
+      `${i + 1}. ${c.name} (${c.bank_name || c.type})`
+    ).join('\n');
+  } catch (error) {
+    console.error('Erro ao buscar contas:', error);
+    return 'Erro ao carregar contas.';
+  }
+}
+
+// ============================================
+// CLASSIFICAR INTENÇÃO COM GPT-4
+// ============================================
+
+export async function classificarIntencaoNLP(
+  texto: string,
+  userId: string,
+  supabaseUrl: string,
+  supabaseKey: string
+): Promise<IntencaoClassificada> {
+  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+  
+  if (!OPENAI_API_KEY) {
+    console.error('❌ OPENAI_API_KEY não configurada');
+    return fallbackClassificacao(texto);
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // Buscar contexto em paralelo
+  const [historicoConversa, contasDisponiveis] = await Promise.all([
+    buscarHistoricoConversa(supabase, userId, 8),
+    buscarContasUsuario(supabase, userId)
+  ]);
+
+  // Data/hora atual
+  const agora = new Date();
+  const dataHoraAtual = `Data: ${agora.toLocaleDateString('pt-BR')} | Hora: ${agora.toLocaleTimeString('pt-BR')}`;
+
+  // Memória do usuário (por enquanto vazia, pode expandir depois)
+  const memoriaUsuario = 'Nenhuma memória específica registrada.';
+
+  // Montar System Prompt
+  const systemPrompt = gerarSystemPrompt(
+    memoriaUsuario,
+    historicoConversa,
+    dataHoraAtual,
+    contasDisponiveis
+  );
+
+  console.log('🧠 Chamando GPT-4 para classificação NLP...');
+  console.log('📝 Texto:', texto);
+  console.log('📜 Histórico:', historicoConversa.substring(0, 200) + '...');
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: texto }
+        ],
+        functions: [INTENT_CLASSIFICATION_FUNCTION],
+        function_call: { name: 'classificar_comando' },
+        temperature: 0.3
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ Erro OpenAI:', response.status, errorText);
+      return fallbackClassificacao(texto);
+    }
+
+    const result = await response.json();
+    const functionCall = result.choices?.[0]?.message?.function_call;
+
+    if (!functionCall?.arguments) {
+      console.error('❌ Resposta sem function_call');
+      return fallbackClassificacao(texto);
+    }
+
+    const intencao: IntencaoClassificada = JSON.parse(functionCall.arguments);
+    intencao.comando_original = texto;
+
+    console.log('✅ Classificação NLP:', JSON.stringify(intencao, null, 2));
+
+    return intencao;
+
+  } catch (error) {
+    console.error('❌ Erro ao classificar:', error);
+    return fallbackClassificacao(texto);
+  }
+}
+
+// ============================================
+// FALLBACK (se GPT falhar)
+// ============================================
+
+function fallbackClassificacao(texto: string): IntencaoClassificada {
+  console.log('⚠️ Usando fallback de classificação');
+  
+  const textoLower = texto.toLowerCase();
+  
+  // Detectar saudação
+  if (/^(oi|olá|ola|bom dia|boa tarde|boa noite|hey|eai|e ai)/i.test(textoLower)) {
+    return {
+      intencao: 'SAUDACAO',
+      confianca: 0.8,
+      entidades: {},
+      explicacao: 'Saudação detectada',
+      resposta_conversacional: 'Olá! 👋 Como posso ajudar?',
+      comando_original: texto
+    };
+  }
+
+  // Detectar saldo
+  if (/saldo|quanto (tenho|gastei|ganhei)/i.test(textoLower)) {
+    return {
+      intencao: 'CONSULTAR_SALDO',
+      confianca: 0.7,
+      entidades: {},
+      explicacao: 'Consulta de saldo',
+      resposta_conversacional: '📊 Vou verificar seu saldo...',
+      comando_original: texto
+    };
+  }
+
+  // Detectar valor (possível despesa/receita)
+  const valorMatch = textoLower.match(/(\d+(?:[.,]\d{2})?)/);
+  if (valorMatch) {
+    const valor = parseFloat(valorMatch[1].replace(',', '.'));
+    return {
+      intencao: 'REGISTRAR_DESPESA',
+      confianca: 0.5,
+      entidades: { valor, descricao: texto },
+      explicacao: 'Possível despesa detectada',
+      resposta_conversacional: `💰 Entendi R$ ${valor.toFixed(2)}. Em qual conta?`,
+      comando_original: texto
+    };
+  }
+
+  // Default
+  return {
+    intencao: 'OUTRO',
+    confianca: 0.3,
+    entidades: {},
+    explicacao: 'Não consegui entender',
+    resposta_conversacional: '🤔 Não entendi. Pode reformular? Diga algo como "gastei 50 no mercado"',
+    comando_original: texto
+  };
+}
+
+// ============================================
+// EXPORTAR PARA USO
+// ============================================
+
+export { gerarSystemPrompt, buscarHistoricoConversa, buscarContasUsuario };
