@@ -258,7 +258,42 @@ async function buscarContasUsuario(
 }
 
 // ============================================
-// CLASSIFICAR INTENÇÃO COM GPT-4
+// BUSCAR CONFIGURAÇÃO DO PROVEDOR DE IA
+// ============================================
+
+interface AIProviderConfig {
+  provider: string;
+  model: string;
+  api_key: string;
+  temperature: number;
+}
+
+async function buscarConfiguracaoIA(supabase: any, userId: string): Promise<AIProviderConfig | null> {
+  try {
+    // Buscar provedor padrão do usuário
+    const { data, error } = await supabase
+      .from('ai_provider_configs')
+      .select('provider, model, api_key, temperature')
+      .eq('user_id', userId)
+      .eq('is_default', true)
+      .eq('is_validated', true)
+      .single();
+    
+    if (error || !data) {
+      console.log('⚠️ Nenhum provedor configurado, usando padrão');
+      return null;
+    }
+    
+    console.log('✅ Provedor configurado:', data.provider, data.model);
+    return data;
+  } catch (error) {
+    console.error('Erro ao buscar config IA:', error);
+    return null;
+  }
+}
+
+// ============================================
+// CLASSIFICAR INTENÇÃO COM IA CONFIGURADA
 // ============================================
 
 export async function classificarIntencaoNLP(
@@ -267,20 +302,25 @@ export async function classificarIntencaoNLP(
   supabaseUrl: string,
   supabaseKey: string
 ): Promise<IntencaoClassificada> {
-  const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-  
-  if (!OPENAI_API_KEY) {
-    console.error('❌ OPENAI_API_KEY não configurada');
-    return fallbackClassificacao(texto);
-  }
-
   const supabase = createClient(supabaseUrl, supabaseKey);
 
-  // Buscar contexto em paralelo
-  const [historicoConversa, contasDisponiveis] = await Promise.all([
+  // Buscar configuração do usuário E contexto em paralelo
+  const [configIA, historicoConversa, contasDisponiveis] = await Promise.all([
+    buscarConfiguracaoIA(supabase, userId),
     buscarHistoricoConversa(supabase, userId, 8),
     buscarContasUsuario(supabase, userId)
   ]);
+
+  // Usar configuração do usuário ou fallback para env
+  const apiKey = configIA?.api_key || Deno.env.get('OPENAI_API_KEY');
+  const model = configIA?.model || 'gpt-4o-mini';
+  const temperature = configIA?.temperature || 0.3;
+  const provider = configIA?.provider || 'openai';
+  
+  if (!apiKey) {
+    console.error('❌ API Key não configurada');
+    return fallbackClassificacao(texto);
+  }
 
   // Data/hora atual
   const agora = new Date();
@@ -297,26 +337,50 @@ export async function classificarIntencaoNLP(
     contasDisponiveis
   );
 
-  console.log('🧠 Chamando GPT-4 para classificação NLP...');
+  console.log('🧠 Chamando IA para classificação NLP...');
+  console.log('🤖 Provider:', provider, '| Modelo:', model);
   console.log('📝 Texto:', texto);
-  console.log('📜 Histórico:', historicoConversa.substring(0, 200) + '...');
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+    // Determinar endpoint baseado no provider
+    let endpoint = 'https://api.openai.com/v1/chat/completions';
+    let headers: Record<string, string> = {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    };
+    
+    if (provider === 'google' || provider === 'gemini') {
+      // Google Gemini usa endpoint diferente
+      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      headers = { 'Content-Type': 'application/json' };
+    } else if (provider === 'anthropic' || provider === 'claude') {
+      endpoint = 'https://api.anthropic.com/v1/messages';
+      headers = {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
         'Content-Type': 'application/json'
-      },
+      };
+    } else if (provider === 'openrouter') {
+      endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+      headers = {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      };
+    }
+
+    // Para OpenAI e compatíveis (OpenRouter)
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: texto }
         ],
         functions: [INTENT_CLASSIFICATION_FUNCTION],
         function_call: { name: 'classificar_comando' },
-        temperature: 0.3
+        temperature: temperature
       })
     });
 
