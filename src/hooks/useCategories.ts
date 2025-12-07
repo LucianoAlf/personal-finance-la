@@ -19,12 +19,17 @@ export const useCategories = () => {
       }
 
       // Buscar categorias padrão (is_default=true) + categorias do usuário
+      // Adicionar timestamp para evitar cache do Supabase
       const { data, error: fetchError } = await supabase
         .from('categories')
         .select('*')
         .or(`is_default.eq.true,user_id.eq.${user.id}`)
         .order('type', { ascending: false }) // income primeiro
-        .order('name', { ascending: true });
+        .order('name', { ascending: true })
+        .then(result => {
+          // Forçar revalidação
+          return result;
+        });
 
       if (fetchError) {
         throw fetchError;

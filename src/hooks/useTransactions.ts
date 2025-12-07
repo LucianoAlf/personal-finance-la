@@ -29,6 +29,8 @@ export const useTransactions = () => {
       }
 
       // ✅ OTIMIZADO: Buscar transações COM tags em 1 query (elimina N+1)
+      // Adicionar timestamp para evitar cache
+      const timestamp = new Date().getTime();
       let query = supabase
         .from('transactions')
         .select(`

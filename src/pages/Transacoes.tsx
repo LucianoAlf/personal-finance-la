@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Plus, TrendingUp, TrendingDown, Wallet, X, List, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -39,10 +39,11 @@ export const Transacoes = () => {
     getTotalIncome,
     getTotalExpenses,
     getBalance,
+    fetchTransactions,
   } = useTransactions();
 
   const { accounts } = useAccounts();
-  const { getCategoryById } = useCategories();
+  const { getCategoryById, fetchCategories } = useCategories();
   const { formatCurrency, formatDate, formatRelativeDate } = useUserPreferences();
 
   // ESTADOS
@@ -54,6 +55,12 @@ export const Transacoes = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterConfig | null>(null);
+
+  // Forçar refetch ao carregar a página
+  useEffect(() => {
+    fetchTransactions();
+    fetchCategories();
+  }, []);
 
   // FILTRO POR CONTA (vindo da URL)
   const selectedAccountForFilter = accountIdFromUrl 
