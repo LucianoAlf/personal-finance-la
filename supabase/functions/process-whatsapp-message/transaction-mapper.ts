@@ -13,6 +13,7 @@
 import { getSupabase, formatCurrency, todayBrasilia } from './utils.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
 import { enviarConfirmacaoComBotoes, enviarSelecaoContas } from './button-sender.ts';
+import { templateTransacaoRegistrada, templatePerguntaConta, templateTransacaoAtualizada, formatarValor } from './response-templates.ts';
 
 // ============================================
 // TIPOS
@@ -278,19 +279,15 @@ export async function registrarTransacao(
       .eq('id', data.category_id)
       .single();
     
-    // Montar mensagem de confirmação
-    const tipoEmoji = input.type === 'income' ? '💰' : '💸';
-    const tipoTexto = input.type === 'income' ? 'Receita' : 'Despesa';
-    const dataFormatada = new Date().toLocaleDateString('pt-BR');
-    
-    const mensagem = `✅ *Lançamento Registrado!*
-
-${tipoEmoji} ${tipoTexto}
-💵 ${formatCurrency(input.amount)}
-📂 ${categoria?.icon || '📁'} ${categoria?.name || 'Outros'}
-📝 ${input.description || 'Via WhatsApp'}
-🏦 ${conta?.icon || '🏦'} ${conta?.name || 'Conta'}
-📅 ${dataFormatada}`;
+    // Usar novo template profissional
+    const mensagem = templateTransacaoRegistrada({
+      type: input.type,
+      amount: input.amount,
+      description: input.description || 'Via WhatsApp',
+      category: categoria?.name || 'Outros',
+      account: conta?.name || 'Conta',
+      data: new Date()
+    });
     
     return {
       success: true,
@@ -626,14 +623,10 @@ export async function processarIntencaoTransacao(
       contaId = contas[0].id;
       contaNome = contas[0].name;
     } else {
-      // Perguntar qual conta
-      const listaContas = contas.map(c => 
-        `• ${c.icon || '🏦'} ${c.name}`
-      ).join('\n');
-      
+      // Perguntar qual conta usando template profissional
       return {
         success: false,
-        mensagem: `💳 *Em qual conta?*\n\n${listaContas}\n\n_Responda com o nome da conta_`,
+        mensagem: templatePerguntaConta(contas.map(c => ({ name: c.name, icon: c.icon || undefined }))),
         precisaConfirmacao: true
       };
     }

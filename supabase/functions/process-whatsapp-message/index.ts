@@ -478,8 +478,8 @@ serve(async (req: Request) => {
       });
     }
     
-    // Comando: Saldo
-    if (/^(saldo|quanto\s+tenho|minhas?\s+contas?|meu\s+saldo)$/i.test(textoLower)) {
+    // Comando: Saldo (mais flexível para variações)
+    if (/^(saldo|quanto\s+tenho|minhas?\s+contas?|meu\s+saldo|qual\s+(é\s+)?(o\s+)?meu\s+saldo|ver\s+saldo|mostrar?\s+saldo)\??$/i.test(textoLower)) {
       console.log('💰 Comando: Consultar saldo');
       const resposta = await consultarSaldo(user.id);
       await enviarViaEdgeFunction(phone, resposta);
@@ -637,6 +637,81 @@ serve(async (req: Request) => {
         processed_at: new Date().toISOString()
       }).eq('id', message.id);
       return new Response(JSON.stringify({ success: true, type: 'help' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Se é CONSULTAR_SALDO, usar função de saldo
+    if (intencaoNLP.intencao === 'CONSULTAR_SALDO') {
+      console.log('💰 Intenção CONSULTAR_SALDO detectada via NLP');
+      const resposta = await consultarSaldo(user.id);
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'consultar_saldo',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'balance' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Se é LISTAR_CONTAS, usar função de listar contas
+    if (intencaoNLP.intencao === 'LISTAR_CONTAS') {
+      console.log('🏦 Intenção LISTAR_CONTAS detectada via NLP');
+      const resposta = await listarContas(user.id);
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'listar_contas',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'list_accounts' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Se é EXCLUIR_TRANSACAO, usar função de excluir
+    if (intencaoNLP.intencao === 'EXCLUIR_TRANSACAO') {
+      console.log('🗑️ Intenção EXCLUIR_TRANSACAO detectada via NLP');
+      const resposta = await excluirUltimaTransacao(user.id);
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'excluir_transacao',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'delete' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Se é EDITAR_TRANSACAO com valor, usar função de editar
+    if (intencaoNLP.intencao === 'EDITAR_TRANSACAO' && intencaoNLP.entidades.valor) {
+      console.log('✏️ Intenção EDITAR_TRANSACAO detectada via NLP');
+      const resultado = await processarEdicao(user.id, { valor: intencaoNLP.entidades.valor });
+      await enviarViaEdgeFunction(phone, resultado.mensagem);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'editar_transacao',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'edit' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Se é MUDAR_CONTA, usar função de mudar conta
+    if (intencaoNLP.intencao === 'MUDAR_CONTA' && intencaoNLP.entidades.conta) {
+      console.log('🏦 Intenção MUDAR_CONTA detectada via NLP');
+      const resposta = await mudarContaUltimaTransacao(user.id, intencaoNLP.entidades.conta);
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'mudar_conta',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'change_account' }), { 
         headers: { 'Content-Type': 'application/json' } 
       });
     }

@@ -4,6 +4,14 @@
  */
 
 import { getSupabase } from './utils.ts';
+import { 
+  templateTransacaoExcluida, 
+  templateTransacaoAtualizada, 
+  templateSaldo, 
+  templateListaContas,
+  getEmojiConta,
+  formatarValor
+} from './response-templates.ts';
 
 // ============================================
 // EXCLUIR ÚLTIMA TRANSAÇÃO
@@ -40,10 +48,11 @@ export async function excluirUltimaTransacao(userId: string): Promise<string> {
       return '❌ Erro ao excluir transação. Tente novamente.';
     }
     
-    const tipo = ultima.type === 'expense' ? 'Despesa' : 'Receita';
-    const valor = parseFloat(ultima.amount as any).toFixed(2).replace('.', ',');
-    
-    return `🗑️ *Transação Excluída!*\n\n${tipo}: ${ultima.description}\nValor: R$ ${valor}\n\n✅ Removida com sucesso!`;
+    return templateTransacaoExcluida({
+      type: ultima.type as 'income' | 'expense',
+      amount: parseFloat(ultima.amount as any),
+      description: ultima.description
+    });
   } catch (error) {
     console.error('Erro em excluirUltimaTransacao:', error);
     return '❌ Erro ao processar comando. Tente novamente.';
@@ -108,7 +117,14 @@ export async function mudarContaUltimaTransacao(userId: string, nomeConta: strin
       return '❌ Erro ao alterar conta. Tente novamente.';
     }
     
-    return `✅ *Conta Alterada!*\n\n📝 ${ultima.description}\n🏦 ${contaAnterior?.name || 'Anterior'} → ${conta.name}`;
+    const emojiAnterior = getEmojiConta(contaAnterior?.name || '');
+    const emojiNovo = getEmojiConta(conta.name);
+    
+    return templateTransacaoAtualizada(
+      'Conta',
+      `${emojiAnterior} ${contaAnterior?.name || 'Anterior'}`,
+      `${emojiNovo} ${conta.name}`
+    );
   } catch (error) {
     console.error('Erro em mudarContaUltimaTransacao:', error);
     return '❌ Erro ao processar comando. Tente novamente.';
@@ -144,18 +160,13 @@ export async function consultarSaldo(userId: string): Promise<string> {
     }
     
     let total = 0;
-    const linhas = contas.map((conta: any) => {
+    const contasFormatadas = contas.map((conta: any) => {
       const saldo = parseFloat(conta.current_balance) || 0;
       total += saldo;
-      const emoji = saldo >= 0 ? '💚' : '🔴';
-      const valorFormatado = saldo.toFixed(2).replace('.', ',');
-      return `${emoji} *${conta.name}*: R$ ${valorFormatado}`;
+      return { name: conta.name, balance: saldo };
     });
     
-    const emojiTotal = total >= 0 ? '✅' : '⚠️';
-    const totalFormatado = total.toFixed(2).replace('.', ',');
-    
-    return `💰 *Seus Saldos*\n\n${linhas.join('\n')}\n\n━━━━━━━━━━━━━━━━━━\n${emojiTotal} *Total: R$ ${totalFormatado}*`;
+    return templateSaldo(contasFormatadas, total);
   } catch (error) {
     console.error('Erro em consultarSaldo:', error);
     return '❌ Erro ao consultar saldo. Tente novamente.';
@@ -181,12 +192,13 @@ export async function listarContas(userId: string): Promise<string> {
       return '❌ Você não tem contas cadastradas.';
     }
     
-    const linhas = contas.map((conta: any, i: number) => {
-      const saldo = parseFloat(conta.current_balance).toFixed(2).replace('.', ',');
-      return `${i + 1}. *${conta.name}* (${conta.type}) - R$ ${saldo}`;
-    });
+    const contasFormatadas = contas.map((conta: any) => ({
+      name: conta.name,
+      type: conta.type,
+      balance: parseFloat(conta.current_balance) || 0
+    }));
     
-    return `🏦 *Suas Contas*\n\n${linhas.join('\n')}`;
+    return templateListaContas(contasFormatadas);
   } catch (error) {
     console.error('Erro em listarContas:', error);
     return '❌ Erro ao listar contas. Tente novamente.';
