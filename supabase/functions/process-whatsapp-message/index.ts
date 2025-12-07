@@ -25,6 +25,7 @@ import { classificarIntencaoNLP, IntencaoClassificada } from './nlp-classifier.t
 import { processarIntencaoTransacao, processarEdicao, processarExclusao } from './transaction-mapper.ts';
 import { enviarConfirmacaoComBotoes, extrairButtonId, parsearButtonId } from './button-sender.ts';
 import { isAudioPTT, extrairMessageId, processarAudioPTT, extrairInfoAudio } from './audio-handler.ts';
+import { excluirUltimaTransacao, mudarContaUltimaTransacao, consultarSaldo, listarContas, extrairNomeConta } from './command-handlers.ts';
 
 // ============================================
 // MAIN HANDLER
@@ -437,7 +438,82 @@ serve(async (req: Request) => {
     }
     
     // ============================================
-    // 9. CONSULTA ANALÍTICA
+    // 9. COMANDOS CONVERSACIONAIS RÁPIDOS
+    // ============================================
+    const textoLower = content.toLowerCase().trim();
+    
+    // Comando: Excluir
+    if (/^(exclui|apaga|deleta|remove|cancela)\s*(essa|este|isso)?$/i.test(textoLower)) {
+      console.log('🗑️ Comando: Excluir última transação');
+      const resposta = await excluirUltimaTransacao(user.id);
+      await enviarViaEdgeFunction(phone, resposta);
+      
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'delete_quick_command',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      
+      return new Response(JSON.stringify({ success: true, type: 'delete_quick' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Comando: Mudar conta
+    const matchMudarConta = textoLower.match(/^(?:muda|troca|transfere)\s+(?:pra|pro|para)\s+(\w+)$/i);
+    if (matchMudarConta) {
+      const nomeConta = matchMudarConta[1];
+      console.log('🏦 Comando: Mudar conta para', nomeConta);
+      const resposta = await mudarContaUltimaTransacao(user.id, nomeConta);
+      await enviarViaEdgeFunction(phone, resposta);
+      
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'change_account_quick_command',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      
+      return new Response(JSON.stringify({ success: true, type: 'change_account_quick' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Comando: Saldo
+    if (/^(saldo|quanto\s+tenho|minhas?\s+contas?|meu\s+saldo)$/i.test(textoLower)) {
+      console.log('💰 Comando: Consultar saldo');
+      const resposta = await consultarSaldo(user.id);
+      await enviarViaEdgeFunction(phone, resposta);
+      
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'balance_quick_command',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      
+      return new Response(JSON.stringify({ success: true, type: 'balance_quick' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Comando: Listar contas
+    if (/^(contas|quais\s+contas|minhas\s+contas)$/i.test(textoLower)) {
+      console.log('🏦 Comando: Listar contas');
+      const resposta = await listarContas(user.id);
+      await enviarViaEdgeFunction(phone, resposta);
+      
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'list_accounts_quick_command',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      
+      return new Response(JSON.stringify({ success: true, type: 'list_accounts_quick' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // ============================================
+    // 10. CONSULTA ANALÍTICA
     // ============================================
     if (isAnalyticsQuery(command)) {
       console.log('📊 Consulta analítica detectada');
