@@ -737,8 +737,7 @@ export async function consultarGastos(userId: string, periodo?: PeriodoConsulta)
   
   // Ordenar por valor (maior primeiro) e pegar top 5
   const categorias = Object.entries(porCategoria)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+    .sort((a, b) => b[1] - a[1]);
   
   let mensagem = `📊 *Gastos de ${labelPeriodo}*\n\n`;
   
@@ -750,6 +749,10 @@ export async function consultarGastos(userId: string, periodo?: PeriodoConsulta)
     'Lazer': '🎮',
     'Educação': '📚',
     'Vestuário': '👕',
+    'Assinaturas': '📺',
+    'Viagens': '✈️',
+    'Compras': '🛒',
+    'Serviços': '🔧',
     'Outros': '📦'
   };
   
@@ -757,10 +760,6 @@ export async function consultarGastos(userId: string, periodo?: PeriodoConsulta)
     const percentual = ((valor / total) * 100).toFixed(0);
     const emoji = emojisCategoria[cat] || '•';
     mensagem += `${emoji} ${cat}: ${formatarMoeda(valor)} (${percentual}%)\n`;
-  }
-  
-  if (Object.keys(porCategoria).length > 5) {
-    mensagem += `_... e mais ${Object.keys(porCategoria).length - 5} categorias_\n`;
   }
   
   mensagem += `\n━━━━━━━━━━━━━━━━\n`;
@@ -1025,10 +1024,9 @@ export async function consultarGastosComFiltros(userId: string, filtros: Filtros
     return msg;
   }
   
-  // Ordenar categorias por valor
+  // Ordenar categorias por valor (todas as categorias)
   const categorias = Object.entries(porCategoria)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+    .sort((a, b) => b[1] - a[1]);
   
   let mensagem = `${titulo}\n\n`;
   
@@ -1040,6 +1038,10 @@ export async function consultarGastosComFiltros(userId: string, filtros: Filtros
     'Lazer': '🎮',
     'Educação': '📚',
     'Vestuário': '👕',
+    'Assinaturas': '📺',
+    'Viagens': '✈️',
+    'Compras': '🛒',
+    'Serviços': '🔧',
     'Outros': '📦'
   };
   
@@ -1047,10 +1049,6 @@ export async function consultarGastosComFiltros(userId: string, filtros: Filtros
     const percentual = ((valor / total) * 100).toFixed(0);
     const emoji = emojisCategoria[cat] || '•';
     mensagem += `${emoji} ${cat}: ${formatarMoeda(valor)} (${percentual}%)\n`;
-  }
-  
-  if (Object.keys(porCategoria).length > 5) {
-    mensagem += `_... e mais ${Object.keys(porCategoria).length - 5} categorias_\n`;
   }
   
   mensagem += `\n━━━━━━━━━━━━━━━━\n`;
@@ -1520,17 +1518,13 @@ function formatarRespostaUnificada(
       msg += `_... e mais ${grupos.length - 10} dias_\n`;
     }
   }
-  // ===== PADRÃO: POR CATEGORIA =====
+  // ===== PADRÃO: POR CATEGORIA (TODAS) =====
   else {
     const grupos = agruparTransacoes(transacoes, 'categoria');
-    grupos.slice(0, 6).forEach(grupo => {
+    grupos.forEach(grupo => {
       const pct = total > 0 ? ((grupo.total / total) * 100).toFixed(0) : '0';
       msg += `${getEmojiCategoria(grupo.nome)} ${grupo.nome}: ${formatarMoeda(grupo.total)} (${pct}%)\n`;
     });
-    
-    if (grupos.length > 6) {
-      msg += `_... e mais ${grupos.length - 6} categorias_\n`;
-    }
   }
   
   msg += `\n────────────────────\n`;
