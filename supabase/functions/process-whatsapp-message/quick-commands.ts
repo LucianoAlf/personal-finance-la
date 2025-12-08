@@ -365,7 +365,7 @@ async function comandoInvestimentos(userId: string): Promise<string> {
 // ============================================
 
 function comandoAjuda(): string {
-  return `🤖 *Ana Clara - Assistente Financeira*\n\n` +
+  return `🙋🏻‍♀️ *Ana Clara • Personal Finance*\n\n` +
     `*Comandos Rápidos:*\n` +
     `💰 saldo - Ver saldos das contas\n` +
     `📊 resumo - Resumo do mês\n` +

@@ -21,38 +21,129 @@ export async function excluirUltimaTransacao(userId: string): Promise<string> {
   const supabase = getSupabase();
   
   try {
-    // Buscar última transação
-    const { data: ultima, error: fetchError } = await supabase
+    // ✅ CORREÇÃO CRÍTICA: Buscar última transação de AMBAS as tabelas
+    // e excluir a mais recente (por created_at)
+    
+    // Buscar última transação normal
+    const { data: ultimaNormal } = await supabase
       .from('transactions')
-      .select('id, description, amount, type')
+      .select('id, description, amount, type, created_at')
       .eq('user_id', userId)
       .eq('status', 'completed')
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
     
-    if (fetchError || !ultima) {
+    // Buscar última transação de cartão
+    const { data: ultimaCartao } = await supabase
+      .from('credit_card_transactions')
+      .select('id, description, amount, created_at, credit_card_id, invoice_id')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    console.log('[EXCLUIR] Última normal:', ultimaNormal?.id, ultimaNormal?.created_at);
+    console.log('[EXCLUIR] Última cartão:', ultimaCartao?.id, ultimaCartao?.created_at);
+    
+    // Determinar qual é a mais recente
+    let excluirCartao = false;
+    let transacaoParaExcluir: any = null;
+    
+    if (ultimaNormal && ultimaCartao) {
+      // Comparar datas
+      const dataNormal = new Date(ultimaNormal.created_at);
+      const dataCartao = new Date(ultimaCartao.created_at);
+      
+      if (dataCartao > dataNormal) {
+        excluirCartao = true;
+        transacaoParaExcluir = ultimaCartao;
+      } else {
+        transacaoParaExcluir = ultimaNormal;
+      }
+    } else if (ultimaCartao) {
+      excluirCartao = true;
+      transacaoParaExcluir = ultimaCartao;
+    } else if (ultimaNormal) {
+      transacaoParaExcluir = ultimaNormal;
+    } else {
       return '❌ Não encontrei nenhuma transação recente para excluir.';
     }
     
-    console.log('[EXCLUIR] Deletando transação:', ultima.id);
+    console.log('[EXCLUIR] Excluindo:', excluirCartao ? 'CARTÃO' : 'NORMAL', transacaoParaExcluir.id);
     
-    // Deletar
-    const { error: deleteError } = await supabase
-      .from('transactions')
-      .delete()
-      .eq('id', ultima.id);
-    
-    if (deleteError) {
-      console.error('❌ Erro ao excluir:', deleteError);
-      return '❌ Erro ao excluir transação. Tente novamente.';
+    if (excluirCartao) {
+      // Excluir transação de cartão
+      const valor = parseFloat(transacaoParaExcluir.amount);
+      
+      // Atualizar fatura (subtrair valor)
+      if (transacaoParaExcluir.invoice_id) {
+        const { data: fatura } = await supabase
+          .from('credit_card_invoices')
+          .select('total_amount')
+          .eq('id', transacaoParaExcluir.invoice_id)
+          .single();
+        
+        if (fatura) {
+          const novoTotal = Math.max(0, (fatura.total_amount || 0) - valor);
+          await supabase
+            .from('credit_card_invoices')
+            .update({ total_amount: novoTotal })
+            .eq('id', transacaoParaExcluir.invoice_id);
+        }
+      }
+      
+      // Atualizar limite do cartão (devolver valor)
+      if (transacaoParaExcluir.credit_card_id) {
+        const { data: cartao } = await supabase
+          .from('credit_cards')
+          .select('available_limit')
+          .eq('id', transacaoParaExcluir.credit_card_id)
+          .single();
+        
+        if (cartao) {
+          const novoLimite = (cartao.available_limit || 0) + valor;
+          await supabase
+            .from('credit_cards')
+            .update({ available_limit: novoLimite })
+            .eq('id', transacaoParaExcluir.credit_card_id);
+        }
+      }
+      
+      // Deletar transação de cartão
+      const { error: deleteError } = await supabase
+        .from('credit_card_transactions')
+        .delete()
+        .eq('id', transacaoParaExcluir.id);
+      
+      if (deleteError) {
+        console.error('❌ Erro ao excluir transação de cartão:', deleteError);
+        return '❌ Erro ao excluir transação. Tente novamente.';
+      }
+      
+      return templateTransacaoExcluida({
+        type: 'expense',
+        amount: valor,
+        description: transacaoParaExcluir.description
+      });
+    } else {
+      // Excluir transação normal
+      const { error: deleteError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', transacaoParaExcluir.id);
+      
+      if (deleteError) {
+        console.error('❌ Erro ao excluir:', deleteError);
+        return '❌ Erro ao excluir transação. Tente novamente.';
+      }
+      
+      return templateTransacaoExcluida({
+        type: transacaoParaExcluir.type as 'income' | 'expense',
+        amount: parseFloat(transacaoParaExcluir.amount as any),
+        description: transacaoParaExcluir.description
+      });
     }
-    
-    return templateTransacaoExcluida({
-      type: ultima.type as 'income' | 'expense',
-      amount: parseFloat(ultima.amount as any),
-      description: ultima.description
-    });
   } catch (error) {
     console.error('Erro em excluirUltimaTransacao:', error);
     return '❌ Erro ao processar comando. Tente novamente.';
@@ -148,6 +239,7 @@ export async function consultarSaldo(userId: string): Promise<string> {
   const supabase = getSupabase();
   
   try {
+    // Buscar contas
     const { data: contas, error } = await supabase
       .from('accounts')
       .select('name, current_balance, type')
@@ -159,6 +251,7 @@ export async function consultarSaldo(userId: string): Promise<string> {
       return '❌ Você não tem contas cadastradas.\n\nAcesse o app para criar suas contas.';
     }
     
+    // Formatar contas e calcular total
     let total = 0;
     const contasFormatadas = contas.map((conta: any) => {
       const saldo = parseFloat(conta.current_balance) || 0;

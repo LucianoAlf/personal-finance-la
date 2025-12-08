@@ -11,9 +11,10 @@
 // 
 // ============================================
 
-import { getSupabase } from './utils.ts';
+import { getSupabase, getEmojiBanco } from './utils.ts';
 import { enviarConfirmacaoComBotoes } from './button-sender.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
+import { templateTransacaoRegistrada } from './response-templates.ts';
 
 const CONTEXT_EXPIRATION_MINUTES = 15;
 
@@ -205,6 +206,9 @@ export async function processarNoContexto(
     if (step === 'awaiting_value') {
       return await processarValor(texto, contexto, userId);
     }
+    if (step === 'awaiting_payment_method') {
+      return await processarSelecaoMetodoPagamento(texto, contexto, userId, phone);
+    }
   }
   
   if (contextType === 'editing_transaction') {
@@ -214,6 +218,15 @@ export async function processarNoContexto(
   if (contextType === 'confirming_action') {
     if (step === 'awaiting_delete_confirmation') {
       return await processarConfirmacaoExclusao(texto, contexto, userId);
+    }
+    if (step === 'awaiting_image_confirmation') {
+      return await processarConfirmacaoImagem(texto, contexto, userId, phone);
+    }
+    if (step === 'awaiting_image_account') {
+      return await processarSelecaoContaImagem(texto, contexto, userId, phone);
+    }
+    if (step === 'awaiting_card_selection') {
+      return await processarSelecaoCartao(texto, contexto, userId);
     }
     return await processarConfirmacao(texto, contexto, userId);
   }
@@ -330,9 +343,10 @@ async function processarSelecaoConta(
   }
   
   // Mapeamento de variações comuns de transcrição de áudio
+  // IMPORTANTE: Ordenado do mais específico para o menos específico
   const variacoesBancos: Record<string, string[]> = {
-    'nubank': ['nubank', 'nuno bank', 'nuno benk', 'nu bank', 'roxinho', 'nu', 'nubamk'],
-    'itau': ['itau', 'itaú', 'ita', 'itauu'],
+    'itau': ['itau', 'itaú', 'ita', 'itauu', 'itaí'],
+    'nubank': ['nubank', 'nuno bank', 'nuno benk', 'nu bank', 'roxinho', 'nubamk'],
     'bradesco': ['bradesco', 'brades', 'bradescoo'],
     'santander': ['santander', 'santan', 'santande'],
     'inter': ['inter', 'banco inter', 'inter bank'],
@@ -343,7 +357,30 @@ async function processarSelecaoConta(
     'mercadopago': ['mercado pago', 'mercadopago', 'mp'],
   };
   
-  // Tentar por nome/banco com variações
+  console.log('🔍 Buscando conta para texto:', textoLower);
+  console.log('🏦 Contas disponíveis:', accounts.map((a: any) => a.name).join(', '));
+  
+  // PRIMEIRO: Tentar match EXATO com variações (prioridade máxima)
+  if (!contaSelecionada) {
+    for (const [banco, variacoes] of Object.entries(variacoesBancos)) {
+      // Verificar se o texto É exatamente uma das variações
+      if (variacoes.includes(textoLower)) {
+        // Encontrar a conta que corresponde a esse banco
+        for (const account of accounts) {
+          const accountNameLower = account.name.toLowerCase()
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          if (accountNameLower.includes(banco)) {
+            contaSelecionada = account;
+            console.log('✅ Match EXATO por variação:', textoLower, '→', account.name);
+            break;
+          }
+        }
+        if (contaSelecionada) break;
+      }
+    }
+  }
+  
+  // SEGUNDO: Tentar match direto no nome da conta
   if (!contaSelecionada) {
     for (const account of accounts) {
       const accountNameLower = account.name.toLowerCase()
@@ -351,20 +388,43 @@ async function processarSelecaoConta(
       const bankNameLower = (account.bank_name || '').toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       
-      // Match direto
-      if (textoLower.includes(accountNameLower) || textoLower.includes(bankNameLower)) {
+      // Match direto - texto é igual ao nome da conta
+      if (textoLower === accountNameLower || textoLower === bankNameLower) {
         contaSelecionada = account;
-        console.log('✅ Match direto encontrado:', account.name);
+        console.log('✅ Match direto EXATO:', account.name);
         break;
       }
+    }
+  }
+  
+  // TERCEIRO: Tentar match parcial (texto contém nome da conta)
+  if (!contaSelecionada) {
+    for (const account of accounts) {
+      const accountNameLower = account.name.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const bankNameLower = (account.bank_name || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       
-      // Match por variações
-      for (const [banco, variacoes] of Object.entries(variacoesBancos)) {
-        if (accountNameLower.includes(banco) || bankNameLower.includes(banco)) {
-          for (const variacao of variacoes) {
-            if (textoLower.includes(variacao)) {
+      if (textoLower.includes(accountNameLower) || textoLower.includes(bankNameLower)) {
+        contaSelecionada = account;
+        console.log('✅ Match parcial encontrado:', account.name);
+        break;
+      }
+    }
+  }
+  
+  // QUARTO: Tentar match por variações (texto contém variação)
+  if (!contaSelecionada) {
+    for (const [banco, variacoes] of Object.entries(variacoesBancos)) {
+      for (const variacao of variacoes) {
+        if (textoLower.includes(variacao)) {
+          // Encontrar a conta que corresponde a esse banco
+          for (const account of accounts) {
+            const accountNameLower = account.name.toLowerCase()
+              .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            if (accountNameLower.includes(banco)) {
               contaSelecionada = account;
-              console.log('✅ Match por variação encontrado:', variacao, '→', account.name);
+              console.log('✅ Match por variação:', variacao, '→', account.name);
               break;
             }
           }
@@ -422,22 +482,112 @@ async function processarSelecaoConta(
     
     console.log('✅ Conta verificada:', contaVerificada.name);
     
-    // Buscar categoria padrão
-    const { data: categoria } = await supabase
-      .from('categories')
-      .select('id, name, icon')
-      .eq('user_id', userId)
-      .ilike('name', `%${entidades.categoria || 'outros'}%`)
-      .single();
+    // ============================================
+    // BUSCAR CATEGORIA INTELIGENTE
+    // ============================================
+    // 1. Busca por palavra-chave no comando original + descrição + categoria NLP
+    // 2. Busca categoria global (user_id IS NULL) ou do usuário
+    // 3. Fallback para "Outros"
+    // ============================================
     
-    const categoryId = categoria?.id || null;
+    const tipo = intencao.intencao === 'REGISTRAR_RECEITA' ? 'income' : 'expense';
+    const textosParaAnalisar = [
+      intencao.comando_original || '',
+      entidades.descricao || '',
+      entidades.categoria || ''
+    ].filter(Boolean).join(' ').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    console.log('[CONTEXTO-CATEGORIA] Textos para análise:', textosParaAnalisar);
+    console.log('[CONTEXTO-CATEGORIA] Tipo:', tipo);
+    
+    // Mapeamento de palavras-chave para categorias
+    const PALAVRAS_CATEGORIAS: Record<string, string> = {
+      'uber': 'Transporte', '99': 'Transporte', 'taxi': 'Transporte', 'gasolina': 'Transporte',
+      'combustivel': 'Transporte', 'estacionamento': 'Transporte', 'pedagio': 'Transporte',
+      'mercado': 'Alimentação', 'supermercado': 'Alimentação', 'ifood': 'Alimentação',
+      'restaurante': 'Alimentação', 'almoco': 'Alimentação', 'jantar': 'Alimentação',
+      'lanche': 'Alimentação', 'cafe': 'Alimentação', 'padaria': 'Alimentação',
+      'farmacia': 'Saúde', 'remedio': 'Saúde', 'medico': 'Saúde', 'consulta': 'Saúde',
+      'hospital': 'Saúde', 'dentista': 'Saúde', 'exame': 'Saúde',
+      'aluguel': 'Moradia', 'condominio': 'Moradia', 'luz': 'Moradia', 'agua': 'Moradia',
+      'gas': 'Moradia', 'internet': 'Moradia', 'iptu': 'Moradia',
+      'hotel': 'Viagens', 'hospedagem': 'Viagens', 'viagem': 'Viagens', 'passagem': 'Viagens',
+      'cinema': 'Lazer', 'netflix': 'Lazer', 'spotify': 'Lazer', 'bar': 'Lazer',
+      'curso': 'Educação', 'escola': 'Educação', 'faculdade': 'Educação', 'livro': 'Educação',
+      'roupa': 'Vestuário', 'sapato': 'Vestuário', 'shopping': 'Vestuário',
+      'academia': 'Esportes', 'treino': 'Esportes',
+      'salario': 'Salário', 'pagamento': 'Salário', 'holerite': 'Salário',
+      'freelance': 'Freelance', 'freela': 'Freelance', 'bico': 'Freelance',
+      'dividendo': 'Investimentos', 'rendimento': 'Investimentos',
+      'bonus': 'Bonificações', 'plr': 'Bonificações', '13': 'Bonificações',
+    };
+    
+    // Detectar categoria por palavra-chave
+    let categoriaDetectada = 'Outros';
+    for (const [palavra, cat] of Object.entries(PALAVRAS_CATEGORIAS)) {
+      if (textosParaAnalisar.includes(palavra)) {
+        categoriaDetectada = cat;
+        console.log('[CONTEXTO-CATEGORIA] ✅ Palavra-chave encontrada:', palavra, '→', cat);
+        break;
+      }
+    }
+    
+    // Buscar categoria no banco (global ou do usuário)
+    const { data: categorias } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('type', tipo)
+      .or(`user_id.is.null,user_id.eq.${userId}`);
+    
+    console.log('[CONTEXTO-CATEGORIA] Categorias disponíveis:', categorias?.map((c: any) => c.name).join(', '));
+    
+    // Normalizar para comparação
+    const normalizarTexto = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    // Encontrar categoria pelo nome detectado
+    let categoryId: string | null = null;
+    let categoriaNome = 'Outros';
+    
+    if (categorias && categorias.length > 0) {
+      const catEncontrada = categorias.find((c: any) => 
+        normalizarTexto(c.name) === normalizarTexto(categoriaDetectada)
+      );
+      
+      if (catEncontrada) {
+        categoryId = catEncontrada.id;
+        categoriaNome = catEncontrada.name;
+        console.log('[CONTEXTO-CATEGORIA] ✅ Categoria encontrada:', catEncontrada.name, '| ID:', catEncontrada.id);
+      } else {
+        // Fallback para "Outros"
+        const outros = categorias.find((c: any) => normalizarTexto(c.name) === 'outros');
+        if (outros) {
+          categoryId = outros.id;
+          categoriaNome = outros.name;
+          console.log('[CONTEXTO-CATEGORIA] ⚠️ Usando fallback "Outros"');
+        }
+      }
+    }
     const valorTransacao = entidades.valor || 0;
     const descricaoTransacao = entidades.descricao || 'Via WhatsApp';
     
     console.log('💰 Valor:', valorTransacao, '| Categoria:', categoryId, '| Desc:', descricaoTransacao);
     
+    // Mapear forma de pagamento do NLP para o banco
+    const mapFormaPagamento: Record<string, 'pix' | 'credit' | 'debit' | 'cash' | 'boleto' | 'transfer' | 'other'> = {
+      'pix': 'pix',
+      'credito': 'credit',
+      'debito': 'debit',
+      'dinheiro': 'cash',
+      'boleto': 'boleto',
+      'transferencia': 'transfer'
+    };
+    const paymentMethod = entidades.forma_pagamento 
+      ? mapFormaPagamento[entidades.forma_pagamento] || 'other'
+      : undefined;
+    
     // 2. Montar payload de inserção
-    const payload = {
+    const payload: any = {
       user_id: userId,
       amount: valorTransacao,
       type: intencao.intencao === 'REGISTRAR_RECEITA' ? 'income' : 'expense',
@@ -446,7 +596,8 @@ async function processarSelecaoConta(
       description: descricaoTransacao,
       transaction_date: new Date().toISOString().split('T')[0],
       is_paid: true,
-      source: 'whatsapp'
+      source: 'whatsapp',
+      payment_method: paymentMethod // ✅ Incluir forma de pagamento
     };
     
     console.log('📤 Payload de inserção:', JSON.stringify(payload, null, 2));
@@ -473,26 +624,16 @@ async function processarSelecaoConta(
     // Limpar contexto após sucesso
     await limparContexto(userId);
     
-    const tipoEmoji = intencao.intencao === 'REGISTRAR_RECEITA' ? '💰' : '💸';
-    const tipoTexto = intencao.intencao === 'REGISTRAR_RECEITA' ? 'Receita' : 'Despesa';
-    const valorFormatado = valorTransacao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    
-    // Mensagem de confirmação CONVERSACIONAL (sem botões)
-    const mensagemSucesso = `✅ *Lançamento Registrado!*
-
-${tipoEmoji} ${tipoTexto}
-💵 *${valorFormatado}*
-📂 ${categoria?.icon || '📁'} ${categoria?.name || 'Outros'}
-📝 ${descricaoTransacao}
-🏦 ${contaSelecionada.icon || '🏦'} ${contaSelecionada.name}
-📅 ${new Date().toLocaleDateString('pt-BR')}
-
-━━━━━━━━━━━━━━━━━━━━
-💡 *Quer alterar algo?*
-
-• Valor → _"era 95"_
-• Conta → _"muda pra Nubank"_
-• Excluir → _"exclui essa"_`;
+    // Usar novo template profissional
+    const mensagemSucesso = templateTransacaoRegistrada({
+      type: intencao.intencao === 'REGISTRAR_RECEITA' ? 'income' : 'expense',
+      amount: valorTransacao,
+      description: descricaoTransacao,
+      category: categoriaNome,
+      account: contaSelecionada.name,
+      data: new Date(),
+      paymentMethod: paymentMethod // ✅ Incluir forma de pagamento
+    });
     
     return mensagemSucesso;
   }
@@ -669,4 +810,541 @@ async function processarEdicao(
   
   const campos = Object.keys(updates).join(', ');
   return `✅ Transação atualizada! (${campos})`;
+}
+
+// ============================================
+// PROCESSAR CONFIRMAÇÃO DE IMAGEM
+// ============================================
+async function processarConfirmacaoImagem(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string,
+  phone: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const command = texto.toLowerCase().trim();
+  const dadosImagem = contexto.context_data?.dados_imagem as {
+    tipo: string;
+    valor: number;
+    descricao: string;
+    categoria: string;
+    tipo_transacao?: string;
+    data?: string;
+  } | undefined;
+  
+  if (!dadosImagem) {
+    await limparContexto(userId);
+    return '❌ Dados da imagem não encontrados. Envie novamente.';
+  }
+  
+  if (command === 'sim' || command === 's' || command === 'confirmar' || command === 'ok') {
+    // Buscar contas do usuário
+    const { data: contas } = await supabase
+      .from('accounts')
+      .select('id, name')
+      .eq('user_id', userId)
+      .eq('is_active', true);
+    
+    if (!contas || contas.length === 0) {
+      await limparContexto(userId);
+      return '❌ Você não tem contas cadastradas. Cadastre uma conta no app primeiro.';
+    }
+    
+    if (contas.length > 1) {
+      // Perguntar qual conta
+      await salvarContexto(userId, 'creating_transaction', {
+        step: 'awaiting_account',
+        phone,
+        intencao_pendente: {
+          intencao: dadosImagem.tipo_transacao === 'income' ? 'REGISTRAR_RECEITA' : 'REGISTRAR_DESPESA',
+          confianca: 0.95,
+          entidades: {
+            valor: dadosImagem.valor,
+            descricao: dadosImagem.descricao,
+            categoria: dadosImagem.categoria
+          },
+          explicacao: 'Leitura de imagem',
+          resposta_conversacional: 'Transação via imagem',
+          comando_original: `Imagem: ${dadosImagem.descricao}`
+        }
+      }, phone);
+      
+      let lista = '🏦 *Em qual conta?*\n\n';
+      contas.forEach((acc: any, i: number) => {
+        lista += `${i + 1}. ${acc.name}\n`;
+      });
+      lista += '\n_Responda com o número ou nome_';
+      return lista;
+    }
+    
+    // Tem só uma conta, registrar direto
+    const tipo = dadosImagem.tipo_transacao || 'expense';
+    
+    // Buscar categoria
+    const categoriaDetectada = dadosImagem.categoria || 'Outros';
+    const tipoCategoria = tipo === 'income' ? 'income' : 'expense';
+    
+    // Buscar categoria no banco (global ou do usuário)
+    const { data: categorias } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('type', tipoCategoria)
+      .or(`user_id.is.null,user_id.eq.${userId}`);
+    
+    // Normalizar para comparação
+    const normalizarTexto = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    // Encontrar categoria pelo nome detectado
+    let categoryId: string | null = null;
+    
+    if (categorias && categorias.length > 0) {
+      const catEncontrada = categorias.find((c: any) => 
+        normalizarTexto(c.name) === normalizarTexto(categoriaDetectada)
+      );
+      
+      if (catEncontrada) {
+        categoryId = catEncontrada.id;
+      } else {
+        // Fallback para "Outros"
+        const outros = categorias.find((c: any) => normalizarTexto(c.name) === 'outros');
+        if (outros) {
+          categoryId = outros.id;
+        }
+      }
+    }
+    
+    const payload = {
+      user_id: userId,
+      amount: dadosImagem.valor,
+      type: tipo,
+      account_id: contas[0].id,
+      category_id: categoryId,
+      description: dadosImagem.descricao,
+      transaction_date: dadosImagem.data || new Date().toISOString().split('T')[0],
+      is_paid: true,
+      source: 'whatsapp'
+    };
+    
+    const { data: transacao, error } = await supabase
+      .from('transactions')
+      .insert(payload)
+      .select()
+      .single();
+    
+    await limparContexto(userId);
+    
+    if (error) {
+      console.error('[IMAGE] Erro ao registrar:', error);
+      return `❌ Erro ao registrar: ${error.message}`;
+    }
+    
+    const emoji = tipo === 'income' ? '💰' : '💸';
+    return `✅ *Registrado com sucesso!*\n\n` +
+           `${emoji} R$ ${dadosImagem.valor.toFixed(2).replace('.', ',')}\n` +
+           `📝 ${dadosImagem.descricao}\n` +
+           `📂 ${dadosImagem.categoria}\n` +
+           `🏦 ${contas[0].name}`;
+  }
+  
+  if (command === 'não' || command === 'nao' || command === 'n' || command === 'cancelar') {
+    await limparContexto(userId);
+    return '👍 Cancelado! Envie outra imagem ou me diga o que quer registrar.';
+  }
+  
+  return '❓ Responda *sim* para confirmar ou *não* para cancelar.';
+}
+
+// ============================================
+// PROCESSAR SELEÇÃO DE CONTA (IMAGEM) - FLUXO UNIFICADO
+// ============================================
+async function processarSelecaoContaImagem(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string,
+  phone: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const command = texto.toLowerCase().trim();
+  
+  const dadosImagem = contexto.context_data?.dados_imagem as {
+    tipo: string;
+    valor: number;
+    descricao: string;
+    categoria: string;
+    tipo_transacao?: string;
+    data?: string;
+  } | undefined;
+  
+  const contas = contexto.context_data?.contas as Array<{ id: string; name: string }> | undefined;
+  
+  if (!dadosImagem || !contas) {
+    await limparContexto(userId);
+    return '❌ Dados não encontrados. Envie a imagem novamente.';
+  }
+  
+  // Verificar cancelamento
+  if (command === 'cancelar' || command === 'não' || command === 'nao' || command === 'n') {
+    await limparContexto(userId);
+    return '👍 Cancelado! Envie outra imagem ou me diga o que quer registrar.';
+  }
+  
+  // Encontrar conta selecionada
+  let contaSelecionada: { id: string; name: string } | null = null;
+  
+  // Por número
+  const numero = parseInt(command);
+  if (!isNaN(numero) && numero >= 1 && numero <= contas.length) {
+    contaSelecionada = contas[numero - 1];
+  }
+  
+  // Por nome (parcial)
+  if (!contaSelecionada) {
+    const normalizarTexto = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const comandoNorm = normalizarTexto(command);
+    
+    contaSelecionada = contas.find(c => 
+      normalizarTexto(c.name).includes(comandoNorm) || 
+      comandoNorm.includes(normalizarTexto(c.name))
+    ) || null;
+  }
+  
+  if (!contaSelecionada) {
+    let lista = '❓ Não encontrei essa conta.\n\n🏦 *Escolha uma:*\n\n';
+    contas.forEach((acc, i) => {
+      lista += `${i + 1}. ${acc.name}\n`;
+    });
+    lista += '\n_Responda com número/nome ou "cancelar"_';
+    return lista;
+  }
+  
+  // Registrar transação
+  const tipo = dadosImagem.tipo_transacao || 'expense';
+  const tipoCategoria = tipo === 'income' ? 'income' : 'expense';
+  
+  // Buscar categoria no banco
+  const { data: categorias } = await supabase
+    .from('categories')
+    .select('id, name')
+    .eq('type', tipoCategoria)
+    .or(`user_id.is.null,user_id.eq.${userId}`);
+  
+  const normalizarTexto = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  let categoryId: string | null = null;
+  
+  if (categorias && categorias.length > 0) {
+    // Buscar categoria pelo nome
+    const catEncontrada = categorias.find((c: any) => 
+      normalizarTexto(c.name) === normalizarTexto(dadosImagem.categoria)
+    );
+    
+    if (catEncontrada) {
+      categoryId = catEncontrada.id;
+    } else {
+      // Fallback para "Outros" ou "Alimentação"
+      const fallback = categorias.find((c: any) => 
+        normalizarTexto(c.name) === 'alimentacao' || normalizarTexto(c.name) === 'outros'
+      );
+      if (fallback) {
+        categoryId = fallback.id;
+      }
+    }
+  }
+  
+  console.log('[IMAGE] Categoria detectada:', dadosImagem.categoria, '| ID:', categoryId);
+  
+  const payload = {
+    user_id: userId,
+    amount: dadosImagem.valor,
+    type: tipo,
+    account_id: contaSelecionada.id,
+    category_id: categoryId,
+    description: dadosImagem.descricao,
+    transaction_date: dadosImagem.data || new Date().toISOString().split('T')[0],
+    is_paid: true,
+    source: 'whatsapp'
+  };
+  
+  const { data: transacao, error } = await supabase
+    .from('transactions')
+    .insert(payload)
+    .select()
+    .single();
+  
+  await limparContexto(userId);
+  
+  if (error) {
+    console.error('[IMAGE] Erro ao registrar:', error);
+    return `❌ Erro ao registrar: ${error.message}`;
+  }
+  
+  // Buscar nome da categoria
+  let nomeCategoria = dadosImagem.categoria;
+  if (categoryId && categorias) {
+    const cat = categorias.find((c: any) => c.id === categoryId);
+    if (cat) nomeCategoria = cat.name;
+  }
+  
+  // Usa getEmojiBanco de utils.ts
+  const emojiBanco = getEmojiBanco(contaSelecionada.name);
+  const emoji = tipo === 'income' ? '💰' : '💸';
+  const tipoTexto = tipo === 'income' ? 'Receita' : 'Despesa';
+  const dataFormatada = dadosImagem.data 
+    ? new Date(dadosImagem.data + 'T12:00:00').toLocaleDateString('pt-BR')
+    : new Date().toLocaleDateString('pt-BR');
+  
+  return `Anotado! 📝\n\n` +
+         `⭐ *Transação Registrada!* ⭐\n\n` +
+         `📝 *Descrição:* ${dadosImagem.descricao}\n` +
+         `${emoji} *Valor:* R$ ${dadosImagem.valor.toFixed(2).replace('.', ',')}\n` +
+         `🔴 *Tipo:* ${tipoTexto}\n` +
+         `🏷️ *Categoria:* ${nomeCategoria}\n` +
+         `${emojiBanco} *Conta:* ${contaSelecionada.name}\n` +
+         `📅 *Data:* ${dataFormatada}\n\n` +
+         `✅ *Status:* Pago\n\n` +
+         `💡 *Quer alterar algo?*\n` +
+         `• Valor → _"era 95"_\n` +
+         `• Conta → _"muda pra Nubank"_\n` +
+         `• Excluir → _"exclui essa"_`;
+}
+
+// ============================================
+// PROCESSAR SELEÇÃO DE CARTÃO (FASE 2)
+// ============================================
+
+async function processarSelecaoCartao(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const dados = contexto.context_data?.dados_cartao as any;
+  
+  if (!dados || !dados.cartoes) {
+    await limparContexto(userId);
+    return '❌ Erro: dados do cartão não encontrados.';
+  }
+  
+  const resposta = texto.toLowerCase().trim();
+  
+  // Cancelar
+  if (resposta === 'cancelar' || resposta === 'cancela' || resposta === 'não' || resposta === 'nao') {
+    await limparContexto(userId);
+    return '❌ Compra cancelada.';
+  }
+  
+  // Buscar cartão por número ou nome
+  let cartaoSelecionado = null;
+  const numero = parseInt(resposta);
+  
+  if (!isNaN(numero) && numero > 0 && numero <= dados.cartoes.length) {
+    cartaoSelecionado = dados.cartoes[numero - 1];
+  } else {
+    const respostaNorm = resposta.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    cartaoSelecionado = dados.cartoes.find((c: any) => {
+      const nomeNorm = c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return nomeNorm.includes(respostaNorm) || respostaNorm.includes(nomeNorm);
+    });
+  }
+  
+  if (!cartaoSelecionado) {
+    return `❓ Não encontrei esse cartão.\n\nResponda com o número ou nome do cartão.`;
+  }
+  
+  // Importar e chamar registrarCompraCartao
+  const { registrarCompraCartao } = await import('./cartao-credito.ts');
+  
+  const resultado = await registrarCompraCartao(userId, {
+    valor: dados.valor,
+    parcelas: dados.parcelas,
+    cartao_id: cartaoSelecionado.id,
+    descricao: dados.descricao,
+    data_compra: new Date().toISOString().split('T')[0]
+  });
+  
+  await limparContexto(userId);
+  return resultado.mensagem;
+}
+
+// ============================================
+// PROCESSAR SELEÇÃO DE MÉTODO DE PAGAMENTO
+// ============================================
+
+async function processarSelecaoMetodoPagamento(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string,
+  phone: string
+): Promise<string> {
+  const dados = contexto.context_data?.dados_transacao as any;
+  const intencao = contexto.context_data?.intencao_pendente as any;
+  
+  if (!dados && !intencao) {
+    await limparContexto(userId);
+    return '❌ Erro: dados da transação não encontrados.';
+  }
+  
+  const resposta = texto.toLowerCase().trim();
+  
+  // Cancelar
+  if (resposta === 'cancelar' || resposta === 'cancela' || resposta === 'não' || resposta === 'nao') {
+    await limparContexto(userId);
+    return '❌ Transação cancelada.';
+  }
+  
+  // Normalizar resposta (remover acentos, espaços extras, pontuação)
+  const respostaNorm = resposta
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[.,!?]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  console.log('[PAYMENT_METHOD] Resposta original:', resposta);
+  console.log('[PAYMENT_METHOD] Resposta normalizada:', respostaNorm);
+  
+  // Detectar método de pagamento por palavras-chave
+  let metodo: { method: 'credit' | 'debit' | 'pix' | 'cash', label: string } | null = null;
+  
+  // Verificar por número primeiro
+  if (respostaNorm === '1') {
+    metodo = { method: 'credit', label: 'Cartão de crédito' };
+  } else if (respostaNorm === '2') {
+    metodo = { method: 'debit', label: 'Débito' };
+  } else if (respostaNorm === '3') {
+    metodo = { method: 'pix', label: 'PIX' };
+  } else if (respostaNorm === '4') {
+    metodo = { method: 'cash', label: 'Dinheiro' };
+  }
+  // Verificar por palavras-chave (ordem importa!)
+  else if (respostaNorm.includes('credito') || respostaNorm.includes('cartao de credito') || respostaNorm.includes('cartao')) {
+    metodo = { method: 'credit', label: 'Cartão de crédito' };
+  } else if (respostaNorm.includes('debito')) {
+    metodo = { method: 'debit', label: 'Débito' };
+  } else if (respostaNorm.includes('pix')) {
+    metodo = { method: 'pix', label: 'PIX' };
+  } else if (respostaNorm.includes('dinheiro') || respostaNorm.includes('cash')) {
+    metodo = { method: 'cash', label: 'Dinheiro' };
+  }
+  
+  console.log('[PAYMENT_METHOD] Método detectado:', metodo);
+  
+  if (!metodo) {
+    return `❓ Não entendi. Responda:\n\n1️⃣ Cartão de crédito\n2️⃣ Débito\n3️⃣ PIX\n4️⃣ Dinheiro`;
+  }
+  
+  // Se escolheu CARTÃO DE CRÉDITO → fluxo de cartões
+  if (metodo.method === 'credit') {
+    const { buscarCartoesUsuario } = await import('./cartao-credito.ts');
+    const cartoes = await buscarCartoesUsuario(userId);
+    
+    if (cartoes.length === 0) {
+      await limparContexto(userId);
+      return `❌ Você não tem cartões de crédito cadastrados.\n\n💡 Cadastre no app primeiro!`;
+    }
+    
+    if (cartoes.length === 1) {
+      // Registrar direto no único cartão
+      const { registrarCompraCartao } = await import('./cartao-credito.ts');
+      const resultado = await registrarCompraCartao(userId, {
+        valor: dados?.valor || intencao?.entidades?.valor,
+        parcelas: 1,
+        cartao_id: cartoes[0].id,
+        descricao: dados?.descricao || intencao?.entidades?.descricao || 'Via WhatsApp',
+        data_compra: new Date().toISOString().split('T')[0]
+      });
+      await limparContexto(userId);
+      return resultado.mensagem;
+    }
+    
+    // Múltiplos cartões → perguntar qual
+    const { getEmojiBanco } = await import('./utils.ts');
+    await salvarContexto(userId, 'confirming_action', {
+      step: 'awaiting_card_selection',
+      phone,
+      dados_cartao: {
+        valor: dados?.valor || intencao?.entidades?.valor,
+        parcelas: 1,
+        descricao: dados?.descricao || intencao?.entidades?.descricao,
+        cartoes: cartoes.map((c: any) => ({ id: c.id, name: c.name }))
+      }
+    }, phone);
+    
+    let msg = `💳 *Qual cartão?*\n\n`;
+    cartoes.forEach((c: any, i: number) => {
+      msg += `${i + 1}️⃣ ${getEmojiBanco(c.name)} ${c.name}\n`;
+    });
+    msg += `\n_Responda com o número ou nome_`;
+    return msg;
+  }
+  
+  // DÉBITO, PIX ou DINHEIRO → registrar em transactions
+  const supabase = getSupabase();
+  
+  // Buscar contas do usuário
+  const { data: contas } = await supabase
+    .from('accounts')
+    .select('id, name, icon')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .order('name');
+  
+  if (!contas || contas.length === 0) {
+    await limparContexto(userId);
+    return `❌ Você não tem contas cadastradas.`;
+  }
+  
+  const valor = dados?.valor || intencao?.entidades?.valor;
+  const descricao = dados?.descricao || intencao?.entidades?.descricao || 'Via WhatsApp';
+  
+  if (contas.length === 1) {
+    // Registrar direto na única conta
+    const { registrarTransacao } = await import('./transaction-mapper.ts');
+    const resultado = await registrarTransacao({
+      user_id: userId,
+      amount: valor,
+      type: 'expense',
+      account_id: contas[0].id,
+      description: descricao,
+      payment_method: metodo.method
+    });
+    
+    await limparContexto(userId);
+    
+    if (resultado.success) {
+      const { formatCurrency } = await import('./utils.ts');
+      return `✅ *Registrado!*\n\n` +
+             `💰 ${formatCurrency(valor)}\n` +
+             `📝 ${descricao}\n` +
+             `💳 ${metodo.label}\n` +
+             `🏦 ${contas[0].name}\n\n` +
+             `_Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
+    }
+    return resultado.mensagem;
+  }
+  
+  // Múltiplas contas → perguntar qual
+  const { getEmojiBanco } = await import('./utils.ts');
+  
+  // Atualizar contexto com método de pagamento e ir para seleção de conta
+  await salvarContexto(userId, 'creating_transaction', {
+    step: 'awaiting_account',
+    phone,
+    intencao_pendente: {
+      ...intencao,
+      entidades: {
+        ...intencao?.entidades,
+        forma_pagamento: metodo.method === 'debit' ? 'debito' : 
+                         metodo.method === 'pix' ? 'pix' : 
+                         metodo.method === 'cash' ? 'dinheiro' : 'other'
+      }
+    }
+  }, phone);
+  
+  let msg = `💳 *${metodo.label}*\n\n`;
+  msg += `🏦 De qual conta?\n\n`;
+  contas.forEach((c: any, i: number) => {
+    msg += `${i + 1}️⃣ ${getEmojiBanco(c.name)} ${c.name}\n`;
+  });
+  msg += `\n_Responda com o número ou nome_`;
+  return msg;
 }

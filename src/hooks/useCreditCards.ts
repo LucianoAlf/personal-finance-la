@@ -243,6 +243,7 @@ export function useCreditCards() {
           const oldRow: any = (payload as any).old;
           if (newRow?.user_id !== user.id && oldRow?.user_id !== user.id) return;
           console.log('🔄 Transação alterou cartão:', payload);
+          fetchCards(); // Atualiza cartões (limite disponível)
           fetchCardsSummary(); // Atualiza resumo quando há transações
         }
       )

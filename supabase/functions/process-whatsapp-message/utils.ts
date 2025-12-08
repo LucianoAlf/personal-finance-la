@@ -63,6 +63,25 @@ export function formatCurrency(value: number): string {
   }).format(value);
 }
 
+// ============================================
+// EMOJI POR BANCO (CENTRALIZADO)
+// ============================================
+
+export function getEmojiBanco(nome: string): string {
+  const nomeNorm = nome.toLowerCase();
+  if (nomeNorm.includes('nubank') || nomeNorm.includes('nu ')) return '💜';
+  if (nomeNorm.includes('itau') || nomeNorm.includes('itaú')) return '🧡';
+  if (nomeNorm.includes('bradesco')) return '❤️';
+  if (nomeNorm.includes('santander')) return '❤️';
+  if (nomeNorm.includes('caixa')) return '💙';
+  if (nomeNorm.includes('banco do brasil') || nomeNorm.includes('bb')) return '💛';
+  if (nomeNorm.includes('inter')) return '🧡';
+  if (nomeNorm.includes('c6')) return '🖤';
+  if (nomeNorm.includes('picpay')) return '💚';
+  if (nomeNorm.includes('mercado pago')) return '💙';
+  return '💳';
+}
+
 export function formatDate(date: string | Date): string {
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleDateString('pt-BR');
@@ -331,6 +350,50 @@ export function detectAccountFromMessage(message: string, accounts: Array<{
   
   console.log('❌ Nenhuma conta detectada');
   return null;
+}
+
+// ============================================
+// RASTREAMENTO DE INTERAÇÃO - ANA CLARA
+// ============================================
+
+/**
+ * Busca última interação do usuário (para saber se é primeira vez hoje)
+ */
+export async function buscarUltimaInteracao(userId: string): Promise<Date | null> {
+  const supabase = getSupabase();
+  
+  try {
+    const { data } = await supabase
+      .from('whatsapp_messages')
+      .select('created_at')
+      .eq('user_id', userId)
+      .eq('direction', 'inbound')
+      .order('created_at', { ascending: false })
+      .limit(2); // Pega 2 para comparar (a atual e a anterior)
+    
+    // Se tem mais de 1 mensagem, retorna a penúltima (a anterior à atual)
+    if (data && data.length > 1) {
+      return new Date(data[1].created_at);
+    }
+    
+    return null; // Primeira mensagem do usuário
+  } catch (error) {
+    console.error('Erro ao buscar última interação:', error);
+    return null;
+  }
+}
+
+/**
+ * Verifica se é a primeira interação do dia
+ */
+export function isPrimeiraInteracaoDia(ultimaInteracao: Date | null): boolean {
+  if (!ultimaInteracao) return true;
+  
+  const agora = new Date();
+  const hoje = agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  const ultimoDia = ultimaInteracao.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  
+  return hoje !== ultimoDia;
 }
 
 // ============================================

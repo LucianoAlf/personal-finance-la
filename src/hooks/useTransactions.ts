@@ -78,7 +78,77 @@ export const useTransactions = () => {
         tags: transaction.transaction_tags?.map((tt: any) => tt.tag).filter(Boolean) || []
       }));
 
-      setTransactions(transactionsWithTags);
+      // Se filtro é 'income', não incluir transações de cartão
+      if (filters?.type === 'income') {
+        setTransactions(transactionsWithTags);
+        return;
+      }
+
+      // ✅ BUSCAR TRANSAÇÕES DE CARTÃO EM PARALELO (já iniciou acima)
+      const { data: ccData, error: ccError } = await supabase
+        .from('credit_card_transactions')
+        .select(`
+          id,
+          user_id,
+          category_id,
+          amount,
+          description,
+          purchase_date,
+          created_at,
+          credit_card_id,
+          category:categories(id, name, icon, color),
+          credit_card:credit_cards(id, name, color)
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (ccError) {
+        console.error('Erro ao buscar transações de cartão:', ccError);
+        setTransactions(transactionsWithTags);
+        return;
+      }
+
+      console.log('📊 Transações de cartão encontradas:', ccData?.length || 0);
+      
+      // Mapear transações de cartão para o formato de Transaction
+      const creditCardTransactions = (ccData || []).map((cc: any) => ({
+        id: cc.id,
+        user_id: cc.user_id,
+        account_id: null,
+        category_id: cc.category_id,
+        type: 'expense' as const,
+        amount: cc.amount,
+        description: cc.description,
+        transaction_date: cc.purchase_date,
+        is_paid: false,
+        is_recurring: false,
+        recurrence_type: null,
+        recurrence_end_date: null,
+        attachment_url: null,
+        notes: null,
+        source: 'manual' as const,
+        whatsapp_message_id: null,
+        transfer_to_account_id: null,
+        created_at: cc.created_at,
+        updated_at: cc.created_at,
+        status: 'completed',
+        temp_id: null,
+        confirmed_at: null,
+        payment_method: 'credit',
+        category: cc.category,
+        account: cc.credit_card ? { id: cc.credit_card.id, name: `💳 ${cc.credit_card.name}` } : null,
+        tags: [],
+        credit_card_id: cc.credit_card_id,
+        credit_card_name: cc.credit_card?.name,
+      }));
+
+      // Combinar e ordenar
+      const allTransactions = [...transactionsWithTags, ...creditCardTransactions];
+      allTransactions.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setTransactions(allTransactions);
     } catch (err) {
       console.error('Erro ao buscar transações:', err);
       setError('Erro ao carregar transações. Tente novamente.');
@@ -268,9 +338,9 @@ export const useTransactions = () => {
   useEffect(() => {
     fetchTransactions();
 
-    // Configurar Realtime subscription
-    const channel = supabase
-      .channel('transactions_changes')
+    // ✅ OTIMIZADO: Um único canal com múltiplas tabelas para resposta mais rápida
+    const realtimeChannel = supabase
+      .channel('all_transactions_realtime')
       .on(
         'postgres_changes',
         {
@@ -278,15 +348,30 @@ export const useTransactions = () => {
           schema: 'public',
           table: 'transactions',
         },
-        () => {
+        (payload) => {
+          console.log('🔄 Realtime IMEDIATO: transação normal', payload.eventType);
           fetchTransactions();
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'credit_card_transactions',
+        },
+        (payload) => {
+          console.log('🔄 Realtime IMEDIATO: transação de cartão', payload.eventType);
+          fetchTransactions();
+        }
+      )
+      .subscribe((status) => {
+        console.log('🛰️ Realtime[all_transactions] status:', status);
+      });
 
     // Cleanup
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(realtimeChannel);
     };
   }, []);
 

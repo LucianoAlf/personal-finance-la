@@ -27,6 +27,7 @@ export interface TransacaoInput {
   category_id?: string;
   description?: string;
   transaction_date?: string;
+  payment_method?: 'pix' | 'credit' | 'debit' | 'cash' | 'boleto' | 'transfer' | 'other';
 }
 
 export interface TransacaoResponse {
@@ -93,6 +94,7 @@ const MAPEAMENTO_CATEGORIAS: Record<string, string[]> = {
 
 // Mapeamento NLP → Nome no banco
 const NLP_PARA_CATEGORIA: Record<string, string> = {
+  // Categorias diretas
   'alimentacao': 'Alimentação',
   'alimentação': 'Alimentação',
   'transporte': 'Transporte',
@@ -113,18 +115,212 @@ const NLP_PARA_CATEGORIA: Record<string, string> = {
   'esportes': 'Esportes',
   'investimentos': 'Investimentos',
   'outros': 'Outros',
+  
+  // Alimentação
   'mercado': 'Alimentação',
   'supermercado': 'Alimentação',
   'restaurante': 'Alimentação',
+  'almoço': 'Alimentação',
+  'almoco': 'Alimentação',
+  'jantar': 'Alimentação',
+  'lanche': 'Alimentação',
+  'café': 'Alimentação',
+  'cafe': 'Alimentação',
+  'ifood': 'Alimentação',
+  'rappi': 'Alimentação',
+  'padaria': 'Alimentação',
+  'açougue': 'Alimentação',
+  'acougue': 'Alimentação',
+  'feira': 'Alimentação',
+  'comida': 'Alimentação',
+  'rango': 'Alimentação',
+  'dogão': 'Alimentação',
+  'dogao': 'Alimentação',
+  'breja': 'Alimentação',
+  'cerveja': 'Alimentação',
+  
+  // Transporte
   'uber': 'Transporte',
+  '99': 'Transporte',
+  'taxi': 'Transporte',
+  'táxi': 'Transporte',
   'gasolina': 'Transporte',
+  'combustivel': 'Transporte',
+  'combustível': 'Transporte',
+  'estacionamento': 'Transporte',
+  'pedagio': 'Transporte',
+  'pedágio': 'Transporte',
+  'corrida': 'Transporte',
+  'onibus': 'Transporte',
+  'ônibus': 'Transporte',
+  'metro': 'Transporte',
+  'metrô': 'Transporte',
+  
+  // Saúde
   'farmacia': 'Saúde',
   'farmácia': 'Saúde',
+  'remedio': 'Saúde',
+  'remédio': 'Saúde',
+  'medico': 'Saúde',
+  'médico': 'Saúde',
+  'consulta': 'Saúde',
+  'exame': 'Saúde',
+  'dentista': 'Saúde',
+  'hospital': 'Saúde',
+  
+  // Moradia
+  'aluguel': 'Moradia',
+  'condominio': 'Moradia',
+  'condomínio': 'Moradia',
+  'luz': 'Moradia',
+  'energia': 'Moradia',
+  'agua': 'Moradia',
+  'água': 'Moradia',
+  'gas': 'Moradia',
+  'gás': 'Moradia',
+  'internet': 'Moradia',
+  'iptu': 'Moradia',
+  
+  // Lazer
+  'cinema': 'Lazer',
+  'netflix': 'Lazer',
+  'spotify': 'Lazer',
+  'streaming': 'Lazer',
+  'show': 'Lazer',
+  'bar': 'Lazer',
+  'festa': 'Lazer',
+  
+  // Educação
+  'curso': 'Educação',
+  'escola': 'Educação',
+  'faculdade': 'Educação',
+  'livro': 'Educação',
+  'mensalidade': 'Educação',
+  
+  // Vestuário
+  'roupa': 'Vestuário',
+  'sapato': 'Vestuário',
+  'tenis': 'Vestuário',
+  'tênis': 'Vestuário',
+  'shopping': 'Vestuário',
+  'camisa': 'Vestuário',
+  
+  // Viagens
+  'viagem': 'Viagens',
+  'hotel': 'Viagens',
+  'hospedagem': 'Viagens',
+  'pousada': 'Viagens',
+  'airbnb': 'Viagens',
+  'passagem': 'Viagens',
+  'aeroporto': 'Viagens',
+  'aviao': 'Viagens',
+  'avião': 'Viagens',
+  
+  // Pets
+  'racao': 'Pets',
+  'ração': 'Pets',
+  'veterinario': 'Pets',
+  'veterinário': 'Pets',
+  'petshop': 'Pets',
+  
+  // Beleza
+  'salao': 'Beleza',
+  'salão': 'Beleza',
+  'cabelo': 'Beleza',
+  'unha': 'Beleza',
+  'manicure': 'Beleza',
+  'estetica': 'Beleza',
+  'estética': 'Beleza',
+  
+  // Esportes
+  'academia': 'Esportes',
+  'treino': 'Esportes',
+  'futebol': 'Esportes',
+  
+  // Tecnologia
+  'celular': 'Tecnologia',
+  'computador': 'Tecnologia',
+  'notebook': 'Tecnologia',
+  'eletronico': 'Tecnologia',
+  'eletrônico': 'Tecnologia',
+  
+  // ========== RECEITAS ==========
+  'salario': 'Salário',
+  'salário': 'Salário',
+  'pagamento': 'Salário',
+  'holerite': 'Salário',
+  'contracheque': 'Salário',
+  
+  'freelance': 'Freelance',
+  'freela': 'Freelance',
+  'bico': 'Freelance',
+  'projeto': 'Freelance',
+  
+  'dividendo': 'Investimentos',
+  'dividendos': 'Investimentos',
+  'proventos': 'Investimentos',
+  'rendimento': 'Investimentos',
+  'juros': 'Investimentos',
+  
+  'bonus': 'Bonificações',
+  'bônus': 'Bonificações',
+  'plr': 'Bonificações',
+  '13': 'Bonificações',
+  'decimo': 'Bonificações',
+  'décimo': 'Bonificações',
 };
+
+// Função para detectar categoria por QUALQUER texto (descrição, comando, categoria NLP)
+// O parâmetro valor é opcional e usado para contexto (ex: água < R$20 = Alimentação, >= R$20 = Moradia)
+function detectarCategoriaPorTexto(textos: string[], valor?: number): string | null {
+  // Concatenar todos os textos e normalizar
+  const textoCompleto = textos
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+  
+  console.log('[DETECTAR] Texto completo normalizado:', textoCompleto, '| Valor:', valor);
+  
+  // ✅ REGRA ESPECIAL: "água" depende do valor
+  // < R$20 = garrafa de água (Alimentação)
+  // >= R$20 = conta de água (Moradia)
+  if (textoCompleto.includes('agua')) {
+    if (valor !== undefined && valor < 20) {
+      console.log('[DETECTAR] ✅ Água com valor < R$20 → Alimentação (garrafa)');
+      return 'Alimentação';
+    } else {
+      console.log('[DETECTAR] ✅ Água com valor >= R$20 → Moradia (conta)');
+      return 'Moradia';
+    }
+  }
+  
+  // Verificar cada palavra-chave
+  for (const [palavra, categoria] of Object.entries(NLP_PARA_CATEGORIA)) {
+    const palavraNorm = palavra.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (textoCompleto.includes(palavraNorm)) {
+      console.log('[DETECTAR] ✅ Match encontrado:', palavra, '→', categoria);
+      return categoria;
+    }
+  }
+  
+  console.log('[DETECTAR] ❌ Nenhum match');
+  return null;
+}
 
 // ============================================
 // BUSCAR CATEGORIA (global ou do usuário)
 // ============================================
+
+// Função auxiliar para normalizar texto (remove acentos e lowercase)
+function normalizarTexto(texto: string): string {
+  return texto
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, ''); // Remove acentos
+}
 
 async function buscarCategoriaInteligente(
   userId: string,
@@ -133,71 +329,117 @@ async function buscarCategoriaInteligente(
 ): Promise<string | null> {
   const supabase = getSupabase();
   
-  // Normalizar nome
-  const nomeNormalizado = nomeCategoria.toLowerCase().trim();
+  // Normalizar nome e mapear para nome do banco
+  const nomeNormalizado = normalizarTexto(nomeCategoria);
   const nomeBanco = NLP_PARA_CATEGORIA[nomeNormalizado] || nomeCategoria;
+  const nomeBancoNorm = normalizarTexto(nomeBanco);
   
-  console.log('[CATEGORIA] Buscando:', nomeNormalizado, '→', nomeBanco);
+  console.log('[CATEGORIA] ========================================');
+  console.log('[CATEGORIA] Input:', nomeCategoria);
+  console.log('[CATEGORIA] Normalizado (sem acento):', nomeNormalizado);
+  console.log('[CATEGORIA] Mapeado para:', nomeBanco);
+  console.log('[CATEGORIA] Mapeado normalizado:', nomeBancoNorm);
+  console.log('[CATEGORIA] Tipo:', tipo);
   
-  // 1. Tentar buscar categoria do usuário primeiro
-  const { data: catUsuario } = await supabase
-    .from('categories')
-    .select('id, name')
-    .eq('user_id', userId)
-    .ilike('name', nomeBanco)
-    .eq('type', tipo)
-    .limit(1)
-    .maybeSingle();
+  try {
+    // BUSCA SIMPLES: todas as categorias do tipo
+    const { data: todasCategorias, error: errAll } = await supabase
+      .from('categories')
+      .select('id, name, user_id, type')
+      .eq('type', tipo);
+    
+    console.log('[CATEGORIA] Total categorias tipo', tipo, ':', todasCategorias?.length || 0);
+    if (todasCategorias && todasCategorias.length > 0) {
+      console.log('[CATEGORIA] Categorias disponíveis:', todasCategorias.map((c: any) => c.name).join(', '));
+    }
+    
+    if (errAll) {
+      console.error('[CATEGORIA] Erro ao listar categorias:', errAll);
+      return null;
+    }
+    
+    if (!todasCategorias || todasCategorias.length === 0) {
+      console.log('[CATEGORIA] ❌ Nenhuma categoria encontrada no banco!');
+      return null;
+    }
+    
+    // Buscar por nome EXATO (normalizado, sem acentos)
+    const categoriaEncontrada = todasCategorias.find((c: any) => 
+      normalizarTexto(c.name) === nomeBancoNorm
+    );
+    
+    if (categoriaEncontrada) {
+      console.log('[CATEGORIA] ✅ ENCONTRADA (exata):', categoriaEncontrada.name, '| ID:', categoriaEncontrada.id);
+      return categoriaEncontrada.id;
+    }
+    
+    // Busca parcial (contém)
+    const categoriaParcial = todasCategorias.find((c: any) => {
+      const catNorm = normalizarTexto(c.name);
+      return catNorm.includes(nomeBancoNorm) || nomeBancoNorm.includes(catNorm);
+    });
+    
+    if (categoriaParcial) {
+      console.log('[CATEGORIA] ✅ ENCONTRADA (parcial):', categoriaParcial.name, '| ID:', categoriaParcial.id);
+      return categoriaParcial.id;
+    }
+    
+    console.log('[CATEGORIA] ❌ NÃO ENCONTRADA para:', nomeBanco, '(norm:', nomeBancoNorm, ')');
+    console.log('[CATEGORIA] ========================================');
+    return null;
+    
+  } catch (err) {
+    console.error('[CATEGORIA] ERRO CRÍTICO:', err);
+    return null;
+  }
+}
+
+// ============================================
+// DETECTAR CATEGORIA AUTOMATICAMENTE (EXPORTADA)
+// ============================================
+
+export async function detectarCategoriaAutomatica(
+  userId: string,
+  descricao: string,
+  tipo: 'income' | 'expense' = 'expense',
+  valor?: number // ✅ Novo parâmetro para contexto de valor
+): Promise<string | null> {
+  console.log('[CATEGORIA-AUTO] Detectando para:', descricao, 'tipo:', tipo, 'valor:', valor);
   
-  if (catUsuario) {
-    console.log('[CATEGORIA] Encontrada do usuário:', catUsuario.name);
-    return catUsuario.id;
+  const categoriaDetectada = detectarCategoriaPorTexto([descricao], valor);
+  
+  if (categoriaDetectada) {
+    console.log('[CATEGORIA-AUTO] Categoria detectada:', categoriaDetectada);
+    const catId = await buscarCategoriaInteligente(userId, categoriaDetectada, tipo);
+    if (catId) {
+      console.log('[CATEGORIA-AUTO] ✅ ID encontrado:', catId);
+      return catId;
+    }
   }
   
-  // 2. Buscar categoria global (is_default = true)
-  const { data: catGlobal } = await supabase
-    .from('categories')
-    .select('id, name')
-    .is('user_id', null)
-    .or(`is_default.eq.true`)
-    .ilike('name', nomeBanco)
-    .eq('type', tipo)
-    .limit(1)
-    .maybeSingle();
-  
-  if (catGlobal) {
-    console.log('[CATEGORIA] Encontrada global:', catGlobal.name);
-    return catGlobal.id;
-  }
-  
-  // 3. Busca parcial em categorias globais
-  const { data: catParcial } = await supabase
-    .from('categories')
-    .select('id, name')
-    .or(`user_id.is.null,is_default.eq.true`)
-    .ilike('name', `%${nomeBanco}%`)
-    .eq('type', tipo)
-    .limit(1)
-    .maybeSingle();
-  
-  if (catParcial) {
-    console.log('[CATEGORIA] Encontrada parcial:', catParcial.name);
-    return catParcial.id;
-  }
-  
-  console.log('[CATEGORIA] Não encontrada, usando Outros');
-  
-  // 4. Fallback: categoria "Outros"
-  const { data: outros } = await supabase
-    .from('categories')
-    .select('id')
-    .or(`user_id.is.null,is_default.eq.true`)
-    .eq('name', 'Outros')
-    .eq('type', tipo)
-    .limit(1)
-    .maybeSingle();
-  
+  // Fallback: buscar "Outros"
+  console.log('[CATEGORIA-AUTO] Usando fallback "Outros"');
+  const outros = await buscarCategoriaPorNome(userId, 'Outros', tipo);
   return outros?.id || null;
+}
+
+// ============================================
+// TEMPLATE PERGUNTA MÉTODO DE PAGAMENTO
+// ============================================
+
+export function templatePerguntaMetodoPagamento(descricao: string, valor: number): string {
+  const valorFormatado = formatCurrency(valor);
+  
+  let msg = `💰 *${descricao || 'Despesa'}* - ${valorFormatado}\n\n`;
+  msg += `💳 Como você pagou?\n\n`;
+  msg += `1️⃣ Cartão de crédito\n`;
+  msg += `2️⃣ Débito\n`;
+  msg += `3️⃣ PIX\n`;
+  msg += `4️⃣ Dinheiro\n\n`;
+  msg += `_Responda com o número ou nome_\n\n`;
+  msg += `_Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
+  
+  return msg;
 }
 
 // ============================================
@@ -254,9 +496,10 @@ export async function registrarTransacao(
         is_paid: true,
         source: 'whatsapp',
         status: 'completed',
+        payment_method: input.payment_method || null,
         notes: `Registrado via WhatsApp em ${new Date().toLocaleString('pt-BR')}`
       })
-      .select('id, amount, type, description, account_id, category_id')
+      .select('id, amount, type, description, account_id, category_id, payment_method')
       .single();
     
     if (error) {
@@ -286,7 +529,8 @@ export async function registrarTransacao(
       description: input.description || 'Via WhatsApp',
       category: categoria?.name || 'Outros',
       account: conta?.name || 'Conta',
-      data: new Date()
+      data: new Date(),
+      paymentMethod: input.payment_method // ✅ Incluir forma de pagamento
     });
     
     return {
@@ -515,17 +759,40 @@ export async function buscarCategoriaPorNome(
     }
   }
   
-  // Buscar categoria
-  const { data } = await supabase
+  console.log('[CATEGORIA] buscarCategoriaPorNome:', nomeCategoria, '→', termoBusca, '| tipo:', tipo);
+  
+  // 1. Primeiro buscar categoria do USUÁRIO
+  const { data: catUsuario } = await supabase
     .from('categories')
     .select('id, name, icon, type')
     .eq('user_id', userId)
     .eq('type', tipo)
     .ilike('name', `%${termoBusca}%`)
     .limit(1)
-    .single();
+    .maybeSingle();
   
-  return data;
+  if (catUsuario) {
+    console.log('[CATEGORIA] ✅ Encontrada do usuário:', catUsuario.name);
+    return catUsuario;
+  }
+  
+  // 2. Se não encontrou, buscar categoria GLOBAL (user_id = null)
+  const { data: catGlobal } = await supabase
+    .from('categories')
+    .select('id, name, icon, type')
+    .is('user_id', null)
+    .eq('type', tipo)
+    .ilike('name', `%${termoBusca}%`)
+    .limit(1)
+    .maybeSingle();
+  
+  if (catGlobal) {
+    console.log('[CATEGORIA] ✅ Encontrada global:', catGlobal.name);
+    return catGlobal;
+  }
+  
+  console.log('[CATEGORIA] ❌ Não encontrada:', termoBusca);
+  return null;
 }
 
 // ============================================
@@ -594,6 +861,36 @@ export async function processarIntencaoTransacao(
     };
   }
   
+  // ============================================
+  // VERIFICAR MÉTODO DE PAGAMENTO
+  // ============================================
+  // Se não especificou forma de pagamento, perguntar
+  const formasPagamentoValidas = ['pix', 'credito', 'debito', 'dinheiro', 'boleto', 'transferencia'];
+  const metodoEspecificado = entidades.forma_pagamento && 
+    formasPagamentoValidas.includes(entidades.forma_pagamento);
+  
+  console.log('[TRANSACTION] Método de pagamento:', {
+    forma_pagamento: entidades.forma_pagamento,
+    especificado: metodoEspecificado
+  });
+  
+  // Se não especificou método, perguntar (apenas para despesas)
+  if (!metodoEspecificado && intencao.intencao === 'REGISTRAR_DESPESA') {
+    const descricao = entidades.descricao || entidades.categoria || 'Despesa';
+    return {
+      success: false,
+      mensagem: templatePerguntaMetodoPagamento(descricao, entidades.valor),
+      precisaConfirmacao: true,
+      dados: {
+        step: 'awaiting_payment_method',
+        valor: entidades.valor,
+        descricao: entidades.descricao,
+        categoria: entidades.categoria,
+        tipo: 'expense'
+      }
+    };
+  }
+  
   // Buscar conta
   let contaId: string | null = null;
   let contaNome: string | null = null;
@@ -635,23 +932,92 @@ export async function processarIntencaoTransacao(
   // Registrar transação
   const tipo = intencao.intencao === 'REGISTRAR_RECEITA' ? 'income' : 'expense';
   
-  // Buscar categoria usando função inteligente
+  // Usar descrição do NLP
+  const descricao = entidades.descricao || entidades.categoria || 'Via WhatsApp';
+  
+  // ============================================
+  // CATEGORIZAÇÃO SIMPLIFICADA E ROBUSTA
+  // ============================================
+  // 1. Junta TODOS os textos (comando, descrição, categoria NLP)
+  // 2. Busca palavra-chave em TUDO de uma vez
+  // 3. Se não achar, usa "Outros"
+  // ============================================
+  
   let categoryId: string | undefined;
-  if (entidades.categoria) {
-    const catId = await buscarCategoriaInteligente(userId, entidades.categoria, tipo);
-    if (catId) categoryId = catId;
+  let metodoUsado = 'nenhum';
+  
+  // PASSO ÚNICO: Detectar categoria analisando TODOS os textos disponíveis
+  const textosParaAnalisar = [
+    intencao.comando_original,  // "gastei 15 no uber"
+    descricao,                   // "Uber"
+    entidades.categoria,         // categoria que o NLP retornou
+  ];
+  
+  const textosValidos = textosParaAnalisar.filter((t): t is string => !!t);
+  console.log('[CATEGORIA] ==========================================');
+  console.log('[CATEGORIA] Textos para análise:', textosValidos);
+  console.log('[CATEGORIA] Tipo:', tipo);
+  console.log('[CATEGORIA] Valor:', entidades.valor);
+  
+  // ✅ Passar o valor para contexto (ex: água < R$20 = Alimentação)
+  const categoriaDetectada = detectarCategoriaPorTexto(textosValidos, entidades.valor);
+  
+  if (categoriaDetectada) {
+    console.log('[CATEGORIA] Categoria detectada por palavra-chave:', categoriaDetectada);
+    const catId = await buscarCategoriaInteligente(userId, categoriaDetectada, tipo);
+    console.log('[CATEGORIA] ID retornado por buscarCategoriaInteligente:', catId);
+    if (catId) {
+      categoryId = catId;
+      metodoUsado = 'deteccao_automatica';
+      console.log('[CATEGORIA] ✅ SUCESSO! Categoria:', categoriaDetectada, '| ID:', catId);
+    } else {
+      console.log('[CATEGORIA] ❌ buscarCategoriaInteligente retornou null para:', categoriaDetectada);
+    }
+  } else {
+    console.log('[CATEGORIA] ❌ detectarCategoriaPorTexto não encontrou nenhuma palavra-chave');
   }
   
-  // Usar descrição do NLP (não fazer parsing manual!)
-  // O GPT já extrai "Mercado" de "Gastei 30 reais no mercado"
-  const descricao = entidades.descricao || entidades.categoria || 'Via WhatsApp';
+  // FALLBACK: Se não encontrou, usar "Outros"
+  if (!categoryId) {
+    console.log('[CATEGORIA] ⚠️ Usando fallback "Outros"');
+    console.log('[CATEGORIA] 📝 DEBUG:', {
+      textosAnalisados: textosValidos,
+      categoriaDetectada,
+      tipo
+    });
+    
+    const outros = await buscarCategoriaPorNome(userId, 'Outros', tipo);
+    if (outros) {
+      categoryId = outros.id;
+      metodoUsado = 'fallback_outros';
+      console.log('[CATEGORIA] Fallback "Outros" ID:', outros.id);
+    }
+  }
+  
+  console.log('[CATEGORIA] ==========================================');
+  
+  // Mapear forma_pagamento do NLP para payment_method do banco
+  const mapFormaPagamento: Record<string, 'pix' | 'credit' | 'debit' | 'cash' | 'boleto' | 'transfer' | 'other'> = {
+    'pix': 'pix',
+    'credito': 'credit',
+    'debito': 'debit',
+    'dinheiro': 'cash',
+    'boleto': 'boleto',
+    'transferencia': 'transfer'
+  };
+  
+  const paymentMethod = entidades.forma_pagamento 
+    ? mapFormaPagamento[entidades.forma_pagamento] || 'other'
+    : undefined;
   
   console.log('[TRANSACTION] Preparando:', {
     valor: entidades.valor,
     descricao,
-    categoria: entidades.categoria,
+    categoria_nlp: entidades.categoria,
     categoryId,
-    conta: contaNome
+    metodo_categorizacao: metodoUsado,
+    conta: contaNome,
+    payment_method: paymentMethod
   });
   
   const resultado = await registrarTransacao({
@@ -660,7 +1026,8 @@ export async function processarIntencaoTransacao(
     type: tipo,
     account_id: contaId!,
     description: descricao,
-    category_id: categoryId
+    category_id: categoryId,
+    payment_method: paymentMethod
   });
   
   return resultado;

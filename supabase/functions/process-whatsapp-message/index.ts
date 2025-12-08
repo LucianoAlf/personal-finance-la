@@ -15,17 +15,32 @@
 // 
 // ============================================
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { getSupabase, normalizeMessageType, corsHeaders, enviarViaEdgeFunction } from './utils.ts';
+import { getSupabase, normalizeMessageType, corsHeaders, enviarViaEdgeFunction, buscarUltimaInteracao, getEmojiBanco } from './utils.ts';
 import { buscarContexto, isContextoAtivo, processarNoContexto, salvarContexto } from './context-manager.ts';
 import { processarBotao } from './button-handler.ts';
 import { isComandoRapido, processarComandoRapido } from './quick-commands.ts';
-import { templateUsuarioNaoCadastrado, templateErroGenerico, templateComandoNaoReconhecido } from './response-templates.ts';
+import { templateErroGenerico, templateComandoNaoReconhecido } from './response-templates.ts';
+import { isPrimeiraInteracaoDia } from './humanization.ts';
+import { 
+  templateBoasVindas,
+  templateSaudacaoPrimeiraVez,
+  templateSaudacaoRetorno,
+  templateAjuda,
+  templateSobreSistema,
+  templateAgradecimento,
+  templateErro,
+  templateUsuarioNaoCadastrado
+} from './templates-humanizados.ts';
 import { classificarIntencao, isAnalyticsQuery, isComandoEdicao, isComandoExclusao, extrairEntidadesEdicao } from './nlp-processor.ts';
 import { classificarIntencaoNLP, IntencaoClassificada } from './nlp-classifier.ts';
 import { processarIntencaoTransacao, processarEdicao, processarExclusao } from './transaction-mapper.ts';
-import { enviarConfirmacaoComBotoes, extrairButtonId, parsearButtonId } from './button-sender.ts';
+// Botões desativados - 100% conversacional
+// import { enviarConfirmacaoComBotoes, extrairButtonId, parsearButtonId } from './button-sender.ts';
 import { isAudioPTT, extrairMessageId, processarAudioPTT, extrairInfoAudio } from './audio-handler.ts';
 import { excluirUltimaTransacao, mudarContaUltimaTransacao, consultarSaldo, listarContas, extrairNomeConta } from './command-handlers.ts';
+import * as imageReader from './image-reader.ts';
+import { detectarIntencaoConsulta, processarConsulta } from './consultas.ts';
+import { detectarIntencaoCartao, processarIntencaoCartao } from './cartao-credito.ts';
 
 // ============================================
 // MAIN HANDLER
@@ -52,7 +67,8 @@ serve(async (req: Request) => {
     // ============================================
     // Payload do webhook-uazapi (já processado):
     // { message_id, user_id, content, from_number }
-    const isInternalPayload = payload.message_id && payload.user_id && payload.content;
+    // ✅ Content pode estar vazio para imagens, então verificar from_number
+    const isInternalPayload = payload.message_id && payload.user_id && payload.from_number;
     
     // Payload direto UAZAPI ou N8N
     const isN8NPayload = payload.body && payload.body.EventType;
@@ -83,6 +99,16 @@ serve(async (req: Request) => {
         messageData = payload.raw_payload.message || {};
         // Guardar whatsapp_message_id para transcrição
         messageData.messageid = payload.whatsapp_message_id;
+      }
+      
+      // ✅ Se é IMAGEM, também popular messageData
+      if (payload.message_type === 'image' && payload.raw_payload) {
+        console.log('📷 [IMAGE] Imagem detectada no payload interno');
+        messageData = payload.raw_payload.message || {};
+        messageData.messageid = payload.whatsapp_message_id;
+        messageData.messageType = 'media';
+        messageData.mediaType = 'image';
+        console.log('📷 [IMAGE] MessageId:', payload.whatsapp_message_id);
       }
     } else if (isN8NPayload) {
       // Payload via N8N
@@ -126,15 +152,32 @@ serve(async (req: Request) => {
     const isAudio = isAudioPTT(payload, messageType, messageData);
     console.log('🎤 É áudio PTT?', isAudio);
     
+    // ============================================
+    // DETECTAR IMAGEM
+    // ============================================
+    const rawMessageType = messageData?.messageType || messageData?.type || '';
+    const rawMediaType = messageData?.mediaType || '';
+    // Detectar imagem: via messageData OU via payload interno (message_type === 'image')
+    const isImage = (
+      (rawMessageType === 'media' || rawMessageType === 'image') && 
+      (rawMediaType === 'image' || rawMediaType === 'photo' || rawMessageType === 'image')
+    ) || (isInternalPayload && payload.message_type === 'image');
+    
+    // MessageId: tentar várias fontes
+    const imageMessageId = messageData?.messageid || messageData?.messageId || 
+                           payload?.message?.messageid || payload?.whatsapp_message_id;
+    const imageCaption = (messageData as any)?.content?.caption || (messageData as any)?.caption || '';
+    console.log('📷 É imagem?', isImage, '| MessageId:', imageMessageId, '| isInternal:', isInternalPayload);
+    
     // Validação
     if (!phone && !userId) {
       console.log('⚠️ Telefone e userId não encontrados');
       return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
     }
     
-    // Permitir conteúdo vazio se for áudio (será transcrito)
-    if (!content && !isAudio) {
-      console.log('⚠️ Conteúdo vazio e não é áudio');
+    // Permitir conteúdo vazio se for áudio (será transcrito) ou imagem (será processada)
+    if (!content && !isAudio && !isImage) {
+      console.log('⚠️ Conteúdo vazio e não é áudio nem imagem');
       return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
     }
     
@@ -179,6 +222,18 @@ serve(async (req: Request) => {
     console.log('✅ Usuário:', user.full_name);
     
     // ============================================
+    // 3.1 RASTREAR INTERAÇÃO - ANA CLARA HUMANIZADA
+    // ============================================
+    const ultimaInteracao = await buscarUltimaInteracao(user.id);
+    const primeiraVezAbsoluta = ultimaInteracao === null; // NUNCA falou com Ana Clara
+    const primeiraVezHoje = isPrimeiraInteracaoDia(ultimaInteracao);
+    const nomeUsuario = user.full_name?.split(' ')[0] || 'amigo';
+    
+    console.log('🙋🏻‍♀️ Primeira vez ABSOLUTA?', primeiraVezAbsoluta);
+    console.log('🙋🏻‍♀️ Primeira vez hoje?', primeiraVezHoje);
+    console.log('🙋🏻‍♀️ Nome:', nomeUsuario);
+    
+    // ============================================
     // 4. SALVAR MENSAGEM (se não veio do webhook-uazapi)
     // ============================================
     let message: { id: string };
@@ -213,63 +268,10 @@ serve(async (req: Request) => {
     }
     
     // ============================================
-    // 5. PROCESSAR BOTÃO INTERATIVO (UAZAPI)
+    // 5. BOTÕES DESATIVADOS - 100% CONVERSACIONAL
     // ============================================
-    // Detectar clique em botão (formato UAZAPI: type=interactive, content.buttonResponse)
-    const buttonIdFromInteractive = extrairButtonId(payload) || 
-      extrairButtonId({ message: messageData });
-    
-    const buttonIdLegacy = (
-      messageData?.buttonOrListid ||
-      messageData?.buttonOrListId ||
-      messageData?.selectedButtonId
-    ) as string | undefined;
-    
-    const buttonId = buttonIdFromInteractive || buttonIdLegacy;
-    
-    if (buttonId) {
-      console.log('🔘 Botão clicado:', buttonId);
-      
-      const parsed = parsearButtonId(buttonId);
-      console.log('📋 Ação:', parsed.acao, '| ID:', parsed.id);
-      
-      // Processar ações de editar/excluir
-      if (parsed.acao === 'editar') {
-        // Iniciar fluxo de edição
-        await salvarContexto(user.id, 'editing_transaction', {
-          transacao_id: parsed.id,
-          phone
-        }, phone);
-        await enviarViaEdgeFunction(phone, `✏️ *O que deseja editar?*\n\nResponda com:\n• "valor 50" para mudar o valor\n• "categoria alimentação" para mudar categoria\n• "conta nubank" para mudar a conta\n• "cancelar" para cancelar`);
-      } else if (parsed.acao === 'excluir') {
-        // Pedir confirmação de exclusão
-        await salvarContexto(user.id, 'confirming_action', {
-          step: 'awaiting_delete_confirmation',
-          transacao_id: parsed.id,
-          phone
-        }, phone);
-        await enviarViaEdgeFunction(phone, `⚠️ *Confirma exclusão?*\n\nResponda "sim" para confirmar ou "não" para cancelar.`);
-      } else if (parsed.acao === 'confirmar') {
-        // Executar exclusão
-        const resultado = await processarExclusao(user.id);
-        await enviarViaEdgeFunction(phone, resultado.mensagem);
-      } else if (parsed.acao === 'cancelar') {
-        await enviarViaEdgeFunction(phone, '✅ Ação cancelada.');
-      } else {
-        // Fallback para handler antigo
-        await processarBotao(buttonId, user.id, phone);
-      }
-      
-      await supabase.from('whatsapp_messages').update({
-        processing_status: 'completed',
-        intent: 'button_click',
-        processed_at: new Date().toISOString()
-      }).eq('id', message.id);
-      
-      return new Response(JSON.stringify({ success: true, type: 'button', acao: parsed.acao }), { 
-        headers: { 'Content-Type': 'application/json' } 
-      });
-    }
+    // Botões interativos removidos para simplificar a experiência
+    // Usuário edita/exclui via texto: "era 95", "muda pra Nubank", "exclui essa"
     
     // ============================================
     // 5.1 PROCESSAR ÁUDIO PTT
@@ -346,6 +348,272 @@ serve(async (req: Request) => {
     }
     
     // ============================================
+    // 5.2 PROCESSAR IMAGEM
+    // ============================================
+    if (isImage && imageMessageId) {
+      console.log('📷 [IMAGE] Processando imagem...');
+      
+      // 1. Buscar contas do usuário ANTES de processar
+      const { data: contasUsuario } = await supabase
+        .from('accounts')
+        .select('id, name')
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+      
+      if (!contasUsuario || contasUsuario.length === 0) {
+        await enviarViaEdgeFunction(phone, '❌ Você não tem contas cadastradas. Cadastre uma conta no app primeiro.');
+        return new Response(JSON.stringify({ success: true, type: 'no_accounts' }), { 
+          headers: { 'Content-Type': 'application/json' } 
+        });
+      }
+      
+      // 2. Detectar tipo de imagem
+      const tipoImagem = await imageReader.detectarTipoImagem(imageMessageId);
+      console.log('📷 [IMAGE] Tipo detectado:', tipoImagem.tipo, '| Confiança:', tipoImagem.confianca);
+      
+      // Helper: montar lista de contas (usa getEmojiBanco de utils.ts)
+      const montarListaContas = () => {
+        let lista = `\n🏦 *Em qual conta foi pago?*\n\n`;
+        contasUsuario.forEach((acc: any, i: number) => {
+          const emoji = getEmojiBanco(acc.name);
+          lista += `${i + 1}. ${emoji} ${acc.name}\n`;
+        });
+        lista += `\n_Responda com número/nome ou "cancelar"_`;
+        return lista;
+      };
+      
+      // Helper: salvar contexto com contas
+      const salvarContextoImagem = async (dadosImagem: any) => {
+        await salvarContexto(user.id, 'confirming_action', {
+          step: 'awaiting_image_account',
+          phone,
+          dados_imagem: dadosImagem,
+          contas: contasUsuario.map((c: any) => ({ id: c.id, name: c.name }))
+        }, phone);
+      };
+      
+      // 3. Processar baseado no tipo
+      if (tipoImagem.tipo === 'nota_fiscal') {
+        const leitura = await imageReader.lerNotaFiscal(imageMessageId);
+        
+        if (leitura.sucesso && leitura.dados) {
+          const dados = leitura.dados;
+          
+          // Montar mensagem unificada: dados + contas
+          let msg = `🧾 *Nota Fiscal Lida!*\n\n`;
+          msg += `💰 *Valor:* R$ ${dados.valor_total.toFixed(2).replace('.', ',')}\n`;
+          if (dados.estabelecimento) msg += `🏪 *Local:* ${dados.estabelecimento}\n`;
+          msg += `🏷️ *Categoria:* ${dados.categoria || 'Alimentação'}\n`;
+          if (dados.data) msg += `📅 *Data:* ${dados.data}\n`;
+          if (dados.itens && dados.itens.length > 0) {
+            msg += `📝 *Itens:* ${dados.itens.join(', ')}\n`;
+          }
+          msg += montarListaContas();
+          
+          await salvarContextoImagem({
+            tipo: 'nota_fiscal',
+            valor: dados.valor_total,
+            descricao: dados.estabelecimento || 'Compra',
+            categoria: dados.categoria || 'Alimentação',
+            data: dados.data
+          });
+          
+          await enviarViaEdgeFunction(phone, msg);
+          
+          await supabase.from('whatsapp_messages').update({
+            processing_status: 'completed',
+            intent: 'image_nota_fiscal',
+            processed_at: new Date().toISOString()
+          }).eq('id', message.id);
+          
+          return new Response(JSON.stringify({ success: true, type: 'image_nota_fiscal' }), { 
+            headers: { 'Content-Type': 'application/json' } 
+          });
+        } else {
+          await enviarViaEdgeFunction(phone, 
+            `🤔 Não consegui ler essa nota fiscal.\n\n` +
+            `💡 Tente enviar uma foto mais nítida ou me diga o valor:\n` +
+            `_"Gastei 50 no mercado"_`
+          );
+          return new Response(JSON.stringify({ success: true, type: 'image_failed' }), { 
+            headers: { 'Content-Type': 'application/json' } 
+          });
+        }
+      }
+      
+      if (tipoImagem.tipo === 'ifood') {
+        const leitura = await imageReader.lerPedidoIFood(imageMessageId);
+        
+        if (leitura.sucesso && leitura.dados) {
+          const dados = leitura.dados;
+          
+          // Montar mensagem unificada: dados + contas
+          let msg = `🍔 *Pedido de Delivery Lido!*\n\n`;
+          msg += `💰 *Valor:* R$ ${dados.valor_total.toFixed(2).replace('.', ',')}\n`;
+          if (dados.restaurante) msg += `🍽️ *Restaurante:* ${dados.restaurante}\n`;
+          if (dados.itens && dados.itens.length > 0) {
+            msg += `🍕 *Itens:* ${dados.itens.join(', ')}\n`;
+          }
+          if (dados.taxa_entrega) msg += `🛵 *Taxa de entrega:* R$ ${dados.taxa_entrega.toFixed(2).replace('.', ',')}\n`;
+          msg += `🏷️ *Categoria:* Alimentação\n`;
+          msg += montarListaContas();
+          
+          await salvarContextoImagem({
+            tipo: 'ifood',
+            valor: dados.valor_total,
+            descricao: dados.restaurante || 'iFood',
+            categoria: 'Alimentação',
+            data: dados.data
+          });
+          
+          await enviarViaEdgeFunction(phone, msg);
+          
+          await supabase.from('whatsapp_messages').update({
+            processing_status: 'completed',
+            intent: 'image_ifood',
+            processed_at: new Date().toISOString()
+          }).eq('id', message.id);
+          
+          return new Response(JSON.stringify({ success: true, type: 'image_ifood' }), { 
+            headers: { 'Content-Type': 'application/json' } 
+          });
+        }
+      }
+      
+      if (tipoImagem.tipo === 'comprovante_pagamento') {
+        const leitura = await imageReader.lerComprovantePagamento(imageMessageId);
+        
+        if (leitura.sucesso && leitura.dados) {
+          const dados = leitura.dados;
+          
+          // Emoji baseado no tipo de serviço
+          const emojiServico: Record<string, string> = {
+            'combustivel': '⛽',
+            'corrida': '🚗',
+            'estacionamento': '🅿️',
+            'pedagio': '🛣️',
+            'outro': '💳'
+          };
+          const emoji = emojiServico[dados.tipo_servico] || '💳';
+          
+          // Subcategoria baseada no tipo
+          const subcategoriaMap: Record<string, string> = {
+            'combustivel': 'Combustível',
+            'corrida': 'Uber/99',
+            'estacionamento': 'Estacionamento',
+            'pedagio': 'Pedágio',
+            'outro': ''
+          };
+          const subcategoria = subcategoriaMap[dados.tipo_servico] || '';
+          
+          // Montar mensagem unificada
+          let msg = `${emoji} *Comprovante de Pagamento Lido!*\n\n`;
+          msg += `💰 *Valor:* R$ ${dados.valor_total.toFixed(2).replace('.', ',')}\n`;
+          if (dados.estabelecimento) msg += `🏪 *Local:* ${dados.estabelecimento}\n`;
+          if (dados.produto && dados.quantidade) {
+            msg += `${emoji} *${dados.produto}:* ${dados.quantidade}\n`;
+          }
+          if (dados.preco_unitario) {
+            msg += `📊 *Preço unitário:* R$ ${dados.preco_unitario.toFixed(2).replace('.', ',')}\n`;
+          }
+          if (dados.forma_pagamento) msg += `💳 *Pagamento:* ${dados.forma_pagamento}\n`;
+          msg += `🏷️ *Categoria:* ${dados.categoria}${subcategoria ? ' > ' + subcategoria : ''}\n`;
+          msg += montarListaContas();
+          
+          await salvarContextoImagem({
+            tipo: 'comprovante_pagamento',
+            valor: dados.valor_total,
+            descricao: dados.estabelecimento || dados.produto || 'Pagamento',
+            categoria: dados.categoria || 'Transporte',
+            data: dados.data
+          });
+          
+          await enviarViaEdgeFunction(phone, msg);
+          
+          await supabase.from('whatsapp_messages').update({
+            processing_status: 'completed',
+            intent: 'image_comprovante_pagamento',
+            processed_at: new Date().toISOString()
+          }).eq('id', message.id);
+          
+          return new Response(JSON.stringify({ success: true, type: 'image_comprovante_pagamento' }), { 
+            headers: { 'Content-Type': 'application/json' } 
+          });
+        }
+      }
+      
+      if (tipoImagem.tipo === 'comprovante_pix') {
+        const leitura = await imageReader.lerComprovantePix(imageMessageId);
+        
+        if (leitura.sucesso && leitura.dados) {
+          const dados = leitura.dados;
+          const tipoTransacao = dados.tipo === 'enviado' ? 'expense' : 'income';
+          const emoji = dados.tipo === 'enviado' ? '📤' : '📥';
+          const categoriaTexto = dados.tipo === 'enviado' ? 'Transferência' : 'Receita';
+          
+          // Montar mensagem unificada: dados + contas
+          let msg = `💸 *Transferência PIX Lida!*\n\n`;
+          msg += `💰 *Valor:* R$ ${dados.valor.toFixed(2).replace('.', ',')}\n`;
+          msg += `${emoji} *Tipo:* ${dados.tipo === 'enviado' ? 'Enviado' : 'Recebido'}\n`;
+          if (dados.destinatario) msg += `👤 *Para:* ${dados.destinatario}\n`;
+          if (dados.remetente) msg += `👤 *De:* ${dados.remetente}\n`;
+          if (dados.banco) msg += `🏦 *Banco origem:* ${dados.banco}\n`;
+          msg += `🏷️ *Categoria:* ${categoriaTexto}\n`;
+          msg += montarListaContas();
+          
+          await salvarContextoImagem({
+            tipo: 'pix',
+            valor: dados.valor,
+            descricao: dados.tipo === 'enviado' 
+              ? `PIX para ${dados.destinatario || 'transferência'}` 
+              : `PIX de ${dados.remetente || 'transferência'}`,
+            categoria: categoriaTexto,
+            tipo_transacao: tipoTransacao,
+            data: dados.data
+          });
+          
+          await enviarViaEdgeFunction(phone, msg);
+          
+          await supabase.from('whatsapp_messages').update({
+            processing_status: 'completed',
+            intent: 'image_pix',
+            processed_at: new Date().toISOString()
+          }).eq('id', message.id);
+          
+          return new Response(JSON.stringify({ success: true, type: 'image_pix' }), { 
+            headers: { 'Content-Type': 'application/json' } 
+          });
+        }
+      }
+      
+      // Imagem não reconhecida
+      if (imageCaption) {
+        // Tem legenda, processar como texto
+        console.log('📷 [IMAGE] Processando legenda:', imageCaption);
+        content = imageCaption;
+        // Continua fluxo normal
+      } else {
+        await enviarViaEdgeFunction(phone, 
+          `📷 Recebi sua imagem!\n\n` +
+          `💡 Para registrar, me diga o que é:\n` +
+          `• _"Gastei 50 no mercado"_\n` +
+          `• _"Recebi 100 de PIX"_\n\n` +
+          `Ou envie uma foto de nota fiscal, cupom ou comprovante que eu leio automaticamente! 🧾`
+        );
+        
+        await supabase.from('whatsapp_messages').update({
+          processing_status: 'completed',
+          intent: 'image_unknown',
+          processed_at: new Date().toISOString()
+        }).eq('id', message.id);
+        
+        return new Response(JSON.stringify({ success: true, type: 'image_unknown' }), { 
+          headers: { 'Content-Type': 'application/json' } 
+        });
+      }
+    }
+    
+    // ============================================
     // 5. VERIFICAR CONTEXTO ATIVO
     // ============================================
     const contexto = await buscarContexto(user.id);
@@ -396,6 +664,22 @@ serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json' } 
       });
     }
+    
+    // ============================================
+    // 6.4 CARTÃO DE CRÉDITO - MOVIDO PARA NLP (linha ~1020)
+    // Agora o GPT-4 interpreta as mensagens de cartão
+    // ============================================
+    
+    // ============================================
+    // 6.5 CONSULTAS FINANCEIRAS - DESATIVADO (MOVIDO PARA NLP)
+    // ============================================
+    // ⚠️ REMOVIDO: O handler de regex estava interceptando ANTES do NLP
+    // Agora TODAS as consultas passam pelo GPT-4 (linha ~864)
+    // que normaliza apelidos: "roxinho" → "nubank"
+    // 
+    // Código antigo removido em 08/12/2025:
+    // const intencaoConsulta = detectarIntencaoConsulta(content);
+    // if (intencaoConsulta) { ... processarConsulta() ... }
     
     // ============================================
     // 7. EDIÇÃO DE TRANSAÇÃO
@@ -513,46 +797,19 @@ serve(async (req: Request) => {
     }
     
     // ============================================
-    // 10. CONSULTA ANALÍTICA
+    // 10. CONSULTA ANALÍTICA - DESATIVADO (MOVIDO PARA NLP)
     // ============================================
-    if (isAnalyticsQuery(command)) {
-      console.log('📊 Consulta analítica detectada');
-      
-      try {
-        const analyticsResponse = await fetch(
-          `${Deno.env.get('SUPABASE_URL')}/functions/v1/analytics-query`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-            },
-            body: JSON.stringify({ user_id: user.id, phone, raw_query: content })
-          }
-        );
-        
-        const result = await analyticsResponse.json();
-        const responseText = result.success && result.formatted_response 
-          ? result.formatted_response 
-          : '❌ Não consegui processar sua consulta.';
-        
-        await enviarViaEdgeFunction(phone, responseText);
-        
-        await supabase.from('whatsapp_messages').update({
-          processing_status: 'completed',
-          intent: 'analytics_query',
-          processed_at: new Date().toISOString()
-        }).eq('id', message.id);
-        
-      } catch (err) {
-        console.error('❌ Erro analytics:', err);
-        await enviarViaEdgeFunction(phone, '❌ Erro ao processar consulta.');
-      }
-      
-      return new Response(JSON.stringify({ success: true, type: 'analytics' }), { 
-        headers: { 'Content-Type': 'application/json' } 
-      });
-    }
+    // ⚠️ REMOVIDO em 08/12/2025: O handler de analytics estava interceptando
+    // consultas de saldo ANTES do NLP ser chamado.
+    // "Qual o saldo no roxinho?" → isAnalyticsQuery() → analytics-query → ERRO
+    // 
+    // Agora TODAS as consultas passam pelo GPT-4 que:
+    // 1. Normaliza apelidos: "roxinho" → "nubank"
+    // 2. Classifica corretamente: CONSULTAR_SALDO
+    // 3. Extrai entidades: { conta: "nubank" }
+    //
+    // Código antigo removido:
+    // if (isAnalyticsQuery(command)) { ... fetch analytics-query ... }
     
     // ============================================
     // 10. CLASSIFICAR INTENÇÃO (NLP INTELIGENTE COM GPT-4)
@@ -582,6 +839,87 @@ serve(async (req: Request) => {
     console.log('📋 Explicação:', intencaoNLP.explicacao);
     console.log('📋 Resposta:', intencaoNLP.resposta_conversacional);
     console.log('📋 ========================================');
+    
+    // ============================================
+    // ARQUITETURA HÍBRIDA: TEMPLATE vs CONVERSACIONAL
+    // ============================================
+    
+    // GRUPO 1: Intenções que DEVEM usar TEMPLATE (dados estruturados)
+    const INTENCOES_COM_TEMPLATE = [
+      'AJUDA',
+      'CONSULTAR_SALDO',
+      'CONSULTAR_EXTRATO',
+      'LISTAR_CONTAS',
+      'LISTAR_CATEGORIAS',
+      'RELATORIO_DIARIO',
+      'RELATORIO_SEMANAL',
+      'RELATORIO_MENSAL',
+      'CONSULTAR_METAS',
+      'EXCLUIR_TRANSACAO',
+      'EDITAR_VALOR',
+      'EDITAR_CONTA',
+      'EDITAR_CATEGORIA'
+    ];
+    
+    // GRUPO 2: Intenções que usam RESPOSTA CONVERSACIONAL do GPT
+    const INTENCOES_CONVERSACIONAIS = [
+      'SAUDACAO',
+      'AGRADECIMENTO',
+      'OUTRO'
+    ];
+    
+    // GRUPO 3: Transações usam TEMPLATE para confirmação
+    const INTENCOES_TRANSACAO = [
+      'REGISTRAR_DESPESA',
+      'REGISTRAR_RECEITA',
+      'REGISTRAR_TRANSFERENCIA'
+    ];
+    
+    // GRUPO 4: Intenções de CARTÃO DE CRÉDITO
+    const INTENCOES_CARTAO = [
+      'COMPRA_CARTAO',
+      'COMPRA_PARCELADA',
+      'CONSULTAR_FATURA',
+      'CONSULTAR_LIMITE',
+      'LISTAR_CARTOES',
+      'PAGAR_FATURA'
+    ];
+    
+    // ============================================
+    // VALIDAÇÃO DE CONFIANÇA BAIXA
+    // ============================================
+    if (intencaoNLP.confianca < 0.6 && !INTENCOES_CONVERSACIONAIS.includes(intencaoNLP.intencao)) {
+      console.log('⚠️ Confiança baixa:', intencaoNLP.confianca, '- Pedindo clarificação');
+      
+      const respostaClarificacao = `🤔 Não tenho certeza se entendi bem...
+
+Você quis:
+• Registrar um gasto ou receita?
+• Ver seu saldo?
+• Outra coisa?
+
+Me explica melhor que eu te ajudo! 😊
+
+_Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
+      
+      await enviarViaEdgeFunction(phone, respostaClarificacao);
+      
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'low_confidence_clarification',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      
+      return new Response(JSON.stringify({ success: true, type: 'clarification' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    console.log('🎯 Tipo de processamento:', 
+      INTENCOES_COM_TEMPLATE.includes(intencaoNLP.intencao) ? 'TEMPLATE' :
+      INTENCOES_CONVERSACIONAIS.includes(intencaoNLP.intencao) ? 'CONVERSACIONAL' :
+      INTENCOES_TRANSACAO.includes(intencaoNLP.intencao) ? 'TRANSAÇÃO' : 'OUTRO'
+    );
     
     // Converter para formato esperado pelo sistema atual
     const intencao = {
@@ -615,9 +953,73 @@ serve(async (req: Request) => {
       }
     }
     
-    // Se é SAUDACAO, responder diretamente
+    // ============================================
+    // PROCESSAMENTO DE CARTÃO DE CRÉDITO VIA NLP
+    // ============================================
+    if (INTENCOES_CARTAO.includes(intencaoNLP.intencao)) {
+      console.log('💳 Intenção de cartão detectada via NLP:', intencaoNLP.intencao);
+      console.log('💳 Entidades:', JSON.stringify(intencaoNLP.entidades));
+      
+      // Converter intenção NLP para formato do processador de cartão
+      const tipoCartao = intencaoNLP.intencao === 'COMPRA_CARTAO' ? 'compra_cartao' :
+                         intencaoNLP.intencao === 'COMPRA_PARCELADA' ? 'compra_parcelada' :
+                         intencaoNLP.intencao === 'CONSULTAR_FATURA' ? 'consulta_fatura' :
+                         intencaoNLP.intencao === 'CONSULTAR_LIMITE' ? 'consulta_limite' :
+                         intencaoNLP.intencao === 'LISTAR_CARTOES' ? 'listar_cartoes' :
+                         intencaoNLP.intencao === 'PAGAR_FATURA' ? 'pagar_fatura' : 'compra_cartao';
+      
+      const entidadesAny = intencaoNLP.entidades as any;
+      const intencaoCartao = {
+        tipo: tipoCartao as any,
+        valor: entidadesAny.valor,
+        cartao: entidadesAny.cartao,
+        parcelas: entidadesAny.parcelas || 1,
+        descricao: entidadesAny.descricao
+      };
+      
+      console.log('💳 Intenção convertida:', JSON.stringify(intencaoCartao));
+      
+      const resultado = await processarIntencaoCartao(intencaoCartao, user.id, phone);
+      
+      if (resultado.precisaConfirmacao && resultado.dados) {
+        // Salvar contexto para escolha do cartão
+        await salvarContexto(user.id, 'confirming_action', {
+          step: 'awaiting_card_selection',
+          phone,
+          dados_cartao: resultado.dados
+        }, phone);
+      }
+      
+      await enviarViaEdgeFunction(phone, resultado.mensagem);
+      
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: `cartao_${tipoCartao}`,
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      
+      return new Response(JSON.stringify({ success: true, type: 'cartao_nlp', intencao: tipoCartao }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Se é SAUDACAO, responder com template humanizado
     if (intencaoNLP.intencao === 'SAUDACAO') {
-      await enviarViaEdgeFunction(phone, intencaoNLP.resposta_conversacional);
+      let resposta: string;
+      
+      if (primeiraVezAbsoluta) {
+        // ONBOARDING - Primeira vez que fala com Ana Clara
+        resposta = templateBoasVindas(nomeUsuario);
+        console.log('🎉 ONBOARDING - Primeira vez absoluta!');
+      } else if (primeiraVezHoje) {
+        // Primeira vez do dia
+        resposta = templateSaudacaoPrimeiraVez(nomeUsuario);
+      } else {
+        // Retorno no mesmo dia
+        resposta = templateSaudacaoRetorno(nomeUsuario);
+      }
+      
+      await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
         intent: 'saudacao',
@@ -628,9 +1030,10 @@ serve(async (req: Request) => {
       });
     }
     
-    // Se é AJUDA, responder diretamente
+    // Se é AJUDA, responder com template humanizado
     if (intencaoNLP.intencao === 'AJUDA') {
-      await enviarViaEdgeFunction(phone, intencaoNLP.resposta_conversacional);
+      const resposta = templateAjuda(nomeUsuario, primeiraVezHoje);
+      await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
         intent: 'ajuda',
@@ -644,7 +1047,22 @@ serve(async (req: Request) => {
     // Se é CONSULTAR_SALDO, usar função de saldo
     if (intencaoNLP.intencao === 'CONSULTAR_SALDO') {
       console.log('💰 Intenção CONSULTAR_SALDO detectada via NLP');
-      const resposta = await consultarSaldo(user.id);
+      console.log('📋 Entidades:', JSON.stringify(intencaoNLP.entidades));
+      
+      // Verificar se há filtro de conta nas entidades do NLP
+      const contaFiltro = intencaoNLP.entidades?.conta;
+      
+      let resposta: string;
+      if (contaFiltro) {
+        // Saldo de conta específica
+        console.log('🏦 Filtro de conta detectado:', contaFiltro);
+        const { consultarSaldoEspecifico } = await import('./consultas.ts');
+        resposta = await consultarSaldoEspecifico(user.id, contaFiltro);
+      } else {
+        // Saldo de todas as contas
+        resposta = await consultarSaldo(user.id);
+      }
+      
       await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
@@ -652,6 +1070,162 @@ serve(async (req: Request) => {
         processed_at: new Date().toISOString()
       }).eq('id', message.id);
       return new Response(JSON.stringify({ success: true, type: 'balance' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // ✅ CONSULTA DE RECEITAS - "quanto recebi", "minhas receitas", etc.
+    if (intencaoNLP.intencao === 'CONSULTAR_RECEITAS') {
+      console.log('💰 Intenção de RECEITAS detectada');
+      
+      const { 
+        extrairPeriodoDoTexto, 
+        extrairModoDoTexto, 
+        extrairMetodoDoTexto,
+        consultarFinancasUnificada 
+      } = await import('./consultas.ts');
+      
+      // 1. Extrair período do texto
+      const periodoConfig = extrairPeriodoDoTexto(content);
+      console.log('📅 Período para receitas:', JSON.stringify(periodoConfig));
+      
+      // 2. Extrair modo e agrupamento
+      const { modo, agrupar_por } = extrairModoDoTexto(content);
+      
+      // 3. Extrair método de pagamento
+      const entidadesNLP = intencaoNLP.entidades as any;
+      const metodoNLP = entidadesNLP?.metodo;
+      const metodoTexto = extrairMetodoDoTexto(content);
+      const metodo = metodoNLP || metodoTexto;
+      
+      // 4. Extrair conta
+      let contaFiltro: string | undefined = entidadesNLP?.conta?.toLowerCase()?.normalize('NFD')?.replace(/[\u0300-\u036f]/g, '');
+      
+      // 5. Fallback - detectar banco no texto
+      if (!contaFiltro) {
+        const textoLower = content.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const bancosConhecidos = ['nubank', 'itau', 'bradesco', 'inter', 'c6', 'santander', 'caixa', 'bb', 'roxinho', 'roxo'];
+        
+        for (const banco of bancosConhecidos) {
+          if (textoLower.includes(banco)) {
+            contaFiltro = banco;
+            console.log('🔄 [RECEITAS-FALLBACK] Banco detectado no texto:', banco);
+            break;
+          }
+        }
+      }
+      
+      console.log('💰 [RECEITAS] Filtros finais:', { contaFiltro, metodo, periodo: periodoConfig });
+      
+      // 🔥 USAR CONSULTA UNIFICADA COM TIPO INCOME
+      const resposta = await consultarFinancasUnificada(user.id, {
+        periodo: periodoConfig,
+        conta: contaFiltro,
+        metodo: metodo as any,
+        tipo: 'income',  // ← RECEITAS
+        modo: entidadesNLP?.modo || modo,
+        agrupar_por: entidadesNLP?.agrupar_por || agrupar_por
+      });
+      
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'consultar_receitas',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'income' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // ✅ CONSULTA DE GASTOS - Trata TODAS as intenções equivalentes
+    // CONSULTAR_EXTRATO, RELATORIO_DIARIO, RELATORIO_SEMANAL, RELATORIO_MENSAL, etc.
+    const INTENCOES_GASTOS = [
+      'CONSULTAR_EXTRATO',
+      'CONSULTAR_GASTOS', 
+      'RELATORIO_DIARIO',
+      'RELATORIO_SEMANAL', 
+      'RELATORIO_MENSAL',
+      'VER_GASTOS',
+      'MEUS_GASTOS'
+    ];
+    
+    if (INTENCOES_GASTOS.includes(intencaoNLP.intencao)) {
+      console.log('📊 Intenção de GASTOS detectada:', intencaoNLP.intencao);
+      
+      // ============================================
+      // 🔥 SISTEMA DE CONSULTAS UNIFICADO
+      // Suporta: método, período, conta, agrupamento
+      // ============================================
+      
+      const { 
+        extrairPeriodoDoTexto, 
+        extrairModoDoTexto, 
+        extrairMetodoDoTexto,
+        consultarFinancasUnificada 
+      } = await import('./consultas.ts');
+      
+      // 1. Extrair período estruturado do texto
+      const periodoConfig = extrairPeriodoDoTexto(content);
+      console.log('📅 Período extraído:', JSON.stringify(periodoConfig));
+      
+      // 2. Extrair modo de visualização e agrupamento
+      const { modo, agrupar_por } = extrairModoDoTexto(content);
+      console.log('📊 Modo:', modo || 'resumo', '| Agrupar por:', agrupar_por || 'categoria');
+      
+      // 3. Extrair método de pagamento
+      const entidadesNLP = intencaoNLP.entidades as any;
+      const metodoNLP = entidadesNLP?.metodo;
+      const metodoTexto = extrairMetodoDoTexto(content);
+      const metodo = metodoNLP || metodoTexto;
+      console.log('💳 Método:', metodo || 'todos');
+      
+      // 4. Extrair conta/cartão
+      let contaFiltro: string | undefined = entidadesNLP?.conta?.toLowerCase()?.normalize('NFD')?.replace(/[\u0300-\u036f]/g, '');
+      let cartaoFiltro: string | undefined = entidadesNLP?.cartao?.toLowerCase()?.normalize('NFD')?.replace(/[\u0300-\u036f]/g, '');
+      
+      // 5. Fallback - detectar banco no texto
+      if (!contaFiltro && !cartaoFiltro) {
+        const textoLower = content.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const bancosConhecidos = ['nubank', 'itau', 'bradesco', 'inter', 'c6', 'santander', 'caixa', 'bb', 'roxinho', 'roxo'];
+        
+        for (const banco of bancosConhecidos) {
+          if (textoLower.includes(banco)) {
+            contaFiltro = banco;
+            console.log('🔄 [FALLBACK] Banco detectado no texto:', banco);
+            break;
+          }
+        }
+      }
+      
+      // Log final dos filtros
+      console.log('🔍 FILTROS FINAIS:', JSON.stringify({
+        conta: contaFiltro,
+        cartao: cartaoFiltro,
+        metodo,
+        periodo: periodoConfig,
+        modo,
+        agrupar_por
+      }));
+      
+      // 🔥 USAR CONSULTA UNIFICADA
+      console.log('✅ Usando consultarFinancasUnificada');
+      const resposta = await consultarFinancasUnificada(user.id, {
+        periodo: periodoConfig,
+        conta: contaFiltro,
+        cartao: cartaoFiltro,
+        metodo: metodo as any,
+        tipo: 'expense',
+        modo: entidadesNLP?.modo || modo,
+        agrupar_por: entidadesNLP?.agrupar_por || agrupar_por
+      });
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'consultar_gastos',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'expenses' }), { 
         headers: { 'Content-Type': 'application/json' } 
       });
     }
@@ -686,7 +1260,23 @@ serve(async (req: Request) => {
       });
     }
     
-    // Se é EDITAR_TRANSACAO com valor, usar função de editar
+    // Se é EDITAR_VALOR, usar função de editar
+    if (intencaoNLP.intencao === 'EDITAR_VALOR' && intencaoNLP.entidades.novo_valor) {
+      console.log('✏️ Intenção EDITAR_VALOR detectada via NLP:', intencaoNLP.entidades.novo_valor);
+      const resultado = await processarEdicao(user.id, { valor: intencaoNLP.entidades.novo_valor });
+      const resposta = intencaoNLP.resposta_conversacional || resultado.mensagem;
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'editar_valor',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'edit_value' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Se é EDITAR_TRANSACAO com valor (compatibilidade)
     if (intencaoNLP.intencao === 'EDITAR_TRANSACAO' && intencaoNLP.entidades.valor) {
       console.log('✏️ Intenção EDITAR_TRANSACAO detectada via NLP');
       const resultado = await processarEdicao(user.id, { valor: intencaoNLP.entidades.valor });
@@ -697,6 +1287,21 @@ serve(async (req: Request) => {
         processed_at: new Date().toISOString()
       }).eq('id', message.id);
       return new Response(JSON.stringify({ success: true, type: 'edit' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Se é EDITAR_CONTA, usar função de mudar conta
+    if (intencaoNLP.intencao === 'EDITAR_CONTA' && intencaoNLP.entidades.nova_conta) {
+      console.log('🏦 Intenção EDITAR_CONTA detectada via NLP:', intencaoNLP.entidades.nova_conta);
+      const resposta = await mudarContaUltimaTransacao(user.id, intencaoNLP.entidades.nova_conta);
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'editar_conta',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'edit_account' }), { 
         headers: { 'Content-Type': 'application/json' } 
       });
     }
@@ -716,16 +1321,56 @@ serve(async (req: Request) => {
       });
     }
     
-    // Se é OUTRO ou não reconhecido pelo NLP, usar resposta conversacional
-    if (intencaoNLP.intencao === 'OUTRO' && intencaoNLP.resposta_conversacional) {
-      console.log('❓ Intenção OUTRO - usando resposta do NLP');
-      await enviarViaEdgeFunction(phone, intencaoNLP.resposta_conversacional);
+    // Se é AGRADECIMENTO, responder com template humanizado
+    if (intencaoNLP.intencao === 'AGRADECIMENTO') {
+      const resposta = templateAgradecimento(nomeUsuario);
+      await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
-        intent: 'outro',
+        intent: 'agradecimento',
         processed_at: new Date().toISOString()
       }).eq('id', message.id);
-      return new Response(JSON.stringify({ success: true, type: 'outro' }), { 
+      return new Response(JSON.stringify({ success: true, type: 'thanks' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // Se é OUTRO ou não reconhecido pelo NLP
+    if (intencaoNLP.intencao === 'OUTRO') {
+      console.log('❓ Intenção OUTRO detectada');
+      
+      // Detectar se é pergunta sobre o sistema (usar TEMPLATE bonito)
+      const contentLower = content.toLowerCase();
+      const isPerguntaSobreSistema = 
+        contentLower.includes('o que você faz') ||
+        contentLower.includes('o que vc faz') ||
+        contentLower.includes('quem é você') ||
+        contentLower.includes('quem é vc') ||
+        contentLower.includes('como funciona') ||
+        contentLower.includes('como você funciona') ||
+        contentLower.includes('o que você pode fazer') ||
+        contentLower.includes('me apresenta') ||
+        contentLower.includes('se apresenta');
+      
+      let resposta: string;
+      
+      if (isPerguntaSobreSistema) {
+        // Usar TEMPLATE bonito para perguntas sobre o sistema
+        console.log('📋 Pergunta sobre o sistema - usando template');
+        resposta = templateSobreSistema(nomeUsuario);
+      } else {
+        // Usar resposta conversacional do NLP ou fallback
+        resposta = intencaoNLP.resposta_conversacional || 
+          `Oi, ${nomeUsuario}! 😊\n\nNão entendi bem o que você quis dizer.\n\nPosso te ajudar com:\n• Registrar gastos e receitas\n• Consultar saldo\n• Ver extrato\n• Relatórios\n\nÉ só me contar! 🙋🏻‍♀️`;
+      }
+      
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: isPerguntaSobreSistema ? 'sobre_sistema' : 'outro',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: isPerguntaSobreSistema ? 'about' : 'outro' }), { 
         headers: { 'Content-Type': 'application/json' } 
       });
     }
@@ -735,30 +1380,23 @@ serve(async (req: Request) => {
     if (intencao.intencao === 'REGISTRAR_RECEITA' || intencao.intencao === 'REGISTRAR_DESPESA') {
       const resultado = await processarIntencaoTransacao(intencao, user.id, phone);
       
-      // Se precisa confirmação (escolher conta), salvar contexto e enviar texto
+      // Se precisa confirmação (escolher conta ou método de pagamento), salvar contexto
       if (resultado.precisaConfirmacao) {
         await enviarViaEdgeFunction(phone, resultado.mensagem);
+        
+        // Verificar qual tipo de confirmação é necessária
+        const step = (resultado.dados?.step as string) || 'awaiting_account';
+        
         await salvarContexto(user.id, 'creating_transaction', {
-          step: 'awaiting_account',
+          step,
           intencao_pendente: intencao,
+          dados_transacao: resultado.dados,
           phone
         }, phone);
-      } 
-      // Se transação foi registrada com sucesso, enviar com botões
-      else if (resultado.success && resultado.transacao_id && resultado.enviarBotoes) {
-        console.log('🔘 Enviando confirmação com botões...');
-        const botoesResult = await enviarConfirmacaoComBotoes(
-          phone, 
-          resultado.mensagem, 
-          resultado.transacao_id
-        );
         
-        // Fallback para texto simples se botões falharem
-        if (!botoesResult.success) {
-          console.warn('⚠️ Botões falharam, enviando texto simples');
-          await enviarViaEdgeFunction(phone, resultado.mensagem + '\n\n💡 _Quer mudar algo? É só me dizer!_\n_Exemplos: "muda pra Nubank", "era 95", "exclui essa"_');
-        }
+        console.log('💾 Contexto salvo:', { step, dados: resultado.dados });
       } else {
+        // Enviar confirmação como texto simples (100% conversacional)
         await enviarViaEdgeFunction(phone, resultado.mensagem);
       }
       

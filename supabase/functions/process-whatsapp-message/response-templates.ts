@@ -2,9 +2,124 @@
 // RESPONSE-TEMPLATES.TS - Templates de Resposta
 // Modularização v2.0 - Dezembro 2025
 // Design profissional inspirado em GranaZen/Copiloto
+// Ana Clara Humanizada 🙋🏻‍♀️
 // ============================================
 
 import { formatCurrency } from './utils.ts';
+
+// ============================================
+// SAUDAÇÃO INTELIGENTE - ANA CLARA
+// ============================================
+
+/**
+ * Retorna saudação baseada no horário (America/Sao_Paulo)
+ */
+export function getSaudacaoHorario(): string {
+  const agora = new Date();
+  const hora = parseInt(agora.toLocaleString('pt-BR', { 
+    timeZone: 'America/Sao_Paulo', 
+    hour: '2-digit',
+    hour12: false 
+  }));
+  
+  if (hora >= 5 && hora < 12) return 'Bom dia';
+  if (hora >= 12 && hora < 18) return 'Boa tarde';
+  return 'Boa noite';
+}
+
+/**
+ * Assinatura da Ana Clara
+ */
+export function getAssinatura(): string {
+  return '\n\n_Ana Clara • Personal Finance_ 🙋🏻‍♀️';
+}
+
+/**
+ * Gera saudação personalizada
+ */
+export function gerarSaudacao(nome: string, primeiraVezHoje: boolean): string {
+  const saudacao = getSaudacaoHorario();
+  const primeiroNome = nome.split(' ')[0];
+  
+  if (primeiraVezHoje) {
+    return `${saudacao}, ${primeiroNome}! 🙋🏻‍♀️`;
+  }
+  
+  // Variações para não ficar repetitivo
+  const variacoes = [
+    `Oi, ${primeiroNome}!`,
+    `Olá, ${primeiroNome}!`,
+    `E aí, ${primeiroNome}!`,
+    `Fala, ${primeiroNome}!`,
+  ];
+  
+  return variacoes[Math.floor(Math.random() * variacoes.length)];
+}
+
+/**
+ * Template de ajuda humanizado
+ */
+export function templateAjudaHumanizado(nome: string, primeiraVezHoje: boolean): string {
+  const saudacao = gerarSaudacao(nome, primeiraVezHoje);
+  
+  return `${saudacao}
+
+Posso te ajudar com várias coisas! Olha só:
+
+💰 *Registrar transações*
+• "Gastei 50 no mercado"
+• "Recebi 1000 de salário"
+• "Paguei 200 de luz"
+
+📊 *Consultas rápidas*
+• "Saldo" - Ver saldos das contas
+• "Minhas contas" - Listar contas
+
+✏️ *Editar última transação*
+• "Era 95" - Corrigir valor
+• "Muda pra Nubank" - Trocar conta
+• "Exclui essa" - Apagar
+
+🎤 Você também pode enviar *áudios*!
+${getAssinatura()}`;
+}
+
+/**
+ * Template de saudação humanizado
+ */
+export function templateSaudacaoHumanizado(nome: string, primeiraVezHoje: boolean): string {
+  const saudacao = gerarSaudacao(nome, primeiraVezHoje);
+  
+  if (primeiraVezHoje) {
+    return `${saudacao}
+
+Como posso te ajudar hoje?
+
+💡 _Dica: Digite "ajuda" para ver todos os comandos._
+${getAssinatura()}`;
+  }
+  
+  return `${saudacao}
+
+No que posso ajudar?
+${getAssinatura()}`;
+}
+
+/**
+ * Template de agradecimento humanizado
+ */
+export function templateAgradecimentoHumanizado(nome: string): string {
+  const primeiroNome = nome.split(' ')[0];
+  
+  const respostas = [
+    `Por nada, ${primeiroNome}! 😊\n\nSe precisar, é só chamar!`,
+    `Disponha, ${primeiroNome}! 💜\n\nEstou sempre por aqui!`,
+    `Imagina, ${primeiroNome}! 🙋🏻‍♀️\n\nQualquer coisa, me chama!`,
+    `De nada! 😊\n\nBons investimentos, ${primeiroNome}!`,
+  ];
+  
+  return respostas[Math.floor(Math.random() * respostas.length)] + getAssinatura();
+}
 
 // ============================================
 // EMOJIS POR CATEGORIA
@@ -160,6 +275,22 @@ function getFraseMotivacional(tipo: string, categoria: string): string {
 // TEMPLATES DE TRANSAÇÃO
 // ============================================
 
+// Mapeamento de formas de pagamento para exibição
+const FORMAS_PAGAMENTO: Record<string, { emoji: string; label: string }> = {
+  'pix': { emoji: '📲', label: 'PIX' },
+  'credit': { emoji: '💳', label: 'Cartão de Crédito' },
+  'debit': { emoji: '💳', label: 'Cartão de Débito' },
+  'cash': { emoji: '💵', label: 'Dinheiro' },
+  'boleto': { emoji: '📄', label: 'Boleto' },
+  'transfer': { emoji: '🔄', label: 'Transferência' },
+  'other': { emoji: '💰', label: 'Outro' },
+};
+
+function getFormaPagamentoInfo(paymentMethod?: string): { emoji: string; label: string } {
+  if (!paymentMethod) return { emoji: '💰', label: '' };
+  return FORMAS_PAGAMENTO[paymentMethod] || { emoji: '💰', label: paymentMethod };
+}
+
 export function templateTransacaoRegistrada(data: {
   type: 'income' | 'expense';
   amount: number;
@@ -167,6 +298,7 @@ export function templateTransacaoRegistrada(data: {
   description?: string;
   account?: string;
   data?: Date | string;
+  paymentMethod?: string; // ✅ NOVO: forma de pagamento
 }): string {
   const emojiTipo = data.type === 'income' ? '🟢' : '🔴';
   const tipoLabel = data.type === 'income' ? 'Receita' : 'Despesa';
@@ -177,12 +309,19 @@ export function templateTransacaoRegistrada(data: {
   const frase = getFraseMotivacional(data.type, data.category || '');
   const statusEmoji = data.type === 'income' ? '✔️' : '✔️';
   const statusLabel = data.type === 'income' ? 'Recebido' : 'Pago';
+  const formaPagamento = getFormaPagamentoInfo(data.paymentMethod);
   
   let mensagem = `${frase}\n\n`;
   mensagem += `⭐ *Transação Registrada!* ⭐\n\n`;
   mensagem += `📝 *Descrição:* ${data.description || 'Não especificada'}\n`;
   mensagem += `💰 *Valor:* R$ ${valorFormatado}\n`;
   mensagem += `${emojiTipo} *Tipo:* ${tipoLabel}\n`;
+  
+  // ✅ Mostrar forma de pagamento se informada
+  if (data.paymentMethod && formaPagamento.label) {
+    mensagem += `${formaPagamento.emoji} *Pagamento:* ${formaPagamento.label}\n`;
+  }
+  
   mensagem += `${emojiCategoria} *Categoria:* ${data.category || 'Outros'}\n`;
   mensagem += `${emojiConta} *Conta:* ${data.account || 'Não especificada'}\n`;
   mensagem += `📅 *Data:* ${dataFormatada}\n\n`;
@@ -284,7 +423,7 @@ export function templateSaudacao(nome: string): string {
   else saudacao = 'Boa noite';
   
   return `${saudacao}, ${nome}! 👋\n\n` +
-    `Sou a Ana Clara, sua assistente financeira.\n\n` +
+    `Sou a Ana Clara, sua Personal Finance!\n\n` +
     `Como posso ajudar?\n\n` +
     `💡 Dica: Digite *ajuda* para ver os comandos.`;
 }
@@ -311,22 +450,20 @@ export function templatePerguntaConta(contas: Array<{ name: string; icon?: strin
 // ============================================
 
 export function templateSaldo(contas: Array<{name: string, balance: number}>, total: number): string {
-  const emojiTotal = total >= 0 ? '✅' : '⚠️';
   const totalFormatado = formatarValor(Math.abs(total));
   
   let mensagem = `💰 *Seus Saldos*\n\n`;
   
   for (const conta of contas) {
     const emoji = getEmojiConta(conta.name);
-    const saldoEmoji = conta.balance >= 0 ? '💚' : '🔴';
     const saldoFormatado = formatarValor(Math.abs(conta.balance));
     const sinal = conta.balance < 0 ? '-' : '';
     mensagem += `${emoji} *${conta.name}*\n`;
-    mensagem += `   ${saldoEmoji} R$ ${sinal}${saldoFormatado}\n\n`;
+    mensagem += `R$ ${sinal}${saldoFormatado}\n\n`;
   }
   
   mensagem += `━━━━━━━━━━━━━━━━━━\n`;
-  mensagem += `${emojiTotal} *Total: R$ ${total < 0 ? '-' : ''}${totalFormatado}*`;
+  mensagem += `*Total:* R$ ${total < 0 ? '-' : ''}${totalFormatado}`;
   
   return mensagem;
 }

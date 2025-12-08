@@ -332,7 +332,8 @@ export function useInvoices(cardId?: string) {
     fetchInvoices();
     fetchInvoicesDetailed();
 
-    const subscription = supabase
+    // Subscription para mudanças nas faturas
+    const invoicesSubscription = supabase
       .channel(`invoices_${user.id}`)
       .on(
         'postgres_changes',
@@ -350,8 +351,30 @@ export function useInvoices(cardId?: string) {
       )
       .subscribe();
 
+    // Subscription para mudanças nas transações (atualiza faturas quando transações mudam)
+    const transactionsSubscription = supabase
+      .channel(`invoices_transactions_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'credit_card_transactions',
+        },
+        (payload) => {
+          const newRow: any = (payload as any).new;
+          const oldRow: any = (payload as any).old;
+          if (newRow?.user_id !== user.id && oldRow?.user_id !== user.id) return;
+          console.log('🔄 Transação de cartão alterada, atualizando faturas:', payload);
+          fetchInvoices();
+          fetchInvoicesDetailed();
+        }
+      )
+      .subscribe();
+
     return () => {
-      subscription.unsubscribe();
+      invoicesSubscription.unsubscribe();
+      transactionsSubscription.unsubscribe();
     };
   }, [user?.id, cardId]);
 
