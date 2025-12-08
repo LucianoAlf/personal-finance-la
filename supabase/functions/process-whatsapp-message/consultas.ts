@@ -1409,7 +1409,20 @@ export async function consultarFinancasUnificada(
   }
   
   // ===== COMBINAR E PROCESSAR =====
-  const todasTransacoes = [...transacoesContas, ...transacoesCartao];
+  let todasTransacoes = [...transacoesContas, ...transacoesCartao];
+  
+  // ✅ BUG #19: Filtrar por categoria se especificada
+  if (config.categoria) {
+    const categoriaNorm = config.categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    console.log('[UNIFICADA] 🏷️ Filtrando por categoria:', config.categoria);
+    
+    todasTransacoes = todasTransacoes.filter(t => {
+      const catTransacao = t.categoria.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return catTransacao.includes(categoriaNorm) || categoriaNorm.includes(catTransacao);
+    });
+    
+    console.log('[UNIFICADA] 🏷️ Transações após filtro categoria:', todasTransacoes.length);
+  }
   
   // Ordenar por data (mais recente primeiro)
   todasTransacoes.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());

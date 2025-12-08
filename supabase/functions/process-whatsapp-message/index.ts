@@ -1293,11 +1293,15 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
         }
       }
       
+      // 5. Extrair categoria (se especificada)
+      const categoriaFiltro = entidadesNLP?.categoria;
+      
       // Log final dos filtros
       console.log('🔍 FILTROS FINAIS:', JSON.stringify({
         conta: contaFiltro,
         cartao: cartaoFiltro,
         metodo,
+        categoria: categoriaFiltro,
         periodo: periodoConfig,
         modo,
         agrupar_por
@@ -1312,7 +1316,8 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
         metodo: metodo as any,
         tipo: 'expense',
         modo: entidadesNLP?.modo || modo,
-        agrupar_por: entidadesNLP?.agrupar_por || agrupar_por
+        agrupar_por: entidadesNLP?.agrupar_por || agrupar_por,
+        categoria: categoriaFiltro  // ✅ BUG #19: Passar categoria para filtrar
       });
       await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
