@@ -965,6 +965,56 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       console.log('💳 Intenção de cartão detectada via NLP:', intencaoNLP.intencao);
       console.log('💳 Entidades:', JSON.stringify(intencaoNLP.entidades));
       
+      // ✅ BUG #13: Verificar se é ambiguidade "paguei com [banco]"
+      // Se é COMPRA_CARTAO mas não especificou "crédito"/"cartão" explicitamente
+      // e tem banco detectado → perguntar método primeiro
+      const entidadesCheck = intencaoNLP.entidades as any;
+      if (intencaoNLP.intencao === 'COMPRA_CARTAO' && 
+          !entidadesCheck.forma_pagamento && 
+          entidadesCheck.conta) {
+        
+        const comandoLower = (intencaoNLP.comando_original || content).toLowerCase()
+          .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        
+        const temCreditoExplicito = comandoLower.includes('credito') || 
+                                    comandoLower.includes('cartao') ||
+                                    comandoLower.includes('parcel');
+        
+        if (!temCreditoExplicito) {
+          console.log('⚠️ [BUG #13] Ambiguidade detectada: "paguei com banco" sem método explícito');
+          console.log('⚠️ [BUG #13] Redirecionando para fluxo de perguntar método...');
+          
+          // Redirecionar para REGISTRAR_DESPESA com fluxo de perguntar método
+          const { templatePerguntaMetodoPagamentoComBancos } = await import('./transaction-mapper.ts');
+          const mensagem = await templatePerguntaMetodoPagamentoComBancos(
+            entidadesCheck.descricao || 'Despesa',
+            entidadesCheck.valor,
+            user.id
+          );
+          
+          // Salvar contexto para aguardar método de pagamento
+          await salvarContexto(user.id, 'creating_transaction', {
+            step: 'awaiting_payment_method',
+            phone,
+            dados_transacao: {
+              valor: entidadesCheck.valor,
+              descricao: entidadesCheck.descricao,
+              categoria: entidadesCheck.categoria,
+              conta: entidadesCheck.conta,
+              tipo: 'expense'
+            }
+          }, phone);
+          
+          await enviarViaEdgeFunction(phone, mensagem);
+          
+          return new Response(JSON.stringify({ 
+            success: true, 
+            type: 'ambiguidade_metodo',
+            redirecionado: 'awaiting_payment_method'
+          }), { headers: { 'Content-Type': 'application/json' } });
+        }
+      }
+      
       // Converter intenção NLP para formato do processador de cartão
       const tipoCartao = intencaoNLP.intencao === 'COMPRA_CARTAO' ? 'compra_cartao' :
                          intencaoNLP.intencao === 'COMPRA_PARCELADA' ? 'compra_parcelada' :
