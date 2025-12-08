@@ -14,6 +14,16 @@ import { getSupabase, formatCurrency, todayBrasilia } from './utils.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
 import { enviarConfirmacaoComBotoes, enviarSelecaoContas } from './button-sender.ts';
 import { templateTransacaoRegistrada, templatePerguntaConta, templateTransacaoAtualizada, formatarValor } from './response-templates.ts';
+import {
+  CATEGORIA_KEYWORDS,
+  BANCO_ALIAS_TO_NOME,
+  NLP_CATEGORIA_MAP,
+  detectarCategoriaPorPalavraChave,
+  detectarBancoPorAlias,
+  detectarPagamentoPorAlias,
+  normalizarCategoriaNLP,
+  getBancoConfig
+} from '../shared/mappings.ts';
 
 // ============================================
 // TIPOS
@@ -55,45 +65,14 @@ export interface CategoriaUsuario {
 }
 
 // ============================================
-// MAPEAMENTO DE BANCOS
+// MAPEAMENTOS CENTRALIZADOS
+// ============================================
+// Todos os mapeamentos foram movidos para shared/mappings.ts
+// Importar de lá e usar as funções centralizadas!
 // ============================================
 
-const MAPEAMENTO_BANCOS: Record<string, string[]> = {
-  'nubank': ['nubank', 'nu', 'roxinho', 'roxo'],
-  'itau': ['itau', 'itaú', 'iti'],
-  'bradesco': ['bradesco', 'bra'],
-  'santander': ['santander', 'san'],
-  'caixa': ['caixa', 'cef'],
-  'inter': ['inter', 'banco inter'],
-  'c6': ['c6', 'c6 bank', 'c6bank'],
-  'picpay': ['picpay', 'pic pay'],
-  'mercadopago': ['mercado pago', 'mercadopago', 'mp'],
-  'bb': ['banco do brasil', 'bb'],
-  'original': ['original', 'banco original'],
-  'next': ['next'],
-  'neon': ['neon'],
-  'will': ['will', 'will bank'],
-  'pagbank': ['pagbank', 'pagseguro'],
-};
-
-// ============================================
-// MAPEAMENTO DE CATEGORIAS
-// ============================================
-
-const MAPEAMENTO_CATEGORIAS: Record<string, string[]> = {
-  'alimentacao': ['alimentação', 'alimentacao', 'comida', 'mercado', 'supermercado', 'restaurante', 'lanche'],
-  'transporte': ['transporte', 'uber', '99', 'taxi', 'gasolina', 'combustível', 'combustivel'],
-  'saude': ['saúde', 'saude', 'farmácia', 'farmacia', 'médico', 'medico', 'hospital'],
-  'educacao': ['educação', 'educacao', 'curso', 'escola', 'faculdade', 'livro'],
-  'moradia': ['moradia', 'casa', 'aluguel', 'condomínio', 'condominio', 'luz', 'água', 'agua'],
-  'lazer': ['lazer', 'entretenimento', 'cinema', 'netflix', 'spotify', 'show'],
-  'vestuario': ['vestuário', 'vestuario', 'roupa', 'calçado', 'calcado', 'shopping'],
-  'pet': ['pet', 'animal', 'cachorro', 'gato', 'ração', 'racao', 'veterinário', 'veterinario'],
-  'outros': ['outros', 'outro', 'geral'],
-};
-
-// Mapeamento NLP → Nome no banco
-const NLP_PARA_CATEGORIA: Record<string, string> = {
+// Mapeamento NLP → Nome no banco (DEPRECATED - usar NLP_CATEGORIA_MAP)
+const NLP_PARA_CATEGORIA_DEPRECATED: Record<string, string> = {
   // Categorias diretas
   'alimentacao': 'Alimentação',
   'alimentação': 'Alimentação',
@@ -155,6 +134,13 @@ const NLP_PARA_CATEGORIA: Record<string, string> = {
   'ônibus': 'Transporte',
   'metro': 'Transporte',
   'metrô': 'Transporte',
+  'abasteci': 'Transporte',
+  'abastecimento': 'Transporte',
+  'abastecer': 'Transporte',
+  'posto': 'Transporte',
+  'etanol': 'Transporte',
+  'alcool': 'Transporte',
+  'diesel': 'Transporte',
   
   // Saúde
   'farmacia': 'Saúde',
@@ -281,7 +267,11 @@ function detectarCategoriaPorTexto(textos: string[], valor?: number): string | n
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, ''); // Remove acentos
   
-  console.log('[DETECTAR] Texto completo normalizado:', textoCompleto, '| Valor:', valor);
+  console.log('[DETECTAR] ==========================================');
+  console.log('[DETECTAR] Textos recebidos:', JSON.stringify(textos));
+  console.log('[DETECTAR] Texto completo normalizado:', textoCompleto);
+  console.log('[DETECTAR] Valor:', valor);
+  console.log('[DETECTAR] Contém "luz"?', textoCompleto.includes('luz'));
   
   // ✅ REGRA ESPECIAL: "água" depende do valor
   // < R$20 = garrafa de água (Alimentação)
@@ -296,13 +286,11 @@ function detectarCategoriaPorTexto(textos: string[], valor?: number): string | n
     }
   }
   
-  // Verificar cada palavra-chave
-  for (const [palavra, categoria] of Object.entries(NLP_PARA_CATEGORIA)) {
-    const palavraNorm = palavra.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    if (textoCompleto.includes(palavraNorm)) {
-      console.log('[DETECTAR] ✅ Match encontrado:', palavra, '→', categoria);
-      return categoria;
-    }
+  // ✅ Usar função centralizada de shared/mappings.ts
+  const categoriaDetectada = detectarCategoriaPorPalavraChave(textoCompleto);
+  if (categoriaDetectada) {
+    console.log('[DETECTAR] ✅ Match encontrado:', categoriaDetectada);
+    return categoriaDetectada;
   }
   
   console.log('[DETECTAR] ❌ Nenhum match');
@@ -329,9 +317,9 @@ async function buscarCategoriaInteligente(
 ): Promise<string | null> {
   const supabase = getSupabase();
   
-  // Normalizar nome e mapear para nome do banco
+  // ✅ Usar função centralizada de shared/mappings.ts
   const nomeNormalizado = normalizarTexto(nomeCategoria);
-  const nomeBanco = NLP_PARA_CATEGORIA[nomeNormalizado] || nomeCategoria;
+  const nomeBanco = normalizarCategoriaNLP(nomeNormalizado) || nomeCategoria;
   const nomeBancoNorm = normalizarTexto(nomeBanco);
   
   console.log('[CATEGORIA] ========================================');
@@ -427,7 +415,7 @@ export async function detectarCategoriaAutomatica(
 // TEMPLATE PERGUNTA MÉTODO DE PAGAMENTO
 // ============================================
 
-export function templatePerguntaMetodoPagamento(descricao: string, valor: number): string {
+export function templatePerguntaMetodoPagamento(descricao: string, valor: number, bancos?: string[]): string {
   const valorFormatado = formatCurrency(valor);
   
   let msg = `💰 *${descricao || 'Despesa'}* - ${valorFormatado}\n\n`;
@@ -436,10 +424,50 @@ export function templatePerguntaMetodoPagamento(descricao: string, valor: number
   msg += `2️⃣ Débito\n`;
   msg += `3️⃣ PIX\n`;
   msg += `4️⃣ Dinheiro\n\n`;
-  msg += `_Responda com o número ou nome_\n\n`;
+  
+  // Mostrar bancos disponíveis se houver
+  if (bancos && bancos.length > 0) {
+    msg += `🏦 Seus bancos: ${bancos.join(', ')}\n\n`;
+    msg += `💡 _Responda: 'Cartão ${bancos[0]}' ou '1 ${bancos[0]}'_\n\n`;
+  } else {
+    msg += `_Responda com o número ou nome_\n\n`;
+  }
+  
   msg += `_Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
   
   return msg;
+}
+
+// Versão assíncrona que busca os bancos do usuário
+export async function templatePerguntaMetodoPagamentoComBancos(
+  descricao: string, 
+  valor: number, 
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  
+  // Buscar cartões de crédito
+  const { data: cartoes } = await supabase
+    .from('credit_cards')
+    .select('name')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+  
+  // Buscar contas bancárias
+  const { data: contas } = await supabase
+    .from('accounts')
+    .select('name')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+  
+  // Combinar nomes únicos de bancos
+  const bancosSet = new Set<string>();
+  cartoes?.forEach((c: { name: string }) => bancosSet.add(c.name));
+  contas?.forEach((c: { name: string }) => bancosSet.add(c.name));
+  
+  const bancos = Array.from(bancosSet);
+  
+  return templatePerguntaMetodoPagamento(descricao, valor, bancos);
 }
 
 // ============================================
@@ -716,14 +744,9 @@ export async function buscarContaPorNome(
   const supabase = getSupabase();
   const nomeNormalizado = nomeConta.toLowerCase().trim();
   
-  // Encontrar nome real da conta via mapeamento
-  let termoBusca = nomeNormalizado;
-  for (const [banco, apelidos] of Object.entries(MAPEAMENTO_BANCOS)) {
-    if (apelidos.some(a => nomeNormalizado.includes(a))) {
-      termoBusca = banco;
-      break;
-    }
-  }
+  // ✅ Usar função centralizada de shared/mappings.ts
+  // Detectar banco por alias
+  let termoBusca = detectarBancoPorAlias(nomeNormalizado) || nomeNormalizado;
   
   // Buscar conta
   const { data } = await supabase
@@ -750,14 +773,9 @@ export async function buscarCategoriaPorNome(
   const supabase = getSupabase();
   const nomeNormalizado = nomeCategoria.toLowerCase().trim();
   
-  // Encontrar nome real via mapeamento
-  let termoBusca = nomeNormalizado;
-  for (const [categoria, apelidos] of Object.entries(MAPEAMENTO_CATEGORIAS)) {
-    if (apelidos.some(a => nomeNormalizado.includes(a))) {
-      termoBusca = categoria;
-      break;
-    }
-  }
+  // ✅ Usar função centralizada de shared/mappings.ts
+  // Detectar categoria por palavra-chave
+  let termoBusca = detectarCategoriaPorPalavraChave(nomeNormalizado) || nomeNormalizado;
   
   console.log('[CATEGORIA] buscarCategoriaPorNome:', nomeCategoria, '→', termoBusca, '| tipo:', tipo);
   
@@ -864,6 +882,27 @@ export async function processarIntencaoTransacao(
   // ============================================
   // VERIFICAR MÉTODO DE PAGAMENTO
   // ============================================
+  
+  // ✅ BUG #10: Fallback para detectar forma_pagamento ANTES de verificar
+  // Se NLP não extraiu forma_pagamento, detectar no texto original
+  if (!entidades.forma_pagamento && intencao.comando_original) {
+    const pagamentoDetectado = detectarPagamentoPorAlias(intencao.comando_original);
+    if (pagamentoDetectado) {
+      const mapeoPagamento: Record<string, 'pix' | 'credito' | 'debito' | 'dinheiro' | 'boleto'> = {
+        'credit': 'credito',
+        'debit': 'debito',
+        'pix': 'pix',
+        'cash': 'dinheiro',
+        'boleto': 'boleto'
+      };
+      const formaMapeada = mapeoPagamento[pagamentoDetectado.id];
+      if (formaMapeada) {
+        entidades.forma_pagamento = formaMapeada;
+        console.log('[TRANSACTION] ✅ Forma pagamento detectada por fallback (ANTES):', entidades.forma_pagamento);
+      }
+    }
+  }
+  
   // Se não especificou forma de pagamento, perguntar
   const formasPagamentoValidas = ['pix', 'credito', 'debito', 'dinheiro', 'boleto', 'transferencia'];
   const metodoEspecificado = entidades.forma_pagamento && 
@@ -871,15 +910,18 @@ export async function processarIntencaoTransacao(
   
   console.log('[TRANSACTION] Método de pagamento:', {
     forma_pagamento: entidades.forma_pagamento,
-    especificado: metodoEspecificado
+    especificado: metodoEspecificado,
+    conta: entidades.conta  // 🔧 DEBUG: Verificar se conta está chegando
   });
   
   // Se não especificou método, perguntar (apenas para despesas)
   if (!metodoEspecificado && intencao.intencao === 'REGISTRAR_DESPESA') {
     const descricao = entidades.descricao || entidades.categoria || 'Despesa';
+    // Usar versão com bancos para mostrar opções disponíveis
+    const mensagem = await templatePerguntaMetodoPagamentoComBancos(descricao, entidades.valor, userId);
     return {
       success: false,
-      mensagem: templatePerguntaMetodoPagamento(descricao, entidades.valor),
+      mensagem,
       precisaConfirmacao: true,
       dados: {
         step: 'awaiting_payment_method',
@@ -896,11 +938,15 @@ export async function processarIntencaoTransacao(
   let contaNome: string | null = null;
   
   if (entidades.conta) {
+    console.log('[TRANSACTION] 🔍 Buscando conta por nome:', entidades.conta);
     const conta = await buscarContaPorNome(userId, entidades.conta);
+    console.log('[TRANSACTION] 🔍 Resultado busca conta:', conta ? `Encontrou: ${conta.name} (${conta.id})` : 'NÃO ENCONTROU');
     if (conta) {
       contaId = conta.id;
       contaNome = conta.name;
     }
+  } else {
+    console.log('[TRANSACTION] ⚠️ entidades.conta está vazio/undefined');
   }
   
   // Se não tem conta, verificar quantas o usuário tem
@@ -946,11 +992,13 @@ export async function processarIntencaoTransacao(
   let categoryId: string | undefined;
   let metodoUsado = 'nenhum';
   
-  // PASSO ÚNICO: Detectar categoria analisando TODOS os textos disponíveis
+  // PASSO ÚNICO: Detectar categoria analisando textos disponíveis
+  // ⚠️ NÃO incluir entidades.categoria aqui!
+  // O NLP pode errar a categoria e contaminar a detecção por palavra-chave
   const textosParaAnalisar = [
     intencao.comando_original,  // "gastei 15 no uber"
     descricao,                   // "Uber"
-    entidades.categoria,         // categoria que o NLP retornou
+    // ❌ REMOVIDO: entidades.categoria (causava bug quando NLP errava)
   ];
   
   const textosValidos = textosParaAnalisar.filter((t): t is string => !!t);
@@ -963,7 +1011,7 @@ export async function processarIntencaoTransacao(
   const categoriaDetectada = detectarCategoriaPorTexto(textosValidos, entidades.valor);
   
   if (categoriaDetectada) {
-    console.log('[CATEGORIA] Categoria detectada por palavra-chave:', categoriaDetectada);
+    console.log('[CATEGORIA] ✅ Categoria detectada por palavra-chave:', categoriaDetectada);
     const catId = await buscarCategoriaInteligente(userId, categoriaDetectada, tipo);
     console.log('[CATEGORIA] ID retornado por buscarCategoriaInteligente:', catId);
     if (catId) {
@@ -972,9 +1020,11 @@ export async function processarIntencaoTransacao(
       console.log('[CATEGORIA] ✅ SUCESSO! Categoria:', categoriaDetectada, '| ID:', catId);
     } else {
       console.log('[CATEGORIA] ❌ buscarCategoriaInteligente retornou null para:', categoriaDetectada);
+      console.log('[CATEGORIA] 💡 Verifique se a categoria existe no banco de dados!');
     }
   } else {
     console.log('[CATEGORIA] ❌ detectarCategoriaPorTexto não encontrou nenhuma palavra-chave');
+    console.log('[CATEGORIA] 📝 Textos analisados:', textosValidos.join(' | '));
   }
   
   // FALLBACK: Se não encontrou, usar "Outros"
@@ -997,6 +1047,7 @@ export async function processarIntencaoTransacao(
   console.log('[CATEGORIA] ==========================================');
   
   // Mapear forma_pagamento do NLP para payment_method do banco
+  // Nota: O fallback de forma_pagamento já foi feito ANTES da verificação de método (linha ~886)
   const mapFormaPagamento: Record<string, 'pix' | 'credit' | 'debit' | 'cash' | 'boleto' | 'transfer' | 'other'> = {
     'pix': 'pix',
     'credito': 'credit',

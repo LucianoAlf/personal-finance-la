@@ -15,8 +15,18 @@ import { getSupabase, getEmojiBanco } from './utils.ts';
 import { enviarConfirmacaoComBotoes } from './button-sender.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
 import { templateTransacaoRegistrada } from './response-templates.ts';
+import {
+  CATEGORIA_KEYWORDS,
+  BANCO_CONFIGS,
+  detectarCategoriaPorPalavraChave,
+  detectarBancoPorAlias,
+  detectarPagamentoPorAlias,
+  CONTEXT_TIMEOUT_MINUTES as MAPPINGS_TIMEOUT
+} from '../shared/mappings.ts';
 
-const CONTEXT_EXPIRATION_MINUTES = 15;
+// TTL do contexto: 60 minutos (1 hora)
+// Aumentado de 15min para evitar perda de contexto quando usuário demora a responder
+const CONTEXT_EXPIRATION_MINUTES = 60;
 
 // Tipos do contexto
 export type ContextType = 'idle' | 'editing_transaction' | 'creating_transaction' | 'confirming_action' | 'multi_step_flow';
@@ -491,47 +501,29 @@ async function processarSelecaoConta(
     // ============================================
     
     const tipo = intencao.intencao === 'REGISTRAR_RECEITA' ? 'income' : 'expense';
+    // Concatenar textos para análise de categoria
+    // ⚠️ NÃO incluir entidades.categoria aqui! 
+    // O NLP pode errar a categoria e contaminar a detecção por palavra-chave
     const textosParaAnalisar = [
-      intencao.comando_original || '',
-      entidades.descricao || '',
-      entidades.categoria || ''
+      intencao?.comando_original,
+      entidades.descricao
+      // ❌ REMOVIDO: entidades.categoria (causava bug quando NLP errava)
     ].filter(Boolean).join(' ').toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     
     console.log('[CONTEXTO-CATEGORIA] Textos para análise:', textosParaAnalisar);
     console.log('[CONTEXTO-CATEGORIA] Tipo:', tipo);
     
-    // Mapeamento de palavras-chave para categorias
-    const PALAVRAS_CATEGORIAS: Record<string, string> = {
-      'uber': 'Transporte', '99': 'Transporte', 'taxi': 'Transporte', 'gasolina': 'Transporte',
-      'combustivel': 'Transporte', 'estacionamento': 'Transporte', 'pedagio': 'Transporte',
-      'mercado': 'Alimentação', 'supermercado': 'Alimentação', 'ifood': 'Alimentação',
-      'restaurante': 'Alimentação', 'almoco': 'Alimentação', 'jantar': 'Alimentação',
-      'lanche': 'Alimentação', 'cafe': 'Alimentação', 'padaria': 'Alimentação',
-      'farmacia': 'Saúde', 'remedio': 'Saúde', 'medico': 'Saúde', 'consulta': 'Saúde',
-      'hospital': 'Saúde', 'dentista': 'Saúde', 'exame': 'Saúde',
-      'aluguel': 'Moradia', 'condominio': 'Moradia', 'luz': 'Moradia', 'agua': 'Moradia',
-      'gas': 'Moradia', 'internet': 'Moradia', 'iptu': 'Moradia',
-      'hotel': 'Viagens', 'hospedagem': 'Viagens', 'viagem': 'Viagens', 'passagem': 'Viagens',
-      'cinema': 'Lazer', 'netflix': 'Lazer', 'spotify': 'Lazer', 'bar': 'Lazer',
-      'curso': 'Educação', 'escola': 'Educação', 'faculdade': 'Educação', 'livro': 'Educação',
-      'roupa': 'Vestuário', 'sapato': 'Vestuário', 'shopping': 'Vestuário',
-      'academia': 'Esportes', 'treino': 'Esportes',
-      'salario': 'Salário', 'pagamento': 'Salário', 'holerite': 'Salário',
-      'freelance': 'Freelance', 'freela': 'Freelance', 'bico': 'Freelance',
-      'dividendo': 'Investimentos', 'rendimento': 'Investimentos',
-      'bonus': 'Bonificações', 'plr': 'Bonificações', '13': 'Bonificações',
-    };
-    
+    // ✅ Usar mapeamento centralizado de shared/mappings.ts
     // Detectar categoria por palavra-chave
-    let categoriaDetectada = 'Outros';
-    for (const [palavra, cat] of Object.entries(PALAVRAS_CATEGORIAS)) {
-      if (textosParaAnalisar.includes(palavra)) {
-        categoriaDetectada = cat;
-        console.log('[CONTEXTO-CATEGORIA] ✅ Palavra-chave encontrada:', palavra, '→', cat);
-        break;
-      }
+    let categoriaDetectada = detectarCategoriaPorPalavraChave(textosParaAnalisar);
+    
+    if (!categoriaDetectada) {
+      categoriaDetectada = 'Outros';
     }
+    
+    console.log('[CONTEXTO-CATEGORIA] 🔍 Categoria detectada:', categoriaDetectada);
+    console.log('[CONTEXTO-CATEGORIA] 📋 Categoria final detectada:', categoriaDetectada);
     
     // Buscar categoria no banco (global ou do usuário)
     const { data: categorias } = await supabase
@@ -1232,6 +1224,16 @@ async function processarSelecaoMetodoPagamento(
     return `❓ Não entendi. Responda:\n\n1️⃣ Cartão de crédito\n2️⃣ Débito\n3️⃣ PIX\n4️⃣ Dinheiro`;
   }
   
+  // 🔧 NOVO: Detectar banco/conta na mesma resposta
+  let contaDetectada: string | null = null;
+  const respostaLower = resposta.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  // ✅ Usar função centralizada de shared/mappings.ts
+  contaDetectada = detectarBancoPorAlias(respostaLower);
+  if (contaDetectada) {
+    console.log('[PAYMENT_METHOD] 🏦 Banco detectado na resposta:', contaDetectada);
+  }
+  
   // Se escolheu CARTÃO DE CRÉDITO → fluxo de cartões
   if (metodo.method === 'credit') {
     const { buscarCartoesUsuario } = await import('./cartao-credito.ts');
@@ -1240,6 +1242,34 @@ async function processarSelecaoMetodoPagamento(
     if (cartoes.length === 0) {
       await limparContexto(userId);
       return `❌ Você não tem cartões de crédito cadastrados.\n\n💡 Cadastre no app primeiro!`;
+    }
+    
+    // 🔧 NOVO: Verificar se o nome do cartão já foi mencionado na resposta
+    let cartaoSelecionado = null;
+    const respostaLower = resposta.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    for (const cartao of cartoes) {
+      const bankNameLower = cartao.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      // Verifica se o nome do banco está na resposta (ex: "nubank" em "cartao nubank")
+      if (respostaLower.includes(bankNameLower)) {
+        cartaoSelecionado = cartao;
+        console.log('🎯 [CARD_DETECTION] Cartão detectado na resposta:', cartao.name);
+        break;
+      }
+    }
+    
+    // Se encontrou cartão específico na resposta, registrar direto
+    if (cartaoSelecionado) {
+      const { registrarCompraCartao } = await import('./cartao-credito.ts');
+      const resultado = await registrarCompraCartao(userId, {
+        valor: dados?.valor || intencao?.entidades?.valor,
+        parcelas: 1,
+        cartao_id: cartaoSelecionado.id,
+        descricao: dados?.descricao || intencao?.entidades?.descricao || 'Via WhatsApp',
+        data_compra: new Date().toISOString().split('T')[0]
+      });
+      await limparContexto(userId);
+      return resultado.mensagem;
     }
     
     if (cartoes.length === 1) {
@@ -1296,28 +1326,96 @@ async function processarSelecaoMetodoPagamento(
   const valor = dados?.valor || intencao?.entidades?.valor;
   const descricao = dados?.descricao || intencao?.entidades?.descricao || 'Via WhatsApp';
   
-  if (contas.length === 1) {
-    // Registrar direto na única conta
+  // 🔧 Se detectou banco na resposta, tentar encontrar a conta
+  let contaSelecionada: typeof contas[0] | null = null;
+  if (contaDetectada) {
+    // Buscar conta que corresponde ao banco detectado
+    for (const conta of contas) {
+      const contaNorm = conta.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (contaNorm.includes(contaDetectada)) {
+        contaSelecionada = conta;
+        console.log('[PAYMENT_METHOD] ✅ Conta encontrada para banco:', contaDetectada, '→', conta.name);
+        break;
+      }
+    }
+  }
+  
+  // Se encontrou conta, registrar direto!
+  if (contaSelecionada) {
+    // ✅ BUG #12: Detectar categoria antes de registrar
+    const { detectarCategoriaAutomatica } = await import('./transaction-mapper.ts');
+    let categoryId: string | null | undefined;
+    try {
+      categoryId = await detectarCategoriaAutomatica(userId, descricao, 'expense');
+      console.log('[PAYMENT_METHOD] ✅ Categoria detectada:', categoryId, 'para descrição:', descricao);
+    } catch (err) {
+      console.log('[PAYMENT_METHOD] ⚠️ Erro ao detectar categoria:', err);
+    }
+    
     const { registrarTransacao } = await import('./transaction-mapper.ts');
     const resultado = await registrarTransacao({
       user_id: userId,
       amount: valor,
       type: 'expense',
-      account_id: contas[0].id,
+      account_id: contaSelecionada.id,
+      category_id: categoryId || undefined,
       description: descricao,
       payment_method: metodo.method
     });
     
     await limparContexto(userId);
     
+    // ✅ BUG #11: Usar template correto
     if (resultado.success) {
-      const { formatCurrency } = await import('./utils.ts');
-      return `✅ *Registrado!*\n\n` +
-             `💰 ${formatCurrency(valor)}\n` +
-             `📝 ${descricao}\n` +
-             `💳 ${metodo.label}\n` +
-             `🏦 ${contas[0].name}\n\n` +
-             `_Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
+      return templateTransacaoRegistrada({
+        type: 'expense',
+        amount: valor,
+        description: descricao,
+        category: 'Outros',
+        account: contaSelecionada.name,
+        data: new Date(),
+        paymentMethod: metodo.method
+      });
+    }
+    return resultado.mensagem;
+  }
+  
+  if (contas.length === 1) {
+    // Registrar direto na única conta
+    // ✅ BUG #12: Detectar categoria antes de registrar
+    const { detectarCategoriaAutomatica } = await import('./transaction-mapper.ts');
+    let categoryId: string | null | undefined;
+    try {
+      categoryId = await detectarCategoriaAutomatica(userId, descricao, 'expense');
+      console.log('[PAYMENT_METHOD] ✅ Categoria detectada:', categoryId, 'para descrição:', descricao);
+    } catch (err) {
+      console.log('[PAYMENT_METHOD] ⚠️ Erro ao detectar categoria:', err);
+    }
+    
+    const { registrarTransacao } = await import('./transaction-mapper.ts');
+    const resultado = await registrarTransacao({
+      user_id: userId,
+      amount: valor,
+      type: 'expense',
+      account_id: contas[0].id,
+      category_id: categoryId || undefined,
+      description: descricao,
+      payment_method: metodo.method
+    });
+    
+    await limparContexto(userId);
+    
+    // ✅ BUG #11: Usar template correto
+    if (resultado.success) {
+      return templateTransacaoRegistrada({
+        type: 'expense',
+        amount: valor,
+        description: descricao,
+        category: 'Outros',
+        account: contas[0].name,
+        data: new Date(),
+        paymentMethod: metodo.method
+      });
     }
     return resultado.mensagem;
   }

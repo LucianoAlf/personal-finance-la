@@ -922,6 +922,7 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
     );
     
     // Converter para formato esperado pelo sistema atual
+    // IMPORTANTE: Incluir TODAS as entidades extraídas pelo NLP!
     const intencao = {
       intencao: intencaoNLP.intencao,
       confianca: intencaoNLP.confianca,
@@ -930,7 +931,11 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
         categoria: intencaoNLP.entidades.categoria,
         descricao: intencaoNLP.entidades.descricao,
         conta: intencaoNLP.entidades.conta,
-        data: intencaoNLP.entidades.data
+        data: intencaoNLP.entidades.data,
+        // 🔧 FIX: Incluir forma_pagamento e status_pagamento
+        forma_pagamento: intencaoNLP.entidades.forma_pagamento,
+        status_pagamento: intencaoNLP.entidades.status_pagamento,
+        tipo: intencaoNLP.entidades.tipo
       },
       comando_original: content,
       texto_original: content,
