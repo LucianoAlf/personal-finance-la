@@ -965,13 +965,15 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       console.log('💳 Intenção de cartão detectada via NLP:', intencaoNLP.intencao);
       console.log('💳 Entidades:', JSON.stringify(intencaoNLP.entidades));
       
-      // ✅ BUG #13: Verificar se é ambiguidade "paguei com [banco]"
+      // ✅ BUG #13 + BUG #16: Verificar se é ambiguidade "paguei com [banco]"
       // Se é COMPRA_CARTAO mas não especificou "crédito"/"cartão" explicitamente
-      // e tem banco detectado → perguntar método primeiro
+      // e tem banco detectado (conta OU cartao) → perguntar método primeiro
       const entidadesCheck = intencaoNLP.entidades as any;
+      const bancoDetectado = entidadesCheck.conta || entidadesCheck.cartao;
+      
       if (intencaoNLP.intencao === 'COMPRA_CARTAO' && 
           !entidadesCheck.forma_pagamento && 
-          entidadesCheck.conta) {
+          bancoDetectado) {
         
         const comandoLower = (intencaoNLP.comando_original || content).toLowerCase()
           .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -981,8 +983,9 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
                                     comandoLower.includes('parcel');
         
         if (!temCreditoExplicito) {
-          console.log('⚠️ [BUG #13] Ambiguidade detectada: "paguei com banco" sem método explícito');
-          console.log('⚠️ [BUG #13] Redirecionando para fluxo de perguntar método...');
+          console.log('⚠️ [BUG #13/#16] Ambiguidade detectada: "paguei com banco" sem método explícito');
+          console.log('⚠️ [BUG #13/#16] Banco detectado como:', entidadesCheck.conta ? 'conta' : 'cartao');
+          console.log('⚠️ [BUG #13/#16] Redirecionando para fluxo de perguntar método...');
           
           // Redirecionar para REGISTRAR_DESPESA com fluxo de perguntar método
           const { templatePerguntaMetodoPagamentoComBancos } = await import('./transaction-mapper.ts');
@@ -993,6 +996,7 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
           );
           
           // Salvar contexto para aguardar método de pagamento
+          // ✅ BUG #16: Normalizar para 'conta' independente se NLP retornou 'conta' ou 'cartao'
           await salvarContexto(user.id, 'creating_transaction', {
             step: 'awaiting_payment_method',
             phone,
@@ -1000,7 +1004,7 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
               valor: entidadesCheck.valor,
               descricao: entidadesCheck.descricao,
               categoria: entidadesCheck.categoria,
-              conta: entidadesCheck.conta,
+              conta: bancoDetectado, // Usar o banco detectado (conta ou cartao)
               tipo: 'expense'
             }
           }, phone);
