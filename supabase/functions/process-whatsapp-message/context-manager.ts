@@ -1225,13 +1225,20 @@ async function processarSelecaoMetodoPagamento(
   }
   
   // 🔧 NOVO: Detectar banco/conta na mesma resposta
-  let contaDetectada: string | null = null;
   const respostaLower = resposta.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   
-  // ✅ Usar função centralizada de shared/mappings.ts
-  contaDetectada = detectarBancoPorAlias(respostaLower);
+  // ✅ BUG #14: Verificar se já tem banco no contexto ANTES de detectar na resposta
+  let contaDetectada: string | null = dados?.conta || intencao?.entidades?.conta || null;
   if (contaDetectada) {
-    console.log('[PAYMENT_METHOD] 🏦 Banco detectado na resposta:', contaDetectada);
+    console.log('[PAYMENT_METHOD] 🏦 Banco do contexto:', contaDetectada);
+  }
+  
+  // Se não tinha no contexto, tentar detectar na resposta atual
+  if (!contaDetectada) {
+    contaDetectada = detectarBancoPorAlias(respostaLower);
+    if (contaDetectada) {
+      console.log('[PAYMENT_METHOD] 🏦 Banco detectado na resposta:', contaDetectada);
+    }
   }
   
   // Se escolheu CARTÃO DE CRÉDITO → fluxo de cartões

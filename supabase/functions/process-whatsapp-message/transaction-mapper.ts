@@ -928,6 +928,7 @@ export async function processarIntencaoTransacao(
         valor: entidades.valor,
         descricao: entidades.descricao,
         categoria: entidades.categoria,
+        conta: entidades.conta, // ✅ BUG #14: Preservar banco no contexto!
         tipo: 'expense'
       }
     };
