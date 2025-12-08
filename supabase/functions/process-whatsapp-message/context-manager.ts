@@ -1343,11 +1343,24 @@ async function processarSelecaoMetodoPagamento(
   // Se encontrou conta, registrar direto!
   if (contaSelecionada) {
     // ✅ BUG #12: Detectar categoria antes de registrar
-    const { detectarCategoriaAutomatica } = await import('./transaction-mapper.ts');
+    const { detectarCategoriaAutomatica, buscarCategoriaPorNome } = await import('./transaction-mapper.ts');
     let categoryId: string | null | undefined;
+    let categoriaNome = 'Outros';
     try {
       categoryId = await detectarCategoriaAutomatica(userId, descricao, 'expense');
       console.log('[PAYMENT_METHOD] ✅ Categoria detectada:', categoryId, 'para descrição:', descricao);
+      
+      // Se encontrou categoria, buscar o nome para exibir no template
+      if (categoryId) {
+        const { data: categorias } = await getSupabase()
+          .from('categories')
+          .select('name')
+          .eq('id', categoryId)
+          .single();
+        if (categorias?.name) {
+          categoriaNome = categorias.name;
+        }
+      }
     } catch (err) {
       console.log('[PAYMENT_METHOD] ⚠️ Erro ao detectar categoria:', err);
     }
@@ -1371,7 +1384,7 @@ async function processarSelecaoMetodoPagamento(
         type: 'expense',
         amount: valor,
         description: descricao,
-        category: 'Outros',
+        category: categoriaNome,
         account: contaSelecionada.name,
         data: new Date(),
         paymentMethod: metodo.method
@@ -1385,9 +1398,22 @@ async function processarSelecaoMetodoPagamento(
     // ✅ BUG #12: Detectar categoria antes de registrar
     const { detectarCategoriaAutomatica } = await import('./transaction-mapper.ts');
     let categoryId: string | null | undefined;
+    let categoriaNome = 'Outros';
     try {
       categoryId = await detectarCategoriaAutomatica(userId, descricao, 'expense');
       console.log('[PAYMENT_METHOD] ✅ Categoria detectada:', categoryId, 'para descrição:', descricao);
+      
+      // Se encontrou categoria, buscar o nome para exibir no template
+      if (categoryId) {
+        const { data: categorias } = await getSupabase()
+          .from('categories')
+          .select('name')
+          .eq('id', categoryId)
+          .single();
+        if (categorias?.name) {
+          categoriaNome = categorias.name;
+        }
+      }
     } catch (err) {
       console.log('[PAYMENT_METHOD] ⚠️ Erro ao detectar categoria:', err);
     }
@@ -1411,7 +1437,7 @@ async function processarSelecaoMetodoPagamento(
         type: 'expense',
         amount: valor,
         description: descricao,
-        category: 'Outros',
+        category: categoriaNome,
         account: contas[0].name,
         data: new Date(),
         paymentMethod: metodo.method
