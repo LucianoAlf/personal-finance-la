@@ -1481,9 +1481,9 @@ function formatarRespostaUnificada(
   
   // ===== MODO DETALHADO =====
   if (config.modo === 'detalhado') {
-    const ordenadas = transacoes.slice(0, 15);
-    
-    ordenadas.forEach(t => {
+    // ✅ BUG #20: Mostrar TODAS as transações, não truncar
+    // Usuário pediu detalhamento, precisa ver tudo
+    transacoes.forEach(t => {
       const emoji = getEmojiCategoria(t.categoria);
       const metodoIcon = METODO_ICONS[t.metodo] || '📌';
       const parcelaInfo = t.parcela ? ` (${t.parcela})` : '';
@@ -1491,9 +1491,7 @@ function formatarRespostaUnificada(
       msg += `   ${formatarMoeda(t.valor)} | ${metodoIcon} ${formatarDataCurta(t.data)}\n`;
     });
     
-    if (transacoes.length > 15) {
-      msg += `\n_... e mais ${transacoes.length - 15} transações_\n`;
-    }
+    console.log('[RESPOSTA] Modo detalhado: mostrando todas as', transacoes.length, 'transações');
   }
   // ===== AGRUPAR POR MÉTODO =====
   else if (config.agrupar_por === 'metodo') {
