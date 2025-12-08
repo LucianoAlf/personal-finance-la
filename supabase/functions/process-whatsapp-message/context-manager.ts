@@ -222,6 +222,10 @@ export async function processarNoContexto(
     if (step === 'awaiting_payment_method') {
       return await processarSelecaoMetodoPagamento(texto, contexto, userId, phone);
     }
+    // ✅ BUG #21: Handler para seleção de conta em transferência
+    if (step === 'awaiting_transfer_account') {
+      return await processarSelecaoContaTransferencia(texto, contexto, userId, phone);
+    }
   }
   
   if (contextType === 'editing_transaction') {
@@ -1575,4 +1579,107 @@ async function processarSelecaoMetodoPagamento(
   });
   msg += `\n_Responda com o número ou nome_`;
   return msg;
+}
+
+// ============================================
+// ✅ BUG #21: PROCESSAR SELEÇÃO DE CONTA PARA TRANSFERÊNCIA
+// ============================================
+
+async function processarSelecaoContaTransferencia(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string,
+  phone: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const dados = contexto.context_data?.dados_transacao as any;
+  
+  if (!dados) {
+    await limparContexto(userId);
+    return '❌ Erro: dados da transferência não encontrados.';
+  }
+  
+  const resposta = texto.toLowerCase().trim();
+  
+  // Cancelar
+  if (resposta === 'cancelar' || resposta === 'cancela' || resposta === 'não' || resposta === 'nao') {
+    await limparContexto(userId);
+    return '❌ Transferência cancelada.';
+  }
+  
+  // Buscar contas do usuário
+  const { data: contas } = await supabase
+    .from('accounts')
+    .select('id, name')
+    .eq('user_id', userId);
+  
+  if (!contas || contas.length === 0) {
+    await limparContexto(userId);
+    return '❌ Você não tem contas cadastradas.';
+  }
+  
+  // Tentar encontrar a conta por número ou nome
+  let contaSelecionada: { id: string; name: string } | null = null;
+  
+  // Por número
+  const numero = parseInt(resposta);
+  if (!isNaN(numero) && numero >= 1 && numero <= contas.length) {
+    contaSelecionada = contas[numero - 1];
+  }
+  
+  // Por nome
+  if (!contaSelecionada) {
+    const respostaNorm = resposta.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    contaSelecionada = contas.find((c: any) => {
+      const nomeNorm = c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return nomeNorm.includes(respostaNorm) || respostaNorm.includes(nomeNorm);
+    }) || null;
+  }
+  
+  if (!contaSelecionada) {
+    let msg = `❓ Não encontrei essa conta.\n\n🏦 Escolha uma:\n\n`;
+    contas.forEach((c: any, i: number) => {
+      msg += `${i + 1}. ${c.name}\n`;
+    });
+    return msg;
+  }
+  
+  console.log('[TRANSFER-CONTEXT] ✅ Conta selecionada:', contaSelecionada.name);
+  
+  // Registrar a transferência
+  const dataTransacao = dados.data || new Date().toISOString().split('T')[0];
+  const { data: transacao, error } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      account_id: contaSelecionada.id,
+      amount: dados.valor,
+      type: 'transfer',
+      payment_method: 'transfer',
+      description: `Transferência para ${dados.descricao}`,
+      transaction_date: dataTransacao,
+      category_id: null
+    })
+    .select('id');
+  
+  if (error) {
+    console.error('[TRANSFER-CONTEXT] ❌ Erro ao registrar:', error);
+    await limparContexto(userId);
+    return '❌ Erro ao registrar transferência. Tente novamente.';
+  }
+  
+  console.log('[TRANSFER-CONTEXT] ✅ Transferência registrada:', transacao?.[0]?.id);
+  
+  // Limpar contexto
+  await limparContexto(userId);
+  
+  // Usar template formatado
+  const { templateTransferenciaRegistrada } = await import('./response-templates.ts');
+  return templateTransferenciaRegistrada({
+    amount: dados.valor,
+    destinatario: dados.descricao || 'Não especificado',
+    contaOrigem: contaSelecionada.name,
+    data: dataTransacao,
+    status: 'completed'
+  });
 }
