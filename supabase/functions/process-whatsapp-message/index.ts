@@ -835,10 +835,16 @@ serve(async (req: Request) => {
     console.log('📋 RESULTADO NLP:');
     console.log('📋 Intenção:', intencaoNLP.intencao);
     console.log('📋 Confiança:', intencaoNLP.confianca);
-    console.log('📋 Entidades:', JSON.stringify(intencaoNLP.entidades));
+    console.log('📋 Entidades (ANTES validação):', JSON.stringify(intencaoNLP.entidades));
     console.log('📋 Explicação:', intencaoNLP.explicacao);
     console.log('📋 Resposta:', intencaoNLP.resposta_conversacional);
     console.log('📋 ========================================');
+    
+    // ✅ BUG #17 + #18: Validação estrutural de entidades NLP
+    const { validarEntidadesNLP } = await import('../shared/nlp-validator.ts');
+    intencaoNLP.entidades = validarEntidadesNLP(intencaoNLP.entidades, content);
+    
+    console.log('📋 Entidades (DEPOIS validação):', JSON.stringify(intencaoNLP.entidades));
     
     // ============================================
     // ARQUITETURA HÍBRIDA: TEMPLATE vs CONVERSACIONAL
