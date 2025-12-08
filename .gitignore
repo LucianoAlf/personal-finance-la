@@ -32,3 +32,6 @@ dist-ssr
 
 .vercel
 nul
+
+# Submodule órfão (evitar duplicação)
+personal-finance-la/
