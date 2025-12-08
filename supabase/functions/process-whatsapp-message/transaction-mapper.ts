@@ -879,6 +879,24 @@ export async function processarIntencaoTransacao(
     };
   }
   
+  // ✅ BUG #17: Validar se descrição realmente existe na mensagem original
+  // O NLP às vezes inventa descrições que não estão no texto
+  if (entidades.descricao && intencao.comando_original) {
+    const textoOriginal = intencao.comando_original.toLowerCase();
+    const descricaoLower = entidades.descricao.toLowerCase();
+    
+    // Lista de descrições comuns que o NLP pode inventar
+    const descricoesSuspeitas = ['uber', 'ifood', 'mercado', 'lanche', 'almoço', 'jantar', 'café'];
+    
+    // Se é uma descrição comum mas NÃO está no texto original, é alucinação
+    if (descricoesSuspeitas.includes(descricaoLower) && !textoOriginal.includes(descricaoLower)) {
+      console.log('[TRANSACTION] ⚠️ [BUG #17] Descrição alucinada detectada:', entidades.descricao);
+      console.log('[TRANSACTION] Texto original não contém:', descricaoLower);
+      entidades.descricao = undefined;
+      entidades.categoria = undefined;
+    }
+  }
+  
   // ============================================
   // VERIFICAR MÉTODO DE PAGAMENTO
   // ============================================
@@ -913,6 +931,25 @@ export async function processarIntencaoTransacao(
     especificado: metodoEspecificado,
     conta: entidades.conta  // 🔧 DEBUG: Verificar se conta está chegando
   });
+  
+  // ✅ BUG #17: Se não tem descrição, perguntar antes de pedir método
+  if (!entidades.descricao && intencao.intencao === 'REGISTRAR_DESPESA') {
+    console.log('[TRANSACTION] ⚠️ [BUG #17] Sem descrição, perguntando ao usuário');
+    const contaLabel = entidades.conta ? `no ${entidades.conta}` : '';
+    const valorFormatado = entidades.valor.toFixed(2);
+    
+    return {
+      success: false,
+      mensagem: `💰 R$ ${valorFormatado} ${contaLabel}\n\n📝 O que você comprou/pagou?`,
+      precisaConfirmacao: true,
+      dados: {
+        step: 'awaiting_description',
+        valor: entidades.valor,
+        conta: entidades.conta,
+        tipo: 'expense'
+      }
+    };
+  }
   
   // Se não especificou método, perguntar (apenas para despesas)
   if (!metodoEspecificado && intencao.intencao === 'REGISTRAR_DESPESA') {

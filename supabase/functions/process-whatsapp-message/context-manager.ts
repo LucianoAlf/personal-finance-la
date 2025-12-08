@@ -216,6 +216,9 @@ export async function processarNoContexto(
     if (step === 'awaiting_value') {
       return await processarValor(texto, contexto, userId);
     }
+    if (step === 'awaiting_description') {
+      return await processarDescricao(texto, contexto, userId, phone);
+    }
     if (step === 'awaiting_payment_method') {
       return await processarSelecaoMetodoPagamento(texto, contexto, userId, phone);
     }
@@ -1158,6 +1161,75 @@ async function processarSelecaoCartao(
 }
 
 // ============================================
+// PROCESSAR DESCRIÇÃO DA TRANSAÇÃO
+// ============================================
+
+async function processarDescricao(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string,
+  phone: string
+): Promise<string> {
+  const dados = contexto.context_data?.dados_transacao as any;
+  
+  if (!dados) {
+    await limparContexto(userId);
+    return '❌ Erro: dados da transação não encontrados.';
+  }
+  
+  const descricao = texto.trim();
+  
+  if (!descricao || descricao.length < 2) {
+    return '❓ Descrição muito curta. Pode ser mais específico?\n\n_Exemplo: "Lanche", "Mercado", "Uber"_';
+  }
+  
+  console.log('[DESCRIPTION] ✅ [BUG #17] Descrição fornecida pelo usuário:', descricao);
+  
+  // ✅ BUG #17: Detectar categoria baseado na descrição fornecida
+  const { detectarCategoriaAutomatica } = await import('./transaction-mapper.ts');
+  let categoryId: string | null | undefined;
+  let categoriaNome = 'Outros';
+  
+  try {
+    categoryId = await detectarCategoriaAutomatica(userId, descricao, 'expense');
+    console.log('[DESCRIPTION] ✅ Categoria detectada:', categoryId, 'para descrição:', descricao);
+    
+    // Se encontrou categoria, buscar o nome para exibir no template
+    if (categoryId) {
+      const { data: categorias } = await getSupabase()
+        .from('categories')
+        .select('name')
+        .eq('id', categoryId)
+        .single();
+      if (categorias?.name) {
+        categoriaNome = categorias.name;
+      }
+    }
+  } catch (err) {
+    console.log('[DESCRIPTION] ⚠️ Erro ao detectar categoria:', err);
+  }
+  
+  // Agora perguntar método de pagamento
+  const { templatePerguntaMetodoPagamentoComBancos } = await import('./transaction-mapper.ts');
+  const mensagem = await templatePerguntaMetodoPagamentoComBancos(descricao, dados.valor, userId);
+  
+  // Salvar contexto com descrição e categoria detectada
+  await salvarContexto(userId, 'creating_transaction', {
+    step: 'awaiting_payment_method',
+    phone,
+    dados_transacao: {
+      valor: dados.valor,
+      descricao: descricao,
+      categoria: categoryId,
+      conta: dados.conta,
+      tipo: 'expense'
+    }
+  }, phone);
+  
+  return mensagem;
+}
+
+// ============================================
 // PROCESSAR SELEÇÃO DE MÉTODO DE PAGAMENTO
 // ============================================
 
@@ -1176,6 +1248,19 @@ async function processarSelecaoMetodoPagamento(
   }
   
   const resposta = texto.toLowerCase().trim();
+  
+  // ✅ BUG #18: Verificar se é uma NOVA transação antes de processar como resposta
+  // Padrão: verbo de ação + item/descrição
+  const pareceNovaTransacao = /\b(comprei|gastei|paguei|recebi|transferi)\b/i.test(resposta) &&
+    /\b(lanche|mercado|uber|ifood|conta|luz|aluguel|comida|almoço|jantar|café|gasolina|passagem|cinema|livro|roupa)\b/i.test(resposta);
+  
+  if (pareceNovaTransacao) {
+    console.log('[PAYMENT_METHOD] ⚠️ [BUG #18] Parece nova transação, não resposta ao contexto');
+    console.log('[PAYMENT_METHOD] Limpando contexto e processando como nova transação');
+    await limparContexto(userId);
+    // Retorna vazio para deixar o fluxo normal processar como nova transação
+    return '';
+  }
   
   // Cancelar
   if (resposta === 'cancelar' || resposta === 'cancela' || resposta === 'não' || resposta === 'nao') {
