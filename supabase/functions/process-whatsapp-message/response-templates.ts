@@ -342,6 +342,60 @@ export function templateTransacaoErro(erro?: string): string {
 }
 
 // ============================================
+// ✅ BUG #21: TEMPLATE PARA TRANSFERÊNCIA
+// ============================================
+
+export function templateTransferenciaRegistrada(data: {
+  amount: number;
+  destinatario: string;
+  contaOrigem?: string;
+  contaDestino?: string;  // Para transferência entre contas próprias
+  data?: Date | string;
+  status?: 'completed' | 'pending';
+}): string {
+  const valorFormatado = formatarValor(data.amount);
+  const dataFormatada = data.data ? formatarData(data.data) : formatarData(new Date());
+  const emojiContaOrigem = getEmojiConta(data.contaOrigem || '');
+  const statusEmoji = data.status === 'pending' ? '⏳' : '✔️';
+  const statusLabel = data.status === 'pending' ? 'Pendente' : 'Concluída';
+  
+  // Frase motivacional para transferência
+  const frases = [
+    '💸 Dinheiro em movimento!',
+    '🚀 Transferência realizada!',
+    '✨ Pronto! Enviado com sucesso!',
+    '💫 Transferência concluída!'
+  ];
+  const frase = frases[Math.floor(Math.random() * frases.length)];
+  
+  let mensagem = `${frase}\n\n`;
+  mensagem += `⭐ *Transferência Registrada!* ⭐\n\n`;
+  mensagem += `📝 *Descrição:* Transferência para ${data.destinatario}\n`;
+  mensagem += `💰 *Valor:* R$ ${valorFormatado}\n`;
+  mensagem += `💸 *Tipo:* Transferência\n`;
+  
+  // Se for transferência entre contas próprias
+  if (data.contaDestino) {
+    mensagem += `🏦 *De:* ${data.contaOrigem || 'Não especificada'}\n`;
+    mensagem += `🏦 *Para:* ${data.contaDestino}\n`;
+  } else {
+    // Transferência para terceiros
+    mensagem += `👤 *Destinatário:* ${data.destinatario}\n`;
+    mensagem += `${emojiContaOrigem} *Conta:* ${data.contaOrigem || 'Não especificada'}\n`;
+  }
+  
+  mensagem += `📅 *Data:* ${dataFormatada}\n\n`;
+  mensagem += `${statusEmoji} *Status:* ${statusLabel}\n`;
+  mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
+  mensagem += `💡 *Quer alterar algo?*\n`;
+  mensagem += `• Valor → "era 600"\n`;
+  mensagem += `• Conta → "muda pra Itaú"\n`;
+  mensagem += `• Excluir → "exclui essa"`;
+  
+  return mensagem;
+}
+
+// ============================================
 // TEMPLATES DE CONFIRMAÇÃO
 // ============================================
 

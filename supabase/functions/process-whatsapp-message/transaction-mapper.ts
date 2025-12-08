@@ -13,7 +13,7 @@
 import { getSupabase, formatCurrency, todayBrasilia } from './utils.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
 import { enviarConfirmacaoComBotoes, enviarSelecaoContas } from './button-sender.ts';
-import { templateTransacaoRegistrada, templatePerguntaConta, templateTransacaoAtualizada, formatarValor } from './response-templates.ts';
+import { templateTransacaoRegistrada, templateTransferenciaRegistrada, templatePerguntaConta, templateTransacaoAtualizada, formatarValor } from './response-templates.ts';
 import {
   CATEGORIA_KEYWORDS,
   BANCO_ALIAS_TO_NOME,
@@ -1284,7 +1284,17 @@ export async function processarIntencaoTransferencia(
     };
   }
   
+  // Buscar nome da conta para o template
+  const { data: contaInfo } = await supabase
+    .from('accounts')
+    .select('name')
+    .eq('id', contaId)
+    .single();
+  
+  const nomeConta = contaInfo?.name || entidades.conta || 'Conta';
+  
   // Registrar transferência
+  const dataTransacao = entidades.data || todayBrasilia();
   const { data: transacao, error } = await supabase
     .from('transactions')
     .insert({
@@ -1294,7 +1304,7 @@ export async function processarIntencaoTransferencia(
       type: 'transfer',  // ✅ BUG #21: Usar 'transfer' como tipo
       payment_method: 'transfer',
       description: `Transferência para ${entidades.descricao}`,
-      transaction_date: entidades.data || todayBrasilia(),
+      transaction_date: dataTransacao,
       category_id: null  // ✅ BUG #21: Transferências não têm categoria
     })
     .select('id');
@@ -1309,10 +1319,19 @@ export async function processarIntencaoTransferencia(
   
   console.log('[TRANSFER] ✅ Transferência registrada:', transacao?.[0]?.id);
   
+  // ✅ BUG #21: Usar template formatado igual às outras transações
+  const mensagemFormatada = templateTransferenciaRegistrada({
+    amount: entidades.valor,
+    destinatario: entidades.descricao || 'Não especificado',
+    contaOrigem: nomeConta,
+    data: dataTransacao,
+    status: 'completed'
+  });
+  
   return {
     success: true,
     transacao_id: transacao?.[0]?.id,
-    mensagem: `✅ Transferência de R$ ${entidades.valor.toFixed(2)} para ${entidades.descricao} registrada!`,
+    mensagem: mensagemFormatada,
     precisaConfirmacao: false
   };
 }
