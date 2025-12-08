@@ -1265,7 +1265,20 @@ async function processarSelecaoMetodoPagamento(
       }
     }
     
-    // Se encontrou cartão específico na resposta, registrar direto
+    // ✅ BUG #15: Se não encontrou na resposta, verificar se tem no contexto
+    if (!cartaoSelecionado && contaDetectada) {
+      console.log('[PAYMENT_METHOD] 🏦 Verificando cartão do contexto:', contaDetectada);
+      for (const cartao of cartoes) {
+        const bankNameLower = cartao.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (bankNameLower.includes(contaDetectada)) {
+          cartaoSelecionado = cartao;
+          console.log('🎯 [CARD_DETECTION] Cartão encontrado no contexto:', cartao.name);
+          break;
+        }
+      }
+    }
+    
+    // Se encontrou cartão específico (na resposta ou no contexto), registrar direto
     if (cartaoSelecionado) {
       const { registrarCompraCartao } = await import('./cartao-credito.ts');
       const resultado = await registrarCompraCartao(userId, {
