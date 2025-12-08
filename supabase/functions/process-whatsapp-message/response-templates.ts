@@ -384,12 +384,56 @@ export function templateTransferenciaRegistrada(data: {
     mensagem += `${emojiContaOrigem} *Conta:* ${data.contaOrigem || 'Não especificada'}\n`;
   }
   
+  mensagem += `🔄 *Categoria:* Transferências\n`;
   mensagem += `📅 *Data:* ${dataFormatada}\n\n`;
   mensagem += `${statusEmoji} *Status:* ${statusLabel}\n`;
   mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
   mensagem += `💡 *Quer alterar algo?*\n`;
   mensagem += `• Valor → "era 600"\n`;
   mensagem += `• Conta → "muda pra Itaú"\n`;
+  mensagem += `• Excluir → "exclui essa"`;
+  
+  return mensagem;
+}
+
+// ============================================
+// ✅ FASE 2: TEMPLATE PARA TRANSFERÊNCIA ENTRE CONTAS
+// ============================================
+
+export function templateTransferenciaEntreContas(data: {
+  amount: number;
+  contaOrigem: string;
+  contaDestino: string;
+  data?: Date | string;
+}): string {
+  const valorFormatado = formatarValor(data.amount);
+  const dataFormatada = data.data ? formatarData(data.data) : formatarData(new Date());
+  const emojiOrigem = getEmojiConta(data.contaOrigem);
+  const emojiDestino = getEmojiConta(data.contaDestino);
+  
+  // Frases motivacionais
+  const frases = [
+    '🔄 Reorganizando as finanças!',
+    '💫 Dinheiro no lugar certo!',
+    '✨ Movimentação entre contas!',
+    '🎯 Saldo redistribuído!'
+  ];
+  const frase = frases[Math.floor(Math.random() * frases.length)];
+  
+  let mensagem = `${frase}\n\n`;
+  mensagem += `⭐ *Transferência Entre Contas!* ⭐\n\n`;
+  mensagem += `💰 *Valor:* R$ ${valorFormatado}\n\n`;
+  mensagem += `${emojiOrigem} *Saiu de:* ${data.contaOrigem}\n`;
+  mensagem += `   └─ 🔴 - R$ ${valorFormatado}\n\n`;
+  mensagem += `${emojiDestino} *Entrou em:* ${data.contaDestino}\n`;
+  mensagem += `   └─ 🟢 + R$ ${valorFormatado}\n\n`;
+  mensagem += `🔄 *Categoria:* Transferências\n`;
+  mensagem += `📅 *Data:* ${dataFormatada}\n\n`;
+  mensagem += `✔️ *Status:* Concluída\n`;
+  mensagem += `💡 *Saldo total:* Não alterado\n`;
+  mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
+  mensagem += `💡 *Quer alterar algo?*\n`;
+  mensagem += `• Valor → "era 1500"\n`;
   mensagem += `• Excluir → "exclui essa"`;
   
   return mensagem;

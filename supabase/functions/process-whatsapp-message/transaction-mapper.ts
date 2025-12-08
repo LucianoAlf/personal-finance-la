@@ -13,7 +13,7 @@
 import { getSupabase, formatCurrency, todayBrasilia } from './utils.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
 import { enviarConfirmacaoComBotoes, enviarSelecaoContas } from './button-sender.ts';
-import { templateTransacaoRegistrada, templateTransferenciaRegistrada, templatePerguntaConta, templateTransacaoAtualizada, formatarValor } from './response-templates.ts';
+import { templateTransacaoRegistrada, templateTransferenciaRegistrada, templateTransferenciaEntreContas, templatePerguntaConta, templateTransacaoAtualizada, formatarValor } from './response-templates.ts';
 import {
   CATEGORIA_KEYWORDS,
   BANCO_ALIAS_TO_NOME,
@@ -1331,6 +1331,143 @@ export async function processarIntencaoTransferencia(
   return {
     success: true,
     transacao_id: transacao?.[0]?.id,
+    mensagem: mensagemFormatada,
+    precisaConfirmacao: false
+  };
+}
+
+// ============================================
+// ✅ FASE 2: TRANSFERÊNCIA ENTRE CONTAS PRÓPRIAS
+// ============================================
+// Quando usuário diz: "Transferi 1000 do Itaú pro Nubank"
+// Cria 2 transações vinculadas (saída + entrada)
+
+// ID da categoria "Transferências" (criada no banco)
+const CATEGORIA_TRANSFERENCIA_ID = '240d6ea4-b18a-4a22-8247-40270f36f38c';
+
+export async function processarTransferenciaEntreContas(
+  userId: string,
+  valor: number,
+  contaOrigemNome: string,
+  contaDestinoNome: string,
+  data?: string
+): Promise<TransacaoResponse> {
+  const supabase = getSupabase();
+  
+  console.log('[TRANSFER-ENTRE-CONTAS] Processando:', {
+    valor, contaOrigemNome, contaDestinoNome, data
+  });
+  
+  // Buscar conta de origem
+  const { data: contaOrigem } = await supabase
+    .from('accounts')
+    .select('id, name')
+    .eq('user_id', userId)
+    .ilike('name', `%${contaOrigemNome}%`)
+    .limit(1)
+    .single();
+  
+  if (!contaOrigem) {
+    return {
+      success: false,
+      mensagem: `❌ Conta "${contaOrigemNome}" não encontrada.`
+    };
+  }
+  
+  // Buscar conta de destino
+  const { data: contaDestino } = await supabase
+    .from('accounts')
+    .select('id, name')
+    .eq('user_id', userId)
+    .ilike('name', `%${contaDestinoNome}%`)
+    .limit(1)
+    .single();
+  
+  if (!contaDestino) {
+    return {
+      success: false,
+      mensagem: `❌ Conta "${contaDestinoNome}" não encontrada.`
+    };
+  }
+  
+  // Verificar se são contas diferentes
+  if (contaOrigem.id === contaDestino.id) {
+    return {
+      success: false,
+      mensagem: '❌ A conta de origem e destino são a mesma!'
+    };
+  }
+  
+  const dataTransacao = data || todayBrasilia();
+  const linkId = crypto.randomUUID(); // ID para vincular as duas transações
+  
+  // Criar transação de SAÍDA (conta origem)
+  const { data: transacaoSaida, error: errorSaida } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      account_id: contaOrigem.id,
+      amount: valor,
+      type: 'transfer',
+      payment_method: 'transfer',
+      description: `Transferência para ${contaDestino.name}`,
+      transaction_date: dataTransacao,
+      category_id: CATEGORIA_TRANSFERENCIA_ID,
+      notes: `transfer_link:${linkId}:out`  // Vincular transações
+    })
+    .select('id');
+  
+  if (errorSaida) {
+    console.error('[TRANSFER-ENTRE-CONTAS] ❌ Erro na saída:', errorSaida);
+    return {
+      success: false,
+      mensagem: '❌ Erro ao registrar saída. Tente novamente.'
+    };
+  }
+  
+  // Criar transação de ENTRADA (conta destino)
+  const { data: transacaoEntrada, error: errorEntrada } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      account_id: contaDestino.id,
+      amount: valor,
+      type: 'income',  // Entrada na conta destino
+      payment_method: 'transfer',
+      description: `Transferência de ${contaOrigem.name}`,
+      transaction_date: dataTransacao,
+      category_id: CATEGORIA_TRANSFERENCIA_ID,
+      notes: `transfer_link:${linkId}:in`  // Vincular transações
+    })
+    .select('id');
+  
+  if (errorEntrada) {
+    console.error('[TRANSFER-ENTRE-CONTAS] ❌ Erro na entrada:', errorEntrada);
+    // Reverter a saída
+    await supabase.from('transactions').delete().eq('id', transacaoSaida?.[0]?.id);
+    return {
+      success: false,
+      mensagem: '❌ Erro ao registrar entrada. Tente novamente.'
+    };
+  }
+  
+  console.log('[TRANSFER-ENTRE-CONTAS] ✅ Transferência completa:', {
+    saida: transacaoSaida?.[0]?.id,
+    entrada: transacaoEntrada?.[0]?.id,
+    linkId
+  });
+  
+  // Usar template formatado
+  const mensagemFormatada = templateTransferenciaEntreContas({
+    amount: valor,
+    contaOrigem: contaOrigem.name,
+    contaDestino: contaDestino.name,
+    data: dataTransacao
+  });
+  
+  return {
+    success: true,
+    transacao_id: transacaoSaida?.[0]?.id,
     mensagem: mensagemFormatada,
     precisaConfirmacao: false
   };

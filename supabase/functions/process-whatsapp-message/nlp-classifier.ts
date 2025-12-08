@@ -208,7 +208,10 @@ ${memoriaUsuario}
 ### Transações
 1. **REGISTRAR_DESPESA**: Gastou, pagou, comprou algo (sem mencionar cartão de crédito)
 2. **REGISTRAR_RECEITA**: Recebeu, ganhou, entrou dinheiro
-3. **REGISTRAR_TRANSFERENCIA**: Transferiu entre contas próprias
+3. **REGISTRAR_TRANSFERENCIA**: Transferiu dinheiro. Dois tipos:
+   - **Para terceiros**: "Transferi 500 para João" → conta (origem), descricao (destinatário)
+   - **Entre contas próprias**: "Transferi 1000 do Itaú pro Nubank" → conta (origem), conta_destino (destino)
+   - IMPORTANTE: Se mencionar DUAS contas (origem E destino), extrair ambas!
 
 ### Consultas
 4. **CONSULTAR_SALDO**: Quanto tem nas contas, saldo atual

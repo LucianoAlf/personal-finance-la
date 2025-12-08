@@ -33,7 +33,7 @@ import {
 } from './templates-humanizados.ts';
 import { classificarIntencao, isAnalyticsQuery, isComandoEdicao, isComandoExclusao, extrairEntidadesEdicao } from './nlp-processor.ts';
 import { classificarIntencaoNLP, IntencaoClassificada } from './nlp-classifier.ts';
-import { processarIntencaoTransacao, processarIntencaoTransferencia, processarEdicao, processarExclusao } from './transaction-mapper.ts';
+import { processarIntencaoTransacao, processarIntencaoTransferencia, processarTransferenciaEntreContas, processarEdicao, processarExclusao } from './transaction-mapper.ts';
 // Botões desativados - 100% conversacional
 // import { enviarConfirmacaoComBotoes, extrairButtonId, parsearButtonId } from './button-sender.ts';
 import { isAudioPTT, extrairMessageId, processarAudioPTT, extrairInfoAudio } from './audio-handler.ts';
@@ -1478,9 +1478,41 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
     // Processar transações (receita/despesa/transferência)
     console.log('🎯 Verificando se é transação:', intencao.intencao);
     
-    // ✅ BUG #21: Adicionar handler para REGISTRAR_TRANSFERENCIA
+    // ✅ BUG #21 + FASE 2: Handler para REGISTRAR_TRANSFERENCIA
     if (intencao.intencao === 'REGISTRAR_TRANSFERENCIA') {
       console.log('💸 Intenção de transferência detectada via NLP');
+      console.log('💸 Entidades:', JSON.stringify(intencaoNLP.entidades));
+      
+      const entidadesTransfer = intencaoNLP.entidades as any;
+      
+      // ✅ FASE 2: Verificar se é transferência ENTRE CONTAS PRÓPRIAS
+      // Se tem conta (origem) E conta_destino → transferência entre contas
+      if (entidadesTransfer.conta && entidadesTransfer.conta_destino && entidadesTransfer.valor) {
+        console.log('🔄 [FASE 2] Transferência ENTRE CONTAS detectada!');
+        console.log('🔄 De:', entidadesTransfer.conta, '→ Para:', entidadesTransfer.conta_destino);
+        
+        const resultado = await processarTransferenciaEntreContas(
+          user.id,
+          entidadesTransfer.valor,
+          entidadesTransfer.conta,
+          entidadesTransfer.conta_destino,
+          entidadesTransfer.data
+        );
+        
+        await enviarViaEdgeFunction(phone, resultado.mensagem);
+        
+        await supabase.from('whatsapp_messages').update({
+          processing_status: 'completed',
+          intent: 'transferencia_entre_contas',
+          processed_at: new Date().toISOString()
+        }).eq('id', message.id);
+        
+        return new Response(JSON.stringify({ success: resultado.success, type: 'transfer_between_accounts' }), { 
+          headers: { 'Content-Type': 'application/json' } 
+        });
+      }
+      
+      // Transferência para terceiros (fluxo original)
       const resultado = await processarIntencaoTransferencia(intencao, user.id, phone);
       
       // Se precisa confirmação, salvar contexto
