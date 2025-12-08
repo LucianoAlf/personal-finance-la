@@ -43,29 +43,37 @@ export function validarEntidadesNLP(
   
   // Se tem categoria mas não tem descrição válida, validar categoria
   if (resultado.categoria && !resultado.descricao) {
-    // Verificar se categoria tem keyword no texto
-    const keywordsCategoria: Record<string, string[]> = {
-      'Transporte': ['uber', '99', 'taxi', 'onibus', 'metro', 'gasolina', 'combustivel', 'estacionamento', 'passagem', 'uber eats'],
-      'Alimentação': ['mercado', 'supermercado', 'lanche', 'almoco', 'jantar', 'cafe', 'restaurante', 'ifood', 'rappi', 'padaria', 'pizzaria', 'bar'],
-      'Moradia': ['luz', 'agua', 'gas', 'aluguel', 'condominio', 'iptu', 'internet', 'telefone'],
-      'Saúde': ['farmacia', 'remedio', 'medico', 'consulta', 'exame', 'plano de saude', 'dentista'],
-      'Educação': ['livro', 'curso', 'escola', 'universidade', 'aula'],
-      'Lazer': ['cinema', 'teatro', 'show', 'jogo', 'diversao'],
-      'Vestuário': ['roupa', 'sapato', 'bolsa', 'calcado', 'moda'],
-    };
-    
     const categoriaNorm = resultado.categoria
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
     
-    const keywords = keywordsCategoria[resultado.categoria] || [];
-    const temKeyword = keywords.some(k => texto.includes(k));
-    
-    if (!temKeyword) {
-      console.log('[NLP-VALIDATOR] ⚠️ Categoria sem keyword removida:', resultado.categoria);
-      console.log('[NLP-VALIDATOR] Nenhuma keyword encontrada para:', categoriaNorm);
-      resultado.categoria = null;
+    // ✅ BUG #19: Se o nome da categoria está EXPLÍCITO no texto, MANTER
+    if (texto.includes(categoriaNorm)) {
+      console.log('[NLP-VALIDATOR] ✅ Categoria mencionada explicitamente:', resultado.categoria);
+      // NÃO remove - usuário disse a categoria
+    } else {
+      // Verificar se categoria tem keyword no texto
+      const keywordsCategoria: Record<string, string[]> = {
+        'Transporte': ['uber', '99', 'taxi', 'onibus', 'metro', 'gasolina', 'combustivel', 'estacionamento', 'passagem', 'uber eats'],
+        'Alimentação': ['mercado', 'supermercado', 'lanche', 'almoco', 'jantar', 'cafe', 'restaurante', 'ifood', 'rappi', 'padaria', 'pizzaria', 'bar'],
+        'Moradia': ['luz', 'agua', 'gas', 'aluguel', 'condominio', 'iptu', 'internet', 'telefone'],
+        'Saúde': ['farmacia', 'remedio', 'medico', 'consulta', 'exame', 'plano de saude', 'dentista', 'saude'],
+        'Educação': ['livro', 'curso', 'escola', 'universidade', 'aula', 'educacao'],
+        'Lazer': ['cinema', 'teatro', 'show', 'jogo', 'diversao', 'lazer'],
+        'Vestuário': ['roupa', 'sapato', 'bolsa', 'calcado', 'moda', 'vestuario'],
+        'Viagens': ['viagem', 'viagens', 'hotel', 'passagem', 'aereo', 'hospedagem'],
+        'Assinaturas': ['assinatura', 'assinaturas', 'netflix', 'spotify', 'streaming'],
+      };
+      
+      const keywords = keywordsCategoria[resultado.categoria] || [];
+      const temKeyword = keywords.some(k => texto.includes(k));
+      
+      if (!temKeyword) {
+        console.log('[NLP-VALIDATOR] ⚠️ Categoria sem keyword removida:', resultado.categoria);
+        console.log('[NLP-VALIDATOR] Nenhuma keyword encontrada para:', categoriaNorm);
+        resultado.categoria = null;
+      }
     }
   }
   
