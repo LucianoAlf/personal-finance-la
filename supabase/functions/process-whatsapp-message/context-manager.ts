@@ -1250,11 +1250,10 @@ async function processarSelecaoMetodoPagamento(
   const resposta = texto.toLowerCase().trim();
   
   // ✅ BUG #18: Verificar se é uma NOVA transação antes de processar como resposta
-  // Padrão: verbo de ação + item/descrição
-  const pareceNovaTransacao = /\b(comprei|gastei|paguei|recebi|transferi)\b/i.test(resposta) &&
-    /\b(lanche|mercado|uber|ifood|conta|luz|aluguel|comida|almoço|jantar|café|gasolina|passagem|cinema|livro|roupa)\b/i.test(resposta);
+  // Usando função centralizada do context-detector.ts
+  const { pareceNovaTransacao } = await import('../shared/context-detector.ts');
   
-  if (pareceNovaTransacao) {
+  if (pareceNovaTransacao(resposta)) {
     console.log('[PAYMENT_METHOD] ⚠️ [BUG #18] Parece nova transação, não resposta ao contexto');
     console.log('[PAYMENT_METHOD] Limpando contexto e processando como nova transação');
     await limparContexto(userId);
