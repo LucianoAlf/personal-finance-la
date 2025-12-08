@@ -1050,7 +1050,37 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       console.log('📋 Entidades:', JSON.stringify(intencaoNLP.entidades));
       
       // Verificar se há filtro de conta nas entidades do NLP
-      const contaFiltro = intencaoNLP.entidades?.conta;
+      let contaFiltro = intencaoNLP.entidades?.conta;
+      
+      // 🔧 FALLBACK: Se NLP não extraiu conta, tentar detectar no texto
+      if (!contaFiltro) {
+        const textoLower = content.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const bancosConhecidos = [
+          { nome: 'nubank', aliases: ['nubank', 'roxinho', 'roxo', 'nu'] },
+          { nome: 'itau', aliases: ['itau', 'itaú', 'laranjinha'] },
+          { nome: 'bradesco', aliases: ['bradesco', 'brades'] },
+          { nome: 'santander', aliases: ['santander', 'san'] },
+          { nome: 'inter', aliases: ['inter', 'banco inter'] },
+          { nome: 'c6', aliases: ['c6', 'c6 bank'] },
+          { nome: 'caixa', aliases: ['caixa', 'cef'] },
+          { nome: 'bb', aliases: ['bb', 'banco do brasil', 'brasil'] },
+          { nome: 'original', aliases: ['original'] },
+          { nome: 'next', aliases: ['next'] },
+          { nome: 'picpay', aliases: ['picpay'] },
+          { nome: 'mercadopago', aliases: ['mercadopago', 'mercado pago'] },
+        ];
+        
+        for (const banco of bancosConhecidos) {
+          for (const alias of banco.aliases) {
+            if (textoLower.includes(alias)) {
+              contaFiltro = banco.nome;
+              console.log('🔄 [FALLBACK] Banco detectado no texto:', banco.nome);
+              break;
+            }
+          }
+          if (contaFiltro) break;
+        }
+      }
       
       let resposta: string;
       if (contaFiltro) {
