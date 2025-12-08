@@ -33,7 +33,7 @@ import {
 } from './templates-humanizados.ts';
 import { classificarIntencao, isAnalyticsQuery, isComandoEdicao, isComandoExclusao, extrairEntidadesEdicao } from './nlp-processor.ts';
 import { classificarIntencaoNLP, IntencaoClassificada } from './nlp-classifier.ts';
-import { processarIntencaoTransacao, processarEdicao, processarExclusao } from './transaction-mapper.ts';
+import { processarIntencaoTransacao, processarIntencaoTransferencia, processarEdicao, processarExclusao } from './transaction-mapper.ts';
 // Botões desativados - 100% conversacional
 // import { enviarConfirmacaoComBotoes, extrairButtonId, parsearButtonId } from './button-sender.ts';
 import { isAudioPTT, extrairMessageId, processarAudioPTT, extrairInfoAudio } from './audio-handler.ts';
@@ -1475,8 +1475,37 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       });
     }
     
-    // Processar transações (receita/despesa)
+    // Processar transações (receita/despesa/transferência)
     console.log('🎯 Verificando se é transação:', intencao.intencao);
+    
+    // ✅ BUG #21: Adicionar handler para REGISTRAR_TRANSFERENCIA
+    if (intencao.intencao === 'REGISTRAR_TRANSFERENCIA') {
+      console.log('💸 Intenção de transferência detectada via NLP');
+      const resultado = await processarIntencaoTransferencia(intencao, user.id, phone);
+      
+      // Se precisa confirmação, salvar contexto
+      if (resultado.precisaConfirmacao) {
+        await salvarContexto(user.id, 'creating_transaction', {
+          step: (resultado.dados?.step as string) || 'awaiting_transfer_account',
+          phone,
+          dados_transacao: resultado.dados
+        }, phone);
+      }
+      
+      // Enviar resposta
+      await enviarViaEdgeFunction(phone, resultado.mensagem);
+      
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'registrar_transferencia',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      
+      return new Response(JSON.stringify({ success: resultado.success, type: 'transfer' }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
     if (intencao.intencao === 'REGISTRAR_RECEITA' || intencao.intencao === 'REGISTRAR_DESPESA') {
       const resultado = await processarIntencaoTransacao(intencao, user.id, phone);
       

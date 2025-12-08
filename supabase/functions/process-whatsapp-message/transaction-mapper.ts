@@ -1186,3 +1186,133 @@ export async function processarExclusao(
   
   return await excluirTransacao(ultimaTransacao.id, userId);
 }
+
+// ============================================
+// ✅ BUG #21: PROCESSAR TRANSFERÊNCIA
+// ============================================
+
+export async function processarIntencaoTransferencia(
+  intencao: IntencaoClassificada,
+  userId: string,
+  phone: string
+): Promise<TransacaoResponse> {
+  const { entidades } = intencao;
+  const supabase = getSupabase();
+  
+  console.log('[TRANSFER] Processando transferência:', entidades);
+  
+  // Validar valor
+  if (!entidades.valor || entidades.valor <= 0 || isNaN(entidades.valor)) {
+    return {
+      success: false,
+      mensagem: '❓ Não entendi o valor da transferência. Pode repetir?\n\n_Exemplo: "Transferi 1000 para a conta do João"_',
+      precisaConfirmacao: false
+    };
+  }
+  
+  // Validar descrição (obrigatória para transferência)
+  if (!entidades.descricao && intencao.comando_original) {
+    // Tentar extrair nome da pessoa/conta da descrição
+    const textoOriginal = intencao.comando_original;
+    const match = textoOriginal.match(/(?:para|transferi|enviei)\s+(.+?)(?:\s+de|\s+na|\s+do|$)/i);
+    if (match && match[1]) {
+      entidades.descricao = match[1].trim();
+    }
+  }
+  
+  if (!entidades.descricao) {
+    return {
+      success: false,
+      mensagem: '💰 Transferência de R$ ' + entidades.valor.toFixed(2) + '\n\n👤 Para quem você transferiu?',
+      precisaConfirmacao: true,
+      dados: {
+        step: 'awaiting_transfer_recipient',
+        valor: entidades.valor,
+        conta: entidades.conta,
+        tipo: 'transfer'
+      }
+    };
+  }
+  
+  // Buscar conta de origem
+  let contaId: string | null = null;
+  if (entidades.conta) {
+    const contaNormalizada = entidades.conta.toLowerCase();
+    const { data: contas } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .ilike('name', `%${contaNormalizada}%`)
+      .limit(1);
+    
+    if (contas && contas.length > 0) {
+      contaId = contas[0].id;
+      console.log('[TRANSFER] ✅ Conta encontrada:', entidades.conta);
+    }
+  }
+  
+  // Se não especificou conta, perguntar
+  if (!contaId) {
+    console.log('[TRANSFER] ⚠️ Sem conta, perguntando ao usuário');
+    const { data: contas } = await supabase
+      .from('accounts')
+      .select('id, name')
+      .eq('user_id', userId);
+    
+    if (!contas || contas.length === 0) {
+      return {
+        success: false,
+        mensagem: '❌ Você não tem contas cadastradas. Crie uma conta primeiro!'
+      };
+    }
+    
+    let msg = `💰 Transferência de R$ ${entidades.valor.toFixed(2)} para ${entidades.descricao}\n\n🏦 De qual conta?\n\n`;
+    contas.forEach((c, i) => {
+      msg += `${i + 1}. ${c.name}\n`;
+    });
+    
+    return {
+      success: false,
+      mensagem: msg,
+      precisaConfirmacao: true,
+      dados: {
+        step: 'awaiting_transfer_account',
+        valor: entidades.valor,
+        descricao: entidades.descricao,
+        tipo: 'transfer'
+      }
+    };
+  }
+  
+  // Registrar transferência
+  const { data: transacao, error } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      account_id: contaId,
+      amount: entidades.valor,
+      type: 'transfer',  // ✅ BUG #21: Usar 'transfer' como tipo
+      payment_method: 'transfer',
+      description: `Transferência para ${entidades.descricao}`,
+      transaction_date: entidades.data || todayBrasilia(),
+      category_id: null  // ✅ BUG #21: Transferências não têm categoria
+    })
+    .select('id');
+  
+  if (error) {
+    console.error('[TRANSFER] ❌ Erro ao registrar:', error);
+    return {
+      success: false,
+      mensagem: '❌ Erro ao registrar transferência. Tente novamente.'
+    };
+  }
+  
+  console.log('[TRANSFER] ✅ Transferência registrada:', transacao?.[0]?.id);
+  
+  return {
+    success: true,
+    transacao_id: transacao?.[0]?.id,
+    mensagem: `✅ Transferência de R$ ${entidades.valor.toFixed(2)} para ${entidades.descricao} registrada!`,
+    precisaConfirmacao: false
+  };
+}
