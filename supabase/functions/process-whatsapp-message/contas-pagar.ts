@@ -113,8 +113,8 @@ export function identificarTipoConta(texto: string, entidades: Record<string, un
     'netflix', 'spotify', 'amazon prime', 'prime video', 'disney', 'hbo', 'max',
     'globoplay', 'youtube premium', 'apple music', 'deezer', 'paramount', 'star+',
     'xbox game pass', 'playstation plus', 'nintendo', 'crunchyroll',
-    'chatgpt', 'claude', 'midjourney', 'canva', 'adobe', 'microsoft 365',
-    'icloud', 'google one', 'dropbox', 'notion', 'figma'
+    'chatgpt', 'chat gpt', 'openai', 'claude', 'midjourney', 'canva', 'adobe', 'microsoft 365',
+    'icloud', 'google one', 'dropbox', 'notion', 'figma', 'copilot', 'gemini'
   ];
   if (assinaturas.some(s => textoLower.includes(s))) {
     return 'subscription';
