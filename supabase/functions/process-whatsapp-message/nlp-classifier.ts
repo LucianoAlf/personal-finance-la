@@ -88,6 +88,8 @@ const INTENT_CLASSIFICATION_FUNCTION = {
           'CONTAS_DO_MES',
           'RESUMO_CONTAS_MES',
           'CADASTRAR_CONTA_PAGAR',
+          'EDITAR_CONTA_PAGAR',
+          'EXCLUIR_CONTA_PAGAR',
           'MARCAR_CONTA_PAGA',
           'HISTORICO_CONTA',
           'CONTAS_AMBIGUO',
@@ -324,21 +326,37 @@ ${memoriaUsuario}
     - "quanto tenho de contas", "resumo de contas"
     - "total de contas do mês", "quanto vou gastar de contas"
     
-31. **CADASTRAR_CONTA_PAGAR**: Cadastrar nova conta. Exemplos:
+31. **CADASTRAR_CONTA_PAGAR**: Cadastrar nova conta a pagar. Exemplos:
     - "tenho que pagar 150 de luz dia 10"
     - "todo mês pago 1500 de aluguel dia 15"
-    - "cadastrar conta de internet"
+    - "todo mês tenho conta de luz dia 10" (variável, sem valor)
+    - "pagar geladeira em 10x de 250 dia 5" (parcelada)
+    - "IPVA de 1200 todo janeiro" (anual)
+    - EXTRAIA: descricao, valor (opcional), dia_vencimento, recorrencia (mensal/anual/unica), parcelas
     
-32. **MARCAR_CONTA_PAGA**: Marcar como paga. Exemplos:
+32. **EDITAR_CONTA_PAGAR**: Editar conta existente. Exemplos:
+    - "mudar valor da luz para 180"
+    - "alterar dia da internet para 10"
+    - "renomear aluguel para moradia"
+    - EXTRAIA: conta (nome), campo (valor/dia/nome), novo_valor
+
+33. **EXCLUIR_CONTA_PAGAR**: Excluir conta. Exemplos:
+    - "excluir conta de luz"
+    - "apagar internet"
+    - "remover netflix"
+    - "cancelar conta de spotify"
+    - EXTRAIA: conta (nome)
+    
+34. **MARCAR_CONTA_PAGA**: Marcar como paga. Exemplos:
     - "paguei a luz", "paguei 185 de luz"
     - "paguei a 1" (após listar)
     - "quitei o aluguel"
     
-33. **HISTORICO_CONTA**: Ver histórico de pagamentos. Exemplos:
+35. **HISTORICO_CONTA**: Ver histórico de pagamentos. Exemplos:
     - "histórico da luz", "pagamentos de internet"
     - "quanto paguei de luz nos últimos meses"
 
-34. **CONTAS_AMBIGUO**: Quando usuário diz APENAS "minhas contas" sem especificar se quer:
+36. **CONTAS_AMBIGUO**: Quando usuário diz APENAS "minhas contas" sem especificar se quer:
     - Contas bancárias (saldos) ou contas a pagar (luz, água)
     - Use quando: "minhas contas", "ver minhas contas" (sem mais contexto)
     - NÃO use se tiver "bancárias", "a pagar", "saldo", "pendentes"

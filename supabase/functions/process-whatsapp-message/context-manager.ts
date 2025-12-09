@@ -15,7 +15,15 @@ import { getSupabase, getEmojiBanco } from './utils.ts';
 import { enviarConfirmacaoComBotoes } from './button-sender.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
 import { templateTransacaoRegistrada } from './response-templates.ts';
-import { processarRespostaContasAmbiguo, listarContasPagar } from './contas-pagar.ts';
+import { 
+  processarRespostaContasAmbiguo, 
+  listarContasPagar,
+  buscarContaPorNome,
+  executarExclusaoConta,
+  templateContaExcluida,
+  normalizarNomeConta,
+  getEmojiConta
+} from './contas-pagar.ts';
 import { consultarSaldo, listarContas } from './command-handlers.ts';
 import {
   CATEGORIA_KEYWORDS,
@@ -31,7 +39,18 @@ import {
 const CONTEXT_EXPIRATION_MINUTES = 60;
 
 // Tipos do contexto
-export type ContextType = 'idle' | 'editing_transaction' | 'creating_transaction' | 'confirming_action' | 'multi_step_flow' | 'awaiting_account_type_selection';
+export type ContextType = 
+  | 'idle' 
+  | 'editing_transaction' 
+  | 'creating_transaction' 
+  | 'confirming_action' 
+  | 'multi_step_flow' 
+  | 'awaiting_account_type_selection'
+  // FASE 3.2 - Cadastro de contas
+  | 'awaiting_due_day'              // Aguardando dia do vencimento
+  | 'awaiting_bill_amount'          // Aguardando valor da conta
+  | 'awaiting_duplicate_decision'   // Aguardando decisão sobre duplicata
+  | 'awaiting_delete_confirmation'; // Aguardando confirmação de exclusão
 
 export interface ContextData {
   intencao_pendente?: IntencaoClassificada;
@@ -253,6 +272,19 @@ export async function processarNoContexto(
   // Handler para desambiguação "minhas contas"
   if (contextType === 'awaiting_account_type_selection') {
     return await processarSelecaoTipoConta(texto, contexto, userId);
+  }
+  
+  // FASE 3.2: Handlers de cadastro de contas
+  if (contextType === 'awaiting_due_day') {
+    return await processarDiaVencimento(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_duplicate_decision') {
+    return await processarDecisaoDuplicata(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_delete_confirmation') {
+    return await processarConfirmacaoExclusaoConta(texto, contexto, userId);
   }
   
   await limparContexto(userId);
@@ -1720,4 +1752,165 @@ async function processarSelecaoContaTransferencia(
     data: dataTransacao,
     status: 'completed'
   });
+}
+
+// ============================================
+// FASE 3.2: HANDLERS DE CADASTRO DE CONTAS
+// ============================================
+
+// Handler para dia de vencimento
+async function processarDiaVencimento(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const dados = contexto.context_data || {};
+  
+  // Extrair dia do texto
+  const diaMatch = texto.match(/\d+/);
+  if (!diaMatch) {
+    return `❓ Por favor, informe um número de 1 a 31.\n\n📅 Qual o dia do vencimento?`;
+  }
+  
+  const dia = parseInt(diaMatch[0]);
+  if (dia < 1 || dia > 31) {
+    return `❓ Dia inválido. Informe um número de 1 a 31.\n\n📅 Qual o dia do vencimento?`;
+  }
+  
+  // Calcular due_date
+  const hoje = new Date();
+  let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
+  if (dueDate < hoje) {
+    dueDate.setMonth(dueDate.getMonth() + 1);
+  }
+  
+  const descricao = dados.descricao as string || 'Conta';
+  const valor = dados.valor as number | undefined;
+  const recorrente = dados.recorrente as boolean || false;
+  const parcelas = dados.parcelas as number | undefined;
+  
+  // Inserir no banco
+  const { error } = await supabase
+    .from('payable_bills')
+    .insert({
+      user_id: userId,
+      description: descricao,
+      amount: valor || 0,
+      due_date: dueDate.toISOString().split('T')[0],
+      status: 'pending',
+      is_recurring: recorrente,
+      bill_type: valor ? 'fixed' : 'variable',
+      recurrence_config: recorrente ? { type: 'monthly', day: dia } : null,
+      installment_number: parcelas ? 1 : null,
+      installment_total: parcelas || null,
+    });
+  
+  if (error) {
+    console.error('Erro ao cadastrar conta:', error);
+    await limparContexto(userId);
+    return `❌ Erro ao cadastrar conta. Tente novamente.`;
+  }
+  
+  await limparContexto(userId);
+  
+  const emoji = getEmojiConta(descricao);
+  const valorStr = valor ? `💰 R$ ${valor.toFixed(2).replace('.', ',')}` : '💰 Valor variável _(informar ao pagar)_';
+  const recorrenciaStr = parcelas 
+    ? `🔢 Parcela 1/${parcelas}`
+    : recorrente 
+      ? '🔄 Recorrente mensal' 
+      : '📌 Pagamento único';
+  
+  let msg = `✅ *Conta cadastrada!*\n\n`;
+  msg += `${emoji} *${descricao}*\n`;
+  msg += `${valorStr}\n`;
+  msg += `📅 Vence dia ${dia}\n`;
+  msg += `${recorrenciaStr}\n`;
+  msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
+  
+  if (!valor) {
+    msg += `\n\n💡 Quando chegar a conta:\n_"${descricao.toLowerCase()} veio 185"_`;
+  }
+  
+  return msg;
+}
+
+// Handler para decisão de duplicata
+async function processarDecisaoDuplicata(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const dados = contexto.context_data || {};
+  const contaId = dados.conta_existente_id as string;
+  const novoValor = dados.novo_valor as number | undefined;
+  
+  const resposta = texto.toLowerCase().trim();
+  
+  // Opção 1: Atualizar valor
+  if (resposta === '1' || resposta.includes('sim') || resposta.includes('atualizar')) {
+    if (novoValor && contaId) {
+      const { error } = await supabase
+        .from('payable_bills')
+        .update({ amount: novoValor })
+        .eq('id', contaId);
+      
+      if (error) {
+        await limparContexto(userId);
+        return `❌ Erro ao atualizar. Tente novamente.`;
+      }
+      
+      await limparContexto(userId);
+      return `✅ Valor atualizado para R$ ${novoValor.toFixed(2).replace('.', ',')}!`;
+    }
+    await limparContexto(userId);
+    return `💡 Use _"mudar valor da luz para 180"_ para editar.`;
+  }
+  
+  // Opção 2: Manter como está
+  if (resposta === '2' || resposta.includes('manter') || resposta.includes('não')) {
+    await limparContexto(userId);
+    return `👍 Ok, mantive a conta como estava.`;
+  }
+  
+  // Opção 3: Criar nova
+  if (resposta === '3' || resposta.includes('criar') || resposta.includes('nova')) {
+    // Redirecionar para cadastro com nome diferente
+    await limparContexto(userId);
+    return `💡 Para criar uma conta separada, use um nome diferente.\n\nExemplo: _"tenho que pagar 150 de luz casa dia 10"_`;
+  }
+  
+  return `❓ Não entendi. Digite:\n\n1️⃣ Atualizar valor\n2️⃣ Manter como está\n3️⃣ Criar nova conta`;
+}
+
+// Handler para confirmação de exclusão de CONTA A PAGAR
+async function processarConfirmacaoExclusaoConta(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const dados = contexto.context_data || {};
+  const contaId = dados.conta_id as string;
+  const contaNome = dados.conta_nome as string;
+  
+  const resposta = texto.toLowerCase().trim();
+  
+  if (resposta === 'sim' || resposta === 's' || resposta === 'confirmar') {
+    const resultado = await executarExclusaoConta(userId, contaId);
+    await limparContexto(userId);
+    
+    if (resultado.sucesso) {
+      return templateContaExcluida(contaNome);
+    }
+    return resultado.mensagem;
+  }
+  
+  if (resposta === 'não' || resposta === 'nao' || resposta === 'n' || resposta === 'cancelar') {
+    await limparContexto(userId);
+    return `👍 Ok, exclusão cancelada.`;
+  }
+  
+  return `❓ Digite *SIM* para confirmar ou *NÃO* para cancelar.`;
 }

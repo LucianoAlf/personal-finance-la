@@ -16,7 +16,7 @@
 // ============================================
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getSupabase, normalizeMessageType, corsHeaders, enviarViaEdgeFunction, buscarUltimaInteracao, getEmojiBanco } from './utils.ts';
-import { buscarContexto, isContextoAtivo, processarNoContexto, salvarContexto } from './context-manager.ts';
+import { buscarContexto, isContextoAtivo, processarNoContexto, salvarContexto, ContextType } from './context-manager.ts';
 import { processarBotao } from './button-handler.ts';
 import { isComandoRapido, processarComandoRapido } from './quick-commands.ts';
 import { templateErroGenerico, templateComandoNaoReconhecido } from './response-templates.ts';
@@ -1082,6 +1082,8 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       'CONTAS_DO_MES',
       'RESUMO_CONTAS_MES',
       'CADASTRAR_CONTA_PAGAR',
+      'EDITAR_CONTA_PAGAR',
+      'EXCLUIR_CONTA_PAGAR',
       'MARCAR_CONTA_PAGA',
       'HISTORICO_CONTA',
       'CONTAS_AMBIGUO'
@@ -1099,13 +1101,14 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       
       await enviarViaEdgeFunction(phone, resultado.mensagem);
       
-      // Se é CONTAS_AMBIGUO, salvar contexto para aguardar resposta
-      if (resultado.precisaConfirmacao && resultado.dados?.step === 'awaiting_account_type_selection') {
-        await salvarContexto(user.id, 'awaiting_account_type_selection', {
-          step: 'awaiting_account_type_selection',
+      // Salvar contexto se precisar de confirmação (FASE 3.2)
+      if (resultado.precisaConfirmacao && resultado.dados?.step) {
+        const step = resultado.dados.step as ContextType;
+        await salvarContexto(user.id, step, {
+          ...resultado.dados,
           phone
         }, phone);
-        console.log('📋 [CONTAS-PAGAR] Contexto salvo: awaiting_account_type_selection');
+        console.log(`📋 [CONTAS-PAGAR] Contexto salvo: ${step}`);
       }
       
       await supabase.from('whatsapp_messages').update({
