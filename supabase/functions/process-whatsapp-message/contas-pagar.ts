@@ -440,20 +440,55 @@ export async function contasVencidas(userId: string): Promise<string> {
     return `✅ *Parabéns!*\n\nVocê não tem contas vencidas! 🎉\n\n_Continue assim, suas finanças agradecem!_`;
   }
   
-  let mensagem = `🔴 *Contas Vencidas*\n\n`;
+  let mensagem = `🔴 *Contas Vencidas*\n_${vencidas.length} conta(s) em atraso_\n`;
   let total = 0;
+  let idx = 1;
   
-  for (const c of vencidas) {
-    const emoji = getEmojiConta(c.description);
+  // Agrupar por tempo de atraso
+  const muitoAtrasadas = vencidas.filter((c: any) => Math.abs(calcularDiasParaVencimento(c.due_date)) > 15);
+  const atrasadas = vencidas.filter((c: any) => {
     const dias = Math.abs(calcularDiasParaVencimento(c.due_date));
-    mensagem += `${emoji} ${c.description} (${formatarDataComDia(c.due_date)}): ${formatarMoeda(c.amount)} _há ${dias}d_\n`;
-    total += Number(c.amount);
+    return dias > 7 && dias <= 15;
+  });
+  const recentes = vencidas.filter((c: any) => Math.abs(calcularDiasParaVencimento(c.due_date)) <= 7);
+  
+  if (muitoAtrasadas.length > 0) {
+    mensagem += `\n⚠️ *MAIS DE 15 DIAS* (${muitoAtrasadas.length})\n`;
+    for (const c of muitoAtrasadas) {
+      const emoji = getEmojiConta(c.description);
+      const dias = Math.abs(calcularDiasParaVencimento(c.due_date));
+      mensagem += `${idx}. ${emoji} ${c.description} - ${formatarDataComDia(c.due_date)}: ${formatarMoeda(c.amount)} — _há ${dias}d_\n`;
+      total += Number(c.amount);
+      idx++;
+    }
+  }
+  
+  if (atrasadas.length > 0) {
+    mensagem += `\n🟠 *8 A 15 DIAS* (${atrasadas.length})\n`;
+    for (const c of atrasadas) {
+      const emoji = getEmojiConta(c.description);
+      const dias = Math.abs(calcularDiasParaVencimento(c.due_date));
+      mensagem += `${idx}. ${emoji} ${c.description} - ${formatarDataComDia(c.due_date)}: ${formatarMoeda(c.amount)} — _há ${dias}d_\n`;
+      total += Number(c.amount);
+      idx++;
+    }
+  }
+  
+  if (recentes.length > 0) {
+    mensagem += `\n🟡 *ATÉ 7 DIAS* (${recentes.length})\n`;
+    for (const c of recentes) {
+      const emoji = getEmojiConta(c.description);
+      const dias = Math.abs(calcularDiasParaVencimento(c.due_date));
+      mensagem += `${idx}. ${emoji} ${c.description} - ${formatarDataComDia(c.due_date)}: ${formatarMoeda(c.amount)} — _há ${dias}d_\n`;
+      total += Number(c.amount);
+      idx++;
+    }
   }
   
   mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
   mensagem += `💰 *Total em atraso:* ${formatarMoeda(total)}\n\n`;
   mensagem += `⚠️ _Regularize o quanto antes para evitar juros!_\n\n`;
-  mensagem += `💡 _Para pagar: "paguei a luz" ou "paguei 185 de luz"_`;
+  mensagem += `💡 _"paguei a 1" ou "paguei a luz"_`;
   
   return mensagem;
 }
