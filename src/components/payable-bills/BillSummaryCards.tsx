@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { Card } from '@/components/ui/card';
-import { AlertCircle, CheckCircle2, Clock } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, Wallet } from 'lucide-react';
 import { formatCurrency } from '@/utils/billCalculations';
 
 interface BillSummaryCardsProps {
@@ -20,7 +20,19 @@ export function BillSummaryCards({
   paidAmount,
   paidCount,
 }: BillSummaryCardsProps) {
+  const totalAmount = pendingAmount + overdueAmount + paidAmount;
+  const totalCount = pendingCount + overdueCount + paidCount;
+
   const cards = [
+    {
+      title: 'Total',
+      amount: totalAmount,
+      count: totalCount,
+      icon: Wallet,
+      color: 'text-blue-500',
+      bgColor: 'bg-blue-500/10',
+      borderColor: 'border-blue-500/20',
+    },
     {
       title: 'A Vencer',
       amount: pendingAmount,
@@ -51,7 +63,7 @@ export function BillSummaryCards({
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
+    <div className="grid gap-4 md:grid-cols-4">
       {cards.map((card, index) => (
         <motion.div
           key={card.title}

@@ -23,6 +23,7 @@ import { BillSortSelect, SortOption } from '@/components/payable-bills/BillSortS
 import { AttentionSection } from '@/components/payable-bills/AttentionSection';
 import { BillCategoryFilter, CategoryFilter } from '@/components/payable-bills/BillCategoryFilter';
 import { BillTable } from '@/components/payable-bills/BillTable';
+import { RecurringBillTable } from '@/components/payable-bills/RecurringBillTable';
 import { ViewToggle, ViewMode } from '@/components/payable-bills/ViewToggle';
 import { PayableBill, CreateBillInput, MarkBillAsPaidInput } from '@/types/payable-bills.types';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
@@ -66,6 +67,11 @@ export default function PayableBills() {
   const [sortOption, setSortOption] = useState<SortOption>('recent');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
+  
+  // Estados para aba Recorrentes
+  const [recurringSortOption, setRecurringSortOption] = useState<SortOption>('recent');
+  const [recurringCategoryFilter, setRecurringCategoryFilter] = useState<CategoryFilter>('all');
+  const [recurringViewMode, setRecurringViewMode] = useState<ViewMode>('cards');
 
   // Ordenar contas baseado na opção selecionada
   const sortedBills = useMemo(() => {
@@ -108,6 +114,42 @@ export default function PayableBills() {
     if (categoryFilter === 'all') return sortedBills;
     return sortedBills.filter((bill) => bill.bill_type === categoryFilter);
   }, [sortedBills, categoryFilter]);
+
+  // Ordenar contas recorrentes
+  const sortedRecurringBills = useMemo(() => {
+    const sorted = [...recurringBills];
+    
+    switch (recurringSortOption) {
+      case 'recent':
+        return sorted.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+      case 'oldest':
+        return sorted.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+      case 'due_soon':
+        return sorted.sort((a, b) => 
+          parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime()
+        );
+      case 'due_late':
+        return sorted.sort((a, b) => 
+          parseISO(b.due_date).getTime() - parseISO(a.due_date).getTime()
+        );
+      case 'amount_high':
+        return sorted.sort((a, b) => b.amount - a.amount);
+      case 'amount_low':
+        return sorted.sort((a, b) => a.amount - b.amount);
+      default:
+        return sorted;
+    }
+  }, [recurringBills, recurringSortOption]);
+
+  // Filtrar recorrentes por categoria
+  const filteredRecurringBills = useMemo(() => {
+    if (recurringCategoryFilter === 'all') return sortedRecurringBills;
+    return sortedRecurringBills.filter((bill) => bill.bill_type === recurringCategoryFilter);
+  }, [sortedRecurringBills, recurringCategoryFilter]);
 
   // Handler para copiar/duplicar conta
   const handleCopy = async (bill: PayableBill) => {
@@ -309,7 +351,19 @@ export default function PayableBills() {
           </TabsContent>
 
           {/* ABA 3: RECORRENTES */}
-          <TabsContent value="recurring" className="space-y-4">
+          <TabsContent value="recurring" className="space-y-6">
+            {/* Barra de Controles */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <h3 className="text-lg font-semibold text-muted-foreground">
+                🔄 Contas Recorrentes ({filteredRecurringBills.length})
+              </h3>
+              <div className="flex flex-wrap items-center gap-3">
+                <BillCategoryFilter value={recurringCategoryFilter} onChange={setRecurringCategoryFilter} />
+                <BillSortSelect value={recurringSortOption} onChange={setRecurringSortOption} />
+                <ViewToggle value={recurringViewMode} onChange={setRecurringViewMode} />
+              </div>
+            </div>
+
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -344,9 +398,16 @@ export default function PayableBills() {
                     Criar Conta Recorrente
                   </Button>
                 </div>
+              ) : recurringViewMode === 'table' ? (
+                <RecurringBillTable
+                  bills={filteredRecurringBills}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onCopy={handleCopy}
+                />
               ) : (
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {recurringBills.map((bill) => (
+                  {filteredRecurringBills.map((bill) => (
                     <RecurringBillCard
                       key={bill.id}
                       bill={bill}
