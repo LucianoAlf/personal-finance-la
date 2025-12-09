@@ -1852,12 +1852,35 @@ async function processarDiaVencimento(
   await limparContexto(userId);
   
   const emoji = getEmojiConta(descricao);
-  const valorStr = valor ? `💰 R$ ${valor.toFixed(2).replace('.', ',')}` : '💰 Valor variável _(informar ao pagar)_';
-  const tipoExibicao = parcelas 
-    ? `🔢 Parcela 1/${parcelas}`
-    : isRecorrente 
-      ? '🔄 Recorrente mensal' 
-      : '📌 Pagamento único';
+  const textoOriginal = dados.textoOriginal as string || '';
+  
+  // Importar função para verificar se é variável
+  const { isContaVariavel } = await import('./contas-pagar.ts');
+  const isVariavel = tipoInterno === 'variable' || isContaVariavel(tipoInterno as any, textoOriginal);
+  
+  // Formatar valor baseado no tipo
+  let valorStr: string;
+  if (!valor) {
+    valorStr = '💰 Valor variável _(informar ao pagar)_';
+  } else if (isVariavel) {
+    valorStr = `💰 ~R$ ${valor.toFixed(2).replace('.', ',')}~ _(valor médio)_`;
+  } else {
+    valorStr = `💰 R$ ${valor.toFixed(2).replace('.', ',')}`;
+  }
+  
+  // Determinar tipo de exibição
+  let tipoExibicao: string;
+  if (parcelas) {
+    tipoExibicao = `🔢 Parcela 1/${parcelas}`;
+  } else if (tipoInterno === 'subscription') {
+    tipoExibicao = '🔄 Assinatura mensal';
+  } else if (isVariavel) {
+    tipoExibicao = '📊 Valor variável _(informe quando chegar)_';
+  } else if (isRecorrente) {
+    tipoExibicao = '🔄 Recorrente mensal';
+  } else {
+    tipoExibicao = '📌 Pagamento único';
+  }
   
   let msg = `✅ *Conta cadastrada!*\n\n`;
   msg += `${emoji} *${descricao}*\n`;
@@ -1866,8 +1889,9 @@ async function processarDiaVencimento(
   msg += `${tipoExibicao}\n`;
   msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
   
-  if (!valor) {
-    msg += `\n\n💡 Quando chegar a conta:\n_"${descricao.toLowerCase()} veio 185"_`;
+  // Dica para contas variáveis
+  if (isVariavel || !valor) {
+    msg += `\n\n💡 _Quando chegar a conta: "${descricao.toLowerCase()} veio 185"_`;
   }
   
   return msg;

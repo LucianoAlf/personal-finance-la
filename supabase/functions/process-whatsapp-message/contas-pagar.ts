@@ -145,6 +145,17 @@ export function identificarTipoConta(texto: string, entidades: Record<string, un
     return 'one_time';
   }
   
+  // DETECTAR INDICADORES DE VALOR VARIÁVEL NO TEXTO
+  // Se menciona "em média", "aproximadamente", etc → VARIÁVEL
+  const indicadoresVariavel = [
+    'em média', 'em media', 'aproximadamente', 'aproximado',
+    'mais ou menos', '+ ou -', 'por volta de', 'cerca de',
+    'geralmente', 'normalmente', 'varia', 'variável', 'variavel'
+  ];
+  if (indicadoresVariavel.some(ind => textoLower.includes(ind))) {
+    return 'variable';
+  }
+  
   // CONTA FIXA - menções de recorrência
   const fixas = ['aluguel', 'condomínio', 'condominio', 'plano de saúde', 'plano saude', 'seguro', 'academia', 'escola', 'faculdade', 'mensalidade', 'financiamento'];
   if (fixas.some(f => textoLower.includes(f))) {
@@ -158,6 +169,30 @@ export function identificarTipoConta(texto: string, entidades: Record<string, un
   
   // DEFAULT: desconhecido - perguntar ao usuário
   return 'unknown';
+}
+
+// ============================================
+// VERIFICAR SE CONTA É VARIÁVEL (para exibição)
+// ============================================
+
+export function isContaVariavel(tipo: BillType, texto?: string): boolean {
+  // Tipo explicitamente variável
+  if (tipo === 'variable') return true;
+  
+  // Se tem texto, verificar indicadores
+  if (texto) {
+    const textoLower = texto.toLowerCase();
+    const indicadoresVariavel = [
+      'em média', 'em media', 'aproximadamente', 'aproximado',
+      'mais ou menos', '+ ou -', 'por volta de', 'cerca de',
+      'geralmente', 'normalmente', 'varia', 'variável', 'variavel'
+    ];
+    if (indicadoresVariavel.some(ind => textoLower.includes(ind))) {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 // ============================================
@@ -1531,24 +1566,42 @@ async function cadastrarContaNoBanco(
   
   // Template de sucesso
   const emoji = getEmojiConta(descricao);
+  const textoOriginal = dados.textoOriginal || '';
+  const isVariavel = tipo === 'variable' || isContaVariavel(tipo || 'unknown', textoOriginal);
+  
   let msg = `✅ *Conta cadastrada!*\n\n`;
   msg += `${emoji} *${descricao}*\n`;
   
-  if (valor) {
+  // Formatar valor baseado no tipo
+  if (!valor) {
+    msg += `💰 Valor variável _(informar ao pagar)_\n`;
+  } else if (isVariavel) {
+    msg += `💰 ~R$ ${valor.toFixed(2).replace('.', ',')}~ _(valor médio)_\n`;
+  } else {
     msg += `💰 R$ ${valor.toFixed(2).replace('.', ',')}\n`;
-  } else if (tipo === 'variable') {
-    msg += `💰 Valor variável _(informe quando chegar)_\n`;
   }
   
   msg += `📅 Vence dia ${diaVencimento}\n`;
   
+  // Tipo de recorrência
   if (isInstallment && parcelaAtual && totalParcelas) {
     msg += `🔢 Parcela ${parcelaAtual} de ${totalParcelas}\n`;
+  } else if (tipo === 'subscription') {
+    msg += `🔄 Assinatura mensal\n`;
+  } else if (isVariavel) {
+    msg += `📊 Valor variável _(informe quando chegar)_\n`;
   } else if (isRecurring) {
     msg += `🔄 Recorrente mensal\n`;
+  } else {
+    msg += `📌 Pagamento único\n`;
   }
   
   msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
+  
+  // Dica para contas variáveis
+  if (isVariavel || !valor) {
+    msg += `\n\n💡 _Quando chegar a conta: "${descricao.toLowerCase()} veio 185"_`;
+  }
   
   return { mensagem: msg };
 }
