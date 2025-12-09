@@ -1384,8 +1384,36 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       });
     }
     
-    // Se é LISTAR_CONTAS, usar função de listar contas
+    // Se é LISTAR_CONTAS, verificar se é "minhas contas" ambíguo
     if (intencaoNLP.intencao === 'LISTAR_CONTAS') {
+      // CORREÇÃO: Se o texto é "minhas contas" sem especificar, perguntar ao usuário
+      const textoOriginal = content.toLowerCase().trim();
+      const isMinhasContasAmbiguo = /^minhas?\s*contas?\??$/i.test(textoOriginal);
+      
+      if (isMinhasContasAmbiguo) {
+        console.log('📋 [CORREÇÃO] "minhas contas" detectado - redirecionando para CONTAS_AMBIGUO');
+        
+        const resultado = await processarIntencaoContaPagar('CONTAS_AMBIGUO', user.id, phone, {});
+        await enviarViaEdgeFunction(phone, resultado.mensagem);
+        
+        // Salvar contexto para aguardar resposta
+        await salvarContexto(user.id, 'awaiting_account_type_selection', {
+          step: 'awaiting_account_type_selection',
+          phone
+        }, phone);
+        
+        await supabase.from('whatsapp_messages').update({
+          processing_status: 'completed',
+          intent: 'contas_ambiguo',
+          processed_at: new Date().toISOString()
+        }).eq('id', message.id);
+        
+        return new Response(JSON.stringify({ success: true, type: 'contas_ambiguo' }), { 
+          headers: { 'Content-Type': 'application/json' } 
+        });
+      }
+      
+      // Se não é ambíguo (ex: "minhas contas bancárias"), mostrar contas bancárias
       console.log('🏦 Intenção LISTAR_CONTAS detectada via NLP');
       const resposta = await listarContas(user.id);
       await enviarViaEdgeFunction(phone, resposta);
