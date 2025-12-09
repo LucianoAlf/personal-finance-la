@@ -255,7 +255,10 @@ ${memoriaUsuario}
 16. **MUDAR_CONTA**: Igual EDITAR_CONTA (sinônimo)
 
 ### Listagens
-17. **LISTAR_CONTAS**: "minhas contas", "quais contas tenho"
+17. **LISTAR_CONTAS**: Listar contas BANCÁRIAS (Itaú, Nubank, etc). Exemplos:
+    - "minhas contas bancárias", "meus bancos", "quais bancos tenho"
+    - "listar bancos", "ver minhas contas do banco"
+    - ⚠️ NÃO usar para "minhas contas" sozinho (isso é LISTAR_CONTAS_PAGAR)
 18. **LISTAR_CATEGORIAS**: "categorias", "quais categorias"
 
 ### Contexto
@@ -358,6 +361,14 @@ Exemplos que DEVEM ser COMPRA_CARTAO:
 ### DÉBITO vs CRÉDITO
 - "no débito", "com débito", "cartão de débito" → REGISTRAR_DESPESA com forma_pagamento='debito'
 - "no cartão", "com cartão", "crédito" → COMPRA_CARTAO (vai para fatura!)
+
+### ⚠️ DESAMBIGUAÇÃO "MINHAS CONTAS" (MUITO IMPORTANTE!)
+- "minhas contas" (sozinho) → **LISTAR_CONTAS_PAGAR** (contas a pagar: luz, água, aluguel)
+- "minhas contas a pagar" → **LISTAR_CONTAS_PAGAR**
+- "contas pendentes" → **LISTAR_CONTAS_PAGAR**
+- "minhas contas bancárias" → **LISTAR_CONTAS** (bancos: Itaú, Nubank)
+- "meus bancos" → **LISTAR_CONTAS**
+- "saldo das contas" → **CONSULTAR_SALDO**
 
 ### OUTRAS REGRAS
 - "Oi Ana" ou "Olá Ana" = SAUDACAO (é só um cumprimento!)
