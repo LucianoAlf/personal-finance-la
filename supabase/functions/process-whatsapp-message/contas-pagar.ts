@@ -179,9 +179,24 @@ export function isContaVariavel(tipo: BillType, texto?: string): boolean {
   // Tipo explicitamente variável
   if (tipo === 'variable') return true;
   
-  // Se tem texto, verificar indicadores
+  // Tipos que NUNCA são variáveis (mesmo com "aproximadamente")
+  if (tipo === 'fixed' || tipo === 'subscription') return false;
+  
+  // Se tem texto, verificar se é conta naturalmente fixa
   if (texto) {
     const textoLower = texto.toLowerCase();
+    
+    // Contas naturalmente FIXAS - ignorar indicadores de variação
+    const contasFixas = [
+      'aluguel', 'condomínio', 'condominio', 'plano de saúde', 'plano saude',
+      'seguro', 'academia', 'escola', 'faculdade', 'mensalidade', 'financiamento',
+      'netflix', 'spotify', 'disney', 'hbo', 'amazon', 'globoplay', 'youtube'
+    ];
+    if (contasFixas.some(conta => textoLower.includes(conta))) {
+      return false;
+    }
+    
+    // Verificar indicadores de variação apenas para contas não-fixas
     const indicadoresVariavel = [
       'em média', 'em media', 'aproximadamente', 'aproximado',
       'mais ou menos', '+ ou -', 'por volta de', 'cerca de',
