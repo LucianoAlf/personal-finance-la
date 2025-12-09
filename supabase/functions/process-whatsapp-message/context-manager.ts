@@ -1806,9 +1806,18 @@ async function processarDiaVencimento(
   
   const descricao = dados.descricao as string || 'Conta';
   const valor = dados.valor as number | undefined;
-  const recorrente = dados.recorrente as boolean || false;
-  const parcelas = dados.parcelas as number | undefined;
   const tipoInterno = (dados.tipo as string) || (valor ? 'fixed' : 'variable');
+  const parcelas = dados.parcelas as number | undefined;
+  
+  // Determinar recorrência: pelo campo recorrencia OU pelo tipo (subscription/fixed/variable são recorrentes)
+  const recorrenciaStr = dados.recorrencia as string;
+  const isRecorrente = recorrenciaStr === 'mensal' || 
+                       tipoInterno === 'subscription' || 
+                       tipoInterno === 'fixed' || 
+                       tipoInterno === 'variable';
+  
+  console.log(`[CADASTRAR-CONTA-CONTEXTO] recorrencia do contexto: ${recorrenciaStr}`);
+  console.log(`[CADASTRAR-CONTA-CONTEXTO] isRecorrente calculado: ${isRecorrente}`);
   
   // Mapear tipo para bill_type do banco usando função inteligente
   const { mapearBillTypeParaBanco } = await import('./contas-pagar.ts');
@@ -1827,9 +1836,9 @@ async function processarDiaVencimento(
       amount: valor || 0,
       due_date: dueDate.toISOString().split('T')[0],
       status: 'pending',
-      is_recurring: recorrente,
+      is_recurring: isRecorrente && !parcelas,
       bill_type: billTypeDb,
-      recurrence_config: recorrente ? { type: 'monthly', day: dia } : null,
+      recurrence_config: isRecorrente && !parcelas ? { type: 'monthly', day: dia } : null,
       installment_number: parcelas ? 1 : null,
       installment_total: parcelas || null,
     });
@@ -1844,9 +1853,9 @@ async function processarDiaVencimento(
   
   const emoji = getEmojiConta(descricao);
   const valorStr = valor ? `💰 R$ ${valor.toFixed(2).replace('.', ',')}` : '💰 Valor variável _(informar ao pagar)_';
-  const recorrenciaStr = parcelas 
+  const tipoExibicao = parcelas 
     ? `🔢 Parcela 1/${parcelas}`
-    : recorrente 
+    : isRecorrente 
       ? '🔄 Recorrente mensal' 
       : '📌 Pagamento único';
   
@@ -1854,7 +1863,7 @@ async function processarDiaVencimento(
   msg += `${emoji} *${descricao}*\n`;
   msg += `${valorStr}\n`;
   msg += `📅 Vence dia ${dia}\n`;
-  msg += `${recorrenciaStr}\n`;
+  msg += `${tipoExibicao}\n`;
   msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
   
   if (!valor) {
