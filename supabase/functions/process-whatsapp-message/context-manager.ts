@@ -1808,6 +1808,15 @@ async function processarDiaVencimento(
   const valor = dados.valor as number | undefined;
   const recorrente = dados.recorrente as boolean || false;
   const parcelas = dados.parcelas as number | undefined;
+  const tipoInterno = (dados.tipo as string) || (valor ? 'fixed' : 'variable');
+  
+  // Mapear tipo para bill_type do banco usando função inteligente
+  const { mapearBillTypeParaBanco } = await import('./contas-pagar.ts');
+  const billTypeDb = mapearBillTypeParaBanco(tipoInterno as any, descricao);
+  
+  console.log(`[CADASTRAR-CONTA-CONTEXTO] Tipo interno: ${tipoInterno}`);
+  console.log(`[CADASTRAR-CONTA-CONTEXTO] Descrição: ${descricao}`);
+  console.log(`[CADASTRAR-CONTA-CONTEXTO] bill_type mapeado: ${billTypeDb}`);
   
   // Inserir no banco
   const { error } = await supabase
@@ -1819,7 +1828,7 @@ async function processarDiaVencimento(
       due_date: dueDate.toISOString().split('T')[0],
       status: 'pending',
       is_recurring: recorrente,
-      bill_type: valor ? 'fixed' : 'variable',
+      bill_type: billTypeDb,
       recurrence_config: recorrente ? { type: 'monthly', day: dia } : null,
       installment_number: parcelas ? 1 : null,
       installment_total: parcelas || null,
@@ -1970,18 +1979,14 @@ async function processarValorConta(
     dueDate.setMonth(dueDate.getMonth() + 1);
   }
   
-  // Determinar bill_type
-  const BILL_TYPE_MAP: Record<string, string> = {
-    'luz': 'service', 'agua': 'service', 'gas': 'service',
-    'internet': 'telecom', 'telefone': 'telecom',
-    'netflix': 'subscription', 'spotify': 'subscription', 'amazon': 'subscription',
-    'disney': 'subscription', 'hbo': 'subscription', 'globoplay': 'subscription',
-    'aluguel': 'housing', 'condominio': 'housing',
-    'iptu': 'tax', 'ipva': 'tax',
-    'seguro': 'insurance', 'plano_saude': 'healthcare',
-    'escola': 'education', 'financiamento': 'loan', 'academia': 'subscription',
-  };
-  const billType = BILL_TYPE_MAP[descricao.toLowerCase()] || 'other';
+  // Mapear tipo para bill_type do banco usando função inteligente
+  const tipoInterno = (dados.tipo as string) || 'fixed';
+  const { mapearBillTypeParaBanco: mapearBillType2 } = await import('./contas-pagar.ts');
+  const billType = mapearBillType2(tipoInterno as any, descricao);
+  
+  console.log(`[CADASTRAR-CONTA-VALOR] Tipo interno: ${tipoInterno}`);
+  console.log(`[CADASTRAR-CONTA-VALOR] Descrição: ${descricao}`);
+  console.log(`[CADASTRAR-CONTA-VALOR] bill_type mapeado: ${billType}`);
   
   // Inserir no banco
   const { error } = await supabase
