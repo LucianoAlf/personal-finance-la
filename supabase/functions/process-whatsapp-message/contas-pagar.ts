@@ -261,7 +261,8 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
     for (const t of vencidas) {
       const dias = Math.abs(calcularDiasParaVencimento(t.due_date));
       const emoji = t.tipo === 'fatura' ? '💳' : getEmojiConta(t.description);
-      mensagem += `${indexGlobal}. ${emoji} ${t.description} (${formatarData(t.due_date)}): ${formatarMoeda(t.amount)} — _há ${dias}d_\n`;
+      // Formato: emoji Nome - DD/MM (dia): R$ valor — há Xd
+      mensagem += `${indexGlobal}. ${emoji} ${t.description} - ${formatarDataComDia(t.due_date)}: ${formatarMoeda(t.amount)} — _há ${dias}d_\n`;
       
       const contaOriginal = contas.find(c => c.id === t.id);
       if (contaOriginal) contaOriginal.index = indexGlobal;
@@ -276,11 +277,12 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
       const dias = calcularDiasParaVencimento(t.due_date);
       const emoji = t.tipo === 'fatura' ? '💳' : getEmojiConta(t.description);
       let prazo = '';
-      if (dias === 0) prazo = 'hoje';
+      if (dias === 0) prazo = 'HOJE';
       else if (dias === 1) prazo = 'amanhã';
-      else prazo = `${dias}d`;
+      else prazo = `em ${dias}d`;
       
-      mensagem += `${indexGlobal}. ${emoji} ${t.description} (${formatarData(t.due_date)}): ${formatarMoeda(t.amount)} — _${prazo}_\n`;
+      // Formato: emoji Nome - DD/MM (dia): R$ valor — prazo
+      mensagem += `${indexGlobal}. ${emoji} ${t.description} - ${formatarDataComDia(t.due_date)}: ${formatarMoeda(t.amount)} — _${prazo}_\n`;
       
       const contaOriginal = contas.find(c => c.id === t.id);
       if (contaOriginal) contaOriginal.index = indexGlobal;
@@ -293,7 +295,8 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
     mensagem += `\n🟢 *RESTANTE DO MÊS* (${restante.length})\n`;
     for (const t of restante.slice(0, 5)) {
       const emoji = t.tipo === 'fatura' ? '💳' : getEmojiConta(t.description);
-      mensagem += `${indexGlobal}. ${emoji} ${t.description} (${formatarData(t.due_date)}): ${formatarMoeda(t.amount)}\n`;
+      // Formato: emoji Nome - DD/MM (dia): R$ valor
+      mensagem += `${indexGlobal}. ${emoji} ${t.description} - ${formatarDataComDia(t.due_date)}: ${formatarMoeda(t.amount)}\n`;
       
       const contaOriginal = contas.find(c => c.id === t.id);
       if (contaOriginal) contaOriginal.index = indexGlobal;
