@@ -21,6 +21,9 @@ import { ExportButton } from '@/components/payable-bills/ExportButton';
 import { ReminderConfigDialog } from '@/components/payable-bills/ReminderConfigDialog';
 import { BillSortSelect, SortOption } from '@/components/payable-bills/BillSortSelect';
 import { AttentionSection } from '@/components/payable-bills/AttentionSection';
+import { BillCategoryFilter, CategoryFilter } from '@/components/payable-bills/BillCategoryFilter';
+import { BillTable } from '@/components/payable-bills/BillTable';
+import { ViewToggle, ViewMode } from '@/components/payable-bills/ViewToggle';
 import { PayableBill, CreateBillInput, MarkBillAsPaidInput } from '@/types/payable-bills.types';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { toast } from 'sonner';
@@ -61,6 +64,8 @@ export default function PayableBills() {
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState<PayableBill | null>(null);
   const [sortOption, setSortOption] = useState<SortOption>('recent');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const [viewMode, setViewMode] = useState<ViewMode>('cards');
 
   // Ordenar contas baseado na opção selecionada
   const sortedBills = useMemo(() => {
@@ -97,6 +102,31 @@ export default function PayableBills() {
         return sorted;
     }
   }, [bills, sortOption]);
+
+  // Filtrar por categoria
+  const filteredBills = useMemo(() => {
+    if (categoryFilter === 'all') return sortedBills;
+    return sortedBills.filter((bill) => bill.bill_type === categoryFilter);
+  }, [sortedBills, categoryFilter]);
+
+  // Handler para copiar/duplicar conta
+  const handleCopy = async (bill: PayableBill) => {
+    const newBill: CreateBillInput = {
+      description: `${bill.description} (cópia)`,
+      amount: bill.amount,
+      due_date: bill.due_date,
+      bill_type: bill.bill_type,
+      provider_name: bill.provider_name,
+      is_recurring: bill.is_recurring,
+      recurrence_config: bill.recurrence_config,
+      reminder_enabled: bill.reminder_enabled,
+      reminder_days_before: bill.reminder_days_before,
+      priority: bill.priority,
+      notes: bill.notes,
+    };
+    await createBill(newBill);
+    toast.success('Conta duplicada com sucesso!');
+  };
 
   // Handlers
   const handleCreate = async (data: CreateBillInput) => {
@@ -205,12 +235,16 @@ export default function PayableBills() {
               />
             )}
 
-            {/* Barra de Ordenação */}
-            <div className="flex items-center justify-between">
+            {/* Barra de Controles */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <h3 className="text-lg font-semibold text-muted-foreground">
-                📋 Todas as Contas
+                📋 Todas as Contas ({filteredBills.length})
               </h3>
-              <BillSortSelect value={sortOption} onChange={setSortOption} />
+              <div className="flex flex-wrap items-center gap-3">
+                <BillCategoryFilter value={categoryFilter} onChange={setCategoryFilter} />
+                <BillSortSelect value={sortOption} onChange={setSortOption} />
+                <ViewToggle value={viewMode} onChange={setViewMode} />
+              </div>
             </div>
 
             <motion.div
@@ -227,9 +261,18 @@ export default function PayableBills() {
                     ></div>
                   ))}
                 </div>
+              ) : viewMode === 'table' ? (
+                <BillTable
+                  bills={filteredBills}
+                  onPay={handlePay}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onCopy={handleCopy}
+                  onConfigReminders={handleConfigReminders}
+                />
               ) : (
                 <BillList
-                  bills={sortedBills}
+                  bills={filteredBills}
                   onPay={handlePay}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
