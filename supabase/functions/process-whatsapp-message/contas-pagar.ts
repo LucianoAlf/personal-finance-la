@@ -11,7 +11,7 @@ import { getSupabase } from './utils.ts';
 // ============================================
 
 export type TipoIntencaoContaPagar = 
-  | 'LISTAR_CONTAS_PAGAR'      // "minhas contas", "contas a pagar"
+  | 'LISTAR_CONTAS_PAGAR'      // "contas a pagar", "contas pendentes"
   | 'CONTAS_VENCENDO'          // "o que vence essa semana"
   | 'CONTAS_VENCIDAS'          // "contas vencidas", "atrasadas"
   | 'CONTAS_DO_MES'            // "contas desse mês"
@@ -22,6 +22,7 @@ export type TipoIntencaoContaPagar =
   | 'MARCAR_CONTA_PAGA'        // (fase 3.3)
   | 'VALOR_CONTA_VARIAVEL'     // (fase 3.3)
   | 'HISTORICO_CONTA'          // (fase 3.3)
+  | 'CONTAS_AMBIGUO'           // "minhas contas" (perguntar ao usuário)
   | null;
 
 export interface ContaPagar {
@@ -703,6 +704,39 @@ export async function salvarContextoListagem(userId: string, contas: ContaPagar[
 }
 
 // ============================================
+// TEMPLATE PARA DESAMBIGUAÇÃO
+// ============================================
+
+export function templateContasAmbiguo(): string {
+  return `Oi! Quais contas você quer consultar?
+
+1️⃣ Contas Bancárias (saldos)
+2️⃣ Contas a Pagar (luz, água, etc)
+
+_Digite 1 ou 2, ou escreva "bancárias" ou "pagar"_ 😊`;
+}
+
+// ============================================
+// PROCESSAR RESPOSTA DA DESAMBIGUAÇÃO
+// ============================================
+
+export function processarRespostaContasAmbiguo(resposta: string): 'bancarias' | 'pagar' | null {
+  const r = resposta.toLowerCase().trim();
+  
+  // Opção 1 - Contas Bancárias
+  if (r === '1' || r === 'bancárias' || r === 'bancarias' || r === 'bancos' || r === 'saldo' || r === 'saldos') {
+    return 'bancarias';
+  }
+  
+  // Opção 2 - Contas a Pagar
+  if (r === '2' || r === 'pagar' || r === 'a pagar' || r === 'pendentes' || r === 'contas a pagar') {
+    return 'pagar';
+  }
+  
+  return null;
+}
+
+// ============================================
 // PROCESSAR INTENÇÃO - CONSULTAS (FASE 3.1)
 // ============================================
 
@@ -751,7 +785,14 @@ export async function processarIntencaoContaPagar(
     case 'VALOR_CONTA_VARIAVEL':
     case 'HISTORICO_CONTA':
       return { 
-        mensagem: `🚧 _Funcionalidade em desenvolvimento..._\n\nEm breve você poderá marcar contas como pagas!\n\n💡 Por enquanto, use:\n• _"minhas contas"_\n• _"contas vencidas"_` 
+        mensagem: `🚧 _Funcionalidade em desenvolvimento..._\n\nEm breve você poderá marcar contas como pagas!\n\n💡 Por enquanto, use:\n• _"contas a pagar"_\n• _"contas vencidas"_` 
+      };
+    
+    case 'CONTAS_AMBIGUO':
+      return { 
+        mensagem: templateContasAmbiguo(),
+        precisaConfirmacao: true,
+        dados: { step: 'awaiting_account_type_selection' }
       };
     
     default:

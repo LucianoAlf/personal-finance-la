@@ -15,6 +15,8 @@ import { getSupabase, getEmojiBanco } from './utils.ts';
 import { enviarConfirmacaoComBotoes } from './button-sender.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
 import { templateTransacaoRegistrada } from './response-templates.ts';
+import { processarRespostaContasAmbiguo, listarContasPagar } from './contas-pagar.ts';
+import { consultarSaldo, listarContas } from './command-handlers.ts';
 import {
   CATEGORIA_KEYWORDS,
   BANCO_CONFIGS,
@@ -29,7 +31,7 @@ import {
 const CONTEXT_EXPIRATION_MINUTES = 60;
 
 // Tipos do contexto
-export type ContextType = 'idle' | 'editing_transaction' | 'creating_transaction' | 'confirming_action' | 'multi_step_flow';
+export type ContextType = 'idle' | 'editing_transaction' | 'creating_transaction' | 'confirming_action' | 'multi_step_flow' | 'awaiting_account_type_selection';
 
 export interface ContextData {
   intencao_pendente?: IntencaoClassificada;
@@ -248,6 +250,11 @@ export async function processarNoContexto(
     return await processarConfirmacao(texto, contexto, userId);
   }
   
+  // Handler para desambiguação "minhas contas"
+  if (contextType === 'awaiting_account_type_selection') {
+    return await processarSelecaoTipoConta(texto, contexto, userId);
+  }
+  
   await limparContexto(userId);
   return '❓ Não entendi. Vamos recomeçar?';
 }
@@ -255,6 +262,37 @@ export async function processarNoContexto(
 // ============================================
 // HANDLERS DE CONTEXTO
 // ============================================
+
+// Handler para desambiguação "minhas contas"
+async function processarSelecaoTipoConta(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  console.log('🔄 [CONTAS] Processando seleção de tipo de conta:', texto);
+  
+  const escolha = processarRespostaContasAmbiguo(texto);
+  
+  if (escolha === 'bancarias') {
+    // Usuário quer ver saldos bancários
+    await limparContexto(userId);
+    const saldos = await consultarSaldo(userId);
+    return saldos;
+  }
+  
+  if (escolha === 'pagar') {
+    // Usuário quer ver contas a pagar
+    await limparContexto(userId);
+    const resultado = await listarContasPagar(userId);
+    return resultado.mensagem;
+  }
+  
+  // Não entendeu a resposta
+  return `Não entendi. Por favor, digite:
+
+1️⃣ ou *bancárias* → Ver saldos
+2️⃣ ou *pagar* → Ver contas a pagar`;
+}
 
 async function processarConfirmacao(
   texto: string,

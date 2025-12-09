@@ -90,6 +90,7 @@ const INTENT_CLASSIFICATION_FUNCTION = {
           'CADASTRAR_CONTA_PAGAR',
           'MARCAR_CONTA_PAGA',
           'HISTORICO_CONTA',
+          'CONTAS_AMBIGUO',
           // FIM CONTAS A PAGAR
           'SAUDACAO',
           'AJUDA',
@@ -337,6 +338,11 @@ ${memoriaUsuario}
     - "histórico da luz", "pagamentos de internet"
     - "quanto paguei de luz nos últimos meses"
 
+34. **CONTAS_AMBIGUO**: Quando usuário diz APENAS "minhas contas" sem especificar se quer:
+    - Contas bancárias (saldos) ou contas a pagar (luz, água)
+    - Use quando: "minhas contas", "ver minhas contas" (sem mais contexto)
+    - NÃO use se tiver "bancárias", "a pagar", "saldo", "pendentes"
+
 ### Social
 34. **SAUDACAO**: Oi, olá, bom dia, boa tarde, boa noite, e aí, "oi Ana", "olá Ana" (cumprimentos simples SEM pedido)
 35. **AJUDA**: "Ajuda", "me ajuda", "preciso de ajuda", "pode me ajudar", "quero ajuda", "comandos" (pedidos EXPLÍCITOS de ajuda)
@@ -363,12 +369,15 @@ Exemplos que DEVEM ser COMPRA_CARTAO:
 - "no cartão", "com cartão", "crédito" → COMPRA_CARTAO (vai para fatura!)
 
 ### ⚠️ DESAMBIGUAÇÃO "MINHAS CONTAS" (MUITO IMPORTANTE!)
-- "minhas contas" (sozinho) → **LISTAR_CONTAS_PAGAR** (contas a pagar: luz, água, aluguel)
+- "minhas contas" (sozinho, sem contexto) → **CONTAS_AMBIGUO** (perguntar ao usuário!)
+- "ver minhas contas" (sozinho) → **CONTAS_AMBIGUO**
 - "minhas contas a pagar" → **LISTAR_CONTAS_PAGAR**
+- "contas a pagar" → **LISTAR_CONTAS_PAGAR**
 - "contas pendentes" → **LISTAR_CONTAS_PAGAR**
+- "o que tenho pra pagar" → **LISTAR_CONTAS_PAGAR**
 - "minhas contas bancárias" → **LISTAR_CONTAS** (bancos: Itaú, Nubank)
 - "meus bancos" → **LISTAR_CONTAS**
-- "saldo das contas" → **CONSULTAR_SALDO**
+- "saldo" ou "saldo das contas" → **CONSULTAR_SALDO**
 
 ### OUTRAS REGRAS
 - "Oi Ana" ou "Olá Ana" = SAUDACAO (é só um cumprimento!)

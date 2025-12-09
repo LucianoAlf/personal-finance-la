@@ -1081,7 +1081,8 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       'RESUMO_CONTAS_MES',
       'CADASTRAR_CONTA_PAGAR',
       'MARCAR_CONTA_PAGA',
-      'HISTORICO_CONTA'
+      'HISTORICO_CONTA',
+      'CONTAS_AMBIGUO'
     ];
     
     if (intencoesContasPagar.includes(intencaoNLP.intencao as TipoIntencaoContaPagar)) {
@@ -1095,6 +1096,15 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       );
       
       await enviarViaEdgeFunction(phone, resultado.mensagem);
+      
+      // Se é CONTAS_AMBIGUO, salvar contexto para aguardar resposta
+      if (resultado.precisaConfirmacao && resultado.dados?.step === 'awaiting_account_type_selection') {
+        await salvarContexto(user.id, 'awaiting_account_type_selection', {
+          step: 'awaiting_account_type_selection',
+          phone
+        }, phone);
+        console.log('📋 [CONTAS-PAGAR] Contexto salvo: awaiting_account_type_selection');
+      }
       
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
