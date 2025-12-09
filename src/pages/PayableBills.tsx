@@ -156,21 +156,20 @@ export default function PayableBills() {
       filtered = filtered.filter((bill) => bill.bill_type === recurringCategoryFilter);
     }
     
-    // Filtrar por tipo de recorrência (fixa/variável/assinatura)
+    // Filtrar por tipo de recorrência (fixa/variável)
+    // Fixas = valor sempre igual (aluguel, Netflix, condomínio, plano de saúde)
+    // Variáveis = valor muda todo mês (água, luz, gás)
     if (recurrenceTypeFilter !== 'all') {
       filtered = filtered.filter((bill) => {
-        // Mapear bill_type para tipo de recorrência
+        // Categorias que são variáveis (valor muda)
         const variableTypes = ['variable', 'service']; // Água, Luz, Gás
-        const subscriptionTypes = ['subscription']; // Netflix, Spotify
-        const fixedTypes = ['fixed', 'housing', 'healthcare', 'telecom', 'credit_card']; // Aluguel, Plano de Saúde
         
         switch (recurrenceTypeFilter) {
           case 'variable':
             return variableTypes.includes(bill.bill_type);
-          case 'subscription':
-            return subscriptionTypes.includes(bill.bill_type);
           case 'fixed':
-            return fixedTypes.includes(bill.bill_type) || !variableTypes.includes(bill.bill_type) && !subscriptionTypes.includes(bill.bill_type);
+            // Tudo que não é variável é fixo
+            return !variableTypes.includes(bill.bill_type);
           default:
             return true;
         }

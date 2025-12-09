@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/select';
 import { Repeat, TrendingUp, Layers } from 'lucide-react';
 
-export type RecurrenceTypeOption = 'all' | 'fixed' | 'variable' | 'subscription';
+export type RecurrenceTypeOption = 'all' | 'fixed' | 'variable';
 
 interface RecurrenceTypeFilterProps {
   value: RecurrenceTypeOption;
@@ -25,19 +25,13 @@ const RECURRENCE_OPTIONS: { value: RecurrenceTypeOption; label: string; icon: Re
     value: 'fixed', 
     label: 'Fixas', 
     icon: <Repeat className="h-4 w-4 text-blue-500" />,
-    description: 'Valor sempre igual'
+    description: 'Valor sempre igual (aluguel, Netflix...)'
   },
   { 
     value: 'variable', 
     label: 'Variáveis', 
     icon: <TrendingUp className="h-4 w-4 text-orange-500" />,
     description: 'Valor muda (água, luz, gás)'
-  },
-  { 
-    value: 'subscription', 
-    label: 'Assinaturas', 
-    icon: <Repeat className="h-4 w-4 text-purple-500" />,
-    description: 'Netflix, Spotify, etc.'
   },
 ];
 
