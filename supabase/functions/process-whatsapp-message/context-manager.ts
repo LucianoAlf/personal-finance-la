@@ -287,6 +287,10 @@ export async function processarNoContexto(
     return await processarConfirmacaoExclusaoConta(texto, contexto, userId);
   }
   
+  if (contextType === 'awaiting_bill_amount') {
+    return await processarValorConta(texto, contexto, userId);
+  }
+  
   await limparContexto(userId);
   return '❓ Não entendi. Vamos recomeçar?';
 }
@@ -1913,4 +1917,94 @@ async function processarConfirmacaoExclusaoConta(
   }
   
   return `❓ Digite *SIM* para confirmar ou *NÃO* para cancelar.`;
+}
+
+// Handler para valor da conta
+async function processarValorConta(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const dados = contexto.context_data || {};
+  
+  // Extrair valor do texto: "150", "150 reais", "R$ 150", "150,00"
+  const textoLimpo = texto.toLowerCase().replace(/\s+/g, ' ').trim();
+  const valorMatch = textoLimpo.match(/r?\$?\s*([\d]+[.,]?[\d]*)/);
+  
+  if (!valorMatch) {
+    return `❓ Não entendi o valor. Digite apenas o número.\n\n_Exemplo: "150" ou "R$ 150,00"_`;
+  }
+  
+  const valorStr = valorMatch[1].replace(',', '.');
+  const valor = parseFloat(valorStr);
+  
+  if (isNaN(valor) || valor <= 0) {
+    return `❓ Valor inválido. Informe um valor maior que zero.\n\n_Exemplo: "150" ou "R$ 150,00"_`;
+  }
+  
+  const descricao = dados.descricao as string || 'Conta';
+  const diaVencimento = dados.diaVencimento as number;
+  const recorrente = dados.recorrente as boolean || false;
+  const parcelas = dados.parcelas as number | undefined;
+  
+  // Calcular due_date
+  const hoje = new Date();
+  let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento);
+  if (dueDate < hoje) {
+    dueDate.setMonth(dueDate.getMonth() + 1);
+  }
+  
+  // Determinar bill_type
+  const BILL_TYPE_MAP: Record<string, string> = {
+    'luz': 'service', 'agua': 'service', 'gas': 'service',
+    'internet': 'telecom', 'telefone': 'telecom',
+    'netflix': 'subscription', 'spotify': 'subscription', 'amazon': 'subscription',
+    'disney': 'subscription', 'hbo': 'subscription', 'globoplay': 'subscription',
+    'aluguel': 'housing', 'condominio': 'housing',
+    'iptu': 'tax', 'ipva': 'tax',
+    'seguro': 'insurance', 'plano_saude': 'healthcare',
+    'escola': 'education', 'financiamento': 'loan', 'academia': 'subscription',
+  };
+  const billType = BILL_TYPE_MAP[descricao.toLowerCase()] || 'other';
+  
+  // Inserir no banco
+  const { error } = await supabase
+    .from('payable_bills')
+    .insert({
+      user_id: userId,
+      description: descricao,
+      amount: valor,
+      due_date: dueDate.toISOString().split('T')[0],
+      status: 'pending',
+      is_recurring: recorrente,
+      bill_type: billType,
+      recurrence_config: recorrente ? { type: 'monthly', day: diaVencimento } : null,
+      installment_number: parcelas ? 1 : null,
+      installment_total: parcelas || null,
+    });
+  
+  if (error) {
+    console.error('Erro ao cadastrar conta:', error);
+    await limparContexto(userId);
+    return `❌ Erro ao cadastrar conta. Tente novamente.`;
+  }
+  
+  await limparContexto(userId);
+  
+  const emoji = getEmojiConta(descricao);
+  const recorrenciaStr = parcelas 
+    ? `🔢 Parcela 1/${parcelas}`
+    : recorrente 
+      ? '🔄 Recorrente mensal' 
+      : '📌 Pagamento único';
+  
+  let msg = `✅ *Conta cadastrada!*\n\n`;
+  msg += `${emoji} *${descricao}*\n`;
+  msg += `💰 R$ ${valor.toFixed(2).replace('.', ',')}\n`;
+  msg += `📅 Vence dia ${diaVencimento}\n`;
+  msg += `${recorrenciaStr}\n`;
+  msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
+  
+  return msg;
 }

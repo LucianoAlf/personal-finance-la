@@ -970,6 +970,26 @@ async function processarCadastroConta(
     };
   }
   
+  // Se falta o valor, perguntar (para contas não-variáveis)
+  // Contas variáveis: luz, água, gás - podem ser cadastradas sem valor
+  const CONTAS_VARIAVEIS = ['luz', 'agua', 'gas', 'energia'];
+  const isContaVariavel = CONTAS_VARIAVEIS.includes(descricao.toLowerCase());
+  
+  if (!valor && !isContaVariavel) {
+    return {
+      mensagem: templatePerguntarValor(descricao, recorrente),
+      precisaConfirmacao: true,
+      dados: {
+        step: 'awaiting_bill_amount',
+        descricao,
+        diaVencimento,
+        recorrente,
+        parcelas,
+        phone
+      }
+    };
+  }
+  
   // Calcular due_date
   const hoje = new Date();
   let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento);
@@ -1272,6 +1292,12 @@ function templateContaCadastrada(dados: {
 function templatePerguntarDiaVencimento(descricao: string): string {
   const emoji = getEmojiConta(descricao);
   return `${emoji} *${descricao}*\n\n📅 Qual o *dia do vencimento*? (1-31)`;
+}
+
+function templatePerguntarValor(descricao: string, recorrente?: boolean): string {
+  const emoji = getEmojiConta(descricao);
+  const recorrenteStr = recorrente ? ' (todo mês)' : '';
+  return `📝 Entendi! Vou cadastrar sua conta de *${descricao}*${recorrenteStr}.\n\n${emoji} 💰 Qual é o *valor* dessa conta?\n\n_Pode ser um valor aproximado._`;
 }
 
 function templateContaDuplicada(conta: ContaPagar, novoValor?: number): string {
