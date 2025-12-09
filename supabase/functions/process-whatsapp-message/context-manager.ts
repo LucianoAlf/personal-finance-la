@@ -46,9 +46,12 @@ export type ContextType =
   | 'confirming_action' 
   | 'multi_step_flow' 
   | 'awaiting_account_type_selection'
-  // FASE 3.2 - Cadastro de contas
+  // FASE 3.2 - Cadastro de contas (Sistema Robusto)
+  | 'awaiting_bill_type'            // Aguardando tipo de conta (fixa, variável, etc)
+  | 'awaiting_bill_description'     // Aguardando descrição da conta
   | 'awaiting_due_day'              // Aguardando dia do vencimento
   | 'awaiting_bill_amount'          // Aguardando valor da conta
+  | 'awaiting_installment_info'     // Aguardando info de parcelas
   | 'awaiting_duplicate_decision'   // Aguardando decisão sobre duplicata
   | 'awaiting_delete_confirmation'; // Aguardando confirmação de exclusão
 
@@ -274,9 +277,25 @@ export async function processarNoContexto(
     return await processarSelecaoTipoConta(texto, contexto, userId);
   }
   
-  // FASE 3.2: Handlers de cadastro de contas
+  // FASE 3.2: Handlers de cadastro de contas (Sistema Robusto)
+  if (contextType === 'awaiting_bill_type') {
+    return await processarTipoConta(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_bill_description') {
+    return await processarDescricaoConta(texto, contexto, userId);
+  }
+  
   if (contextType === 'awaiting_due_day') {
     return await processarDiaVencimento(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_bill_amount') {
+    return await processarValorConta(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_installment_info') {
+    return await processarInfoParcelas(texto, contexto, userId);
   }
   
   if (contextType === 'awaiting_duplicate_decision') {
@@ -285,10 +304,6 @@ export async function processarNoContexto(
   
   if (contextType === 'awaiting_delete_confirmation') {
     return await processarConfirmacaoExclusaoConta(texto, contexto, userId);
-  }
-  
-  if (contextType === 'awaiting_bill_amount') {
-    return await processarValorConta(texto, contexto, userId);
   }
   
   await limparContexto(userId);
@@ -2004,6 +2019,222 @@ async function processarValorConta(
   msg += `💰 R$ ${valor.toFixed(2).replace('.', ',')}\n`;
   msg += `📅 Vence dia ${diaVencimento}\n`;
   msg += `${recorrenciaStr}\n`;
+  msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
+  
+  return msg;
+}
+
+// ============================================
+// NOVOS HANDLERS - SISTEMA ROBUSTO DE CADASTRO
+// ============================================
+
+// Handler para tipo de conta (fixa, variável, assinatura, etc)
+async function processarTipoConta(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const dados = contexto.context_data || {};
+  
+  // Importar função de extração
+  const { extrairTipoDeResposta, getCamposObrigatorios, validarCamposConta, getPerguntaParaCampo, getStateForField } = await import('./contas-pagar.ts');
+  
+  const tipo = extrairTipoDeResposta(texto);
+  
+  if (!tipo) {
+    return `❌ Não entendi. Por favor, escolha:
+
+1️⃣ Fixa  2️⃣ Variável  3️⃣ Assinatura  4️⃣ Parcelamento  5️⃣ Avulsa
+
+_Digite o número ou o nome_`;
+  }
+  
+  dados.tipo = tipo;
+  
+  // Verificar próximo campo faltante
+  const camposObrigatorios = getCamposObrigatorios(tipo);
+  const camposFaltantes = validarCamposConta(dados as any, camposObrigatorios);
+  
+  if (camposFaltantes.length > 0) {
+    const proximoCampo = camposFaltantes[0];
+    
+    await salvarContexto(userId, dados.phone as string || '', {
+      context_type: getStateForField(proximoCampo) as any,
+      context_data: dados
+    });
+    
+    return getPerguntaParaCampo(proximoCampo, dados as any);
+  }
+  
+  // Tudo OK, cadastrar
+  await limparContexto(userId);
+  return await finalizarCadastroConta(supabase, userId, dados);
+}
+
+// Handler para descrição da conta
+async function processarDescricaoConta(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const dados = contexto.context_data || {};
+  
+  const descricao = texto.trim();
+  
+  if (descricao.length < 2) {
+    return `❌ Descrição muito curta. Qual é a conta?
+
+_Ex: luz, Netflix, aluguel..._`;
+  }
+  
+  const { normalizarNomeConta, identificarTipoConta, getCamposObrigatorios, validarCamposConta, getPerguntaParaCampo, getStateForField } = await import('./contas-pagar.ts');
+  
+  dados.descricao = normalizarNomeConta(descricao);
+  
+  // Se não tem tipo ainda, tentar identificar pela descrição
+  if (!dados.tipo || dados.tipo === 'unknown') {
+    dados.tipo = identificarTipoConta(descricao, {});
+  }
+  
+  return await continuarFluxoCadastro(supabase, userId, dados);
+}
+
+// Handler para info de parcelas
+async function processarInfoParcelas(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const dados = contexto.context_data || {};
+  
+  const { extrairParcelasTexto } = await import('./contas-pagar.ts');
+  
+  const parcelas = extrairParcelasTexto(texto);
+  
+  if (!parcelas) {
+    return `❌ Não entendi. Informe a parcela atual e o total.
+
+_Ex: "3 de 10", "parcela 5 de 12", "5/12"_`;
+  }
+  
+  dados.parcelaAtual = parcelas.atual;
+  dados.totalParcelas = parcelas.total;
+  
+  return await continuarFluxoCadastro(supabase, userId, dados);
+}
+
+// Função auxiliar para continuar o fluxo após receber uma resposta
+async function continuarFluxoCadastro(
+  supabase: ReturnType<typeof getSupabase>,
+  userId: string,
+  dados: Record<string, unknown>
+): Promise<string> {
+  const { getCamposObrigatorios, validarCamposConta, getPerguntaParaCampo, getStateForField } = await import('./contas-pagar.ts');
+  
+  const tipo = (dados.tipo as string) || 'unknown';
+  const camposObrigatorios = getCamposObrigatorios(tipo as any);
+  const camposFaltantes = validarCamposConta(dados as any, camposObrigatorios);
+  
+  if (camposFaltantes.length > 0) {
+    const proximoCampo = camposFaltantes[0];
+    
+    await salvarContexto(userId, dados.phone as string || '', {
+      context_type: getStateForField(proximoCampo) as any,
+      context_data: dados
+    });
+    
+    return getPerguntaParaCampo(proximoCampo, dados as any);
+  }
+  
+  // Todos os campos preenchidos, cadastrar!
+  await limparContexto(userId);
+  return await finalizarCadastroConta(supabase, userId, dados);
+}
+
+// Função para finalizar o cadastro
+async function finalizarCadastroConta(
+  supabase: ReturnType<typeof getSupabase>,
+  userId: string,
+  dados: Record<string, unknown>
+): Promise<string> {
+  const { getEmojiConta } = await import('./contas-pagar.ts');
+  
+  const descricao = dados.descricao as string;
+  const valor = dados.valor as number | undefined;
+  const diaVencimento = dados.diaVencimento as number;
+  const tipo = dados.tipo as string;
+  const parcelaAtual = dados.parcelaAtual as number | undefined;
+  const totalParcelas = dados.totalParcelas as number | undefined;
+  
+  if (!descricao || !diaVencimento) {
+    return '❌ Dados incompletos. Tente novamente.';
+  }
+  
+  // Calcular due_date
+  const hoje = new Date();
+  let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento);
+  if (dueDate < hoje) {
+    dueDate.setMonth(dueDate.getMonth() + 1);
+  }
+  
+  // Mapear tipo para bill_type do banco
+  const BILL_TYPE_DB_MAP: Record<string, string> = {
+    'fixed': 'service',
+    'variable': 'service',
+    'subscription': 'subscription',
+    'installment': 'loan',
+    'one_time': 'other',
+    'credit_card': 'credit_card',
+    'unknown': 'other'
+  };
+  
+  const billTypeDb = BILL_TYPE_DB_MAP[tipo] || 'other';
+  const isRecurring = tipo === 'fixed' || tipo === 'subscription' || tipo === 'variable';
+  const isInstallment = tipo === 'installment';
+  
+  const { error } = await supabase
+    .from('payable_bills')
+    .insert({
+      user_id: userId,
+      description: descricao,
+      amount: valor || null,
+      due_date: dueDate.toISOString().split('T')[0],
+      status: 'pending',
+      is_recurring: isRecurring && !isInstallment,
+      bill_type: billTypeDb,
+      recurrence_config: isRecurring && !isInstallment ? { type: 'monthly', day: diaVencimento } : null,
+      is_installment: isInstallment,
+      installment_number: parcelaAtual || null,
+      installment_total: totalParcelas || null,
+    });
+  
+  if (error) {
+    console.error('[CADASTRAR-CONTA] Erro ao inserir:', error);
+    return '❌ Erro ao cadastrar conta. Tente novamente.';
+  }
+  
+  // Template de sucesso
+  const emoji = getEmojiConta(descricao);
+  let msg = `✅ *Conta cadastrada!*\n\n`;
+  msg += `${emoji} *${descricao}*\n`;
+  
+  if (valor) {
+    msg += `💰 R$ ${valor.toFixed(2).replace('.', ',')}\n`;
+  } else if (tipo === 'variable') {
+    msg += `💰 Valor variável _(informe quando chegar)_\n`;
+  }
+  
+  msg += `📅 Vence dia ${diaVencimento}\n`;
+  
+  if (isInstallment && parcelaAtual && totalParcelas) {
+    msg += `🔢 Parcela ${parcelaAtual} de ${totalParcelas}\n`;
+  } else if (isRecurring) {
+    msg += `🔄 Recorrente mensal\n`;
+  }
+  
   msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
   
   return msg;

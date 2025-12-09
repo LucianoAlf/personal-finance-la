@@ -65,14 +65,327 @@ export function normalizarNomeConta(texto: string): string {
   return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
 }
 
+// ============================================
+// TIPOS DE CONTA (SISTEMA ROBUSTO)
+// ============================================
+
+export type BillType = 
+  | 'fixed'        // Conta fixa - mesmo valor todo mês (aluguel, plano)
+  | 'variable'     // Conta variável - valor muda (luz, água, gás)
+  | 'subscription' // Assinatura digital (Netflix, Spotify)
+  | 'installment'  // Parcelamento (geladeira em 10x)
+  | 'one_time'     // Conta avulsa/única (IPVA, matrícula)
+  | 'credit_card'  // Fatura de cartão
+  | 'unknown';     // Tipo desconhecido - perguntar ao usuário
+
 // Interface para dados de cadastro
 export interface DadosCadastroConta {
-  descricao: string;
-  valor?: number;           // Opcional para variáveis
+  tipo?: BillType;
+  descricao?: string;
+  valor?: number;
   diaVencimento?: number;   // 1-31
-  recorrencia: 'unica' | 'mensal' | 'anual' | 'semanal';
-  parcelas?: number;
+  dataVencimento?: string;  // YYYY-MM-DD (para avulsas)
+  recorrencia?: 'unica' | 'mensal' | 'anual';
   parcelaAtual?: number;
+  totalParcelas?: number;
+  textoOriginal?: string;
+}
+
+// ============================================
+// IDENTIFICAÇÃO DE TIPO DE CONTA
+// ============================================
+
+export function identificarTipoConta(texto: string, entidades: Record<string, unknown>): BillType {
+  const textoLower = texto.toLowerCase();
+  
+  // PARCELAMENTO - tem parcelas mencionadas
+  if (
+    /(\d+)\s*x\s*de?\s*r?\$?\s*([\d.,]+)/i.test(textoLower) ||
+    /parcela\s*(\d+)\s*(de|\/)\s*(\d+)/i.test(textoLower) ||
+    /em\s*(\d+)\s*vezes/i.test(textoLower) ||
+    entidades.parcela_atual || entidades.total_parcelas
+  ) {
+    return 'installment';
+  }
+  
+  // ASSINATURA - serviços conhecidos
+  const assinaturas = [
+    'netflix', 'spotify', 'amazon prime', 'prime video', 'disney', 'hbo', 'max',
+    'globoplay', 'youtube premium', 'apple music', 'deezer', 'paramount', 'star+',
+    'xbox game pass', 'playstation plus', 'nintendo', 'crunchyroll',
+    'chatgpt', 'claude', 'midjourney', 'canva', 'adobe', 'microsoft 365',
+    'icloud', 'google one', 'dropbox', 'notion', 'figma'
+  ];
+  if (assinaturas.some(s => textoLower.includes(s))) {
+    return 'subscription';
+  }
+  
+  // CONTA VARIÁVEL - serviços de consumo
+  const variaveis = [
+    'luz', 'energia', 'eletricidade', 'enel', 'cpfl', 'cemig', 'light', 'celpe', 'energisa',
+    'água', 'agua', 'sabesp', 'copasa', 'cedae', 'sanepar',
+    'gás', 'gas', 'comgás', 'comgas', 'naturgy',
+    'telefone fixo'
+  ];
+  if (variaveis.some(v => textoLower.includes(v))) {
+    return 'variable';
+  }
+  
+  // FATURA DE CARTÃO
+  if (
+    /fatura/i.test(textoLower) ||
+    (/cart[aã]o/i.test(textoLower) && /(nubank|itau|itaú|bradesco|santander|inter|c6|xp|picpay)/i.test(textoLower))
+  ) {
+    return 'credit_card';
+  }
+  
+  // CONTA AVULSA - pagamento único
+  const avulsas = ['ipva', 'iptu', 'matrícula', 'matricula', 'licenciamento', 'multa', 'taxa'];
+  if (avulsas.some(a => textoLower.includes(a))) {
+    return 'one_time';
+  }
+  
+  // CONTA FIXA - menções de recorrência
+  const fixas = ['aluguel', 'condomínio', 'condominio', 'plano de saúde', 'plano saude', 'seguro', 'academia', 'escola', 'faculdade', 'mensalidade', 'financiamento'];
+  if (fixas.some(f => textoLower.includes(f))) {
+    return 'fixed';
+  }
+  
+  // Se menciona "todo mês", "mensal", "recorrente" → FIXA
+  if (/todo\s*m[eê]s|mensal|recorrente|sempre|fixo/i.test(textoLower)) {
+    return 'fixed';
+  }
+  
+  // DEFAULT: desconhecido - perguntar ao usuário
+  return 'unknown';
+}
+
+// ============================================
+// CAMPOS OBRIGATÓRIOS POR TIPO
+// ============================================
+
+export function getCamposObrigatorios(tipo: BillType): string[] {
+  const campos: Record<BillType, string[]> = {
+    'fixed': ['descricao', 'valor', 'diaVencimento'],
+    'variable': ['descricao', 'diaVencimento'],  // valor pode informar depois
+    'subscription': ['descricao', 'valor', 'diaVencimento'],
+    'installment': ['descricao', 'valor', 'diaVencimento', 'parcelaAtual', 'totalParcelas'],
+    'one_time': ['descricao', 'valor', 'diaVencimento'],  // simplificado para dia
+    'credit_card': ['descricao', 'diaVencimento'],
+    'unknown': ['descricao']
+  };
+  
+  return campos[tipo] || campos['unknown'];
+}
+
+// ============================================
+// VALIDAÇÃO DE CAMPOS
+// ============================================
+
+export function validarCamposConta(dados: DadosCadastroConta, camposObrigatorios: string[]): string[] {
+  const faltantes: string[] = [];
+  
+  for (const campo of camposObrigatorios) {
+    switch (campo) {
+      case 'descricao':
+        if (!dados.descricao || dados.descricao.trim() === '') {
+          faltantes.push('descricao');
+        }
+        break;
+        
+      case 'valor':
+        if (dados.valor === undefined || dados.valor === null || dados.valor <= 0) {
+          faltantes.push('valor');
+        }
+        break;
+        
+      case 'diaVencimento':
+        if (!dados.diaVencimento || dados.diaVencimento < 1 || dados.diaVencimento > 31) {
+          faltantes.push('diaVencimento');
+        }
+        break;
+        
+      case 'dataVencimento':
+        if (!dados.dataVencimento) {
+          faltantes.push('dataVencimento');
+        }
+        break;
+        
+      case 'parcelaAtual':
+        if (!dados.parcelaAtual || dados.parcelaAtual < 1) {
+          faltantes.push('parcelaAtual');
+        }
+        break;
+        
+      case 'totalParcelas':
+        if (!dados.totalParcelas || dados.totalParcelas < 1) {
+          faltantes.push('totalParcelas');
+        }
+        break;
+    }
+  }
+  
+  return faltantes;
+}
+
+// ============================================
+// FUNÇÕES DE EXTRAÇÃO
+// ============================================
+
+export function extrairValorTexto(texto: string): number | null {
+  const limpo = texto.replace(/\s/g, '').toLowerCase();
+  const match = limpo.match(/r?\$?([\d]+[.,]?[\d]*)/);
+  
+  if (match) {
+    const valor = parseFloat(match[1].replace(',', '.'));
+    return valor > 0 ? valor : null;
+  }
+  return null;
+}
+
+export function extrairDiaTexto(texto: string): number | null {
+  const limpo = texto.toLowerCase();
+  const match = limpo.match(/(\d{1,2})/);
+  
+  if (match) {
+    const dia = parseInt(match[1]);
+    return (dia >= 1 && dia <= 31) ? dia : null;
+  }
+  return null;
+}
+
+export function extrairParcelasTexto(texto: string): { atual: number; total: number } | null {
+  const limpo = texto.toLowerCase();
+  
+  // Padrões: "3 de 10", "3/10", "parcela 3 de 10", "3ª de 10", "10x"
+  let match = limpo.match(/(\d+)\s*(?:ª|°|de|\/)\s*(\d+)/);
+  
+  if (match) {
+    const atual = parseInt(match[1]);
+    const total = parseInt(match[2]);
+    
+    if (atual >= 1 && total >= 1 && atual <= total) {
+      return { atual, total };
+    }
+  }
+  
+  // Padrão "10x de 150" - assume parcela 1
+  match = limpo.match(/(\d+)\s*x/);
+  if (match) {
+    return { atual: 1, total: parseInt(match[1]) };
+  }
+  
+  return null;
+}
+
+export function extrairRecorrenciaTexto(texto: string): 'mensal' | 'unica' | null {
+  const limpo = texto.toLowerCase();
+  
+  if (/sim|mensal|todo\s*m[eê]s|repete|recorrente|1/.test(limpo)) {
+    return 'mensal';
+  }
+  
+  if (/n[aã]o|única|unica|só\s*essa|avulsa|2/.test(limpo)) {
+    return 'unica';
+  }
+  
+  return null;
+}
+
+export function extrairTipoDeResposta(texto: string): BillType | null {
+  const limpo = texto.toLowerCase().trim();
+  
+  const mapeamento: Record<string, BillType> = {
+    '1': 'fixed', 'fixa': 'fixed', 'fixo': 'fixed',
+    '2': 'variable', 'variável': 'variable', 'variavel': 'variable',
+    '3': 'subscription', 'assinatura': 'subscription',
+    '4': 'installment', 'parcelamento': 'installment', 'parcela': 'installment', 'parcelada': 'installment', 'parcelado': 'installment',
+    '5': 'one_time', 'avulsa': 'one_time', 'única': 'one_time', 'unica': 'one_time', 'avulso': 'one_time'
+  };
+  
+  return mapeamento[limpo] || null;
+}
+
+// Mapear campo para estado do contexto
+export function getStateForField(campo: string): string {
+  const mapa: Record<string, string> = {
+    'descricao': 'awaiting_bill_description',
+    'valor': 'awaiting_bill_amount',
+    'diaVencimento': 'awaiting_due_day',
+    'dataVencimento': 'awaiting_due_date',
+    'parcelaAtual': 'awaiting_installment_info',
+    'totalParcelas': 'awaiting_installment_info',
+    'tipo': 'awaiting_bill_type'
+  };
+  
+  return mapa[campo] || 'awaiting_bill_description';
+}
+
+// ============================================
+// TEMPLATES DE PERGUNTAS
+// ============================================
+
+export function getPerguntaParaCampo(campo: string, dados: DadosCadastroConta): string {
+  const descricao = dados.descricao || 'essa conta';
+  const emoji = dados.descricao ? getEmojiConta(dados.descricao) : '📋';
+  
+  switch (campo) {
+    case 'descricao':
+      return `📝 Qual conta você quer cadastrar?
+
+_Exemplo: luz, água, Netflix, aluguel..._`;
+
+    case 'valor':
+      return `📝 Vou cadastrar *${descricao}*.
+
+${emoji} 💰 Qual é o valor?
+
+_Digite só o número, ex: "150" ou "150,00"_`;
+
+    case 'diaVencimento':
+      const valorStr = dados.valor ? ` de R$ ${dados.valor.toFixed(2).replace('.', ',')}` : '';
+      return `📝 Vou cadastrar *${descricao}*${valorStr}.
+
+${emoji} 📅 Qual o *dia do vencimento*? (1-31)
+
+_Ex: "10", "dia 15", "todo dia 20"_`;
+
+    case 'dataVencimento':
+      return `📝 Vou cadastrar *${descricao}*${dados.valor ? ` de R$ ${dados.valor.toFixed(2).replace('.', ',')}` : ''}.
+
+${emoji} 📅 Qual a *data do vencimento*?
+
+_Ex: "15/01", "15 de janeiro"_`;
+
+    case 'parcelaAtual':
+    case 'totalParcelas':
+      return `📝 Vou cadastrar o parcelamento de *${descricao}*.
+
+🔢 Qual parcela é essa e de quantas?
+
+_Ex: "3 de 10", "parcela 5 de 12", "5/12"_`;
+
+    default:
+      return `❓ Preciso de mais informações sobre *${descricao}*. Pode me contar mais?`;
+  }
+}
+
+export function templatePerguntarTipoConta(descricao?: string): string {
+  const intro = descricao 
+    ? `📝 Vou cadastrar *${descricao}*.` 
+    : `📝 Vou cadastrar sua conta.`;
+    
+  return `${intro}
+
+🤔 Que tipo de conta é essa?
+
+1️⃣ *Fixa* - mesmo valor todo mês (aluguel, plano)
+2️⃣ *Variável* - valor muda (luz, água, gás)
+3️⃣ *Assinatura* - serviço digital (Netflix, Spotify)
+4️⃣ *Parcelamento* - compra parcelada
+5️⃣ *Avulsa* - só essa vez (IPVA, matrícula)
+
+_Digite o número ou o nome_`;
 }
 
 export interface ContaPagar {
@@ -874,7 +1187,7 @@ export async function processarIntencaoContaPagar(
 }
 
 // ============================================
-// FASE 3.2: CADASTRAR CONTA
+// FASE 3.2: CADASTRAR CONTA (SISTEMA ROBUSTO)
 // ============================================
 
 async function processarCadastroConta(
@@ -883,19 +1196,24 @@ async function processarCadastroConta(
   entidades: Record<string, unknown>
 ): Promise<{ mensagem: string; precisaConfirmacao?: boolean; dados?: Record<string, unknown> }> {
   const supabase = getSupabase();
+  const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
   
-  // Extrair dados das entidades
+  console.log('[CADASTRAR-CONTA] Iniciando processamento robusto');
+  console.log('[CADASTRAR-CONTA] Entidades NLP:', JSON.stringify(entidades));
+  console.log('[CADASTRAR-CONTA] Comando original:', comandoOriginal);
+  
+  // ============================================
+  // PASSO 1: Extrair dados do NLP + fallback
+  // ============================================
+  
   let descricaoRaw = entidades.descricao as string || entidades.nome_conta as string || '';
   let valor = entidades.valor as number | undefined;
   let diaVencimento = entidades.dia_vencimento as number | undefined;
-  let recorrente = entidades.recorrente as boolean || entidades.recorrencia === 'mensal';
-  const parcelas = entidades.parcelas as number | undefined;
+  let parcelaAtual = entidades.parcela_atual as number | undefined;
+  let totalParcelas = entidades.total_parcelas as number | undefined || entidades.parcelas as number | undefined;
   
-  // Fallback: extrair do comando original se NLP não extraiu
-  const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
-  
+  // Fallback: extrair descrição do texto
   if (!descricaoRaw && comandoOriginal) {
-    // Tentar extrair nome da conta do texto
     for (const [tipo, aliases] of Object.entries(CONTA_ALIASES)) {
       if (aliases.some(alias => comandoOriginal.includes(alias))) {
         descricaoRaw = tipo;
@@ -904,8 +1222,11 @@ async function processarCadastroConta(
     }
   }
   
-  // VALIDAÇÃO CRÍTICA: Só aceitar dia_vencimento se realmente foi mencionado no texto
-  // O NLP pode inventar valores - precisamos confirmar no texto original
+  // ============================================
+  // PASSO 2: VALIDAÇÃO CRÍTICA - Não confiar cegamente no NLP
+  // ============================================
+  
+  // Só aceitar dia_vencimento se REALMENTE foi mencionado no texto
   const textoMencionaDia = comandoOriginal && (
     /dia\s*\d{1,2}/i.test(comandoOriginal) ||
     /todo\s+dia/i.test(comandoOriginal) ||
@@ -913,13 +1234,26 @@ async function processarCadastroConta(
     /vencimento\s+(dia\s*)?\d{1,2}/i.test(comandoOriginal)
   );
   
-  // Se o NLP extraiu um dia mas o texto NÃO menciona dia, ignorar o valor do NLP
   if (diaVencimento && !textoMencionaDia) {
-    console.log('[CADASTRAR-CONTA] NLP extraiu dia_vencimento mas texto não menciona dia. Ignorando.');
+    console.log('[CADASTRAR-CONTA] NLP inventou dia_vencimento. Ignorando.');
     diaVencimento = undefined;
   }
   
-  // Fallback: extrair dia do texto se NLP não extraiu
+  // Só aceitar valor se REALMENTE foi mencionado no texto
+  const textoMencionaValor = comandoOriginal && (
+    /r\s*\$\s*\d/i.test(comandoOriginal) ||
+    /\d+\s*(reais|real)/i.test(comandoOriginal) ||
+    /valor\s*(de)?\s*\d/i.test(comandoOriginal) ||
+    /pagar\s*\d/i.test(comandoOriginal) ||
+    /\d+[.,]\d{2}/i.test(comandoOriginal)  // 150,00 ou 150.00
+  );
+  
+  if (valor && !textoMencionaValor) {
+    console.log('[CADASTRAR-CONTA] NLP inventou valor. Ignorando.');
+    valor = undefined;
+  }
+  
+  // Fallback: extrair dia do texto
   if (!diaVencimento && comandoOriginal) {
     const diaMatch = comandoOriginal.match(/dia\s*(\d{1,2})/i);
     if (diaMatch) {
@@ -927,149 +1261,232 @@ async function processarCadastroConta(
     }
   }
   
+  // Fallback: extrair valor do texto
   if (!valor && comandoOriginal) {
-    // Extrair valor: "150 de luz", "R$ 89,90", "1500 de aluguel"
     const valorMatch = comandoOriginal.match(/r?\$?\s*(\d+(?:[.,]\d+)?)\s*(?:de|reais)?/i);
     if (valorMatch && !comandoOriginal.includes('dia ' + valorMatch[1])) {
       valor = parseFloat(valorMatch[1].replace(',', '.'));
     }
   }
   
-  // Detectar recorrência
-  if (comandoOriginal.includes('todo mês') || comandoOriginal.includes('mensal') || comandoOriginal.includes('todo mes')) {
-    recorrente = true;
+  // Fallback: extrair parcelas do texto
+  if (!parcelaAtual && !totalParcelas && comandoOriginal) {
+    const parcelas = extrairParcelasTexto(comandoOriginal);
+    if (parcelas) {
+      parcelaAtual = parcelas.atual;
+      totalParcelas = parcelas.total;
+    }
   }
   
-  console.log('[CADASTRAR-CONTA] Entidades extraídas:', { descricaoRaw, valor, diaVencimento, recorrente, comandoOriginal });
+  // ============================================
+  // PASSO 3: Identificar tipo de conta
+  // ============================================
   
-  if (!descricaoRaw) {
-    return { 
-      mensagem: `❓ Qual conta você quer cadastrar?\n\n💡 Exemplo:\n_"tenho que pagar 150 de luz dia 10"_` 
-    };
-  }
+  const tipo = identificarTipoConta(comandoOriginal || descricaoRaw, entidades);
+  console.log('[CADASTRAR-CONTA] Tipo identificado:', tipo);
   
-  // Normalizar nome
-  const descricao = normalizarNomeConta(descricaoRaw);
-  const emoji = getEmojiConta(descricao);
+  // ============================================
+  // PASSO 4: Montar dados e validar
+  // ============================================
   
-  // Verificar duplicação
-  const contaExistente = await buscarContaPorNome(userId, descricao);
+  const descricao = descricaoRaw ? normalizarNomeConta(descricaoRaw) : undefined;
   
-  if (contaExistente) {
-    // Conta já existe - perguntar o que fazer
+  const dados: DadosCadastroConta = {
+    tipo,
+    descricao,
+    valor,
+    diaVencimento,
+    parcelaAtual,
+    totalParcelas,
+    recorrencia: tipo === 'fixed' || tipo === 'subscription' || tipo === 'variable' ? 'mensal' : 'unica',
+    textoOriginal: comandoOriginal
+  };
+  
+  console.log('[CADASTRAR-CONTA] Dados extraídos:', JSON.stringify(dados));
+  
+  // ============================================
+  // PASSO 5: Se tipo desconhecido, perguntar
+  // ============================================
+  
+  if (tipo === 'unknown' && descricao) {
     return {
-      mensagem: templateContaDuplicada(contaExistente, valor),
+      mensagem: templatePerguntarTipoConta(descricao),
       precisaConfirmacao: true,
-      dados: { 
-        step: 'awaiting_duplicate_decision',
-        conta_existente_id: contaExistente.id,
-        novo_valor: valor,
+      dados: {
+        step: 'awaiting_bill_type',
+        ...dados,
         phone
       }
     };
   }
   
-  // Se falta o dia de vencimento, perguntar
-  if (!diaVencimento) {
+  // ============================================
+  // PASSO 6: Validar campos obrigatórios
+  // ============================================
+  
+  const camposObrigatorios = getCamposObrigatorios(tipo);
+  const camposFaltantes = validarCamposConta(dados, camposObrigatorios);
+  
+  console.log('[CADASTRAR-CONTA] Campos obrigatórios:', camposObrigatorios);
+  console.log('[CADASTRAR-CONTA] Campos faltantes:', camposFaltantes);
+  
+  // Se falta descrição, perguntar primeiro
+  if (camposFaltantes.includes('descricao')) {
     return {
-      mensagem: templatePerguntarDiaVencimento(descricao),
+      mensagem: getPerguntaParaCampo('descricao', dados),
+      precisaConfirmacao: true,
+      dados: {
+        step: 'awaiting_bill_description',
+        ...dados,
+        phone
+      }
+    };
+  }
+  
+  // Verificar duplicação (só se tem descrição)
+  if (descricao) {
+    const contaExistente = await buscarContaPorNome(userId, descricao);
+    
+    if (contaExistente) {
+      return {
+        mensagem: templateContaDuplicada(contaExistente, valor),
+        precisaConfirmacao: true,
+        dados: { 
+          step: 'awaiting_duplicate_decision',
+          conta_existente_id: contaExistente.id,
+          novo_valor: valor,
+          ...dados,
+          phone
+        }
+      };
+    }
+  }
+  
+  // Se falta dia de vencimento, perguntar
+  if (camposFaltantes.includes('diaVencimento')) {
+    return {
+      mensagem: getPerguntaParaCampo('diaVencimento', dados),
       precisaConfirmacao: true,
       dados: {
         step: 'awaiting_due_day',
-        descricao,
-        valor,
-        recorrente,
-        parcelas,
+        ...dados,
         phone
       }
     };
   }
   
-  // Se falta o valor, SEMPRE perguntar (não cadastrar sem valor!)
-  if (!valor) {
+  // Se falta valor (e tipo exige), perguntar
+  if (camposFaltantes.includes('valor')) {
     return {
-      mensagem: templatePerguntarValor(descricao, recorrente),
+      mensagem: getPerguntaParaCampo('valor', dados),
       precisaConfirmacao: true,
       dados: {
         step: 'awaiting_bill_amount',
-        descricao,
-        diaVencimento,
-        recorrente,
-        parcelas,
+        ...dados,
         phone
       }
     };
+  }
+  
+  // Se falta info de parcelas, perguntar
+  if (camposFaltantes.includes('parcelaAtual') || camposFaltantes.includes('totalParcelas')) {
+    return {
+      mensagem: getPerguntaParaCampo('parcelaAtual', dados),
+      precisaConfirmacao: true,
+      dados: {
+        step: 'awaiting_installment_info',
+        ...dados,
+        phone
+      }
+    };
+  }
+  
+  // ============================================
+  // PASSO 7: Todos os campos OK - Cadastrar!
+  // ============================================
+  
+  return await cadastrarContaNoBanco(supabase, userId, dados);
+}
+
+// Função para efetivamente inserir no banco
+async function cadastrarContaNoBanco(
+  supabase: ReturnType<typeof getSupabase>,
+  userId: string,
+  dados: DadosCadastroConta
+): Promise<{ mensagem: string }> {
+  
+  const { descricao, valor, diaVencimento, tipo, parcelaAtual, totalParcelas, recorrencia } = dados;
+  
+  if (!descricao || !diaVencimento) {
+    return { mensagem: '❌ Dados incompletos. Tente novamente.' };
   }
   
   // Calcular due_date
   const hoje = new Date();
   let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento);
   
-  // Se o dia já passou neste mês, usar próximo mês
   if (dueDate < hoje) {
     dueDate.setMonth(dueDate.getMonth() + 1);
   }
   
-  // Determinar bill_type baseado na descrição
-  const BILL_TYPE_MAP: Record<string, string> = {
-    'luz': 'service',
-    'agua': 'service',
-    'gas': 'service',
-    'internet': 'telecom',
-    'telefone': 'telecom',
-    'netflix': 'subscription',
-    'spotify': 'subscription',
-    'amazon': 'subscription',
-    'disney': 'subscription',
-    'hbo': 'subscription',
-    'globoplay': 'subscription',
-    'aluguel': 'housing',
-    'condominio': 'housing',
-    'iptu': 'tax',
-    'ipva': 'tax',
-    'seguro': 'insurance',
-    'plano_saude': 'healthcare',
-    'escola': 'education',
-    'financiamento': 'loan',
-    'academia': 'subscription',
+  // Mapear tipo para bill_type do banco
+  const BILL_TYPE_DB_MAP: Record<BillType, string> = {
+    'fixed': 'service',
+    'variable': 'service',
+    'subscription': 'subscription',
+    'installment': 'loan',
+    'one_time': 'other',
+    'credit_card': 'credit_card',
+    'unknown': 'other'
   };
   
-  const billType = BILL_TYPE_MAP[descricao.toLowerCase()] || 'other';
+  const billTypeDb = BILL_TYPE_DB_MAP[tipo || 'unknown'];
+  const isRecurring = recorrencia === 'mensal' || tipo === 'fixed' || tipo === 'subscription' || tipo === 'variable';
+  const isInstallment = tipo === 'installment';
   
-  // Inserir no banco (amount = NULL para variáveis)
-  const { data: novaConta, error } = await supabase
+  const { error } = await supabase
     .from('payable_bills')
     .insert({
       user_id: userId,
       description: descricao,
-      amount: valor || null,  // NULL para variáveis, não 0!
+      amount: valor || null,
       due_date: dueDate.toISOString().split('T')[0],
       status: 'pending',
-      is_recurring: recorrente,
-      bill_type: billType,
-      recurrence_config: recorrente ? { type: 'monthly', day: diaVencimento } : null,
-      installment_number: parcelas ? 1 : null,
-      installment_total: parcelas || null,
-    })
-    .select()
-    .single();
+      is_recurring: isRecurring && !isInstallment,
+      bill_type: billTypeDb,
+      recurrence_config: isRecurring && !isInstallment ? { type: 'monthly', day: diaVencimento } : null,
+      is_installment: isInstallment,
+      installment_number: parcelaAtual || null,
+      installment_total: totalParcelas || null,
+    });
   
   if (error) {
-    console.error('Erro ao cadastrar conta:', error);
-    return { mensagem: `❌ Erro ao cadastrar conta. Tente novamente.` };
+    console.error('[CADASTRAR-CONTA] Erro ao inserir:', error);
+    return { mensagem: '❌ Erro ao cadastrar conta. Tente novamente.' };
   }
   
-  return {
-    mensagem: templateContaCadastrada({
-      descricao,
-      emoji,
-      valor,
-      diaVencimento,
-      recorrente,
-      variavel: !valor,
-      parcelas
-    })
-  };
+  // Template de sucesso
+  const emoji = getEmojiConta(descricao);
+  let msg = `✅ *Conta cadastrada!*\n\n`;
+  msg += `${emoji} *${descricao}*\n`;
+  
+  if (valor) {
+    msg += `💰 R$ ${valor.toFixed(2).replace('.', ',')}\n`;
+  } else if (tipo === 'variable') {
+    msg += `💰 Valor variável _(informe quando chegar)_\n`;
+  }
+  
+  msg += `📅 Vence dia ${diaVencimento}\n`;
+  
+  if (isInstallment && parcelaAtual && totalParcelas) {
+    msg += `🔢 Parcela ${parcelaAtual} de ${totalParcelas}\n`;
+  } else if (isRecurring) {
+    msg += `🔄 Recorrente mensal\n`;
+  }
+  
+  msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
+  
+  return { mensagem: msg };
 }
 
 // ============================================
