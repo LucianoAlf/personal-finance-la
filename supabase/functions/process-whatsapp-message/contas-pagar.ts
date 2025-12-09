@@ -989,9 +989,45 @@ async function processarEdicaoConta(
 ): Promise<{ mensagem: string }> {
   const supabase = getSupabase();
   
-  const nomeConta = entidades.conta as string || entidades.nome_conta as string || '';
-  const campo = entidades.campo as string || '';
-  const novoValor = entidades.novo_valor;
+  // Extrair do NLP ou do texto original
+  let nomeConta = entidades.conta as string || entidades.nome_conta as string || entidades.descricao as string || '';
+  let campo = entidades.campo as string || '';
+  let novoValor = entidades.novo_valor || entidades.valor;
+  
+  // Fallback: extrair do comando original se NLP não extraiu
+  const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
+  
+  if (!nomeConta && comandoOriginal) {
+    // Tentar extrair nome da conta do texto
+    for (const [tipo, aliases] of Object.entries(CONTA_ALIASES)) {
+      if (aliases.some(alias => comandoOriginal.includes(alias))) {
+        nomeConta = tipo;
+        break;
+      }
+    }
+  }
+  
+  if (!novoValor && comandoOriginal) {
+    // Extrair valor do texto: "para 175", "para R$175", "de 150 para 175"
+    const valorMatch = comandoOriginal.match(/para\s*r?\$?\s*(\d+(?:[.,]\d+)?)/i);
+    if (valorMatch) {
+      novoValor = parseFloat(valorMatch[1].replace(',', '.'));
+      campo = 'valor'; // Se tem "para X", é edição de valor
+    }
+  }
+  
+  if (!campo && comandoOriginal) {
+    // Detectar campo pelo contexto
+    if (comandoOriginal.includes('valor') || comandoOriginal.includes('preço') || comandoOriginal.includes('custo')) {
+      campo = 'valor';
+    } else if (comandoOriginal.includes('dia') || comandoOriginal.includes('vencimento')) {
+      campo = 'dia';
+    } else if (comandoOriginal.includes('nome') || comandoOriginal.includes('renomear')) {
+      campo = 'nome';
+    }
+  }
+  
+  console.log('[EDITAR-CONTA] Entidades extraídas:', { nomeConta, campo, novoValor, comandoOriginal });
   
   if (!nomeConta) {
     return { mensagem: `❓ Qual conta você quer editar?\n\n💡 Exemplo:\n_"mudar valor da luz para 180"_` };

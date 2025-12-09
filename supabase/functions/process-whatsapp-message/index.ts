@@ -1092,11 +1092,17 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
     if (intencoesContasPagar.includes(intencaoNLP.intencao as TipoIntencaoContaPagar)) {
       console.log('📋 [CONTAS-PAGAR] Processando:', intencaoNLP.intencao);
       
+      // Adicionar comando_original para fallback de extração
+      const entidadesComOriginal = {
+        ...intencaoNLP.entidades,
+        comando_original: content
+      };
+      
       const resultado = await processarIntencaoContaPagar(
         intencaoNLP.intencao as TipoIntencaoContaPagar,
         user.id,
         phone,
-        intencaoNLP.entidades
+        entidadesComOriginal
       );
       
       await enviarViaEdgeFunction(phone, resultado.mensagem);
