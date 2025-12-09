@@ -81,6 +81,16 @@ const INTENT_CLASSIFICATION_FUNCTION = {
           'LISTAR_CARTOES',
           'PAGAR_FATURA',
           // FIM CARTÃO
+          // CONTAS A PAGAR (FASE 3)
+          'LISTAR_CONTAS_PAGAR',
+          'CONTAS_VENCENDO',
+          'CONTAS_VENCIDAS',
+          'CONTAS_DO_MES',
+          'RESUMO_CONTAS_MES',
+          'CADASTRAR_CONTA_PAGAR',
+          'MARCAR_CONTA_PAGA',
+          'HISTORICO_CONTA',
+          // FIM CONTAS A PAGAR
           'SAUDACAO',
           'AJUDA',
           'AGRADECIMENTO',
@@ -288,11 +298,47 @@ ${memoriaUsuario}
     - "quitei o cartão"
     - EXTRAIA: cartao, valor (se mencionado)
 
+### 📋 CONTAS A PAGAR (FASE 3)
+26. **LISTAR_CONTAS_PAGAR**: Ver contas a pagar pendentes. Exemplos:
+    - "minhas contas a pagar", "contas a pagar", "contas pendentes"
+    - "ver contas", "quais contas tenho que pagar"
+    - ⚠️ DIFERENTE de LISTAR_CONTAS (que lista contas BANCÁRIAS)
+    
+27. **CONTAS_VENCENDO**: Próximos vencimentos. Exemplos:
+    - "o que vence essa semana", "próximos vencimentos"
+    - "contas da semana", "o que tenho pra pagar"
+    
+28. **CONTAS_VENCIDAS**: Contas em atraso. Exemplos:
+    - "contas vencidas", "contas atrasadas", "atrasados"
+    - "o que está vencido"
+    
+29. **CONTAS_DO_MES**: Contas do mês específico. Exemplos:
+    - "contas desse mês", "contas de dezembro"
+    - "o que tenho pra pagar esse mês"
+    
+30. **RESUMO_CONTAS_MES**: Resumo/total de contas. Exemplos:
+    - "quanto tenho de contas", "resumo de contas"
+    - "total de contas do mês", "quanto vou gastar de contas"
+    
+31. **CADASTRAR_CONTA_PAGAR**: Cadastrar nova conta. Exemplos:
+    - "tenho que pagar 150 de luz dia 10"
+    - "todo mês pago 1500 de aluguel dia 15"
+    - "cadastrar conta de internet"
+    
+32. **MARCAR_CONTA_PAGA**: Marcar como paga. Exemplos:
+    - "paguei a luz", "paguei 185 de luz"
+    - "paguei a 1" (após listar)
+    - "quitei o aluguel"
+    
+33. **HISTORICO_CONTA**: Ver histórico de pagamentos. Exemplos:
+    - "histórico da luz", "pagamentos de internet"
+    - "quanto paguei de luz nos últimos meses"
+
 ### Social
-26. **SAUDACAO**: Oi, olá, bom dia, boa tarde, boa noite, e aí, "oi Ana", "olá Ana" (cumprimentos simples SEM pedido)
-27. **AJUDA**: "Ajuda", "me ajuda", "preciso de ajuda", "pode me ajudar", "quero ajuda", "comandos" (pedidos EXPLÍCITOS de ajuda)
-28. **AGRADECIMENTO**: Obrigado, valeu, thanks, tmj
-29. **OUTRO**: Perguntas sobre o sistema ("o que você faz?", "quem é você?", "como funciona?") ou não relacionado a finanças
+34. **SAUDACAO**: Oi, olá, bom dia, boa tarde, boa noite, e aí, "oi Ana", "olá Ana" (cumprimentos simples SEM pedido)
+35. **AJUDA**: "Ajuda", "me ajuda", "preciso de ajuda", "pode me ajudar", "quero ajuda", "comandos" (pedidos EXPLÍCITOS de ajuda)
+36. **AGRADECIMENTO**: Obrigado, valeu, thanks, tmj
+37. **OUTRO**: Perguntas sobre o sistema ("o que você faz?", "quem é você?", "como funciona?") ou não relacionado a finanças
 
 **REGRAS CRÍTICAS DE CLASSIFICAÇÃO:**
 

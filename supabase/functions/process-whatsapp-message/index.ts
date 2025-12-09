@@ -41,6 +41,7 @@ import { excluirUltimaTransacao, mudarContaUltimaTransacao, consultarSaldo, list
 import * as imageReader from './image-reader.ts';
 import { detectarIntencaoConsulta, processarConsulta } from './consultas.ts';
 import { detectarIntencaoCartao, processarIntencaoCartao } from './cartao-credito.ts';
+import { processarIntencaoContaPagar, TipoIntencaoContaPagar } from './contas-pagar.ts';
 
 // ============================================
 // MAIN HANDLER
@@ -1064,6 +1065,48 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       }).eq('id', message.id);
       
       return new Response(JSON.stringify({ success: true, type: 'cartao_nlp', intencao: tipoCartao }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // ============================================
+    // 6.6 CONTAS A PAGAR (FASE 3)
+    // ============================================
+    
+    const intencoesContasPagar: TipoIntencaoContaPagar[] = [
+      'LISTAR_CONTAS_PAGAR',
+      'CONTAS_VENCENDO',
+      'CONTAS_VENCIDAS',
+      'CONTAS_DO_MES',
+      'RESUMO_CONTAS_MES',
+      'CADASTRAR_CONTA_PAGAR',
+      'MARCAR_CONTA_PAGA',
+      'HISTORICO_CONTA'
+    ];
+    
+    if (intencoesContasPagar.includes(intencaoNLP.intencao as TipoIntencaoContaPagar)) {
+      console.log('📋 [CONTAS-PAGAR] Processando:', intencaoNLP.intencao);
+      
+      const resultado = await processarIntencaoContaPagar(
+        intencaoNLP.intencao as TipoIntencaoContaPagar,
+        user.id,
+        phone,
+        intencaoNLP.entidades
+      );
+      
+      await enviarViaEdgeFunction(phone, resultado.mensagem);
+      
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: intencaoNLP.intencao.toLowerCase(),
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      
+      return new Response(JSON.stringify({ 
+        success: true, 
+        type: 'contas_pagar', 
+        intencao: intencaoNLP.intencao 
+      }), { 
         headers: { 'Content-Type': 'application/json' } 
       });
     }
