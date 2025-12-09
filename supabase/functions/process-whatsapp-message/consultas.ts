@@ -528,7 +528,8 @@ export function detectarIntencaoConsulta(msg: string): IntencaoConsulta | null {
   }
   
   // Saldo geral
-  if (/\b(meu saldo|saldo|quanto tenho|minhas contas|como tao minhas contas|meus saldos)\b/.test(msgLower)) {
+  // NOTA: "minhas contas" removido daqui - agora é tratado pelo NLP como CONTAS_AMBIGUO
+  if (/\b(meu saldo|saldo|quanto tenho|como tao minhas contas|meus saldos)\b/.test(msgLower)) {
     return { tipo: 'saldo' };
   }
   
