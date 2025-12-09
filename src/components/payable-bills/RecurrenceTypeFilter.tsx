@@ -7,14 +7,14 @@ import {
 } from '@/components/ui/select';
 import { Repeat, TrendingUp, Layers } from 'lucide-react';
 
-export type RecurrenceTypeFilter = 'all' | 'fixed' | 'variable' | 'subscription';
+export type RecurrenceTypeOption = 'all' | 'fixed' | 'variable' | 'subscription';
 
 interface RecurrenceTypeFilterProps {
-  value: RecurrenceTypeFilter;
-  onChange: (value: RecurrenceTypeFilter) => void;
+  value: RecurrenceTypeOption;
+  onChange: (value: RecurrenceTypeOption) => void;
 }
 
-const RECURRENCE_OPTIONS: { value: RecurrenceTypeFilter; label: string; icon: React.ReactNode; description: string }[] = [
+const RECURRENCE_OPTIONS: { value: RecurrenceTypeOption; label: string; icon: React.ReactNode; description: string }[] = [
   { 
     value: 'all', 
     label: 'Todos os tipos', 
@@ -43,7 +43,7 @@ const RECURRENCE_OPTIONS: { value: RecurrenceTypeFilter; label: string; icon: Re
 
 export function RecurrenceTypeFilter({ value, onChange }: RecurrenceTypeFilterProps) {
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as RecurrenceTypeFilter)}>
+    <Select value={value} onValueChange={(v) => onChange(v as RecurrenceTypeOption)}>
       <SelectTrigger className="w-[180px]">
         <SelectValue placeholder="Tipo" />
       </SelectTrigger>

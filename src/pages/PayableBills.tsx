@@ -25,7 +25,7 @@ import { BillCategoryFilter, CategoryFilter } from '@/components/payable-bills/B
 import { BillTable } from '@/components/payable-bills/BillTable';
 import { RecurringBillTable } from '@/components/payable-bills/RecurringBillTable';
 import { ViewToggle, ViewMode } from '@/components/payable-bills/ViewToggle';
-import { RecurrenceTypeFilter, RecurrenceTypeFilter as RecurrenceType } from '@/components/payable-bills/RecurrenceTypeFilter';
+import { RecurrenceTypeFilter, type RecurrenceTypeOption } from '@/components/payable-bills/RecurrenceTypeFilter';
 import { PayableBill, CreateBillInput, MarkBillAsPaidInput } from '@/types/payable-bills.types';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { toast } from 'sonner';
@@ -73,7 +73,7 @@ export default function PayableBills() {
   const [recurringSortOption, setRecurringSortOption] = useState<SortOption>('recent');
   const [recurringCategoryFilter, setRecurringCategoryFilter] = useState<CategoryFilter>('all');
   const [recurringViewMode, setRecurringViewMode] = useState<ViewMode>('cards');
-  const [recurrenceTypeFilter, setRecurrenceTypeFilter] = useState<RecurrenceType>('all');
+  const [recurrenceTypeFilter, setRecurrenceTypeFilter] = useState<RecurrenceTypeOption>('all');
 
   // Ordenar contas baseado na opção selecionada
   const sortedBills = useMemo(() => {
