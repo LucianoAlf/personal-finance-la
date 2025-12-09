@@ -322,19 +322,24 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
 export async function contasVencendo(userId: string, dias: number = 7): Promise<string> {
   const supabase = getSupabase();
   const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const hojeStr = hoje.toISOString().split('T')[0];
+  
   const dataLimite = new Date(hoje);
   dataLimite.setDate(dataLimite.getDate() + dias);
+  const dataLimiteStr = dataLimite.toISOString().split('T')[0];
   
-  // Buscar contas
+  // Buscar contas A VENCER (de hoje em diante, não vencidas!)
   const { data: contas } = await supabase
     .from('payable_bills')
     .select('id, description, amount, due_date, status, bill_type')
     .eq('user_id', userId)
-    .in('status', ['pending', 'overdue'])
-    .lte('due_date', dataLimite.toISOString().split('T')[0])
+    .eq('status', 'pending')  // Só pendentes, não overdue!
+    .gte('due_date', hojeStr)  // A partir de hoje
+    .lte('due_date', dataLimiteStr)  // Até o limite
     .order('due_date', { ascending: true });
   
-  // Buscar faturas
+  // Buscar faturas A VENCER
   const { data: faturas } = await supabase
     .from('credit_card_invoices')
     .select(`
@@ -346,7 +351,8 @@ export async function contasVencendo(userId: string, dias: number = 7): Promise<
     `)
     .eq('user_id', userId)
     .in('status', ['open', 'closed'])
-    .lte('due_date', dataLimite.toISOString().split('T')[0])
+    .gte('due_date', hojeStr)  // A partir de hoje
+    .lte('due_date', dataLimiteStr)  // Até o limite
     .order('due_date', { ascending: true });
   
   // Combinar e ordenar
@@ -374,51 +380,44 @@ export async function contasVencendo(userId: string, dias: number = 7): Promise<
     return `✅ *Tudo tranquilo!*\n\nNenhuma conta vencendo nos próximos ${dias} dias! 🎉`;
   }
   
-  let mensagem = `📅 *Vencimentos - Próximos ${dias} dias*\n${formatarData(hoje.toISOString().split('T')[0])} a ${formatarData(dataLimite.toISOString().split('T')[0])}\n\n`;
+  let mensagem = `📅 *Contas a Vencer*\n_Próximos ${dias} dias_\n`;
   
-  // Agrupar
-  const vencidos = todos.filter(t => calcularDiasParaVencimento(t.due_date) < 0);
+  // Agrupar por prazo (só futuro, não tem vencidos aqui!)
   const hojeList = todos.filter(t => calcularDiasParaVencimento(t.due_date) === 0);
   const amanha = todos.filter(t => calcularDiasParaVencimento(t.due_date) === 1);
   const restante = todos.filter(t => calcularDiasParaVencimento(t.due_date) > 1);
   
-  if (vencidos.length > 0) {
-    mensagem += `🔴 *VENCIDO*\n`;
-    for (const t of vencidos) {
-      const diasAtraso = Math.abs(calcularDiasParaVencimento(t.due_date));
-      mensagem += `${t.emoji} ${t.description} (${formatarDataComDia(t.due_date)}): ${formatarMoeda(t.amount)} ⚠️ _há ${diasAtraso}d_\n`;
-    }
-    mensagem += `\n`;
-  }
+  let idx = 1;
   
   if (hojeList.length > 0) {
-    mensagem += `🟠 *HOJE*\n`;
+    mensagem += `\n🔴 *HOJE* (${hojeList.length})\n`;
     for (const t of hojeList) {
-      mensagem += `${t.emoji} ${t.description}: ${formatarMoeda(t.amount)} 🔔\n`;
+      mensagem += `${idx}. ${t.emoji} ${t.description}: ${formatarMoeda(t.amount)} 🔔\n`;
+      idx++;
     }
-    mensagem += `\n`;
   }
   
   if (amanha.length > 0) {
-    mensagem += `🟡 *AMANHÃ*\n`;
+    mensagem += `\n🟡 *AMANHÃ* (${amanha.length})\n`;
     for (const t of amanha) {
-      mensagem += `${t.emoji} ${t.description}: ${formatarMoeda(t.amount)}\n`;
+      mensagem += `${idx}. ${t.emoji} ${t.description} - ${formatarDataComDia(t.due_date)}: ${formatarMoeda(t.amount)}\n`;
+      idx++;
     }
-    mensagem += `\n`;
   }
   
   if (restante.length > 0) {
-    mensagem += `🟢 *ESTA SEMANA*\n`;
+    mensagem += `\n🟢 *ESTA SEMANA* (${restante.length})\n`;
     for (const t of restante) {
       const diasRestantes = calcularDiasParaVencimento(t.due_date);
-      mensagem += `${t.emoji} ${t.description} (${formatarDataComDia(t.due_date)}): ${formatarMoeda(t.amount)} _${diasRestantes}d_\n`;
+      mensagem += `${idx}. ${t.emoji} ${t.description} - ${formatarDataComDia(t.due_date)}: ${formatarMoeda(t.amount)} — _em ${diasRestantes}d_\n`;
+      idx++;
     }
   }
   
   // Total
   const total = todos.reduce((sum, t) => sum + Number(t.amount), 0);
   mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
-  mensagem += `💰 *Total:* ${formatarMoeda(total)}`;
+  mensagem += `💰 *Total a vencer:* ${formatarMoeda(total)}`;
   
   return mensagem;
 }
