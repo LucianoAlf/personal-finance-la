@@ -187,10 +187,10 @@ export function BillCalendar({ bills, onPay, onEdit, onDelete }: BillCalendarPro
         </div>
 
         {/* Dias do Mês */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 border-t border-l border-border/50">
           {/* Espaços vazios antes do primeiro dia */}
           {Array.from({ length: startDayOfWeek }).map((_, i) => (
-            <div key={`empty-${i}`} className="aspect-square" />
+            <div key={`empty-${i}`} className="aspect-square border-r border-b border-border/50" />
           ))}
 
           {/* Dias do mês */}
@@ -208,10 +208,11 @@ export function BillCalendar({ bills, onPay, onEdit, onDelete }: BillCalendarPro
                 onClick={() => handleDayClick(day)}
                 disabled={!hasContent}
                 className={cn(
-                  "aspect-square p-1 rounded-lg text-sm transition-all relative",
+                  "aspect-square p-1 text-sm transition-all relative",
                   "flex flex-col items-center justify-start",
-                  isToday(day) && "ring-2 ring-blue-500",
-                  hasContent && "cursor-pointer hover:bg-muted",
+                  "border-r border-b border-border/50",
+                  isToday(day) && "ring-2 ring-inset ring-blue-500",
+                  hasContent && "cursor-pointer hover:bg-muted/50",
                   !hasContent && "cursor-default",
                   status === 'overdue' && "bg-red-500/10",
                   status === 'pending' && "bg-yellow-500/10",
