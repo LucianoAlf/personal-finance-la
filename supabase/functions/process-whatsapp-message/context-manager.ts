@@ -2180,20 +2180,15 @@ async function finalizarCadastroConta(
     dueDate.setMonth(dueDate.getMonth() + 1);
   }
   
-  // Mapear tipo para bill_type do banco
-  const BILL_TYPE_DB_MAP: Record<string, string> = {
-    'fixed': 'service',
-    'variable': 'service',
-    'subscription': 'subscription',
-    'installment': 'loan',
-    'one_time': 'other',
-    'credit_card': 'credit_card',
-    'unknown': 'other'
-  };
-  
-  const billTypeDb = BILL_TYPE_DB_MAP[tipo] || 'other';
+  // Mapear tipo para bill_type do banco usando função inteligente
+  const { mapearBillTypeParaBanco } = await import('./contas-pagar.ts');
+  const billTypeDb = mapearBillTypeParaBanco(tipo as any, descricao);
   const isRecurring = tipo === 'fixed' || tipo === 'subscription' || tipo === 'variable';
   const isInstallment = tipo === 'installment';
+  
+  console.log(`[CADASTRAR-CONTA] Tipo interno: ${tipo}`);
+  console.log(`[CADASTRAR-CONTA] Descrição: ${descricao}`);
+  console.log(`[CADASTRAR-CONTA] bill_type mapeado: ${billTypeDb}`);
   
   const { error } = await supabase
     .from('payable_bills')

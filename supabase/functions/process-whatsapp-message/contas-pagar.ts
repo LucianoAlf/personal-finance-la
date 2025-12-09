@@ -388,6 +388,76 @@ export function templatePerguntarTipoConta(descricao?: string): string {
 _Digite o número ou o nome_`;
 }
 
+// ============================================
+// MAPEAMENTO PARA BILL_TYPE DO BANCO
+// ============================================
+
+// Valores aceitos pela constraint payable_bills_bill_type_check:
+// 'service', 'telecom', 'subscription', 'housing', 'education', 
+// 'healthcare', 'insurance', 'loan', 'credit_card', 'tax', 'other'
+
+export function mapearBillTypeParaBanco(tipoInterno: BillType, descricao: string): string {
+  const descLower = descricao.toLowerCase();
+  
+  // ASSINATURAS (streaming, apps) - verificar primeiro pela descrição
+  if (/netflix|spotify|amazon|disney|hbo|globoplay|youtube|apple|deezer|paramount|star|crunchyroll|chatgpt|canva|adobe|prime|max|notion|figma|microsoft\s*365|icloud|google\s*one|dropbox/.test(descLower)) {
+    return 'subscription';
+  }
+  
+  // MORADIA
+  if (/aluguel|condom[íi]nio|moradia/.test(descLower)) {
+    return 'housing';
+  }
+  
+  // TELECOM
+  if (/internet|telefone|celular|fibra|wifi|vivo|claro|tim|oi\b|net\b/.test(descLower)) {
+    return 'telecom';
+  }
+  
+  // EDUCAÇÃO
+  if (/escola|faculdade|curso|matr[íi]cula|mensalidade|educa/.test(descLower)) {
+    return 'education';
+  }
+  
+  // SAÚDE
+  if (/plano.*sa[úu]de|hospital|m[ée]dico|consulta|farm[áa]cia|unimed|amil|sulam[ée]rica|sa[úu]de/.test(descLower)) {
+    return 'healthcare';
+  }
+  
+  // SEGUROS
+  if (/seguro/.test(descLower)) {
+    return 'insurance';
+  }
+  
+  // IMPOSTOS
+  if (/ipva|iptu|imposto|taxa|licenciamento|multa/.test(descLower)) {
+    return 'tax';
+  }
+  
+  // EMPRÉSTIMOS/FINANCIAMENTOS
+  if (/empr[ée]stimo|financiamento|consignado/.test(descLower)) {
+    return 'loan';
+  }
+  
+  // SERVIÇOS (luz, água, gás)
+  if (/luz|energia|[áa]gua|g[áa]s|enel|cpfl|cemig|sabesp|comg[áa]s|light|celpe|energisa|copasa|cedae|sanepar|naturgy/.test(descLower)) {
+    return 'service';
+  }
+  
+  // Mapear pelo tipo interno se não identificou pela descrição
+  const mapeamentoPorTipo: Record<BillType, string> = {
+    'subscription': 'subscription',
+    'credit_card': 'credit_card',
+    'installment': 'loan',
+    'fixed': 'service',
+    'variable': 'service',
+    'one_time': 'other',
+    'unknown': 'other'
+  };
+  
+  return mapeamentoPorTipo[tipoInterno] || 'other';
+}
+
 export interface ContaPagar {
   id: string;
   description: string;
@@ -1429,20 +1499,14 @@ async function cadastrarContaNoBanco(
     dueDate.setMonth(dueDate.getMonth() + 1);
   }
   
-  // Mapear tipo para bill_type do banco
-  const BILL_TYPE_DB_MAP: Record<BillType, string> = {
-    'fixed': 'service',
-    'variable': 'service',
-    'subscription': 'subscription',
-    'installment': 'loan',
-    'one_time': 'other',
-    'credit_card': 'credit_card',
-    'unknown': 'other'
-  };
-  
-  const billTypeDb = BILL_TYPE_DB_MAP[tipo || 'unknown'];
+  // Mapear tipo para bill_type do banco usando função inteligente
+  const billTypeDb = mapearBillTypeParaBanco(tipo || 'unknown', descricao);
   const isRecurring = recorrencia === 'mensal' || tipo === 'fixed' || tipo === 'subscription' || tipo === 'variable';
   const isInstallment = tipo === 'installment';
+  
+  console.log(`[CADASTRAR-CONTA] Tipo interno: ${tipo}`);
+  console.log(`[CADASTRAR-CONTA] Descrição: ${descricao}`);
+  console.log(`[CADASTRAR-CONTA] bill_type mapeado: ${billTypeDb}`);
   
   const { error } = await supabase
     .from('payable_bills')
