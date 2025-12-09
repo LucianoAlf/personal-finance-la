@@ -179,24 +179,9 @@ export function isContaVariavel(tipo: BillType, texto?: string): boolean {
   // Tipo explicitamente variável
   if (tipo === 'variable') return true;
   
-  // Tipos que NUNCA são variáveis (mesmo com "aproximadamente")
-  if (tipo === 'fixed' || tipo === 'subscription') return false;
-  
-  // Se tem texto, verificar se é conta naturalmente fixa
+  // Se tem texto, verificar indicadores
   if (texto) {
     const textoLower = texto.toLowerCase();
-    
-    // Contas naturalmente FIXAS - ignorar indicadores de variação
-    const contasFixas = [
-      'aluguel', 'condomínio', 'condominio', 'plano de saúde', 'plano saude',
-      'seguro', 'academia', 'escola', 'faculdade', 'mensalidade', 'financiamento',
-      'netflix', 'spotify', 'disney', 'hbo', 'amazon', 'globoplay', 'youtube'
-    ];
-    if (contasFixas.some(conta => textoLower.includes(conta))) {
-      return false;
-    }
-    
-    // Verificar indicadores de variação apenas para contas não-fixas
     const indicadoresVariavel = [
       'em média', 'em media', 'aproximadamente', 'aproximado',
       'mais ou menos', '+ ou -', 'por volta de', 'cerca de',
@@ -1591,7 +1576,7 @@ async function cadastrarContaNoBanco(
   if (!valor) {
     msg += `💰 Valor variável _(informar ao pagar)_\n`;
   } else if (isVariavel) {
-    msg += `💰 ~R$ ${valor.toFixed(2).replace('.', ',')}~ _(valor médio)_\n`;
+    msg += `💰 R$ ${valor.toFixed(2).replace('.', ',')} _(valor médio)_\n`;
   } else {
     msg += `💰 R$ ${valor.toFixed(2).replace('.', ',')}\n`;
   }

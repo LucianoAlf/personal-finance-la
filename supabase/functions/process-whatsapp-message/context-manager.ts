@@ -1863,7 +1863,7 @@ async function processarDiaVencimento(
   if (!valor) {
     valorStr = '💰 Valor variável _(informar ao pagar)_';
   } else if (isVariavel) {
-    valorStr = `💰 ~R$ ${valor.toFixed(2).replace('.', ',')}~ _(valor médio)_`;
+    valorStr = `💰 R$ ${valor.toFixed(2).replace('.', ',')} _(valor médio)_`;
   } else {
     valorStr = `💰 R$ ${valor.toFixed(2).replace('.', ',')}`;
   }
