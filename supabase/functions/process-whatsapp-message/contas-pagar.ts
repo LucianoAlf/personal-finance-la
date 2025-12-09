@@ -251,17 +251,17 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
   });
   const restante = todos.filter(t => calcularDiasParaVencimento(t.due_date) > 7);
   
-  let mensagem = `📋 *Contas a Pagar*\n_${obterNomeMes(hoje)}/${hoje.getFullYear()}_\n`;
+  let mensagem = `📋 *Suas Contas a Pagar*\n📅 ${obterNomeMes(hoje)}/${hoje.getFullYear()}\n`;
   
   let indexGlobal = 1;
   
   // VENCIDAS
   if (vencidas.length > 0) {
-    mensagem += `\n🔴 *VENCIDAS*\n`;
+    mensagem += `\n🔴 *VENCIDAS* (${vencidas.length})\n`;
     for (const t of vencidas) {
       const dias = Math.abs(calcularDiasParaVencimento(t.due_date));
-      const nome = t.tipo === 'fatura' ? `💳 ${t.description}` : t.description;
-      mensagem += `${indexGlobal}. ${nome} · ${formatarMoeda(t.amount)} ⚠️ _${dias}d atrás_\n`;
+      const emoji = t.tipo === 'fatura' ? '💳' : getEmojiConta(t.description);
+      mensagem += `${indexGlobal}. ${emoji} ${t.description} (${formatarData(t.due_date)}): ${formatarMoeda(t.amount)} — _há ${dias}d_\n`;
       
       const contaOriginal = contas.find(c => c.id === t.id);
       if (contaOriginal) contaOriginal.index = indexGlobal;
@@ -271,16 +271,16 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
   
   // PRÓXIMOS 7 DIAS
   if (proximos7.length > 0) {
-    mensagem += `\n🟡 *PRÓXIMOS 7 DIAS*\n`;
+    mensagem += `\n🟡 *PRÓXIMOS 7 DIAS* (${proximos7.length})\n`;
     for (const t of proximos7) {
       const dias = calcularDiasParaVencimento(t.due_date);
-      const nome = t.tipo === 'fatura' ? `💳 ${t.description}` : t.description;
+      const emoji = t.tipo === 'fatura' ? '💳' : getEmojiConta(t.description);
       let prazo = '';
-      if (dias === 0) prazo = '🔔 hoje';
+      if (dias === 0) prazo = 'hoje';
       else if (dias === 1) prazo = 'amanhã';
       else prazo = `${dias}d`;
       
-      mensagem += `${indexGlobal}. ${nome} · ${formatarMoeda(t.amount)} _${prazo}_\n`;
+      mensagem += `${indexGlobal}. ${emoji} ${t.description} (${formatarData(t.due_date)}): ${formatarMoeda(t.amount)} — _${prazo}_\n`;
       
       const contaOriginal = contas.find(c => c.id === t.id);
       if (contaOriginal) contaOriginal.index = indexGlobal;
@@ -290,10 +290,10 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
   
   // RESTANTE DO MÊS
   if (restante.length > 0) {
-    mensagem += `\n🟢 *RESTANTE DO MÊS*\n`;
+    mensagem += `\n🟢 *RESTANTE DO MÊS* (${restante.length})\n`;
     for (const t of restante.slice(0, 5)) {
-      const nome = t.tipo === 'fatura' ? `💳 ${t.description}` : t.description;
-      mensagem += `${indexGlobal}. ${nome} · ${formatarMoeda(t.amount)} _${formatarData(t.due_date)}_\n`;
+      const emoji = t.tipo === 'fatura' ? '💳' : getEmojiConta(t.description);
+      mensagem += `${indexGlobal}. ${emoji} ${t.description} (${formatarData(t.due_date)}): ${formatarMoeda(t.amount)}\n`;
       
       const contaOriginal = contas.find(c => c.id === t.id);
       if (contaOriginal) contaOriginal.index = indexGlobal;
@@ -307,14 +307,7 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
   // TOTAL
   const total = todos.reduce((sum, t) => sum + Number(t.amount), 0);
   mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
-  mensagem += `💰 *Total:* ${formatarMoeda(total)}`;
-  
-  // Dica
-  if (vencidas.length > 0) {
-    mensagem += `\n\n⚠️ _${vencidas.length} conta(s) vencida(s)!_`;
-  }
-  
-  mensagem += `\n\n💡 _"paguei a 1" ou "paguei a luz"_`;
+  mensagem += `💰 *Total pendente:* ${formatarMoeda(total)}`;
   
   return { mensagem, contas };
 }
