@@ -885,11 +885,47 @@ async function processarCadastroConta(
   const supabase = getSupabase();
   
   // Extrair dados das entidades
-  const descricaoRaw = entidades.descricao as string || entidades.nome_conta as string || '';
-  const valor = entidades.valor as number | undefined;
-  const diaVencimento = entidades.dia_vencimento as number | undefined;
-  const recorrente = entidades.recorrente as boolean || entidades.recorrencia === 'mensal';
+  let descricaoRaw = entidades.descricao as string || entidades.nome_conta as string || '';
+  let valor = entidades.valor as number | undefined;
+  let diaVencimento = entidades.dia_vencimento as number | undefined;
+  let recorrente = entidades.recorrente as boolean || entidades.recorrencia === 'mensal';
   const parcelas = entidades.parcelas as number | undefined;
+  
+  // Fallback: extrair do comando original se NLP não extraiu
+  const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
+  
+  if (!descricaoRaw && comandoOriginal) {
+    // Tentar extrair nome da conta do texto
+    for (const [tipo, aliases] of Object.entries(CONTA_ALIASES)) {
+      if (aliases.some(alias => comandoOriginal.includes(alias))) {
+        descricaoRaw = tipo;
+        break;
+      }
+    }
+  }
+  
+  if (!diaVencimento && comandoOriginal) {
+    // Extrair dia: "dia 20", "dia 10", "todo dia 15"
+    const diaMatch = comandoOriginal.match(/dia\s*(\d{1,2})/i);
+    if (diaMatch) {
+      diaVencimento = parseInt(diaMatch[1]);
+    }
+  }
+  
+  if (!valor && comandoOriginal) {
+    // Extrair valor: "150 de luz", "R$ 89,90", "1500 de aluguel"
+    const valorMatch = comandoOriginal.match(/r?\$?\s*(\d+(?:[.,]\d+)?)\s*(?:de|reais)?/i);
+    if (valorMatch && !comandoOriginal.includes('dia ' + valorMatch[1])) {
+      valor = parseFloat(valorMatch[1].replace(',', '.'));
+    }
+  }
+  
+  // Detectar recorrência
+  if (comandoOriginal.includes('todo mês') || comandoOriginal.includes('mensal') || comandoOriginal.includes('todo mes')) {
+    recorrente = true;
+  }
+  
+  console.log('[CADASTRAR-CONTA] Entidades extraídas:', { descricaoRaw, valor, diaVencimento, recorrente, comandoOriginal });
   
   if (!descricaoRaw) {
     return { 
@@ -943,17 +979,43 @@ async function processarCadastroConta(
     dueDate.setMonth(dueDate.getMonth() + 1);
   }
   
-  // Inserir no banco
+  // Determinar bill_type baseado na descrição
+  const BILL_TYPE_MAP: Record<string, string> = {
+    'luz': 'service',
+    'agua': 'service',
+    'gas': 'service',
+    'internet': 'telecom',
+    'telefone': 'telecom',
+    'netflix': 'subscription',
+    'spotify': 'subscription',
+    'amazon': 'subscription',
+    'disney': 'subscription',
+    'hbo': 'subscription',
+    'globoplay': 'subscription',
+    'aluguel': 'housing',
+    'condominio': 'housing',
+    'iptu': 'tax',
+    'ipva': 'tax',
+    'seguro': 'insurance',
+    'plano_saude': 'healthcare',
+    'escola': 'education',
+    'financiamento': 'loan',
+    'academia': 'subscription',
+  };
+  
+  const billType = BILL_TYPE_MAP[descricao.toLowerCase()] || 'other';
+  
+  // Inserir no banco (amount = NULL para variáveis)
   const { data: novaConta, error } = await supabase
     .from('payable_bills')
     .insert({
       user_id: userId,
       description: descricao,
-      amount: valor || 0,
+      amount: valor || null,  // NULL para variáveis, não 0!
       due_date: dueDate.toISOString().split('T')[0],
       status: 'pending',
       is_recurring: recorrente,
-      bill_type: valor ? 'fixed' : 'variable',
+      bill_type: billType,
       recurrence_config: recorrente ? { type: 'monthly', day: diaVencimento } : null,
       installment_number: parcelas ? 1 : null,
       installment_total: parcelas || null,
