@@ -904,8 +904,23 @@ async function processarCadastroConta(
     }
   }
   
+  // VALIDAÇÃO CRÍTICA: Só aceitar dia_vencimento se realmente foi mencionado no texto
+  // O NLP pode inventar valores - precisamos confirmar no texto original
+  const textoMencionaDia = comandoOriginal && (
+    /dia\s*\d{1,2}/i.test(comandoOriginal) ||
+    /todo\s+dia/i.test(comandoOriginal) ||
+    /vence\s+(dia\s*)?\d{1,2}/i.test(comandoOriginal) ||
+    /vencimento\s+(dia\s*)?\d{1,2}/i.test(comandoOriginal)
+  );
+  
+  // Se o NLP extraiu um dia mas o texto NÃO menciona dia, ignorar o valor do NLP
+  if (diaVencimento && !textoMencionaDia) {
+    console.log('[CADASTRAR-CONTA] NLP extraiu dia_vencimento mas texto não menciona dia. Ignorando.');
+    diaVencimento = undefined;
+  }
+  
+  // Fallback: extrair dia do texto se NLP não extraiu
   if (!diaVencimento && comandoOriginal) {
-    // Extrair dia: "dia 20", "dia 10", "todo dia 15"
     const diaMatch = comandoOriginal.match(/dia\s*(\d{1,2})/i);
     if (diaMatch) {
       diaVencimento = parseInt(diaMatch[1]);
@@ -970,12 +985,8 @@ async function processarCadastroConta(
     };
   }
   
-  // Se falta o valor, perguntar (para contas não-variáveis)
-  // Contas variáveis: luz, água, gás - podem ser cadastradas sem valor
-  const CONTAS_VARIAVEIS = ['luz', 'agua', 'gas', 'energia'];
-  const isContaVariavel = CONTAS_VARIAVEIS.includes(descricao.toLowerCase());
-  
-  if (!valor && !isContaVariavel) {
+  // Se falta o valor, SEMPRE perguntar (não cadastrar sem valor!)
+  if (!valor) {
     return {
       mensagem: templatePerguntarValor(descricao, recorrente),
       precisaConfirmacao: true,
