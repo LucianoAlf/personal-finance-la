@@ -252,7 +252,7 @@ ${memoriaUsuario}
 17. **MUDAR_CONTA**: Igual EDITAR_CONTA (sinônimo)
 
 ### Listagens
-18. **LISTAR_CONTAS**: "minhas contas", "quais contas tenho"
+18. **LISTAR_CONTAS**: "minhas contas bancárias", "meus bancos", "quais bancos tenho"
 19. **LISTAR_CATEGORIAS**: "categorias", "quais categorias"
 
 ### Social
@@ -823,9 +823,8 @@ function criarRespostaFallback(texto: string): IntencaoClassificada {
   } else if (/obrigad|valeu|thanks|tmj/i.test(textoLower)) {
     intencao = 'AGRADECIMENTO';
     resposta = 'Por nada! 😊\n\nSe precisar, é só chamar!';
-  } else if (/contas|minhas\s+contas/i.test(textoLower)) {
-    intencao = 'LISTAR_CONTAS';
   }
+  // NOTA: "minhas contas" removido - agora tratado pelo NLP como CONTAS_AMBIGUO
 
   return {
     intencao,
