@@ -764,7 +764,8 @@ serve(async (req: Request) => {
     }
     
     // Comando: Saldo (mais flexível para variações)
-    if (/^(saldo|quanto\s+tenho|minhas?\s+contas?|meu\s+saldo|qual\s+(é\s+)?(o\s+)?meu\s+saldo|ver\s+saldo|mostrar?\s+saldo)\??$/i.test(textoLower)) {
+    // NOTA: "minhas contas" removido - agora tratado pelo NLP como CONTAS_AMBIGUO
+    if (/^(saldo|quanto\s+tenho|meu\s+saldo|qual\s+(é\s+)?(o\s+)?meu\s+saldo|ver\s+saldo|mostrar?\s+saldo)\??$/i.test(textoLower)) {
       console.log('💰 Comando: Consultar saldo');
       const resposta = await consultarSaldo(user.id);
       await enviarViaEdgeFunction(phone, resposta);
