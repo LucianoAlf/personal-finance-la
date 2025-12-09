@@ -781,9 +781,10 @@ serve(async (req: Request) => {
       });
     }
     
-    // Comando: Listar contas
-    if (/^(contas|quais\s+contas|minhas\s+contas)$/i.test(textoLower)) {
-      console.log('🏦 Comando: Listar contas');
+    // Comando: Listar contas BANCÁRIAS (apenas "meus bancos", não "minhas contas")
+    // NOTA: "minhas contas" e "contas" removidos - agora tratados pelo NLP como CONTAS_AMBIGUO
+    if (/^(quais\s+bancos|meus\s+bancos|minhas\s+contas\s+banc[aá]rias)$/i.test(textoLower)) {
+      console.log('🏦 Comando: Listar contas bancárias');
       const resposta = await listarContas(user.id);
       await enviarViaEdgeFunction(phone, resposta);
       
