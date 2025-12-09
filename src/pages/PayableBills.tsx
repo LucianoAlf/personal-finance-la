@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Receipt, TrendingUp, BarChart3 } from 'lucide-react';
+import { Plus, Receipt, TrendingUp, BarChart3, History } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { usePayableBills } from '@/hooks/usePayableBills';
 import { useRecurringTrend } from '@/hooks/useRecurringTrend';
@@ -11,8 +11,6 @@ import { BillList } from '@/components/payable-bills/BillList';
 import { BillDialog } from '@/components/payable-bills/BillDialog';
 import { BillPaymentDialog } from '@/components/payable-bills/BillPaymentDialog';
 import { BillFilters } from '@/components/payable-bills/BillFilters';
-import { BillTimeline } from '@/components/payable-bills/BillTimeline';
-import { RecurringBillCard } from '@/components/payable-bills/RecurringBillCard';
 import { BillHistoryTable } from '@/components/payable-bills/BillHistoryTable';
 import { RecurringBillTrendChart } from '@/components/payable-bills/RecurringBillTrendChart';
 import { RecurringBillVariationAlert } from '@/components/payable-bills/RecurringBillVariationAlert';
@@ -23,13 +21,14 @@ import { BillSortSelect, SortOption } from '@/components/payable-bills/BillSortS
 import { AttentionSection } from '@/components/payable-bills/AttentionSection';
 import { BillCategoryFilter, CategoryFilter } from '@/components/payable-bills/BillCategoryFilter';
 import { BillTable } from '@/components/payable-bills/BillTable';
-import { RecurringBillTable } from '@/components/payable-bills/RecurringBillTable';
 import { ViewToggle, ViewMode } from '@/components/payable-bills/ViewToggle';
+import { PeriodFilter, PeriodOption } from '@/components/payable-bills/PeriodFilter';
 import { RecurrenceTypeFilter, type RecurrenceTypeOption } from '@/components/payable-bills/RecurrenceTypeFilter';
+import { BillCalendar } from '@/components/payable-bills/BillCalendar';
 import { PayableBill, CreateBillInput, MarkBillAsPaidInput } from '@/types/payable-bills.types';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { toast } from 'sonner';
-import { parseISO } from 'date-fns';
+import { parseISO, isAfter, isBefore, addDays, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
 
 export default function PayableBills() {
   const {
@@ -65,14 +64,10 @@ export default function PayableBills() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState<PayableBill | null>(null);
-  const [sortOption, setSortOption] = useState<SortOption>('recent');
+  const [sortOption, setSortOption] = useState<SortOption>('due_soon');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
-  
-  // Estados para aba Recorrentes
-  const [recurringSortOption, setRecurringSortOption] = useState<SortOption>('recent');
-  const [recurringCategoryFilter, setRecurringCategoryFilter] = useState<CategoryFilter>('all');
-  const [recurringViewMode, setRecurringViewMode] = useState<ViewMode>('cards');
+  const [periodFilter, setPeriodFilter] = useState<PeriodOption>('all');
   const [recurrenceTypeFilter, setRecurrenceTypeFilter] = useState<RecurrenceTypeOption>('all');
 
   // Ordenar contas baseado na opção selecionada
@@ -111,64 +106,47 @@ export default function PayableBills() {
     }
   }, [bills, sortOption]);
 
-  // Filtrar por categoria
+  // Filtrar por período, categoria e tipo de recorrência
   const filteredBills = useMemo(() => {
-    if (categoryFilter === 'all') return sortedBills;
-    return sortedBills.filter((bill) => bill.bill_type === categoryFilter);
-  }, [sortedBills, categoryFilter]);
-
-  // Ordenar contas recorrentes
-  const sortedRecurringBills = useMemo(() => {
-    const sorted = [...recurringBills];
+    let filtered = sortedBills;
+    const today = new Date();
     
-    switch (recurringSortOption) {
-      case 'recent':
-        return sorted.sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        );
-      case 'oldest':
-        return sorted.sort((a, b) => 
-          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        );
-      case 'due_soon':
-        return sorted.sort((a, b) => 
-          parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime()
-        );
-      case 'due_late':
-        return sorted.sort((a, b) => 
-          parseISO(b.due_date).getTime() - parseISO(a.due_date).getTime()
-        );
-      case 'amount_high':
-        return sorted.sort((a, b) => b.amount - a.amount);
-      case 'amount_low':
-        return sorted.sort((a, b) => a.amount - b.amount);
-      default:
-        return sorted;
+    // Filtrar por período
+    switch (periodFilter) {
+      case 'next_7_days':
+        const in7Days = addDays(today, 7);
+        filtered = filtered.filter((bill) => {
+          const dueDate = parseISO(bill.due_date);
+          return bill.status !== 'paid' && isBefore(dueDate, in7Days) && isAfter(dueDate, addDays(today, -1));
+        });
+        break;
+      case 'this_month':
+        filtered = filtered.filter((bill) => {
+          const dueDate = parseISO(bill.due_date);
+          return isSameMonth(dueDate, today);
+        });
+        break;
+      case 'overdue':
+        filtered = filtered.filter((bill) => bill.status === 'overdue');
+        break;
+      case 'recurring':
+        filtered = filtered.filter((bill) => bill.is_recurring);
+        break;
     }
-  }, [recurringBills, recurringSortOption]);
-
-  // Filtrar recorrentes por categoria e tipo
-  const filteredRecurringBills = useMemo(() => {
-    let filtered = sortedRecurringBills;
     
     // Filtrar por categoria
-    if (recurringCategoryFilter !== 'all') {
-      filtered = filtered.filter((bill) => bill.bill_type === recurringCategoryFilter);
+    if (categoryFilter !== 'all') {
+      filtered = filtered.filter((bill) => bill.bill_type === categoryFilter);
     }
     
     // Filtrar por tipo de recorrência (fixa/variável)
-    // Fixas = valor sempre igual (aluguel, Netflix, condomínio, plano de saúde)
-    // Variáveis = valor muda todo mês (água, luz, gás)
     if (recurrenceTypeFilter !== 'all') {
+      const variableTypes = ['variable', 'service'];
       filtered = filtered.filter((bill) => {
-        // Categorias que são variáveis (valor muda)
-        const variableTypes = ['variable', 'service']; // Água, Luz, Gás
-        
         switch (recurrenceTypeFilter) {
           case 'variable':
             return variableTypes.includes(bill.bill_type);
           case 'fixed':
-            // Tudo que não é variável é fixo
             return !variableTypes.includes(bill.bill_type);
           default:
             return true;
@@ -177,7 +155,7 @@ export default function PayableBills() {
     }
     
     return filtered;
-  }, [sortedRecurringBills, recurringCategoryFilter, recurrenceTypeFilter]);
+  }, [sortedBills, periodFilter, categoryFilter, recurrenceTypeFilter]);
 
   // Handler para copiar/duplicar conta
   const handleCopy = async (bill: PayableBill) => {
@@ -268,18 +246,14 @@ export default function PayableBills() {
         />
 
         {/* Tabs */}
-        <Tabs defaultValue="all" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="all">
-              Todas ({bills.length})
-            </TabsTrigger>
-            <TabsTrigger value="upcoming">
-              Próximas 7 dias ({upcomingBills.length})
-            </TabsTrigger>
-            <TabsTrigger value="recurring">
-              Recorrentes ({recurringBills.length})
+        <Tabs defaultValue="bills" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="bills">
+              <Receipt className="h-4 w-4 mr-1" />
+              Contas ({filteredBills.length})
             </TabsTrigger>
             <TabsTrigger value="history">
+              <History className="h-4 w-4 mr-1" />
               Histórico ({paidBills.length})
             </TabsTrigger>
             <TabsTrigger value="analytics">
@@ -292,10 +266,10 @@ export default function PayableBills() {
             </TabsTrigger>
           </TabsList>
 
-          {/* ABA 1: TODAS */}
-          <TabsContent value="all" className="space-y-6">
+          {/* ABA 1: CONTAS A PAGAR (UNIFICADA) */}
+          <TabsContent value="bills" className="space-y-6">
             {/* Seção de Atenção Necessária */}
-            {!loading && (
+            {!loading && viewMode !== 'calendar' && (
               <AttentionSection
                 bills={bills}
                 onPay={handlePay}
@@ -306,12 +280,16 @@ export default function PayableBills() {
             )}
 
             {/* Barra de Controles */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
               <h3 className="text-lg font-semibold text-muted-foreground">
-                📋 Todas as Contas ({filteredBills.length})
+                📋 Contas a Pagar ({filteredBills.length})
               </h3>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <PeriodFilter value={periodFilter} onChange={setPeriodFilter} />
                 <BillCategoryFilter value={categoryFilter} onChange={setCategoryFilter} />
+                {periodFilter === 'recurring' && (
+                  <RecurrenceTypeFilter value={recurrenceTypeFilter} onChange={setRecurrenceTypeFilter} />
+                )}
                 <BillSortSelect value={sortOption} onChange={setSortOption} />
                 <ViewToggle value={viewMode} onChange={setViewMode} />
               </div>
@@ -331,6 +309,36 @@ export default function PayableBills() {
                     ></div>
                   ))}
                 </div>
+              ) : filteredBills.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="rounded-full bg-muted p-6 w-fit mx-auto mb-4">
+                    <Receipt className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">
+                    Nenhuma conta encontrada
+                  </h3>
+                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                    {periodFilter !== 'all' 
+                      ? 'Tente alterar os filtros para ver mais contas.'
+                      : 'Clique em "Nova Conta" para começar a cadastrar suas contas.'}
+                  </p>
+                  {periodFilter === 'all' && (
+                    <Button
+                      onClick={() => setCreateDialogOpen(true)}
+                      className="mt-4"
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nova Conta
+                    </Button>
+                  )}
+                </div>
+              ) : viewMode === 'calendar' ? (
+                <BillCalendar
+                  bills={filteredBills}
+                  onPay={handlePay}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
               ) : viewMode === 'table' ? (
                 <BillTable
                   bills={filteredBills}
@@ -353,103 +361,7 @@ export default function PayableBills() {
             </motion.div>
           </TabsContent>
 
-          {/* ABA 2: PRÓXIMAS 7 DIAS */}
-          <TabsContent value="upcoming" className="space-y-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.1 }}
-            >
-              {loading ? (
-                <div className="space-y-4">
-                  {[...Array(7)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-32 bg-muted animate-pulse rounded-lg"
-                    ></div>
-                  ))}
-                </div>
-              ) : (
-                <BillTimeline
-                  bills={upcomingBills}
-                  onPay={handlePay}
-                />
-              )}
-            </motion.div>
-          </TabsContent>
-
-          {/* ABA 3: RECORRENTES */}
-          <TabsContent value="recurring" className="space-y-6">
-            {/* Barra de Controles */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <h3 className="text-lg font-semibold text-muted-foreground">
-                🔄 Contas Recorrentes ({filteredRecurringBills.length})
-              </h3>
-              <div className="flex flex-wrap items-center gap-3">
-                <RecurrenceTypeFilter value={recurrenceTypeFilter} onChange={setRecurrenceTypeFilter} />
-                <BillCategoryFilter value={recurringCategoryFilter} onChange={setRecurringCategoryFilter} />
-                <BillSortSelect value={recurringSortOption} onChange={setRecurringSortOption} />
-                <ViewToggle value={recurringViewMode} onChange={setRecurringViewMode} />
-              </div>
-            </div>
-
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.1 }}
-            >
-              {loading ? (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {[...Array(3)].map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-48 bg-muted animate-pulse rounded-lg"
-                    ></div>
-                  ))}
-                </div>
-              ) : recurringBills.length === 0 ? (
-                <div className="text-center py-16">
-                  <div className="rounded-full bg-muted p-6 w-fit mx-auto mb-4">
-                    <Receipt className="h-12 w-12 text-muted-foreground" />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">
-                    Nenhuma conta recorrente
-                  </h3>
-                  <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                    Crie contas recorrentes para que sejam geradas automaticamente
-                    todos os meses
-                  </p>
-                  <Button
-                    onClick={() => setCreateDialogOpen(true)}
-                    className="mt-4"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Criar Conta Recorrente
-                  </Button>
-                </div>
-              ) : recurringViewMode === 'table' ? (
-                <RecurringBillTable
-                  bills={filteredRecurringBills}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onCopy={handleCopy}
-                />
-              ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {filteredRecurringBills.map((bill) => (
-                    <RecurringBillCard
-                      key={bill.id}
-                      bill={bill}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          </TabsContent>
-
-          {/* ABA 4: HISTÓRICO */}
+          {/* ABA 2: HISTÓRICO */}
           <TabsContent value="history" className="space-y-4">
             <motion.div
               initial={{ opacity: 0 }}
