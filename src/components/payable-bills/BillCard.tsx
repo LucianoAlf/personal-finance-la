@@ -40,9 +40,10 @@ interface BillCardProps {
   onEdit?: (bill: PayableBill) => void;
   onDelete?: (bill: PayableBill) => void;
   onConfigReminders?: (bill: PayableBill) => void;
+  highlight?: boolean;
 }
 
-export function BillCard({ bill, onPay, onEdit, onDelete, onConfigReminders }: BillCardProps) {
+export function BillCard({ bill, onPay, onEdit, onDelete, onConfigReminders, highlight }: BillCardProps) {
   const statusColor = getStatusColor(bill.status);
   const dueDateColor = getDueDateColor(bill.due_date);
   const priorityColor = getPriorityColor(bill.priority);
@@ -68,7 +69,7 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onConfigReminders }: B
       whileHover={{ scale: 1.02 }}
       transition={{ duration: 0.2 }}
     >
-      <Card className="overflow-hidden hover:shadow-lg transition-shadow">
+      <Card className={`overflow-hidden hover:shadow-lg transition-shadow ${highlight ? 'ring-2 ring-red-500 ring-offset-2' : ''}`}>
         <div className="p-6">
           {/* Header */}
           <div className="flex items-start justify-between mb-4">

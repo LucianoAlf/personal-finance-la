@@ -118,6 +118,34 @@ export function usePayableBills(initialFilters?: BillFilters) {
   }, [fetchBills]);
 
   // ============================================
+  // REALTIME: Atualização em tempo real
+  // ============================================
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const subscription = supabase
+      .channel('payable_bills_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payable_bills',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('🔄 Realtime: payable_bills changed', payload.eventType);
+          fetchBills();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user?.id, fetchBills]);
+
+  // ============================================
   // CREATE: Criar conta
   // ============================================
   const createBill = async (input: CreateBillInput) => {

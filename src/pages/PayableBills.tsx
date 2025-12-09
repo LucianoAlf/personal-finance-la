@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,9 +19,12 @@ import { RecurringBillVariationAlert } from '@/components/payable-bills/Recurrin
 import { BillAnalyticsDashboard } from '@/components/payable-bills/BillAnalyticsDashboard';
 import { ExportButton } from '@/components/payable-bills/ExportButton';
 import { ReminderConfigDialog } from '@/components/payable-bills/ReminderConfigDialog';
+import { BillSortSelect, SortOption } from '@/components/payable-bills/BillSortSelect';
+import { AttentionSection } from '@/components/payable-bills/AttentionSection';
 import { PayableBill, CreateBillInput, MarkBillAsPaidInput } from '@/types/payable-bills.types';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { toast } from 'sonner';
+import { parseISO } from 'date-fns';
 
 export default function PayableBills() {
   const {
@@ -57,6 +60,43 @@ export default function PayableBills() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
   const [selectedBill, setSelectedBill] = useState<PayableBill | null>(null);
+  const [sortOption, setSortOption] = useState<SortOption>('recent');
+
+  // Ordenar contas baseado na opção selecionada
+  const sortedBills = useMemo(() => {
+    const sorted = [...bills];
+    
+    switch (sortOption) {
+      case 'recent':
+        return sorted.sort((a, b) => 
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+      case 'oldest':
+        return sorted.sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+      case 'due_soon':
+        return sorted.sort((a, b) => 
+          parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime()
+        );
+      case 'due_late':
+        return sorted.sort((a, b) => 
+          parseISO(b.due_date).getTime() - parseISO(a.due_date).getTime()
+        );
+      case 'amount_high':
+        return sorted.sort((a, b) => b.amount - a.amount);
+      case 'amount_low':
+        return sorted.sort((a, b) => a.amount - b.amount);
+      case 'overdue_first':
+        return sorted.sort((a, b) => {
+          if (a.status === 'overdue' && b.status !== 'overdue') return -1;
+          if (a.status !== 'overdue' && b.status === 'overdue') return 1;
+          return parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime();
+        });
+      default:
+        return sorted;
+    }
+  }, [bills, sortOption]);
 
   // Handlers
   const handleCreate = async (data: CreateBillInput) => {
@@ -153,7 +193,26 @@ export default function PayableBills() {
           </TabsList>
 
           {/* ABA 1: TODAS */}
-          <TabsContent value="all" className="space-y-4">
+          <TabsContent value="all" className="space-y-6">
+            {/* Seção de Atenção Necessária */}
+            {!loading && (
+              <AttentionSection
+                bills={bills}
+                onPay={handlePay}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onConfigReminders={handleConfigReminders}
+              />
+            )}
+
+            {/* Barra de Ordenação */}
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-muted-foreground">
+                📋 Todas as Contas
+              </h3>
+              <BillSortSelect value={sortOption} onChange={setSortOption} />
+            </div>
+
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -170,7 +229,7 @@ export default function PayableBills() {
                 </div>
               ) : (
                 <BillList
-                  bills={bills}
+                  bills={sortedBills}
                   onPay={handlePay}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
