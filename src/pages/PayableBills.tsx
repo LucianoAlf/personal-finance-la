@@ -25,6 +25,7 @@ import { BillCategoryFilter, CategoryFilter } from '@/components/payable-bills/B
 import { BillTable } from '@/components/payable-bills/BillTable';
 import { RecurringBillTable } from '@/components/payable-bills/RecurringBillTable';
 import { ViewToggle, ViewMode } from '@/components/payable-bills/ViewToggle';
+import { RecurrenceTypeFilter, RecurrenceTypeFilter as RecurrenceType } from '@/components/payable-bills/RecurrenceTypeFilter';
 import { PayableBill, CreateBillInput, MarkBillAsPaidInput } from '@/types/payable-bills.types';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { toast } from 'sonner';
@@ -72,6 +73,7 @@ export default function PayableBills() {
   const [recurringSortOption, setRecurringSortOption] = useState<SortOption>('recent');
   const [recurringCategoryFilter, setRecurringCategoryFilter] = useState<CategoryFilter>('all');
   const [recurringViewMode, setRecurringViewMode] = useState<ViewMode>('cards');
+  const [recurrenceTypeFilter, setRecurrenceTypeFilter] = useState<RecurrenceType>('all');
 
   // Ordenar contas baseado na opção selecionada
   const sortedBills = useMemo(() => {
@@ -145,11 +147,38 @@ export default function PayableBills() {
     }
   }, [recurringBills, recurringSortOption]);
 
-  // Filtrar recorrentes por categoria
+  // Filtrar recorrentes por categoria e tipo
   const filteredRecurringBills = useMemo(() => {
-    if (recurringCategoryFilter === 'all') return sortedRecurringBills;
-    return sortedRecurringBills.filter((bill) => bill.bill_type === recurringCategoryFilter);
-  }, [sortedRecurringBills, recurringCategoryFilter]);
+    let filtered = sortedRecurringBills;
+    
+    // Filtrar por categoria
+    if (recurringCategoryFilter !== 'all') {
+      filtered = filtered.filter((bill) => bill.bill_type === recurringCategoryFilter);
+    }
+    
+    // Filtrar por tipo de recorrência (fixa/variável/assinatura)
+    if (recurrenceTypeFilter !== 'all') {
+      filtered = filtered.filter((bill) => {
+        // Mapear bill_type para tipo de recorrência
+        const variableTypes = ['variable', 'service']; // Água, Luz, Gás
+        const subscriptionTypes = ['subscription']; // Netflix, Spotify
+        const fixedTypes = ['fixed', 'housing', 'healthcare', 'telecom', 'credit_card']; // Aluguel, Plano de Saúde
+        
+        switch (recurrenceTypeFilter) {
+          case 'variable':
+            return variableTypes.includes(bill.bill_type);
+          case 'subscription':
+            return subscriptionTypes.includes(bill.bill_type);
+          case 'fixed':
+            return fixedTypes.includes(bill.bill_type) || !variableTypes.includes(bill.bill_type) && !subscriptionTypes.includes(bill.bill_type);
+          default:
+            return true;
+        }
+      });
+    }
+    
+    return filtered;
+  }, [sortedRecurringBills, recurringCategoryFilter, recurrenceTypeFilter]);
 
   // Handler para copiar/duplicar conta
   const handleCopy = async (bill: PayableBill) => {
@@ -358,6 +387,7 @@ export default function PayableBills() {
                 🔄 Contas Recorrentes ({filteredRecurringBills.length})
               </h3>
               <div className="flex flex-wrap items-center gap-3">
+                <RecurrenceTypeFilter value={recurrenceTypeFilter} onChange={setRecurrenceTypeFilter} />
                 <BillCategoryFilter value={recurringCategoryFilter} onChange={setRecurringCategoryFilter} />
                 <BillSortSelect value={recurringSortOption} onChange={setRecurringSortOption} />
                 <ViewToggle value={recurringViewMode} onChange={setRecurringViewMode} />
