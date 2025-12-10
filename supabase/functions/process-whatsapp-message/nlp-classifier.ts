@@ -267,13 +267,37 @@ ${memoriaUsuario}
 ### Contexto
 19. **SELECIONAR_CONTA**: Respondendo qual conta usar (após pergunta)
 
-### 💳 CARTÃO DE CRÉDITO (MUITO IMPORTANTE!)
-20. **COMPRA_CARTAO**: Compra no cartão de crédito à vista. Exemplos:
+### ⚠️ REGRA CRÍTICA DE DESAMBIGUAÇÃO: CONTA A PAGAR vs COMPRA
+
+**SE a mensagem contém indicador de VENCIMENTO (dia X, vence dia, todo dia, dia do mês):**
+→ É **CADASTRAR_CONTA_PAGAR** (conta recorrente/assinatura)
+→ **NÃO É** COMPRA_CARTAO!
+
+**Exemplos de CADASTRAR_CONTA_PAGAR (tem dia de vencimento):**
+- "ChatGPT Plus 20 dólares dia 10" → CADASTRAR_CONTA_PAGAR ✅
+- "Netflix 55 dia 17" → CADASTRAR_CONTA_PAGAR ✅
+- "Spotify dia 12" → CADASTRAR_CONTA_PAGAR ✅
+- "Luz 150 reais dia 10" → CADASTRAR_CONTA_PAGAR ✅
+- "Aluguel 1500 todo dia 5" → CADASTRAR_CONTA_PAGAR ✅
+
+**Exemplos de COMPRA_CARTAO (compra avulsa JÁ FEITA):**
+- "Gastei 50 no mercado" → COMPRA_CARTAO ✅
+- "Comprei 100 de gasolina" → COMPRA_CARTAO ✅
+- "Paguei 200 no restaurante no cartão" → COMPRA_CARTAO ✅
+
+**Assinaturas/SaaS que SEMPRE são CADASTRAR_CONTA_PAGAR quando têm valor:**
+- Netflix, Spotify, Disney+, HBO Max, Amazon Prime, Globoplay, YouTube Premium
+- ChatGPT Plus, GitHub Copilot, Adobe, Office 365, Dropbox, iCloud
+- Qualquer serviço de streaming ou software por assinatura
+
+### 💳 CARTÃO DE CRÉDITO
+20. **COMPRA_CARTAO**: Compra no cartão de crédito à vista (SEM dia de vencimento!). Exemplos:
     - "gastei 50 no almoço e paguei com cartão de crédito Nubank"
     - "comprei 200 no cartão"
     - "paguei com cartão de crédito do Itaú"
     - "gastei 100 reais no mercado no cartão Nubank"
     - "compra de 150 no crédito"
+    - ⚠️ NÃO usar se tiver "dia X" ou "vence dia" - isso é CADASTRAR_CONTA_PAGAR!
     - EXTRAIA: valor, descricao (o que comprou), cartao (nome do cartão)
     
 21. **COMPRA_PARCELADA**: Compra parcelada no cartão. Exemplos:
@@ -332,6 +356,10 @@ ${memoriaUsuario}
     - "todo mês tenho conta de luz dia 10" (variável, sem valor)
     - "pagar geladeira em 10x de 250 dia 5" (parcelada)
     - "IPVA de 1200 todo janeiro" (anual)
+    - "Netflix 55 reais dia 17" → CADASTRAR_CONTA_PAGAR (assinatura!)
+    - "ChatGPT Plus 20 dólares dia 10" → CADASTRAR_CONTA_PAGAR (SaaS!)
+    - "Spotify dia 12" → CADASTRAR_CONTA_PAGAR (streaming!)
+    - ⚠️ REGRA: Se tem "dia X" + valor/serviço = SEMPRE é conta a pagar, NUNCA compra!
     - EXTRAIA: descricao, valor (opcional), dia_vencimento, recorrencia (mensal/anual/unica), parcelas
     
 32. **EDITAR_CONTA_PAGAR**: Editar conta existente. Exemplos:
@@ -1056,6 +1084,70 @@ async function buscarNomeUsuario(
 }
 
 // ============================================
+// PRÉ-PROCESSAMENTO: DETECTAR CONTA A PAGAR vs COMPRA
+// ============================================
+
+/**
+ * Detecta se a mensagem é claramente uma conta a pagar (não compra)
+ * Retorna a intenção forçada ou null para deixar o NLP decidir
+ */
+function preProcessarIntencaoContaPagar(texto: string): 'CADASTRAR_CONTA_PAGAR' | null {
+  const textoLower = texto.toLowerCase().trim();
+  
+  // Padrão 1: Tem "dia [número]" = indicador de vencimento
+  const temDiaVencimento = /\bdia\s*\d+\b|\bvence\s*dia\b|\btodo\s*dia\b|\bdia\s+do\s+m[eê]s\b/i.test(textoLower);
+  
+  // Padrão 2: Tem valor monetário
+  const temValor = /\d+[\.,]?\d*\s*(reais?|real|r\$|d[oó]lar(es)?|usd|\$)/i.test(textoLower) ||
+                   /r\$\s*\d+/i.test(textoLower) ||
+                   /\d+\s*(conto|pila|mango)/i.test(textoLower);
+  
+  // Padrão 3: Assinaturas/SaaS conhecidas
+  const assinaturasConhecidas = [
+    'netflix', 'spotify', 'disney', 'hbo', 'amazon prime', 'prime video', 'globoplay',
+    'youtube premium', 'deezer', 'tidal', 'apple music', 'apple tv',
+    'chatgpt', 'gpt plus', 'github copilot', 'copilot', 'adobe', 'office 365',
+    'microsoft 365', 'dropbox', 'icloud', 'google one', 'canva',
+    'notion', 'figma', 'slack', 'zoom', 'linkedin premium',
+    'crunchyroll', 'paramount', 'star+', 'starplus', 'max streaming'
+  ];
+  const ehAssinatura = assinaturasConhecidas.some(a => textoLower.includes(a));
+  
+  // Padrão 4: Contas de serviços (luz, água, etc) com dia
+  const contasServico = ['luz', 'água', 'agua', 'internet', 'telefone', 'celular', 'gas', 'gás', 
+                         'aluguel', 'condominio', 'condomínio', 'iptu', 'ipva', 'seguro',
+                         'plano de saúde', 'plano saude', 'escola', 'faculdade', 'mensalidade'];
+  const ehContaServico = contasServico.some(c => textoLower.includes(c));
+  
+  // REGRA 1: Se tem "dia X" + valor = CONTA A PAGAR (não compra!)
+  if (temDiaVencimento && temValor) {
+    console.log('🎯 Pré-processamento: Detectado "dia X" + valor → CADASTRAR_CONTA_PAGAR');
+    return 'CADASTRAR_CONTA_PAGAR';
+  }
+  
+  // REGRA 2: Se é assinatura conhecida + valor = CONTA A PAGAR
+  if (ehAssinatura && temValor) {
+    console.log('🎯 Pré-processamento: Assinatura conhecida + valor → CADASTRAR_CONTA_PAGAR');
+    return 'CADASTRAR_CONTA_PAGAR';
+  }
+  
+  // REGRA 3: Se é assinatura conhecida + dia = CONTA A PAGAR
+  if (ehAssinatura && temDiaVencimento) {
+    console.log('🎯 Pré-processamento: Assinatura conhecida + dia → CADASTRAR_CONTA_PAGAR');
+    return 'CADASTRAR_CONTA_PAGAR';
+  }
+  
+  // REGRA 4: Se é conta de serviço + dia = CONTA A PAGAR
+  if (ehContaServico && temDiaVencimento) {
+    console.log('🎯 Pré-processamento: Conta de serviço + dia → CADASTRAR_CONTA_PAGAR');
+    return 'CADASTRAR_CONTA_PAGAR';
+  }
+  
+  // Deixar NLP decidir
+  return null;
+}
+
+// ============================================
 // CLASSIFICAR INTENÇÃO COM IA CONFIGURADA
 // ============================================
 
@@ -1066,6 +1158,13 @@ export async function classificarIntencaoNLP(
   supabaseKey: string
 ): Promise<IntencaoClassificada> {
   const supabase = createClient(supabaseUrl, supabaseKey);
+  
+  // PRÉ-PROCESSAMENTO: Verificar se é claramente conta a pagar
+  const intencaoForcada = preProcessarIntencaoContaPagar(texto);
+  if (intencaoForcada) {
+    console.log('✅ Intenção forçada pelo pré-processamento:', intencaoForcada);
+    // Ainda chama o NLP mas força a intenção correta
+  }
 
   // Buscar configuração do usuário E contexto em paralelo
   const [configIA, historicoConversa, contasDisponiveis, categoriasDisponiveis, memoriaUsuario, nomeUsuario] = await Promise.all([
@@ -1173,6 +1272,14 @@ export async function classificarIntencaoNLP(
 
     const intencao: IntencaoClassificada = JSON.parse(functionCall.arguments);
     intencao.comando_original = texto;
+
+    // CORREÇÃO: Se pré-processamento detectou conta a pagar, forçar a intenção
+    if (intencaoForcada && intencao.intencao !== intencaoForcada) {
+      console.log(`⚠️ NLP retornou ${intencao.intencao}, mas pré-processamento detectou ${intencaoForcada}`);
+      console.log('🔄 Sobrescrevendo intenção para:', intencaoForcada);
+      intencao.intencao = intencaoForcada;
+      intencao.explicacao = `Intenção corrigida: ${intencaoForcada} (detectado padrão de conta a pagar)`;
+    }
 
     console.log('✅ Classificação NLP:', JSON.stringify(intencao, null, 2));
 

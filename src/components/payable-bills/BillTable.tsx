@@ -112,8 +112,14 @@ const getStatusBadge = (status: string) => {
   }
 };
 
-const formatDueDate = (dueDate: string) => {
+const formatDueDate = (dueDate: string, status?: string) => {
   const date = parseISO(dueDate);
+  
+  // Se está paga, não mostrar "X dias atrás" - apenas a data
+  if (status === 'paid') {
+    return format(date, "dd 'de' MMM", { locale: ptBR });
+  }
+  
   const today = new Date();
   const diff = differenceInDays(date, today);
 
@@ -148,7 +154,8 @@ export function BillTable({
   onConfigReminders,
 }: BillTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [sortColumn, setSortColumn] = useState<string>('due_date');
+  // Ordenação local da tabela (null = usar ordenação do pai)
+  const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const toggleSelect = (id: string) => {
@@ -171,38 +178,44 @@ export function BillTable({
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
+      // Se já está ordenando por essa coluna, inverte a direção
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
+      // Nova coluna selecionada
       setSortColumn(column);
       setSortDirection('asc');
     }
   };
 
-  const sortedBills = [...bills].sort((a, b) => {
-    let comparison = 0;
-    
-    switch (sortColumn) {
-      case 'description':
-        comparison = a.description.localeCompare(b.description);
-        break;
-      case 'amount':
-        comparison = a.amount - b.amount;
-        break;
-      case 'due_date':
-        comparison = parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime();
-        break;
-      case 'status':
-        comparison = a.status.localeCompare(b.status);
-        break;
-      case 'bill_type':
-        comparison = a.bill_type.localeCompare(b.bill_type);
-        break;
-      default:
-        comparison = 0;
-    }
+  // Se não há ordenação local, usa a ordem que veio do pai (filtro global)
+  // Se há ordenação local (clicou no header da tabela), aplica ordenação local
+  const sortedBills = sortColumn === null 
+    ? bills  // Usa ordenação do pai (filtro global)
+    : [...bills].sort((a, b) => {
+        let comparison = 0;
+        
+        switch (sortColumn) {
+          case 'description':
+            comparison = a.description.localeCompare(b.description);
+            break;
+          case 'amount':
+            comparison = a.amount - b.amount;
+            break;
+          case 'due_date':
+            comparison = parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime();
+            break;
+          case 'status':
+            comparison = a.status.localeCompare(b.status);
+            break;
+          case 'bill_type':
+            comparison = a.bill_type.localeCompare(b.bill_type);
+            break;
+          default:
+            comparison = 0;
+        }
 
-    return sortDirection === 'asc' ? comparison : -comparison;
-  });
+        return sortDirection === 'asc' ? comparison : -comparison;
+      });
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -340,7 +353,7 @@ export function BillTable({
                 <TableCell>
                   <div className={getDueDateColor(bill.due_date, bill.status)}>
                     <div>{format(parseISO(bill.due_date), 'dd/MM/yyyy')}</div>
-                    <div className="text-xs">{formatDueDate(bill.due_date)}</div>
+                    <div className="text-xs">{formatDueDate(bill.due_date, bill.status)}</div>
                   </div>
                 </TableCell>
                 <TableCell>

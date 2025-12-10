@@ -110,7 +110,10 @@ export function BillCalendar({ bills, onPay, onEdit, onDelete }: BillCalendarPro
     }
   };
 
-  const selectedDateBills = selectedDate ? getBillsForDate(selectedDate) : [];
+  // Ordenar contas do dia selecionado por valor (maior primeiro)
+  const selectedDateBills = selectedDate 
+    ? getBillsForDate(selectedDate).sort((a, b) => b.amount - a.amount) 
+    : [];
 
   // Calcular totais do mês
   const monthTotals = useMemo(() => {

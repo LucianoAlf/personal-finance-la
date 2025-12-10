@@ -1,5 +1,5 @@
 import { PayableBill } from '@/types/payable-bills.types';
-import { differenceInDays, parseISO, format, isPast, isToday } from 'date-fns';
+import { differenceInDays, parseISO, format, startOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 // ============================================
@@ -7,28 +7,41 @@ import { ptBR } from 'date-fns/locale';
 // ============================================
 
 /**
+ * Retorna a data atual no fuso horário local (Brasil)
+ * Usa startOfDay para comparações consistentes
+ */
+function getHojeLocal(): Date {
+  return startOfDay(new Date());
+}
+
+/**
  * Calcula quantos dias faltam para o vencimento
  * Retorna negativo se já venceu
+ * IMPORTANTE: Compara apenas as datas (sem horas) para evitar problemas de timezone
  */
 export function getDaysUntilDue(dueDate: string): number {
-  const today = new Date();
-  const due = parseISO(dueDate);
+  const today = getHojeLocal();
+  // Parse a data como meia-noite local
+  const due = startOfDay(parseISO(dueDate));
   return differenceInDays(due, today);
 }
 
 /**
  * Verifica se a conta está vencida
+ * IMPORTANTE: Usa comparação de datas sem horas para consistência
  */
 export function isBillOverdue(dueDate: string): boolean {
-  const due = parseISO(dueDate);
-  return isPast(due) && !isToday(due);
+  const daysUntil = getDaysUntilDue(dueDate);
+  return daysUntil < 0;
 }
 
 /**
  * Verifica se vence hoje
+ * IMPORTANTE: Usa comparação de datas sem horas para consistência
  */
 export function isDueToday(dueDate: string): boolean {
-  return isToday(parseISO(dueDate));
+  const daysUntil = getDaysUntilDue(dueDate);
+  return daysUntil === 0;
 }
 
 /**
@@ -42,9 +55,15 @@ export function isDueInDays(dueDate: string, days: number): boolean {
 /**
  * Formata data de vencimento com contexto
  * Ex: "Hoje", "Amanhã", "Venceu há 3 dias", "Vence em 5 dias"
+ * Se a conta está paga, mostra a data formatada sem alarmismo
  */
-export function formatDueDateWithContext(dueDate: string): string {
+export function formatDueDateWithContext(dueDate: string, status?: string): string {
   const daysUntil = getDaysUntilDue(dueDate);
+  
+  // Se está paga, mostrar data simples sem "Venceu há X dias"
+  if (status === 'paid') {
+    return format(parseISO(dueDate), 'dd/MM/yyyy');
+  }
   
   if (daysUntil === 0) return 'Hoje';
   if (daysUntil === 1) return 'Amanhã';
@@ -119,8 +138,14 @@ export function getStatusColor(
 
 /**
  * Retorna cor baseado em dias até vencimento
+ * Se a conta está paga, sempre retorna 'success' (verde/neutro)
  */
-export function getDueDateColor(dueDate: string): 'success' | 'warning' | 'danger' {
+export function getDueDateColor(dueDate: string, status?: string): 'success' | 'warning' | 'danger' {
+  // Se está paga, não precisa de alerta - mostrar neutro
+  if (status === 'paid') {
+    return 'success';
+  }
+  
   const days = getDaysUntilDue(dueDate);
   
   if (days < 0) return 'danger'; // Vencida

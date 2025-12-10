@@ -122,7 +122,7 @@ export function PayableBillsWidget() {
                             : 'text-yellow-500 dark:text-yellow-400'
                         }`}
                       >
-                        {formatDueDateWithContext(bill.due_date)}
+                        {formatDueDateWithContext(bill.due_date, bill.status)}
                       </span>
                       {bill.status === 'overdue' && (
                         <Badge variant="danger" className="text-xs py-0">

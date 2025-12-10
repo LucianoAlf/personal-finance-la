@@ -1,6 +1,8 @@
+import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { PayableBill } from '@/types/payable-bills.types';
 import { BillCard } from './BillCard';
+import { InstallmentGroupCard, groupInstallments } from './InstallmentGroupCard';
 import { Inbox } from 'lucide-react';
 
 interface BillListProps {
@@ -9,6 +11,7 @@ interface BillListProps {
   onEdit?: (bill: PayableBill) => void;
   onDelete?: (bill: PayableBill) => void;
   onConfigReminders?: (bill: PayableBill) => void;
+  onDeleteInstallmentGroup?: (groupId: string) => void;
   emptyMessage?: string;
 }
 
@@ -18,8 +21,33 @@ export function BillList({
   onEdit,
   onDelete,
   onConfigReminders,
+  onDeleteInstallmentGroup,
   emptyMessage = 'Nenhuma conta encontrada',
 }: BillListProps) {
+  // Separar contas individuais e parcelamentos agrupados
+  const { individualBills, installmentGroups } = useMemo(() => {
+    // IDs de parcelas que pertencem a um grupo
+    const groupedInstallmentIds = new Set<string>();
+    
+    // Agrupar parcelamentos
+    const groups = groupInstallments(bills);
+    
+    // Marcar todas as parcelas que foram agrupadas
+    groups.forEach((group) => {
+      group.installments.forEach((installment) => {
+        groupedInstallmentIds.add(installment.id);
+      });
+    });
+    
+    // Contas individuais = todas que não são parcelas agrupadas
+    const individual = bills.filter((bill) => !groupedInstallmentIds.has(bill.id));
+    
+    return {
+      individualBills: individual,
+      installmentGroups: groups,
+    };
+  }, [bills]);
+
   if (bills.length === 0) {
     return (
       <motion.div
@@ -39,17 +67,53 @@ export function BillList({
   }
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {bills.map((bill) => (
-        <BillCard
-          key={bill.id}
-          bill={bill}
-          onPay={onPay}
-          onEdit={onEdit}
-          onDelete={onDelete}
-          onConfigReminders={onConfigReminders}
-        />
-      ))}
+    <div className="space-y-6">
+      {/* Parcelamentos Agrupados */}
+      {installmentGroups.length > 0 && (
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+            <span className="h-px flex-1 bg-border" />
+            Parcelamentos ({installmentGroups.length})
+            <span className="h-px flex-1 bg-border" />
+          </h4>
+          <div className="grid gap-4 md:grid-cols-2">
+            {installmentGroups.map((group) => (
+              <InstallmentGroupCard
+                key={group.groupId}
+                group={group}
+                onPayInstallment={onPay}
+                onEditInstallment={onEdit}
+                onDeleteGroup={onDeleteInstallmentGroup}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Contas Individuais */}
+      {individualBills.length > 0 && (
+        <div className="space-y-4">
+          {installmentGroups.length > 0 && (
+            <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-2">
+              <span className="h-px flex-1 bg-border" />
+              Outras Contas ({individualBills.length})
+              <span className="h-px flex-1 bg-border" />
+            </h4>
+          )}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {individualBills.map((bill) => (
+              <BillCard
+                key={bill.id}
+                bill={bill}
+                onPay={onPay}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onConfigReminders={onConfigReminders}
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

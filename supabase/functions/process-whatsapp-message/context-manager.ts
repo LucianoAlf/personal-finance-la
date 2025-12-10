@@ -52,6 +52,7 @@ export type ContextType =
   | 'awaiting_due_day'              // Aguardando dia do vencimento
   | 'awaiting_bill_amount'          // Aguardando valor da conta
   | 'awaiting_installment_info'     // Aguardando info de parcelas
+  | 'awaiting_average_value'        // Aguardando valor médio de conta variável
   | 'awaiting_duplicate_decision'   // Aguardando decisão sobre duplicata
   | 'awaiting_delete_confirmation'; // Aguardando confirmação de exclusão
 
@@ -171,6 +172,97 @@ export async function limparContexto(userId: string): Promise<void> {
 export function isContextoAtivo(contexto: ContextoConversa | null): boolean {
   if (!contexto) return false;
   return contexto.context_type !== 'idle';
+}
+
+// ============================================
+// CONVERTER NÚMEROS POR EXTENSO
+// ============================================
+
+const NUMEROS_EXTENSO: Record<string, number> = {
+  'zero': 0, 'um': 1, 'uma': 1, 'dois': 2, 'duas': 2, 'três': 3, 'tres': 3,
+  'quatro': 4, 'cinco': 5, 'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9,
+  'dez': 10, 'onze': 11, 'doze': 12, 'treze': 13, 'quatorze': 14, 'catorze': 14,
+  'quinze': 15, 'dezesseis': 16, 'dezessete': 17, 'dezoito': 18, 'dezenove': 19,
+  'vinte': 20, 'trinta': 30, 'quarenta': 40, 'cinquenta': 50,
+  'sessenta': 60, 'setenta': 70, 'oitenta': 80, 'noventa': 90,
+  'cem': 100, 'cento': 100, 'duzentos': 200, 'trezentos': 300,
+  'quatrocentos': 400, 'quinhentos': 500, 'seiscentos': 600,
+  'setecentos': 700, 'oitocentos': 800, 'novecentos': 900,
+  'mil': 1000
+};
+
+function converterParteExtenso(texto: string): number {
+  const palavras = texto.toLowerCase().split(/\s+e\s+|\s+/);
+  let total = 0;
+  let atual = 0;
+  
+  for (const palavra of palavras) {
+    const valor = NUMEROS_EXTENSO[palavra];
+    if (valor === undefined) continue;
+    
+    if (valor === 1000) {
+      atual = atual === 0 ? 1000 : atual * 1000;
+      total += atual;
+      atual = 0;
+    } else if (valor >= 100) {
+      atual += valor;
+    } else {
+      atual += valor;
+    }
+  }
+  
+  return total + atual;
+}
+
+export function converterExtensoParaNumero(texto: string): number | null {
+  const textoLower = texto.toLowerCase()
+    .replace(/reais?/g, '')
+    .replace(/centavos?/g, '')
+    .replace(/r\$/g, '')
+    .trim();
+  
+  // Verificar se já é número
+  const numeroMatch = textoLower.match(/^(\d+(?:[.,]\d+)?)$/);
+  if (numeroMatch) {
+    return parseFloat(numeroMatch[1].replace(',', '.'));
+  }
+  
+  // Verificar se tem número no texto
+  const numeroNoTexto = textoLower.match(/(\d+(?:[.,]\d+)?)/);
+  if (numeroNoTexto) {
+    return parseFloat(numeroNoTexto[1].replace(',', '.'));
+  }
+  
+  // "vinte e um e noventa" → separar parte inteira e centavos
+  // Padrão: último "e [número < 100]" pode ser centavos
+  const partes = textoLower.split(/\s+e\s+/);
+  
+  if (partes.length >= 2) {
+    const ultimaParte = partes[partes.length - 1].trim();
+    const valorUltima = converterParteExtenso(ultimaParte);
+    
+    // Se última parte é < 100 e parece ser centavos (contexto de dinheiro)
+    if (valorUltima > 0 && valorUltima < 100) {
+      const partesInteiras = partes.slice(0, -1).join(' e ');
+      const parteInteira = converterParteExtenso(partesInteiras);
+      
+      // Se parte inteira é válida, assumir que última é centavos
+      if (parteInteira > 0) {
+        console.log(`[EXTENSO] "${texto}" → ${parteInteira} + ${valorUltima}/100 = ${parteInteira + valorUltima / 100}`);
+        return parteInteira + (valorUltima / 100);
+      }
+    }
+  }
+  
+  // Tentar converter tudo como parte inteira
+  const valorTotal = converterParteExtenso(textoLower);
+  
+  if (valorTotal > 0) {
+    console.log(`[EXTENSO] "${texto}" → ${valorTotal}`);
+    return valorTotal;
+  }
+  
+  return null;
 }
 
 // ============================================
@@ -296,6 +388,10 @@ export async function processarNoContexto(
   
   if (contextType === 'awaiting_installment_info') {
     return await processarInfoParcelas(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_average_value') {
+    return await processarValorMedio(texto, contexto, userId);
   }
   
   if (contextType === 'awaiting_duplicate_decision') {
@@ -1786,6 +1882,14 @@ async function processarDiaVencimento(
   const supabase = getSupabase();
   const dados = contexto.context_data || {};
   
+  // DEBUG: Verificar dados recuperados do contexto
+  console.log('[CADASTRAR-CONTA-DIA] Dados recuperados do contexto:', {
+    descricao: dados.descricao,
+    valor: dados.valor,
+    tipo: dados.tipo,
+    recorrencia: dados.recorrencia
+  });
+  
   // Extrair dia do texto
   const diaMatch = texto.match(/\d+/);
   if (!diaMatch) {
@@ -1805,7 +1909,19 @@ async function processarDiaVencimento(
   }
   
   const descricao = dados.descricao as string || 'Conta';
-  const valor = dados.valor as number | undefined;
+  let valor = dados.valor as number | undefined;
+  
+  // CRÍTICO: Se valor foi perdido, tentar recuperar do textoOriginal
+  if (!valor && dados.textoOriginal) {
+    const textoOriginal = dados.textoOriginal as string;
+    console.log('[CADASTRAR-CONTA-DIA] ⚠️ Valor perdido! Tentando recuperar do textoOriginal:', textoOriginal);
+    const valorRecuperado = converterExtensoParaNumero(textoOriginal);
+    if (valorRecuperado) {
+      valor = valorRecuperado;
+      console.log('[CADASTRAR-CONTA-DIA] ✅ Valor recuperado:', valor);
+    }
+  }
+  
   const tipoInterno = (dados.tipo as string) || (valor ? 'fixed' : 'variable');
   const parcelas = dados.parcelas as number | undefined;
   
@@ -1936,11 +2052,32 @@ async function processarDecisaoDuplicata(
     return `👍 Ok, mantive a conta como estava.`;
   }
   
-  // Opção 3: Criar nova
+  // Opção 3: Criar nova conta separada IMEDIATAMENTE
   if (resposta === '3' || resposta.includes('criar') || resposta.includes('nova')) {
-    // Redirecionar para cadastro com nome diferente
+    // Recuperar dados originais do contexto e criar a conta
+    const descricao = dados.descricao as string;
+    const valor = dados.valor as number | undefined;
+    const diaVencimento = dados.diaVencimento as number;
+    const tipo = dados.tipo as string;
+    const phone = dados.phone as string;
+    
+    if (!descricao || !diaVencimento) {
+      await limparContexto(userId);
+      return `❌ Dados incompletos. Por favor, cadastre novamente.\n\nExemplo: _"Netflix 55 reais dia 17"_`;
+    }
+    
+    // Importar e chamar a função de cadastro diretamente (sem verificar duplicatas)
+    const { criarContaDiretamente } = await import('./contas-pagar.ts');
+    const resultado = await criarContaDiretamente(userId, {
+      descricao,
+      valor,
+      diaVencimento,
+      tipo: tipo as any, // Cast necessário pois vem do contexto como string
+      textoOriginal: dados.textoOriginal as string
+    });
+    
     await limparContexto(userId);
-    return `💡 Para criar uma conta separada, use um nome diferente.\n\nExemplo: _"tenho que pagar 150 de luz casa dia 10"_`;
+    return resultado.mensagem;
   }
   
   return `❓ Não entendi. Digite:\n\n1️⃣ Atualizar valor\n2️⃣ Manter como está\n3️⃣ Criar nova conta`;
@@ -1985,16 +2122,12 @@ async function processarValorConta(
   const supabase = getSupabase();
   const dados = contexto.context_data || {};
   
-  // Extrair valor do texto: "150", "150 reais", "R$ 150", "150,00"
-  const textoLimpo = texto.toLowerCase().replace(/\s+/g, ' ').trim();
-  const valorMatch = textoLimpo.match(/r?\$?\s*([\d]+[.,]?[\d]*)/);
+  // Tentar converter valor (suporta números e extenso)
+  const valor = converterExtensoParaNumero(texto);
   
-  if (!valorMatch) {
-    return `❓ Não entendi o valor. Digite apenas o número.\n\n_Exemplo: "150" ou "R$ 150,00"_`;
+  if (!valor) {
+    return `❓ Não entendi o valor. Digite o número ou por extenso.\n\n_Exemplos: "150", "R$ 21,90" ou "vinte e um e noventa"_`;
   }
-  
-  const valorStr = valorMatch[1].replace(',', '.');
-  const valor = parseFloat(valorStr);
   
   if (isNaN(valor) || valor <= 0) {
     return `❓ Valor inválido. Informe um valor maior que zero.\n\n_Exemplo: "150" ou "R$ 150,00"_`;
@@ -2058,6 +2191,80 @@ async function processarValorConta(
   msg += `📅 Vence dia ${diaVencimento}\n`;
   msg += `${recorrenciaStr}\n`;
   msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
+  
+  return msg;
+}
+
+// Handler para valor médio de conta variável (luz, água, gás)
+async function processarValorMedio(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const dados = contexto.context_data || {};
+  
+  // Tentar converter valor (suporta números e extenso)
+  const valorMedio = converterExtensoParaNumero(texto);
+  
+  if (!valorMedio) {
+    return `❓ Não entendi o valor. Digite o número ou por extenso.\n\n_Exemplos: "80 reais", "R$ 21,90" ou "vinte e um e noventa"_`;
+  }
+  
+  if (isNaN(valorMedio) || valorMedio <= 0) {
+    return `❓ Valor inválido. Informe um valor maior que zero.\n\n_Exemplo: "80 reais" ou "em média 120"_`;
+  }
+  
+  const descricao = dados.descricao as string || 'Conta';
+  const diaVencimento = dados.diaVencimento as number;
+  
+  // Calcular due_date
+  const hoje = new Date();
+  let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento);
+  if (dueDate < hoje) {
+    dueDate.setMonth(dueDate.getMonth() + 1);
+  }
+  
+  // Mapear tipo para bill_type do banco
+  const { mapearBillTypeParaBanco } = await import('./contas-pagar.ts');
+  const billType = mapearBillTypeParaBanco('variable' as any, descricao);
+  
+  console.log(`[CADASTRAR-CONTA-VALOR-MEDIO] Descrição: ${descricao}`);
+  console.log(`[CADASTRAR-CONTA-VALOR-MEDIO] Valor médio: ${valorMedio}`);
+  console.log(`[CADASTRAR-CONTA-VALOR-MEDIO] bill_type mapeado: ${billType}`);
+  
+  // Inserir no banco
+  const { error } = await supabase
+    .from('payable_bills')
+    .insert({
+      user_id: userId,
+      description: descricao,
+      amount: valorMedio,
+      due_date: dueDate.toISOString().split('T')[0],
+      status: 'pending',
+      is_recurring: true,
+      bill_type: billType,
+      recurrence_config: { type: 'monthly', day: diaVencimento },
+      notes: 'Valor médio estimado - informe o valor real quando chegar a conta',
+    });
+  
+  if (error) {
+    console.error('Erro ao cadastrar conta variável:', error);
+    await limparContexto(userId);
+    return `❌ Erro ao cadastrar conta. Tente novamente.`;
+  }
+  
+  await limparContexto(userId);
+  
+  const emoji = getEmojiConta(descricao);
+  
+  let msg = `✅ *Conta cadastrada!*\n\n`;
+  msg += `${emoji} *${descricao}*\n`;
+  msg += `💰 R$ ${valorMedio.toFixed(2).replace('.', ',')} _(valor médio)_\n`;
+  msg += `📅 Vence dia ${diaVencimento}\n`;
+  msg += `📊 Valor variável _(informe quando chegar)_\n`;
+  msg += `\n🔔 _Vou te lembrar 1 dia antes!_\n`;
+  msg += `\n💡 _Quando chegar a conta: "${descricao.toLowerCase()} veio 95"_`;
   
   return msg;
 }
@@ -2127,9 +2334,11 @@ async function processarDescricaoConta(
 _Ex: luz, Netflix, aluguel..._`;
   }
   
-  const { normalizarNomeConta, identificarTipoConta, getCamposObrigatorios, validarCamposConta, getPerguntaParaCampo, getStateForField } = await import('./contas-pagar.ts');
+  const { identificarTipoConta, getCamposObrigatorios, validarCamposConta, getPerguntaParaCampo, getStateForField } = await import('./contas-pagar.ts');
   
-  dados.descricao = normalizarNomeConta(descricao);
+  // IMPORTANTE: Manter descrição ORIGINAL do usuário, apenas capitalizar
+  // normalizarNomeConta só deve ser usada para COMPARAÇÃO de duplicatas
+  dados.descricao = descricao.charAt(0).toUpperCase() + descricao.slice(1).toLowerCase();
   
   // Se não tem tipo ainda, tentar identificar pela descrição
   if (!dados.tipo || dados.tipo === 'unknown') {
@@ -2227,7 +2436,69 @@ async function finalizarCadastroConta(
   console.log(`[CADASTRAR-CONTA] Tipo interno: ${tipo}`);
   console.log(`[CADASTRAR-CONTA] Descrição: ${descricao}`);
   console.log(`[CADASTRAR-CONTA] bill_type mapeado: ${billTypeDb}`);
+  console.log(`[CADASTRAR-CONTA] Parcelas: ${parcelaAtual}/${totalParcelas}`);
   
+  // Gerar installment_group_id se for parcelamento
+  // IMPORTANTE: A constraint do banco exige installment_group_id quando is_installment = true
+  const installmentGroupId = isInstallment ? crypto.randomUUID() : null;
+  
+  // Se é parcelamento com múltiplas parcelas, criar todas as parcelas restantes
+  if (isInstallment && totalParcelas && totalParcelas > 1) {
+    const parcelas = [];
+    const baseDate = new Date(dueDate);
+    
+    // Parcela inicial = a que o usuário informou (ou 1 se não informou)
+    const parcelaInicial = parcelaAtual || 1;
+    // Quantidade a criar = total - inicial + 1 (ex: 36 - 1 + 1 = 36 parcelas)
+    const quantidadeParcelas = totalParcelas - parcelaInicial + 1;
+    
+    console.log(`[CADASTRAR-CONTA] Criando ${quantidadeParcelas} parcelas (${parcelaInicial} até ${totalParcelas})`);
+    
+    for (let i = 0; i < quantidadeParcelas; i++) {
+      const numeroParcela = parcelaInicial + i;
+      const parcelaDate = new Date(baseDate);
+      parcelaDate.setMonth(parcelaDate.getMonth() + i);
+      
+      parcelas.push({
+        user_id: userId,
+        description: descricao,
+        amount: valor || null,
+        due_date: parcelaDate.toISOString().split('T')[0],
+        status: 'pending',
+        is_recurring: false,
+        bill_type: billTypeDb,
+        is_installment: true,
+        installment_number: numeroParcela,
+        installment_total: totalParcelas,
+        installment_group_id: installmentGroupId,
+      });
+    }
+    
+    const { error } = await supabase
+      .from('payable_bills')
+      .insert(parcelas);
+    
+    if (error) {
+      console.error('[CADASTRAR-CONTA] Erro ao inserir parcelas:', error);
+      return '❌ Erro ao cadastrar parcelamento. Tente novamente.';
+    }
+    
+    // Template de sucesso para parcelamento
+    const emoji = getEmojiConta(descricao);
+    let msg = `✅ *Parcelamento cadastrado!*\n\n`;
+    msg += `${emoji} *${descricao}*\n`;
+    if (valor) {
+      msg += `💰 R$ ${valor.toFixed(2).replace('.', ',')} por parcela\n`;
+    }
+    msg += `📅 Vence dia ${diaVencimento}\n`;
+    msg += `🔢 Parcela ${parcelaInicial}/${totalParcelas}\n`;
+    msg += `📊 ${quantidadeParcelas} parcelas cadastradas (${parcelaInicial} a ${totalParcelas})\n`;
+    msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
+    
+    return msg;
+  }
+  
+  // Conta única (não parcelada)
   const { error } = await supabase
     .from('payable_bills')
     .insert({
@@ -2239,9 +2510,10 @@ async function finalizarCadastroConta(
       is_recurring: isRecurring && !isInstallment,
       bill_type: billTypeDb,
       recurrence_config: isRecurring && !isInstallment ? { type: 'monthly', day: diaVencimento } : null,
-      is_installment: isInstallment,
-      installment_number: parcelaAtual || null,
-      installment_total: totalParcelas || null,
+      is_installment: false,
+      installment_number: null,
+      installment_total: null,
+      installment_group_id: null,
     });
   
   if (error) {

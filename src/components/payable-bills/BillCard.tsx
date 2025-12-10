@@ -45,7 +45,8 @@ interface BillCardProps {
 
 export function BillCard({ bill, onPay, onEdit, onDelete, onConfigReminders, highlight }: BillCardProps) {
   const statusColor = getStatusColor(bill.status);
-  const dueDateColor = getDueDateColor(bill.due_date);
+  // Passar status para não mostrar alerta vermelho em contas pagas
+  const dueDateColor = getDueDateColor(bill.due_date, bill.status);
   const priorityColor = getPriorityColor(bill.priority);
 
   const getStatusBadgeVariant = (color: string) => {
@@ -155,14 +156,14 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onConfigReminders, hig
             <Calendar className={`h-4 w-4 ${
               dueDateColor === 'danger' ? 'text-red-500' :
               dueDateColor === 'warning' ? 'text-yellow-500' :
-              'text-green-500'
+              bill.status === 'paid' ? 'text-muted-foreground' : 'text-green-500'
             }`} />
             <span className={`text-sm font-medium ${
               dueDateColor === 'danger' ? 'text-red-500' :
               dueDateColor === 'warning' ? 'text-yellow-500' :
-              'text-green-500'
+              bill.status === 'paid' ? 'text-muted-foreground' : 'text-green-500'
             }`}>
-              {formatDueDateWithContext(bill.due_date)}
+              {formatDueDateWithContext(bill.due_date, bill.status)}
             </span>
           </div>
 
@@ -174,13 +175,14 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onConfigReminders, hig
             <Badge variant="outline">
               {BILL_TYPE_LABELS[bill.bill_type]}
             </Badge>
-            {bill.priority === 'critical' && (
+            {/* Só mostrar prioridade se NÃO estiver paga */}
+            {bill.status !== 'paid' && bill.priority === 'critical' && (
               <Badge variant="danger">
                 <AlertTriangle className="h-3 w-3 mr-1" />
                 Crítica
               </Badge>
             )}
-            {bill.priority === 'high' && (
+            {bill.status !== 'paid' && bill.priority === 'high' && (
               <Badge variant="warning">
                 <AlertTriangle className="h-3 w-3 mr-1" />
                 Alta

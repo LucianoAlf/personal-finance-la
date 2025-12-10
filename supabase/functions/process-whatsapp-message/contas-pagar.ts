@@ -7,6 +7,47 @@
 import { getSupabase } from './utils.ts';
 
 // ============================================
+// TIMEZONE HELPERS - SEMPRE USA SÃO PAULO (BRT)
+// ============================================
+
+/**
+ * Retorna a data atual no fuso horário de São Paulo
+ * IMPORTANTE: Deno/Edge Functions rodam em UTC, precisamos ajustar para BRT
+ */
+function getHojeSaoPaulo(): Date {
+  const agora = new Date();
+  // Converter para string no timezone de São Paulo e parsear de volta
+  const saoPauloStr = agora.toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' });
+  return new Date(saoPauloStr);
+}
+
+/**
+ * Retorna a data atual em formato YYYY-MM-DD no fuso de São Paulo
+ */
+function getHojeStrSaoPaulo(): string {
+  const hoje = getHojeSaoPaulo();
+  const ano = hoje.getFullYear();
+  const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+  const dia = String(hoje.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+}
+
+/**
+ * Calcula dias entre duas datas considerando timezone de São Paulo
+ */
+function calcularDiasParaVencimentoBRT(dueDate: string): number {
+  const hoje = getHojeSaoPaulo();
+  hoje.setHours(0, 0, 0, 0);
+  
+  // Parse a data de vencimento como meia-noite em São Paulo
+  const [ano, mes, dia] = dueDate.split('-').map(Number);
+  const vencimento = new Date(ano, mes - 1, dia, 0, 0, 0, 0);
+  
+  const diffTime = vencimento.getTime() - hoje.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+// ============================================
 // TIPOS
 // ============================================
 
@@ -29,38 +70,130 @@ export type TipoIntencaoContaPagar =
 // ALIASES DE CONTAS (FASE 3.2)
 // ============================================
 
+// IMPORTANTE: Aliases mais específicos devem vir ANTES dos genéricos
+// Ex: 'netflix' antes de 'internet' (porque 'net' está em 'netflix')
 export const CONTA_ALIASES: Record<string, string[]> = {
+  // Streaming (mais específicos primeiro)
+  'netflix': ['netflix'],
+  'spotify': ['spotify', 'deezer', 'apple music'],
+  'amazon': ['amazon prime', 'prime video', 'amazon'],
+  'disney': ['disney+', 'disneyplus', 'disney plus', 'disney'],
+  'hbo': ['hbo max', 'hbo'],
+  'max': ['max streaming'],
+  'globoplay': ['globoplay', 'globo play'],
+  
+  // Serviços (depois dos streamings)
   'luz': ['luz', 'energia', 'enel', 'cpfl', 'eletropaulo', 'light', 'cemig', 'celpe', 'energisa', 'coelba', 'eletricidade'],
   'agua': ['agua', 'água', 'sabesp', 'copasa', 'sanepar', 'cedae', 'cagece', 'esgoto', 'saneamento'],
-  'internet': ['internet', 'wifi', 'net', 'vivo fibra', 'claro net', 'banda larga', 'oi fibra', 'fibra'],
+  'internet': ['internet', 'wifi', 'vivo fibra', 'claro net', 'banda larga', 'oi fibra', 'fibra ótica', 'fibra optica'],
   'aluguel': ['aluguel', 'alugel', 'moradia', 'locação', 'locacao'],
   'condominio': ['condominio', 'condomínio', 'cond', 'taxa condominial'],
   'gas': ['gas', 'gás', 'comgas', 'ultragaz', 'supergasbras', 'liquigás', 'naturgy'],
-  'telefone': ['telefone', 'celular', 'móvel', 'movel', 'vivo', 'claro', 'tim', 'oi'],
-  'netflix': ['netflix'],
-  'spotify': ['spotify', 'deezer', 'apple music'],
-  'amazon': ['amazon', 'prime', 'amazon prime'],
-  'disney': ['disney', 'disney+', 'disneyplus'],
-  'hbo': ['hbo', 'hbo max', 'max'],
-  'globoplay': ['globoplay', 'globo play'],
+  'telefone': ['telefone', 'celular', 'móvel', 'movel', 'linha fixa'],
+  
+  // Outros
   'seguro': ['seguro', 'seguro auto', 'seguro carro', 'seguro vida', 'seguro residencial'],
   'plano_saude': ['plano de saúde', 'plano saude', 'unimed', 'bradesco saúde', 'sulamerica', 'amil', 'hapvida'],
-  'escola': ['escola', 'faculdade', 'mensalidade', 'curso', 'universidade'],
+  'escola': ['escola', 'faculdade', 'mensalidade escolar', 'curso', 'universidade'],
   'financiamento': ['financiamento', 'prestação', 'parcela carro', 'parcela casa', 'consórcio'],
   'iptu': ['iptu', 'imposto predial'],
   'ipva': ['ipva', 'licenciamento', 'detran'],
   'academia': ['academia', 'gym', 'smart fit', 'bluefit'],
 };
 
+// ============================================
+// PALAVRAS QUE INDICAM PARCELAMENTO OBRIGATÓRIO
+// ============================================
+// Quando o usuário menciona essas palavras SEM número de parcelas,
+// devemos PERGUNTAR quantas parcelas são, não assumir conta fixa!
+
+const PALAVRAS_PARCELAMENTO_OBRIGATORIO = [
+  'financiamento',
+  'empréstimo',
+  'emprestimo',
+  'crediário',
+  'crediario',
+  'consórcio',
+  'consorcio',
+  'carnê',
+  'carne',
+  'prestação',
+  'prestacao',
+  'parcelamento',
+  'parcelado',
+  'parcelas'
+];
+
+/**
+ * Verifica se a descrição indica um parcelamento obrigatório
+ * (financiamento, empréstimo, etc.)
+ */
+function ehParcelamentoObrigatorio(texto: string): boolean {
+  const textoLower = texto.toLowerCase();
+  return PALAVRAS_PARCELAMENTO_OBRIGATORIO.some(palavra => 
+    textoLower.includes(palavra)
+  );
+}
+
+// Mapeamento de chaves internas para nomes de exibição bonitos
+const NOMES_EXIBICAO: Record<string, string> = {
+  'netflix': 'Netflix',
+  'spotify': 'Spotify',
+  'amazon': 'Amazon Prime',
+  'disney': 'Disney+',
+  'hbo': 'HBO Max',
+  'max': 'Max',
+  'globoplay': 'Globoplay',
+  'luz': 'Luz',
+  'agua': 'Água',
+  'internet': 'Internet',
+  'aluguel': 'Aluguel',
+  'condominio': 'Condomínio',
+  'gas': 'Gás',
+  'telefone': 'Telefone',
+  'seguro': 'Seguro',
+  'plano_saude': 'Plano de Saúde',
+  'escola': 'Escola',
+  'financiamento': 'Financiamento',
+  'iptu': 'IPTU',
+  'ipva': 'IPVA',
+  'academia': 'Academia',
+};
+
 // Normaliza nome da conta usando aliases
+// Usa match de palavra completa para evitar falsos positivos (ex: "net" em "netflix")
 export function normalizarNomeConta(texto: string): string {
   const textoLower = texto.toLowerCase().trim();
-  for (const [nomeNormalizado, aliases] of Object.entries(CONTA_ALIASES)) {
-    if (aliases.some(alias => textoLower.includes(alias))) {
-      // Capitaliza primeira letra
-      return nomeNormalizado.charAt(0).toUpperCase() + nomeNormalizado.slice(1);
+  
+  // Primeiro: busca match exato
+  for (const [chaveInterna, aliases] of Object.entries(CONTA_ALIASES)) {
+    if (aliases.some(alias => textoLower === alias)) {
+      return NOMES_EXIBICAO[chaveInterna] || chaveInterna.charAt(0).toUpperCase() + chaveInterna.slice(1);
     }
   }
+  
+  // Segundo: busca se o texto COMEÇA com algum alias (mais seguro que includes)
+  for (const [chaveInterna, aliases] of Object.entries(CONTA_ALIASES)) {
+    if (aliases.some(alias => textoLower.startsWith(alias + ' ') || textoLower.startsWith(alias))) {
+      // Verifica se é realmente o início da palavra, não parte de outra
+      const alias = aliases.find(a => textoLower.startsWith(a));
+      if (alias && (textoLower === alias || textoLower[alias.length] === ' ' || textoLower[alias.length] === undefined)) {
+        return NOMES_EXIBICAO[chaveInterna] || chaveInterna.charAt(0).toUpperCase() + chaveInterna.slice(1);
+      }
+    }
+  }
+  
+  // Terceiro: busca palavra completa no texto (com word boundaries)
+  for (const [chaveInterna, aliases] of Object.entries(CONTA_ALIASES)) {
+    for (const alias of aliases) {
+      // Cria regex para match de palavra completa
+      const regex = new RegExp(`\\b${alias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+      if (regex.test(textoLower)) {
+        return NOMES_EXIBICAO[chaveInterna] || chaveInterna.charAt(0).toUpperCase() + chaveInterna.slice(1);
+      }
+    }
+  }
+  
   // Retorna original capitalizado se não encontrar alias
   return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
 }
@@ -98,12 +231,19 @@ export interface DadosCadastroConta {
 export function identificarTipoConta(texto: string, entidades: Record<string, unknown>): BillType {
   const textoLower = texto.toLowerCase();
   
-  // PARCELAMENTO - tem parcelas mencionadas
+  // PARCELAMENTO - tem parcelas mencionadas OU palavras que indicam parcelamento
+  // Palavras como "financiamento", "empréstimo", "crediário" SEMPRE são parcelamentos
+  const palavrasParcelamento = [
+    'financiamento', 'empréstimo', 'emprestimo', 'crediário', 'crediario',
+    'consórcio', 'consorcio', 'carnê', 'carne', 'prestação', 'prestacao'
+  ];
+  
   if (
     /(\d+)\s*x\s*de?\s*r?\$?\s*([\d.,]+)/i.test(textoLower) ||
     /parcela\s*(\d+)\s*(de|\/)\s*(\d+)/i.test(textoLower) ||
     /em\s*(\d+)\s*vezes/i.test(textoLower) ||
-    entidades.parcela_atual || entidades.total_parcelas
+    entidades.parcela_atual || entidades.total_parcelas ||
+    palavrasParcelamento.some(p => textoLower.includes(p))
   ) {
     return 'installment';
   }
@@ -157,7 +297,8 @@ export function identificarTipoConta(texto: string, entidades: Record<string, un
   }
   
   // CONTA FIXA - menções de recorrência
-  const fixas = ['aluguel', 'condomínio', 'condominio', 'plano de saúde', 'plano saude', 'seguro', 'academia', 'escola', 'faculdade', 'mensalidade', 'financiamento'];
+  // NOTA: "financiamento" foi REMOVIDO daqui pois é PARCELAMENTO, não conta fixa!
+  const fixas = ['aluguel', 'condomínio', 'condominio', 'plano de saúde', 'plano saude', 'seguro', 'academia', 'escola', 'faculdade', 'mensalidade'];
   if (fixas.some(f => textoLower.includes(f))) {
     return 'fixed';
   }
@@ -292,22 +433,59 @@ export function extrairDiaTexto(texto: string): number | null {
 export function extrairParcelasTexto(texto: string): { atual: number; total: number } | null {
   const limpo = texto.toLowerCase();
   
-  // Padrões: "3 de 10", "3/10", "parcela 3 de 10", "3ª de 10", "10x"
-  let match = limpo.match(/(\d+)\s*(?:ª|°|de|\/)\s*(\d+)/);
-  
+  // Padrão 1: "48 parcelas, estou na 12" ou "48 parcelas parcela 12"
+  let match = limpo.match(/(\d+)\s*parcelas?,?\s*(?:estou\s*na|parcela)?\s*(\d+)/);
   if (match) {
-    const atual = parseInt(match[1]);
-    const total = parseInt(match[2]);
-    
+    const total = parseInt(match[1]);
+    const atual = parseInt(match[2]);
     if (atual >= 1 && total >= 1 && atual <= total) {
       return { atual, total };
     }
   }
   
-  // Padrão "10x de 150" - assume parcela 1
+  // Padrão 2: "parcela 12 de 48" ou "parcela 12/48"
+  match = limpo.match(/parcela\s*(\d+)\s*(?:de|\/)\s*(\d+)/);
+  if (match) {
+    const atual = parseInt(match[1]);
+    const total = parseInt(match[2]);
+    if (atual >= 1 && total >= 1 && atual <= total) {
+      return { atual, total };
+    }
+  }
+  
+  // Padrão 3: "36x, parcela 5" ou "36x parcela 5"
+  match = limpo.match(/(\d+)\s*x,?\s*parcela\s*(\d+)/);
+  if (match) {
+    const total = parseInt(match[1]);
+    const atual = parseInt(match[2]);
+    if (atual >= 1 && total >= 1 && atual <= total) {
+      return { atual, total };
+    }
+  }
+  
+  // Padrão 4: "3 de 10", "3/10", "3ª de 10"
+  match = limpo.match(/(\d+)\s*(?:ª|°|de|\/)\s*(\d+)/);
+  if (match) {
+    const atual = parseInt(match[1]);
+    const total = parseInt(match[2]);
+    if (atual >= 1 && total >= 1 && atual <= total) {
+      return { atual, total };
+    }
+  }
+  
+  // Padrão 5: "10x de 150" - assume parcela 1
   match = limpo.match(/(\d+)\s*x/);
   if (match) {
     return { atual: 1, total: parseInt(match[1]) };
+  }
+  
+  // Padrão 6: Apenas "48" (total de parcelas, assume parcela 1)
+  match = limpo.match(/^(\d+)$/);
+  if (match) {
+    const total = parseInt(match[1]);
+    if (total >= 2 && total <= 120) {
+      return { atual: 1, total };
+    }
   }
   
   return null;
@@ -331,11 +509,16 @@ export function extrairTipoDeResposta(texto: string): BillType | null {
   const limpo = texto.toLowerCase().trim();
   
   const mapeamento: Record<string, BillType> = {
-    '1': 'fixed', 'fixa': 'fixed', 'fixo': 'fixed',
-    '2': 'variable', 'variável': 'variable', 'variavel': 'variable',
-    '3': 'subscription', 'assinatura': 'subscription',
-    '4': 'installment', 'parcelamento': 'installment', 'parcela': 'installment', 'parcelada': 'installment', 'parcelado': 'installment',
-    '5': 'one_time', 'avulsa': 'one_time', 'única': 'one_time', 'unica': 'one_time', 'avulso': 'one_time'
+    // Fixa
+    '1': 'fixed', 'fixa': 'fixed', 'fixo': 'fixed', 'fixas': 'fixed',
+    // Variável
+    '2': 'variable', 'variável': 'variable', 'variavel': 'variable', 'variaveis': 'variable', 'variáveis': 'variable',
+    // Assinatura
+    '3': 'subscription', 'assinatura': 'subscription', 'assinaturas': 'subscription', 'streaming': 'subscription', 'serviço': 'subscription', 'servico': 'subscription',
+    // Parcelamento
+    '4': 'installment', 'parcelamento': 'installment', 'parcela': 'installment', 'parcelada': 'installment', 'parcelado': 'installment', 'parcelas': 'installment',
+    // Avulsa
+    '5': 'one_time', 'avulsa': 'one_time', 'única': 'one_time', 'unica': 'one_time', 'avulso': 'one_time', 'avulsas': 'one_time'
   };
   
   return mapeamento[limpo] || null;
@@ -551,13 +734,10 @@ function formatarDataComDia(data: string): string {
   return `${d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} (${dia})`;
 }
 
+// DEPRECATED: Usar calcularDiasParaVencimentoBRT() que considera timezone de São Paulo
 function calcularDiasParaVencimento(dueDate: string): number {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const vencimento = new Date(dueDate + 'T12:00:00');
-  vencimento.setHours(0, 0, 0, 0);
-  const diffTime = vencimento.getTime() - hoje.getTime();
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  // Redireciona para a versão com timezone correto
+  return calcularDiasParaVencimentoBRT(dueDate);
 }
 
 export function getEmojiConta(nome: string): string {
@@ -709,7 +889,8 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
     };
   }
   
-  const hoje = new Date();
+  // IMPORTANTE: Usar timezone de São Paulo
+  const hoje = getHojeSaoPaulo();
   
   // Separar por status
   const vencidas = todos.filter(t => calcularDiasParaVencimento(t.due_date) < 0);
@@ -789,13 +970,14 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
 
 export async function contasVencendo(userId: string, dias: number = 7): Promise<string> {
   const supabase = getSupabase();
-  const hoje = new Date();
+  // IMPORTANTE: Usar timezone de São Paulo para evitar problemas com UTC
+  const hoje = getHojeSaoPaulo();
   hoje.setHours(0, 0, 0, 0);
-  const hojeStr = hoje.toISOString().split('T')[0];
+  const hojeStr = getHojeStrSaoPaulo();
   
   const dataLimite = new Date(hoje);
   dataLimite.setDate(dataLimite.getDate() + dias);
-  const dataLimiteStr = dataLimite.toISOString().split('T')[0];
+  const dataLimiteStr = `${dataLimite.getFullYear()}-${String(dataLimite.getMonth() + 1).padStart(2, '0')}-${String(dataLimite.getDate()).padStart(2, '0')}`;
   
   // Buscar contas A VENCER (de hoje em diante, não vencidas!)
   const { data: contas } = await supabase
@@ -967,20 +1149,24 @@ export async function contasVencidas(userId: string): Promise<string> {
 
 export async function contasDoMes(userId: string, mes?: number, ano?: number): Promise<string> {
   const supabase = getSupabase();
-  const hoje = new Date();
+  // IMPORTANTE: Usar timezone de São Paulo
+  const hoje = getHojeSaoPaulo();
   const mesAlvo = mes ?? hoje.getMonth();
   const anoAlvo = ano ?? hoje.getFullYear();
   
   const inicioMes = new Date(anoAlvo, mesAlvo, 1);
   const fimMes = new Date(anoAlvo, mesAlvo + 1, 0);
   
+  const inicioMesStr = `${anoAlvo}-${String(mesAlvo + 1).padStart(2, '0')}-01`;
+  const fimMesStr = `${anoAlvo}-${String(mesAlvo + 1).padStart(2, '0')}-${String(fimMes.getDate()).padStart(2, '0')}`;
+  
   // Buscar contas do mês
   const { data: contas } = await supabase
     .from('payable_bills')
     .select('id, description, amount, due_date, status, bill_type')
     .eq('user_id', userId)
-    .gte('due_date', inicioMes.toISOString().split('T')[0])
-    .lte('due_date', fimMes.toISOString().split('T')[0])
+    .gte('due_date', inicioMesStr)
+    .lte('due_date', fimMesStr)
     .order('due_date', { ascending: true });
   
   // Buscar faturas do mês
@@ -1067,25 +1253,29 @@ export async function contasDoMes(userId: string, mes?: number, ano?: number): P
 
 export async function resumoContasMes(userId: string): Promise<string> {
   const supabase = getSupabase();
-  const hoje = new Date();
+  // IMPORTANTE: Usar timezone de São Paulo
+  const hoje = getHojeSaoPaulo();
   const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
   const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
+  
+  const inicioMesStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`;
+  const fimMesStr = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(fimMes.getDate()).padStart(2, '0')}`;
   
   // Buscar contas do mês
   const { data: contas } = await supabase
     .from('payable_bills')
     .select('amount, status, due_date')
     .eq('user_id', userId)
-    .gte('due_date', inicioMes.toISOString().split('T')[0])
-    .lte('due_date', fimMes.toISOString().split('T')[0]);
+    .gte('due_date', inicioMesStr)
+    .lte('due_date', fimMesStr);
   
   // Buscar faturas do mês
   const { data: faturas } = await supabase
     .from('credit_card_invoices')
     .select('total_amount, status, due_date')
     .eq('user_id', userId)
-    .gte('due_date', inicioMes.toISOString().split('T')[0])
-    .lte('due_date', fimMes.toISOString().split('T')[0]);
+    .gte('due_date', inicioMesStr)
+    .lte('due_date', fimMesStr);
   
   // Calcular totais
   const contasPagas = (contas || []).filter((c: any) => c.status === 'paid');
@@ -1358,6 +1548,22 @@ async function processarCadastroConta(
     valor = undefined;
   }
   
+  // Só aceitar parcelas se REALMENTE foi mencionado no texto
+  // Padrões válidos: "36x", "em 24x", "24 parcelas", "parcela 3 de 12", "3/12"
+  const textoMencionaParcelas = comandoOriginal && (
+    /\d+\s*x/i.test(comandoOriginal) ||                    // "36x", "24x"
+    /\d+\s*parcelas?/i.test(comandoOriginal) ||            // "36 parcelas"
+    /parcela\s*\d+/i.test(comandoOriginal) ||              // "parcela 3"
+    /\d+\s*(de|\/)\s*\d+/i.test(comandoOriginal) ||        // "3 de 12", "3/12"
+    /em\s*\d+\s*vezes/i.test(comandoOriginal)              // "em 12 vezes"
+  );
+  
+  if (totalParcelas && !textoMencionaParcelas) {
+    console.log(`[CADASTRAR-CONTA] NLP inventou totalParcelas=${totalParcelas}. Ignorando.`);
+    totalParcelas = undefined;
+    parcelaAtual = undefined;
+  }
+  
   // Fallback: extrair dia do texto
   if (!diaVencimento && comandoOriginal) {
     const diaMatch = comandoOriginal.match(/dia\s*(\d{1,2})/i);
@@ -1366,20 +1572,67 @@ async function processarCadastroConta(
     }
   }
   
-  // Fallback: extrair valor do texto
-  if (!valor && comandoOriginal) {
-    const valorMatch = comandoOriginal.match(/r?\$?\s*(\d+(?:[.,]\d+)?)\s*(?:de|reais)?/i);
-    if (valorMatch && !comandoOriginal.includes('dia ' + valorMatch[1])) {
-      valor = parseFloat(valorMatch[1].replace(',', '.'));
+  // PRIMEIRO: Detectar padrão de parcelamento "Nx de valor" (ex: "10x de 250", "24x de 99 reais")
+  // Isso DEVE vir antes do fallback de valor para não confundir parcelas com valor
+  if (comandoOriginal) {
+    // Regex melhorado para capturar:
+    // - "24x de 99" 
+    // - "24x de 99 reais"
+    // - "24x de R$ 99"
+    // - "em 24x de 99"
+    const parcelamentoMatch = comandoOriginal.match(/(?:em\s+)?(\d+)\s*x\s*(?:de\s*)?r?\$?\s*(\d+(?:[.,]\d+)?)\s*(?:reais|real)?/i);
+    if (parcelamentoMatch) {
+      const numParcelas = parseInt(parcelamentoMatch[1]);
+      const valorParcela = parseFloat(parcelamentoMatch[2].replace(',', '.'));
+      
+      console.log(`[CADASTRAR-CONTA] Parcelamento detectado: ${numParcelas}x de R$ ${valorParcela}`);
+      
+      // Só usar se faz sentido (parcelas entre 2 e 72, valor > 0)
+      if (numParcelas >= 2 && numParcelas <= 72 && valorParcela > 0) {
+        if (!totalParcelas) totalParcelas = numParcelas;
+        if (!parcelaAtual) parcelaAtual = 1;
+        
+        // ⚠️ CRÍTICO: SEMPRE usar o valor da parcela extraído do texto!
+        // O NLP pode calcular o total (24 × 99 = 2376) ao invés do valor por parcela (99)
+        // Quando detectamos "Nx de valor", o valor correto é o da parcela, não o total!
+        if (valor && valor !== valorParcela) {
+          console.log(`[CADASTRAR-CONTA] ⚠️ NLP retornou valor ${valor}, mas texto diz ${valorParcela}. Usando valor do texto!`);
+        }
+        valor = valorParcela;  // SEMPRE sobrescrever com o valor correto
+        
+        console.log(`[CADASTRAR-CONTA] Valores definidos: parcela ${parcelaAtual}/${totalParcelas}, valor R$ ${valor}`);
+      }
     }
   }
   
-  // Fallback: extrair parcelas do texto
-  if (!parcelaAtual && !totalParcelas && comandoOriginal) {
+  // Fallback: extrair valor do texto (só se não foi extraído do parcelamento)
+  if (!valor && comandoOriginal) {
+    // Evitar capturar número de parcelas como valor
+    // Padrão: busca valor após "de" ou "R$" ou "reais", mas NÃO após "x"
+    const valorMatch = comandoOriginal.match(/(?:de\s*)?r\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*reais/i);
+    if (valorMatch) {
+      const valorCapturado = valorMatch[1] || valorMatch[2];
+      if (valorCapturado && !comandoOriginal.includes('dia ' + valorCapturado)) {
+        valor = parseFloat(valorCapturado.replace(',', '.'));
+        console.log(`[CADASTRAR-CONTA] Valor extraído do texto: R$ ${valor}`);
+      }
+    }
+  }
+  
+  // Fallback: extrair parcelas do texto (para formatos como "3/10", "parcela 3 de 10")
+  if (!parcelaAtual && comandoOriginal) {
     const parcelas = extrairParcelasTexto(comandoOriginal);
     if (parcelas) {
       parcelaAtual = parcelas.atual;
-      totalParcelas = parcelas.total;
+      if (!totalParcelas) {
+        totalParcelas = parcelas.total;
+      }
+    }
+    
+    // Se ainda não tem parcelaAtual mas tem totalParcelas, assumir parcela 1
+    if (!parcelaAtual && totalParcelas) {
+      console.log(`[CADASTRAR-CONTA] Assumindo parcela 1 de ${totalParcelas}`);
+      parcelaAtual = 1;
     }
   }
   
@@ -1394,7 +1647,11 @@ async function processarCadastroConta(
   // PASSO 4: Montar dados e validar
   // ============================================
   
-  const descricao = descricaoRaw ? normalizarNomeConta(descricaoRaw) : undefined;
+  // IMPORTANTE: Manter descrição ORIGINAL do usuário, apenas capitalizar
+  // normalizarNomeConta só deve ser usada para COMPARAÇÃO de duplicatas
+  const descricao = descricaoRaw 
+    ? descricaoRaw.charAt(0).toUpperCase() + descricaoRaw.slice(1).toLowerCase()
+    : undefined;
   
   const dados: DadosCadastroConta = {
     tipo,
@@ -1420,6 +1677,36 @@ async function processarCadastroConta(
       dados: {
         step: 'awaiting_bill_type',
         ...dados,
+        phone
+      }
+    };
+  }
+  
+  // ============================================
+  // PASSO 5.5: Verificar se é parcelamento obrigatório SEM parcelas válidas
+  // ============================================
+  // Palavras como "financiamento", "empréstimo", "crediário" SEMPRE são parcelamentos
+  // Se o usuário não informou o número de parcelas (ou NLP assumiu 1), devemos PERGUNTAR
+  // NOTA: totalParcelas = 1 é inválido para financiamento/empréstimo - sempre tem mais de 1 parcela!
+  
+  const textoParaVerificar = comandoOriginal || descricaoRaw || '';
+  const parcelasInvalidas = !totalParcelas || totalParcelas <= 1;
+  
+  if (ehParcelamentoObrigatorio(textoParaVerificar) && parcelasInvalidas) {
+    console.log('[CADASTRAR-CONTA] ⚠️ Parcelamento obrigatório detectado SEM número de parcelas válido!');
+    console.log('[CADASTRAR-CONTA] Texto:', textoParaVerificar);
+    console.log('[CADASTRAR-CONTA] totalParcelas atual:', totalParcelas, '(inválido para parcelamento)');
+    
+    return {
+      mensagem: `📝 Vou cadastrar o parcelamento de *${descricao || descricaoRaw}*.\n\n🔢 Quantas parcelas são no total?\nE qual parcela é essa?\n\n_Ex: "48 parcelas, estou na 12" ou "36x, parcela 5"_`,
+      precisaConfirmacao: true,
+      dados: {
+        step: 'awaiting_installment_info',
+        descricao: descricao || descricaoRaw,
+        valor,
+        diaVencimento,
+        tipo: 'installment',
+        textoOriginal: comandoOriginal,
         phone
       }
     };
@@ -1469,12 +1756,25 @@ async function processarCadastroConta(
   
   // Se falta dia de vencimento, perguntar
   if (camposFaltantes.includes('diaVencimento')) {
+    console.log('[CADASTRAR-CONTA] Salvando contexto awaiting_due_day com dados:', {
+      descricao: dados.descricao,
+      valor: dados.valor,
+      tipo: dados.tipo,
+      recorrencia: dados.recorrencia
+    });
+    
     return {
       mensagem: getPerguntaParaCampo('diaVencimento', dados),
       precisaConfirmacao: true,
       dados: {
         step: 'awaiting_due_day',
-        ...dados,
+        descricao: dados.descricao,
+        valor: dados.valor,
+        tipo: dados.tipo,
+        recorrencia: dados.recorrencia,
+        parcelaAtual: dados.parcelaAtual,
+        totalParcelas: dados.totalParcelas,
+        textoOriginal: dados.textoOriginal,
         phone
       }
     };
@@ -1507,9 +1807,56 @@ async function processarCadastroConta(
   }
   
   // ============================================
+  // PASSO 6.5: Conta variável SEM valor - perguntar valor médio
+  // ============================================
+  // Contas de serviços (luz, água, gás) são naturalmente variáveis
+  // Se não informou valor, perguntar o valor médio para controle financeiro
+  
+  const CONTAS_VARIAVEIS_KEYWORDS = [
+    'luz', 'energia', 'elétrica', 'eletrica', 'enel', 'cpfl', 'cemig', 'light', 'celpe', 'energisa',
+    'água', 'agua', 'sabesp', 'copasa', 'cedae', 'sanepar',
+    'gás', 'gas', 'comgás', 'comgas', 'naturgy'
+  ];
+  
+  const descricaoLower = (descricao || '').toLowerCase();
+  const textoOriginalLower = (comandoOriginal || '').toLowerCase();
+  const ehContaDeServico = CONTAS_VARIAVEIS_KEYWORDS.some(kw => 
+    descricaoLower.includes(kw) || textoOriginalLower.includes(kw)
+  );
+  
+  // Se é conta de serviço variável E não tem valor, perguntar valor médio
+  if (ehContaDeServico && !valor) {
+    console.log('[CADASTRAR-CONTA] ⚠️ Conta variável detectada SEM valor - perguntando valor médio');
+    console.log('[CADASTRAR-CONTA] Descrição:', descricao);
+    
+    const emoji = getEmojiConta(descricao || '');
+    return {
+      mensagem: `📝 Vou cadastrar a conta de *${descricao}*.\n\n💰 Qual o valor médio mensal?\n\n_Ex: "80 reais" ou "em média 120"_`,
+      precisaConfirmacao: true,
+      dados: {
+        step: 'awaiting_average_value',
+        descricao,
+        diaVencimento,
+        tipo: 'variable',
+        textoOriginal: comandoOriginal,
+        phone
+      }
+    };
+  }
+  
+  // ============================================
   // PASSO 7: Todos os campos OK - Cadastrar!
   // ============================================
   
+  return await cadastrarContaNoBanco(supabase, userId, dados);
+}
+
+// Função EXPORTADA para criar conta diretamente (usada pelo context-manager na opção "3")
+export async function criarContaDiretamente(
+  userId: string,
+  dados: DadosCadastroConta
+): Promise<{ mensagem: string }> {
+  const supabase = getSupabase();
   return await cadastrarContaNoBanco(supabase, userId, dados);
 }
 
@@ -1526,13 +1873,18 @@ async function cadastrarContaNoBanco(
     return { mensagem: '❌ Dados incompletos. Tente novamente.' };
   }
   
-  // Calcular due_date
-  const hoje = new Date();
+  // Calcular due_date - IMPORTANTE: Usar timezone de São Paulo
+  const hoje = getHojeSaoPaulo();
+  hoje.setHours(0, 0, 0, 0);
   let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento);
   
-  if (dueDate < hoje) {
+  // Se o dia já passou neste mês, agendar para o próximo mês
+  if (dueDate.getDate() < hoje.getDate() || (dueDate.getDate() === hoje.getDate() && diaVencimento < hoje.getDate())) {
     dueDate.setMonth(dueDate.getMonth() + 1);
   }
+  
+  // Formatar data corretamente
+  const dueDateStr = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
   
   // Mapear tipo para bill_type do banco usando função inteligente
   const billTypeDb = mapearBillTypeParaBanco(tipo || 'unknown', descricao);
@@ -1542,26 +1894,90 @@ async function cadastrarContaNoBanco(
   console.log(`[CADASTRAR-CONTA] Tipo interno: ${tipo}`);
   console.log(`[CADASTRAR-CONTA] Descrição: ${descricao}`);
   console.log(`[CADASTRAR-CONTA] bill_type mapeado: ${billTypeDb}`);
+  console.log(`[CADASTRAR-CONTA] Parcelas recebidas: parcelaAtual=${parcelaAtual}, totalParcelas=${totalParcelas}`);
+  console.log(`[CADASTRAR-CONTA] isInstallment: ${isInstallment}`);
   
-  const { error } = await supabase
-    .from('payable_bills')
-    .insert({
-      user_id: userId,
-      description: descricao,
-      amount: valor || null,
-      due_date: dueDate.toISOString().split('T')[0],
-      status: 'pending',
-      is_recurring: isRecurring && !isInstallment,
-      bill_type: billTypeDb,
-      recurrence_config: isRecurring && !isInstallment ? { type: 'monthly', day: diaVencimento } : null,
-      is_installment: isInstallment,
-      installment_number: parcelaAtual || null,
-      installment_total: totalParcelas || null,
-    });
+  // Garantir que campos de parcela são números válidos ou null
+  const installmentNumber = (parcelaAtual && !isNaN(parcelaAtual)) ? Number(parcelaAtual) : null;
+  const installmentTotal = (totalParcelas && !isNaN(totalParcelas)) ? Number(totalParcelas) : null;
   
-  if (error) {
-    console.error('[CADASTRAR-CONTA] Erro ao inserir:', error);
-    return { mensagem: '❌ Erro ao cadastrar conta. Tente novamente.' };
+  // Se tem parcelas, garantir que ambos os campos estão preenchidos
+  const finalInstallmentNumber = installmentNumber || (installmentTotal ? 1 : null);
+  const finalInstallmentTotal = installmentTotal || null;
+  
+  console.log(`[CADASTRAR-CONTA] Parcelas finais: ${finalInstallmentNumber}/${finalInstallmentTotal}`);
+  
+  // Se é parcelamento, precisa de installment_group_id (constraint do banco)
+  const isInstallmentFinal = isInstallment || (finalInstallmentTotal !== null && finalInstallmentTotal > 1);
+  const installmentGroupId = isInstallmentFinal ? crypto.randomUUID() : null;
+  
+  console.log(`[CADASTRAR-CONTA] isInstallmentFinal: ${isInstallmentFinal}, groupId: ${installmentGroupId}`);
+  
+  const insertData = {
+    user_id: userId,
+    description: descricao,
+    amount: valor || null,
+    due_date: dueDateStr,
+    status: 'pending',
+    is_recurring: isRecurring && !isInstallmentFinal,
+    bill_type: billTypeDb,
+    recurrence_config: isRecurring && !isInstallmentFinal ? { type: 'monthly', day: diaVencimento } : null,
+    is_installment: isInstallmentFinal,
+    installment_number: isInstallmentFinal ? finalInstallmentNumber : null,
+    installment_total: isInstallmentFinal ? finalInstallmentTotal : null,
+    installment_group_id: installmentGroupId,
+  };
+  
+  // Se é parcelamento, gerar apenas as parcelas RESTANTES (da atual até o total)
+  if (isInstallmentFinal && finalInstallmentTotal && finalInstallmentTotal > 1) {
+    const parcelas = [];
+    const baseDate = new Date(dueDate);
+    
+    // Parcela inicial = a que o usuário informou (ou 1 se não informou)
+    const parcelaInicial = finalInstallmentNumber || 1;
+    // Quantidade a criar = total - inicial + 1 (ex: 12 - 3 + 1 = 10 parcelas)
+    const quantidadeParcelas = finalInstallmentTotal - parcelaInicial + 1;
+    
+    console.log(`[CADASTRAR-CONTA] Criando ${quantidadeParcelas} parcelas (${parcelaInicial} até ${finalInstallmentTotal})`);
+    
+    for (let i = 0; i < quantidadeParcelas; i++) {
+      const numeroParcela = parcelaInicial + i;  // 3, 4, 5, ... 12
+      const parcelaDate = new Date(baseDate);
+      parcelaDate.setMonth(parcelaDate.getMonth() + i);
+      
+      const parcelaDateStr = `${parcelaDate.getFullYear()}-${String(parcelaDate.getMonth() + 1).padStart(2, '0')}-${String(parcelaDate.getDate()).padStart(2, '0')}`;
+      
+      parcelas.push({
+        ...insertData,
+        due_date: parcelaDateStr,
+        installment_number: numeroParcela,
+      });
+    }
+    
+    console.log(`[CADASTRAR-CONTA] Gerando ${parcelas.length} parcelas com group_id: ${installmentGroupId}`);
+    
+    const { error } = await supabase
+      .from('payable_bills')
+      .insert(parcelas);
+    
+    if (error) {
+      console.error('[CADASTRAR-CONTA] Erro ao inserir parcelas:', error);
+      return { mensagem: '❌ Erro ao cadastrar parcelamento. Tente novamente.' };
+    }
+    
+    console.log(`[CADASTRAR-CONTA] ${parcelas.length} parcelas criadas com sucesso!`);
+  } else {
+    // Conta única (não parcelada)
+    console.log(`[CADASTRAR-CONTA] INSERT data:`, JSON.stringify(insertData));
+    
+    const { error } = await supabase
+      .from('payable_bills')
+      .insert(insertData);
+    
+    if (error) {
+      console.error('[CADASTRAR-CONTA] Erro ao inserir:', error);
+      return { mensagem: '❌ Erro ao cadastrar conta. Tente novamente.' };
+    }
   }
   
   // Template de sucesso
@@ -1584,8 +2000,18 @@ async function cadastrarContaNoBanco(
   msg += `📅 Vence dia ${diaVencimento}\n`;
   
   // Tipo de recorrência
-  if (isInstallment && parcelaAtual && totalParcelas) {
-    msg += `🔢 Parcela ${parcelaAtual} de ${totalParcelas}\n`;
+  if (isInstallmentFinal && finalInstallmentTotal && finalInstallmentTotal > 1) {
+    const parcelaInicial = finalInstallmentNumber || 1;
+    const parcelasRestantes = finalInstallmentTotal - parcelaInicial + 1;
+    
+    if (parcelaInicial > 1) {
+      // Parcela intermediária (ex: "parcela 3 de 12")
+      msg += `🔢 Parcela ${parcelaInicial}/${finalInstallmentTotal}\n`;
+      msg += `📊 ${parcelasRestantes} parcelas cadastradas (${parcelaInicial} a ${finalInstallmentTotal})\n`;
+    } else {
+      // Parcelamento novo (começando da 1)
+      msg += `🔢 Parcelamento: ${finalInstallmentTotal}x de R$ ${(valor || 0).toFixed(2).replace('.', ',')}\n`;
+    }
   } else if (tipo === 'subscription') {
     msg += `🔄 Assinatura mensal\n`;
   } else if (isVariavel) {
@@ -1686,7 +2112,9 @@ async function processarEdicaoConta(
   } else if (campo.includes('nome')) {
     campoDb = 'description';
     valorAntigo = conta.description;
-    valorNovo = normalizarNomeConta(String(novoValor));
+    // Manter descrição original, apenas capitalizar
+    const novoNome = String(novoValor);
+    valorNovo = novoNome.charAt(0).toUpperCase() + novoNome.slice(1).toLowerCase();
   }
   
   if (!campoDb) {
@@ -1754,7 +2182,12 @@ async function processarExclusaoConta(
 
 export async function buscarContaPorNome(userId: string, nome: string): Promise<ContaPagar | null> {
   const supabase = getSupabase();
-  const nomeNormalizado = normalizarNomeConta(nome).toLowerCase();
+  
+  // IMPORTANTE: NÃO usar normalizarNomeConta aqui!
+  // Isso transformava "Matrícula da escola" → "Escola" e causava falsos positivos
+  const nomeLower = nome.toLowerCase().trim();
+  
+  console.log(`[DUPLICATA-CHECK] Buscando duplicatas para: "${nome}"`);
   
   // Buscar todas as contas do usuário
   const { data: contas } = await supabase
@@ -1765,13 +2198,48 @@ export async function buscarContaPorNome(userId: string, nome: string): Promise<
   
   if (!contas || contas.length === 0) return null;
   
-  // Buscar por match exato ou parcial
+  // Buscar por match - MENOS AGRESSIVO
   const contaEncontrada = contas.find((c: any) => {
-    const descLower = c.description.toLowerCase();
-    return descLower === nomeNormalizado || 
-           descLower.includes(nomeNormalizado) ||
-           nomeNormalizado.includes(descLower);
+    const descLower = c.description.toLowerCase().trim();
+    
+    // Match exato → duplicata
+    if (descLower === nomeLower) {
+      console.log(`[DUPLICATA-CHECK] "${nome}" === "${c.description}" → DUPLICATA (exato)`);
+      return true;
+    }
+    
+    // Contar palavras
+    const palavrasExistente = descLower.split(/\s+/).length;
+    const palavrasNova = nomeLower.split(/\s+/).length;
+    
+    console.log(`[DUPLICATA-CHECK] Comparando "${nome}" (${palavrasNova} palavras) com "${c.description}" (${palavrasExistente} palavras)`);
+    
+    // Se a nova descrição tem 2+ palavras a mais → NÃO é duplicata
+    // Ex: "Escola" vs "Matrícula da escola" → diferentes
+    if (palavrasNova >= palavrasExistente + 2) {
+      console.log(`[DUPLICATA-CHECK] Diferença >= 2 palavras → NÃO é duplicata`);
+      return false;
+    }
+    
+    // Se uma contém a outra E são similares em tamanho → duplicata
+    if (descLower.includes(nomeLower) || nomeLower.includes(descLower)) {
+      const diff = Math.abs(palavrasNova - palavrasExistente);
+      // Só é duplicata se diferença de palavras for pequena
+      if (diff <= 1) {
+        console.log(`[DUPLICATA-CHECK] Contém + diff=${diff} → DUPLICATA`);
+        return true;
+      }
+      console.log(`[DUPLICATA-CHECK] Contém mas diff=${diff} > 1 → NÃO é duplicata`);
+    }
+    
+    return false;
   });
+  
+  if (contaEncontrada) {
+    console.log(`[DUPLICATA-CHECK] Encontrada duplicata: "${contaEncontrada.description}"`);
+  } else {
+    console.log(`[DUPLICATA-CHECK] Nenhuma duplicata encontrada`);
+  }
   
   return contaEncontrada || null;
 }

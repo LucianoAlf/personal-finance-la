@@ -123,25 +123,45 @@ export function usePayableBills(initialFilters?: BillFilters) {
   useEffect(() => {
     if (!user?.id) return;
 
+    const channelName = `payable_bills_${user.id}`;
+    
+    console.log('📡 Iniciando Realtime subscription para:', user.id);
+    
     const subscription = supabase
-      .channel('payable_bills_realtime')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'payable_bills',
-          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('🔄 Realtime: payable_bills changed', payload.eventType);
-          fetchBills();
+          // Filtrar apenas eventos do usuário atual (RLS já garante isso)
+          if (payload.new && (payload.new as any).user_id === user.id) {
+            console.log('🔄 Realtime: payable_bills changed!', {
+              eventType: payload.eventType,
+              description: (payload.new as any).description,
+              amount: (payload.new as any).amount
+            });
+            // Pequeno delay para garantir que o banco atualizou
+            setTimeout(() => {
+              console.log('🔄 Refetching bills após Realtime event...');
+              fetchBills();
+            }, 500);
+          }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Realtime subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime conectado com sucesso!');
+        }
+      });
 
     return () => {
-      subscription.unsubscribe();
+      console.log('🔌 Desconectando Realtime subscription');
+      supabase.removeChannel(subscription);
     };
   }, [user?.id, fetchBills]);
 
@@ -284,6 +304,31 @@ export function usePayableBills(initialFilters?: BillFilters) {
     } catch (error) {
       console.error('Erro ao deletar conta:', error);
       toast.error('Erro ao deletar conta');
+      return false;
+    }
+  };
+
+  // ============================================
+  // DELETE GROUP: Deletar grupo de parcelamento
+  // ============================================
+  const deleteInstallmentGroup = async (groupId: string) => {
+    if (!user?.id) return false;
+
+    try {
+      const { error } = await supabase
+        .from('payable_bills')
+        .delete()
+        .eq('installment_group_id', groupId)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast.success('Parcelamento deletado com sucesso!');
+      await fetchBills();
+      return true;
+    } catch (error) {
+      console.error('Erro ao deletar parcelamento:', error);
+      toast.error('Erro ao deletar parcelamento');
       return false;
     }
   };
@@ -449,6 +494,7 @@ export function usePayableBills(initialFilters?: BillFilters) {
     createInstallmentBills,
     updateBill,
     deleteBill,
+    deleteInstallmentGroup,
     markAsPaid,
   };
 }

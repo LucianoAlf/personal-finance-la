@@ -2,21 +2,29 @@ import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Receipt, TrendingUp, BarChart3, History } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Plus, Receipt, BarChart3, History, Trash2, AlertTriangle } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { usePayableBills } from '@/hooks/usePayableBills';
-import { useRecurringTrend } from '@/hooks/useRecurringTrend';
 import { BillSummaryCards } from '@/components/payable-bills/BillSummaryCards';
 import { BillList } from '@/components/payable-bills/BillList';
 import { BillDialog } from '@/components/payable-bills/BillDialog';
 import { BillPaymentDialog } from '@/components/payable-bills/BillPaymentDialog';
 import { BillFilters } from '@/components/payable-bills/BillFilters';
 import { BillHistoryTable } from '@/components/payable-bills/BillHistoryTable';
-import { RecurringBillTrendChart } from '@/components/payable-bills/RecurringBillTrendChart';
-import { RecurringBillVariationAlert } from '@/components/payable-bills/RecurringBillVariationAlert';
-import { BillAnalyticsDashboard } from '@/components/payable-bills/BillAnalyticsDashboard';
-import { ExportButton } from '@/components/payable-bills/ExportButton';
+import { BillReportsDashboard } from '@/components/payable-bills/reports';
 import { ReminderConfigDialog } from '@/components/payable-bills/ReminderConfigDialog';
+import { RecurringBillVariationAlert } from '@/components/payable-bills/RecurringBillVariationAlert';
+import { useRecurringTrend } from '@/hooks/useRecurringTrend';
 import { BillSortSelect, SortOption } from '@/components/payable-bills/BillSortSelect';
 import { AttentionSection } from '@/components/payable-bills/AttentionSection';
 import { BillCategoryFilter, CategoryFilter } from '@/components/payable-bills/BillCategoryFilter';
@@ -46,15 +54,12 @@ export default function PayableBills() {
     createInstallmentBills,
     updateBill,
     deleteBill,
+    deleteInstallmentGroup,
     markAsPaid,
   } = usePayableBills();
 
-  // Hook de Analytics de Recorrências
-  const {
-    alerts: variationAlerts,
-    chartData: trendChartData,
-    loading: trendLoading
-  } = useRecurringTrend();
+  // Hook de Analytics de Recorrências (para alertas na seção de atenção)
+  const { alerts: variationAlerts } = useRecurringTrend();
 
   // Preferências de formatação do usuário
   const { formatCurrency, formatDate } = useUserPreferences();
@@ -63,6 +68,10 @@ export default function PayableBills() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
+  const [billToDelete, setBillToDelete] = useState<PayableBill | null>(null);
+  const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
   const [selectedBill, setSelectedBill] = useState<PayableBill | null>(null);
   const [sortOption, setSortOption] = useState<SortOption>('due_soon');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
@@ -70,10 +79,33 @@ export default function PayableBills() {
   const [periodFilter, setPeriodFilter] = useState<PeriodOption>('all');
   const [recurrenceTypeFilter, setRecurrenceTypeFilter] = useState<RecurrenceTypeOption>('all');
 
-  // Ordenar contas baseado na opção selecionada
+  // Ordenar e filtrar contas baseado na opção selecionada
   const sortedBills = useMemo(() => {
-    const sorted = [...bills];
+    let sorted = [...bills];
     
+    // Primeiro: aplicar filtros de status (se selecionado)
+    switch (sortOption) {
+      case 'only_pending':
+        sorted = sorted.filter(b => b.status === 'pending');
+        // Ordenar por vencimento próximo
+        return sorted.sort((a, b) => 
+          parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime()
+        );
+      case 'only_overdue':
+        sorted = sorted.filter(b => b.status === 'overdue');
+        // Ordenar por mais atrasadas primeiro
+        return sorted.sort((a, b) => 
+          parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime()
+        );
+      case 'only_paid':
+        sorted = sorted.filter(b => b.status === 'paid');
+        // Ordenar por mais recentes pagas
+        return sorted.sort((a, b) => 
+          new Date(b.paid_at || b.updated_at).getTime() - new Date(a.paid_at || a.updated_at).getTime()
+        );
+    }
+    
+    // Segundo: aplicar ordenação
     switch (sortOption) {
       case 'recent':
         return sorted.sort((a, b) => 
@@ -126,11 +158,14 @@ export default function PayableBills() {
           return isSameMonth(dueDate, today);
         });
         break;
-      case 'overdue':
-        filtered = filtered.filter((bill) => bill.status === 'overdue');
-        break;
       case 'recurring':
         filtered = filtered.filter((bill) => bill.is_recurring);
+        break;
+      case 'installments':
+        filtered = filtered.filter((bill) => bill.is_installment);
+        break;
+      case 'one_time':
+        filtered = filtered.filter((bill) => !bill.is_recurring && !bill.is_installment);
         break;
     }
     
@@ -196,9 +231,29 @@ export default function PayableBills() {
     setSelectedBill(null);
   };
 
-  const handleDelete = async (bill: PayableBill) => {
-    if (confirm(`Tem certeza que deseja deletar "${bill.description}"?`)) {
-      await deleteBill(bill.id);
+  const handleDelete = (bill: PayableBill) => {
+    setBillToDelete(bill);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (billToDelete) {
+      await deleteBill(billToDelete.id);
+      setBillToDelete(null);
+      setDeleteDialogOpen(false);
+    }
+  };
+
+  const handleDeleteInstallmentGroup = (groupId: string) => {
+    setGroupToDelete(groupId);
+    setDeleteGroupDialogOpen(true);
+  };
+
+  const confirmDeleteGroup = async () => {
+    if (groupToDelete) {
+      await deleteInstallmentGroup(groupToDelete);
+      setGroupToDelete(null);
+      setDeleteGroupDialogOpen(false);
     }
   };
 
@@ -247,7 +302,7 @@ export default function PayableBills() {
 
         {/* Tabs */}
         <Tabs defaultValue="bills" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="bills">
               <Receipt className="h-4 w-4 mr-1" />
               Contas ({filteredBills.length})
@@ -255,10 +310,6 @@ export default function PayableBills() {
             <TabsTrigger value="history">
               <History className="h-4 w-4 mr-1" />
               Histórico ({paidBills.length})
-            </TabsTrigger>
-            <TabsTrigger value="analytics">
-              <TrendingUp className="h-4 w-4 mr-1" />
-              Analytics
             </TabsTrigger>
             <TabsTrigger value="reports">
               <BarChart3 className="h-4 w-4 mr-1" />
@@ -268,6 +319,16 @@ export default function PayableBills() {
 
           {/* ABA 1: CONTAS A PAGAR (UNIFICADA) */}
           <TabsContent value="bills" className="space-y-6">
+            {/* Alertas de Variação de Contas Recorrentes */}
+            {!loading && variationAlerts && variationAlerts.length > 0 && viewMode !== 'calendar' && (
+              <div className="mb-4">
+                <RecurringBillVariationAlert 
+                  alerts={variationAlerts}
+                  maxAlerts={2}
+                />
+              </div>
+            )}
+
             {/* Seção de Atenção Necessária */}
             {!loading && viewMode !== 'calendar' && (
               <AttentionSection
@@ -355,6 +416,7 @@ export default function PayableBills() {
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onConfigReminders={handleConfigReminders}
+                  onDeleteInstallmentGroup={handleDeleteInstallmentGroup}
                   emptyMessage="Nenhuma conta cadastrada. Clique em 'Nova Conta' para começar."
                 />
               )}
@@ -371,75 +433,14 @@ export default function PayableBills() {
               {loading ? (
                 <div className="h-96 bg-muted animate-pulse rounded-lg"></div>
               ) : (
-                <BillHistoryTable bills={paidBills} />
+                <BillHistoryTable bills={paidBills} onDelete={handleDelete} />
               )}
             </motion.div>
           </TabsContent>
 
-          {/* ABA 5: ANALYTICS */}
-          <TabsContent value="analytics" className="space-y-6">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.1 }}
-              className="space-y-6"
-            >
-              {/* Alertas de Variação */}
-              {variationAlerts && variationAlerts.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-semibold mb-4">
-                    🔔 Alertas de Variação
-                  </h3>
-                  <RecurringBillVariationAlert 
-                    alerts={variationAlerts}
-                    maxAlerts={3}
-                  />
-                </div>
-              )}
-
-              {/* Gráfico de Tendências */}
-              <RecurringBillTrendChart 
-                data={trendChartData}
-                loading={trendLoading}
-              />
-
-              {/* Info Card */}
-              <div className="bg-muted/50 rounded-lg p-4 border border-border">
-                <h4 className="font-semibold text-sm mb-2">
-                  💡 Como funciona o Analytics
-                </h4>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• O sistema monitora automaticamente suas contas recorrentes</li>
-                  <li>• Alertas aparecem quando há variação maior que 15% no valor</li>
-                  <li>• O gráfico mostra a tendência dos últimos 12 meses</li>
-                  <li>• Novos dados são atualizados a cada 5 minutos</li>
-                </ul>
-              </div>
-            </motion.div>
-          </TabsContent>
-
-          {/* ABA 6: RELATÓRIOS */}
+          {/* ABA 3: RELATÓRIOS (UNIFICADA) */}
           <TabsContent value="reports" className="space-y-6">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.1 }}
-              className="space-y-6"
-            >
-              {/* Header com Export */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold">Relatórios e Analytics</h3>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Visão completa dos seus gastos e performance
-                  </p>
-                </div>
-                <ExportButton bills={bills} />
-              </div>
-
-              {/* Dashboard */}
-              <BillAnalyticsDashboard />
-            </motion.div>
+            <BillReportsDashboard />
           </TabsContent>
         </Tabs>
       </div>
@@ -473,6 +474,58 @@ export default function PayableBills() {
           toast.success('Lembretes configurados com sucesso!');
         }}
       />
+
+      {/* Dialog de Confirmação - Deletar Conta */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-500" />
+              Deletar Conta
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja deletar <strong>"{billToDelete?.description}"</strong>?
+              <br />
+              <span className="text-muted-foreground">Esta ação não pode ser desfeita.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Deletar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de Confirmação - Deletar Parcelamento */}
+      <AlertDialog open={deleteGroupDialogOpen} onOpenChange={setDeleteGroupDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-red-500" />
+              Deletar Parcelamento Completo
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja deletar <strong>TODO o parcelamento</strong>?
+              <br />
+              <span className="text-red-500 font-medium">Todas as parcelas serão removidas permanentemente.</span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteGroup}
+              className="bg-red-500 hover:bg-red-600"
+            >
+              Deletar Tudo
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

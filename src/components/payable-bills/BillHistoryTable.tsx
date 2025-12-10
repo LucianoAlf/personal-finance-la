@@ -11,7 +11,8 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Search, FileText } from 'lucide-react';
+import { Search, FileText, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { PayableBill } from '@/types/payable-bills.types';
 import {
   formatCurrency,
@@ -25,9 +26,10 @@ import { BillCategoryFilter, CategoryFilter } from './BillCategoryFilter';
 
 interface BillHistoryTableProps {
   bills: PayableBill[];
+  onDelete?: (bill: PayableBill) => void;
 }
 
-export function BillHistoryTable({ bills }: BillHistoryTableProps) {
+export function BillHistoryTable({ bills, onDelete }: BillHistoryTableProps) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [dateRange, setDateRange] = useState<DateRange>(() => {
@@ -129,6 +131,7 @@ export function BillHistoryTable({ bills }: BillHistoryTableProps) {
               <TableHead>Pago em</TableHead>
               <TableHead>Forma</TableHead>
               <TableHead className="text-right">Valor</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -164,6 +167,18 @@ export function BillHistoryTable({ bills }: BillHistoryTableProps) {
                 </TableCell>
                 <TableCell className="text-right font-semibold">
                   {formatCurrency(bill.paid_amount || bill.amount)}
+                </TableCell>
+                <TableCell>
+                  {onDelete && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      onClick={() => onDelete(bill)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

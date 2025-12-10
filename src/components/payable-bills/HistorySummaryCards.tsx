@@ -46,7 +46,6 @@ export function HistorySummaryCards({ bills }: HistorySummaryCardsProps) {
     {
       title: 'Contas Pagas',
       value: stats.count.toString(),
-      subtitle: 'no período',
       icon: Receipt,
       color: 'text-blue-600',
       bgColor: 'bg-blue-500/10',
@@ -54,7 +53,6 @@ export function HistorySummaryCards({ bills }: HistorySummaryCardsProps) {
     {
       title: 'Pontualidade',
       value: `${stats.onTimeRate}%`,
-      subtitle: 'pagas em dia',
       icon: CheckCircle,
       color: stats.onTimeRate >= 80 ? 'text-green-600' : stats.onTimeRate >= 50 ? 'text-yellow-600' : 'text-red-600',
       bgColor: stats.onTimeRate >= 80 ? 'bg-green-500/10' : stats.onTimeRate >= 50 ? 'bg-yellow-500/10' : 'bg-red-500/10',
@@ -85,9 +83,6 @@ export function HistorySummaryCards({ bills }: HistorySummaryCardsProps) {
               <div>
                 <p className="text-xs text-muted-foreground">{card.title}</p>
                 <p className={`text-xl font-bold ${card.color}`}>{card.value}</p>
-                {card.subtitle && (
-                  <p className="text-xs text-muted-foreground">{card.subtitle}</p>
-                )}
               </div>
             </div>
           </Card>
