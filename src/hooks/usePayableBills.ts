@@ -118,50 +118,23 @@ export function usePayableBills(initialFilters?: BillFilters) {
   }, [fetchBills]);
 
   // ============================================
-  // REALTIME: Atualização em tempo real
+  // POLLING: Atualização automática a cada 30 segundos
   // ============================================
+  // Realtime do Supabase não funciona bem para eventos externos (WhatsApp)
+  // Polling garante que o frontend sempre mostra dados atualizados
   useEffect(() => {
     if (!user?.id) return;
 
-    const channelName = `payable_bills_${user.id}`;
+    console.log('🔄 Iniciando polling de payable_bills (30s)');
     
-    console.log('📡 Iniciando Realtime subscription para:', user.id);
-    
-    const subscription = supabase
-      .channel(channelName)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'payable_bills',
-        },
-        (payload) => {
-          // Filtrar apenas eventos do usuário atual (RLS já garante isso)
-          if (payload.new && (payload.new as any).user_id === user.id) {
-            console.log('🔄 Realtime: payable_bills changed!', {
-              eventType: payload.eventType,
-              description: (payload.new as any).description,
-              amount: (payload.new as any).amount
-            });
-            // Pequeno delay para garantir que o banco atualizou
-            setTimeout(() => {
-              console.log('🔄 Refetching bills após Realtime event...');
-              fetchBills();
-            }, 500);
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('📡 Realtime subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Realtime conectado com sucesso!');
-        }
-      });
+    const interval = setInterval(() => {
+      console.log('🔄 Polling: buscando atualizações...');
+      fetchBills();
+    }, 30000); // 30 segundos
 
     return () => {
-      console.log('🔌 Desconectando Realtime subscription');
-      supabase.removeChannel(subscription);
+      console.log('🔌 Parando polling de payable_bills');
+      clearInterval(interval);
     };
   }, [user?.id, fetchBills]);
 

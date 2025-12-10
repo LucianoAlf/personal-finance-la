@@ -1614,7 +1614,29 @@ async function processarCadastroConta(
       const valorCapturado = valorMatch[1] || valorMatch[2];
       if (valorCapturado && !comandoOriginal.includes('dia ' + valorCapturado)) {
         valor = parseFloat(valorCapturado.replace(',', '.'));
-        console.log(`[CADASTRAR-CONTA] Valor extraído do texto: R$ ${valor}`);
+        console.log(`[CADASTRAR-CONTA] Valor extraído do texto (R$/reais): R$ ${valor}`);
+      }
+    }
+    
+    // Fallback 2: Capturar número solto que parece ser valor (>= 10 e não é dia)
+    // Ex: "Conta de luz 180, vence dia 10" → 180 é valor, 10 é dia
+    if (!valor) {
+      // Encontrar todos os números no texto
+      const numeros = comandoOriginal.match(/\d+(?:[.,]\d+)?/g);
+      if (numeros) {
+        for (const num of numeros) {
+          const numFloat = parseFloat(num.replace(',', '.'));
+          // Ignorar números que são dias (1-31) ou que aparecem após "dia"
+          const isDia = comandoOriginal.match(new RegExp(`dia\\s*${num}\\b`, 'i'));
+          const isVencimento = comandoOriginal.match(new RegExp(`vence\\s*(dia\\s*)?${num}\\b`, 'i'));
+          
+          // Se é um número >= 10 e não é dia de vencimento, provavelmente é valor
+          if (numFloat >= 10 && !isDia && !isVencimento) {
+            valor = numFloat;
+            console.log(`[CADASTRAR-CONTA] Valor extraído do texto (número solto): R$ ${valor}`);
+            break;
+          }
+        }
       }
     }
   }
