@@ -2282,23 +2282,33 @@ async function processarTipoConta(
   const supabase = getSupabase();
   const dados = contexto.context_data || {};
   
-  // Importar função de extração
-  const { extrairTipoDeResposta, getCamposObrigatorios, validarCamposConta, getPerguntaParaCampo, getStateForField } = await import('./contas-pagar.ts');
+  // Importar função de extração (nova versão que também retorna descrição)
+  const { extrairTipoEDescricaoDeResposta, getCamposObrigatorios, validarCamposConta, getPerguntaParaCampo, getStateForField } = await import('./contas-pagar.ts');
   
-  const tipo = extrairTipoDeResposta(texto);
+  const resultado = extrairTipoEDescricaoDeResposta(texto);
   
-  if (!tipo) {
+  if (!resultado.tipo) {
     return `❌ Não entendi. Por favor, escolha:
 
 1️⃣ Fixa  2️⃣ Variável  3️⃣ Assinatura  4️⃣ Parcelamento  5️⃣ Avulsa
 
-_Digite o número ou o nome_`;
+_Digite o número ou o nome da conta (ex: Luz, Netflix, Aluguel)_`;
   }
   
-  dados.tipo = tipo;
+  dados.tipo = resultado.tipo;
+  
+  // Se usuário respondeu com nome de conta (ex: "Luz"), atualizar descrição
+  if (resultado.descricao) {
+    const descricaoAtual = (dados.descricao as string || '').toLowerCase();
+    // Só substituir se descrição atual é genérica
+    if (!descricaoAtual || descricaoAtual === 'conta' || descricaoAtual === '') {
+      dados.descricao = resultado.descricao;
+      console.log(`[TIPO-CONTA] Descrição atualizada: "${descricaoAtual}" → "${resultado.descricao}"`);
+    }
+  }
   
   // Verificar próximo campo faltante
-  const camposObrigatorios = getCamposObrigatorios(tipo);
+  const camposObrigatorios = getCamposObrigatorios(resultado.tipo);
   const camposFaltantes = validarCamposConta(dados as any, camposObrigatorios);
   
   if (camposFaltantes.length > 0) {

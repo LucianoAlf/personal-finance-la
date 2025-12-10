@@ -508,6 +508,7 @@ export function extrairRecorrenciaTexto(texto: string): 'mensal' | 'unica' | nul
 export function extrairTipoDeResposta(texto: string): BillType | null {
   const limpo = texto.toLowerCase().trim();
   
+  // Mapeamento direto (números e nomes de tipos)
   const mapeamento: Record<string, BillType> = {
     // Fixa
     '1': 'fixed', 'fixa': 'fixed', 'fixo': 'fixed', 'fixas': 'fixed',
@@ -521,7 +522,47 @@ export function extrairTipoDeResposta(texto: string): BillType | null {
     '5': 'one_time', 'avulsa': 'one_time', 'única': 'one_time', 'unica': 'one_time', 'avulso': 'one_time', 'avulsas': 'one_time'
   };
   
-  return mapeamento[limpo] || null;
+  if (mapeamento[limpo]) {
+    return mapeamento[limpo];
+  }
+  
+  // Se não é número/tipo direto, tentar identificar pelo nome da conta
+  const tipo = identificarTipoConta(limpo, {});
+  if (tipo && tipo !== 'unknown') {
+    console.log(`[TIPO-RESPOSTA] Nome de conta "${texto}" identificado como tipo: ${tipo}`);
+    return tipo;
+  }
+  
+  return null;
+}
+
+// Função para extrair tipo E atualizar descrição quando usuário responde com nome de conta
+export function extrairTipoEDescricaoDeResposta(texto: string): { tipo: BillType | null, descricao?: string } {
+  const limpo = texto.toLowerCase().trim();
+  
+  // Mapeamento direto (números e nomes de tipos) - NÃO muda descrição
+  const mapeamento: Record<string, BillType> = {
+    '1': 'fixed', 'fixa': 'fixed', 'fixo': 'fixed', 'fixas': 'fixed',
+    '2': 'variable', 'variável': 'variable', 'variavel': 'variable', 'variaveis': 'variable', 'variáveis': 'variable',
+    '3': 'subscription', 'assinatura': 'subscription', 'assinaturas': 'subscription', 'streaming': 'subscription',
+    '4': 'installment', 'parcelamento': 'installment', 'parcela': 'installment', 'parcelada': 'installment',
+    '5': 'one_time', 'avulsa': 'one_time', 'única': 'one_time', 'unica': 'one_time', 'avulso': 'one_time'
+  };
+  
+  if (mapeamento[limpo]) {
+    return { tipo: mapeamento[limpo] };
+  }
+  
+  // Se não é número/tipo direto, tentar identificar pelo nome da conta
+  const tipo = identificarTipoConta(limpo, {});
+  if (tipo && tipo !== 'unknown') {
+    // Capitalizar descrição
+    const descricao = texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
+    console.log(`[TIPO-RESPOSTA] Nome de conta "${texto}" → tipo: ${tipo}, descricao: ${descricao}`);
+    return { tipo, descricao };
+  }
+  
+  return { tipo: null };
 }
 
 // Mapear campo para estado do contexto
