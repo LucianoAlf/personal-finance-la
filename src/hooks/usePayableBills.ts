@@ -118,23 +118,57 @@ export function usePayableBills(initialFilters?: BillFilters) {
   }, [fetchBills]);
 
   // ============================================
-  // POLLING: Atualização automática a cada 30 segundos
+  // REALTIME: Atualização em tempo real
   // ============================================
-  // Realtime do Supabase não funciona bem para eventos externos (WhatsApp)
-  // Polling garante que o frontend sempre mostra dados atualizados
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('🔄 Iniciando polling de payable_bills (30s)');
+    const channelName = `payable_bills_${user.id}_${Date.now()}`;
     
-    const interval = setInterval(() => {
-      console.log('🔄 Polling: buscando atualizações...');
-      fetchBills();
-    }, 30000); // 30 segundos
+    const subscription = supabase
+      .channel(channelName)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'payable_bills',
+        },
+        (payload) => {
+          console.log('🔄 Realtime INSERT detectado:', payload.new);
+          fetchBills();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'payable_bills',
+        },
+        (payload) => {
+          console.log('🔄 Realtime UPDATE detectado:', payload.new);
+          fetchBills();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'payable_bills',
+        },
+        (payload) => {
+          console.log('🔄 Realtime DELETE detectado:', payload.old);
+          fetchBills();
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 Realtime status:', status);
+      });
 
     return () => {
-      console.log('🔌 Parando polling de payable_bills');
-      clearInterval(interval);
+      supabase.removeChannel(subscription);
     };
   }, [user?.id, fetchBills]);
 
