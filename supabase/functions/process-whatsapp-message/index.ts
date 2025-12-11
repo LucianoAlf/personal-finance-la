@@ -1086,7 +1086,8 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       'EXCLUIR_CONTA_PAGAR',
       'MARCAR_CONTA_PAGA',
       'HISTORICO_CONTA',
-      'CONTAS_AMBIGUO'
+      'CONTAS_AMBIGUO',
+      'CADASTRAR_CONTA_AMBIGUO'
     ];
     
     if (intencoesContasPagar.includes(intencaoNLP.intencao as TipoIntencaoContaPagar)) {

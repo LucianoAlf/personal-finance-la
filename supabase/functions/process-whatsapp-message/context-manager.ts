@@ -46,6 +46,7 @@ export type ContextType =
   | 'confirming_action' 
   | 'multi_step_flow' 
   | 'awaiting_account_type_selection'
+  | 'awaiting_register_account_type' // Cadastrar: conta bancária ou conta a pagar?
   // FASE 3.2 - Cadastro de contas (Sistema Robusto)
   | 'awaiting_bill_type'            // Aguardando tipo de conta (fixa, variável, etc)
   | 'awaiting_bill_description'     // Aguardando descrição da conta
@@ -54,7 +55,16 @@ export type ContextType =
   | 'awaiting_installment_info'     // Aguardando info de parcelas
   | 'awaiting_average_value'        // Aguardando valor médio de conta variável
   | 'awaiting_duplicate_decision'   // Aguardando decisão sobre duplicata
-  | 'awaiting_delete_confirmation'; // Aguardando confirmação de exclusão
+  | 'awaiting_delete_confirmation'  // Aguardando confirmação de exclusão
+  // FASE 3.3 - Faturas de Cartão de Crédito
+  | 'awaiting_invoice_due_date'     // Aguardando dia de vencimento da fatura
+  | 'awaiting_invoice_amount'       // Aguardando valor da fatura
+  | 'awaiting_card_selection'       // Aguardando seleção de cartão
+  | 'awaiting_card_creation_confirmation' // Aguardando confirmação para criar cartão
+  | 'awaiting_card_limit'           // Aguardando limite do cartão
+  // FASE 3.4 - Parcelamentos com método de pagamento
+  | 'awaiting_installment_payment_method'  // Aguardando: cartão ou boleto?
+  | 'awaiting_installment_card_selection'; // Aguardando seleção de cartão para parcelamento
 
 export interface ContextData {
   intencao_pendente?: IntencaoClassificada;
@@ -74,6 +84,85 @@ export interface ContextoConversa {
   context_data: ContextData;
   last_interaction: string;
   expires_at: string;
+}
+
+// ============================================
+// CALCULAR DATA DE VENCIMENTO
+// ============================================
+
+/**
+ * Converte diaVencimento (número ou string) para data ISO (YYYY-MM-DD)
+ * Suporta: 15, "15", "15/03", "15/03/2026", "15 de março"
+ */
+function calcularDataVencimento(diaVencimento: number | string): Date | null {
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  
+  const diaStr = String(diaVencimento).trim();
+  console.log(`[DATA] Convertendo: "${diaStr}" (tipo: ${typeof diaVencimento})`);
+  
+  // Caso 1: Número simples (dia do mês) - 15, "15", "5"
+  if (/^\d{1,2}$/.test(diaStr)) {
+    const dia = parseInt(diaStr);
+    if (dia < 1 || dia > 31) {
+      console.error(`[DATA] Dia inválido: ${dia}`);
+      return null;
+    }
+    
+    let data = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
+    // Se já passou, vai para o próximo mês
+    if (data <= hoje) {
+      data.setMonth(data.getMonth() + 1);
+    }
+    
+    console.log(`[DATA] Dia simples: ${dia} → ${data.toISOString().split('T')[0]}`);
+    return data;
+  }
+  
+  // Caso 2: Formato DD/MM (dia/mês) - "15/03", "5/1"
+  const matchDDMM = diaStr.match(/^(\d{1,2})[\/\-\.](\d{1,2})$/);
+  if (matchDDMM) {
+    const dia = parseInt(matchDDMM[1]);
+    const mes = parseInt(matchDDMM[2]) - 1; // JavaScript meses são 0-indexed
+    
+    if (dia < 1 || dia > 31 || mes < 0 || mes > 11) {
+      console.error(`[DATA] Data inválida: dia=${dia}, mes=${mes + 1}`);
+      return null;
+    }
+    
+    let ano = hoje.getFullYear();
+    let data = new Date(ano, mes, dia);
+    
+    // Se a data já passou este ano, vai para o próximo ano
+    if (data <= hoje) {
+      ano += 1;
+      data = new Date(ano, mes, dia);
+    }
+    
+    console.log(`[DATA] DD/MM: ${dia}/${mes + 1} → ${data.toISOString().split('T')[0]}`);
+    return data;
+  }
+  
+  // Caso 3: Formato DD/MM/YYYY ou DD/MM/YY - "15/03/2026", "15/03/26"
+  const matchDDMMYYYY = diaStr.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+  if (matchDDMMYYYY) {
+    const dia = parseInt(matchDDMMYYYY[1]);
+    const mes = parseInt(matchDDMMYYYY[2]) - 1;
+    let ano = parseInt(matchDDMMYYYY[3]);
+    
+    // Converter ano de 2 dígitos para 4
+    if (ano < 100) {
+      ano += 2000;
+    }
+    
+    const data = new Date(ano, mes, dia);
+    console.log(`[DATA] DD/MM/YYYY: ${dia}/${mes + 1}/${ano} → ${data.toISOString().split('T')[0]}`);
+    return data;
+  }
+  
+  // Fallback: formato não reconhecido
+  console.error(`[DATA] Formato não reconhecido: "${diaStr}"`);
+  return null;
 }
 
 // ============================================
@@ -369,6 +458,11 @@ export async function processarNoContexto(
     return await processarSelecaoTipoConta(texto, contexto, userId);
   }
   
+  // Handler para desambiguação "cadastrar conta"
+  if (contextType === 'awaiting_register_account_type') {
+    return await processarSelecaoCadastrarConta(texto, contexto, userId);
+  }
+  
   // FASE 3.2: Handlers de cadastro de contas (Sistema Robusto)
   if (contextType === 'awaiting_bill_type') {
     return await processarTipoConta(texto, contexto, userId);
@@ -400,6 +494,36 @@ export async function processarNoContexto(
   
   if (contextType === 'awaiting_delete_confirmation') {
     return await processarConfirmacaoExclusaoConta(texto, contexto, userId);
+  }
+  
+  // FASE 3.3: Handlers de faturas de cartão de crédito
+  if (contextType === 'awaiting_invoice_due_date') {
+    return await processarDiaVencimentoFatura(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_invoice_amount') {
+    return await processarValorFatura(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_card_selection') {
+    return await processarSelecaoCartaoFatura(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_card_creation_confirmation') {
+    return await processarConfirmacaoCriarCartao(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_card_limit') {
+    return await processarLimiteCartao(texto, contexto, userId);
+  }
+  
+  // FASE 3.4: Handlers de parcelamentos com método de pagamento
+  if (contextType === 'awaiting_installment_payment_method') {
+    return await processarMetodoPagamentoParcelamento(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_installment_card_selection') {
+    return await processarSelecaoCartaoParcelamento(texto, contexto, userId);
   }
   
   await limparContexto(userId);
@@ -1901,6 +2025,32 @@ async function processarDiaVencimento(
     return `❓ Dia inválido. Informe um número de 1 a 31.\n\n📅 Qual o dia do vencimento?`;
   }
   
+  // Atualizar dados com o dia
+  dados.diaVencimento = dia;
+  
+  // Usar continuarFluxoCadastro para verificar TODOS os campos faltantes (incluindo parcelas para parcelamentos)
+  return await continuarFluxoCadastro(supabase, userId, dados);
+}
+
+// Handler LEGADO para dia de vencimento (mantido para referência)
+async function processarDiaVencimentoLegado(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const dados = contexto.context_data || {};
+  
+  const diaMatch = texto.match(/\d+/);
+  if (!diaMatch) {
+    return `❓ Por favor, informe um número de 1 a 31.`;
+  }
+  
+  const dia = parseInt(diaMatch[0]);
+  if (dia < 1 || dia > 31) {
+    return `❓ Dia inválido.`;
+  }
+  
   // Calcular due_date
   const hoje = new Date();
   let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
@@ -2133,10 +2283,47 @@ async function processarValorConta(
     return `❓ Valor inválido. Informe um valor maior que zero.\n\n_Exemplo: "150" ou "R$ 150,00"_`;
   }
   
+  // Atualizar dados com o valor recebido
+  dados.valor = valor;
+  
+  // Usar continuarFluxoCadastro para verificar TODOS os campos faltantes (incluindo parcelas)
+  return await continuarFluxoCadastro(supabase, userId, dados);
+}
+
+// Handler LEGADO para valor da conta (mantido para referência)
+async function processarValorContaLegado(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  const dados = contexto.context_data || {};
+  
+  const valor = converterExtensoParaNumero(texto);
+  if (!valor || isNaN(valor) || valor <= 0) {
+    return `❓ Valor inválido.`;
+  }
+  
+  dados.valor = valor;
+  
   const descricao = dados.descricao as string || 'Conta';
-  const diaVencimento = dados.diaVencimento as number;
+  const diaVencimento = dados.diaVencimento as number | undefined;
   const recorrente = dados.recorrente as boolean || false;
   const parcelas = dados.parcelas as number | undefined;
+  
+  // VERIFICAR SE AINDA FALTA O DIA DE VENCIMENTO
+  if (!diaVencimento) {
+    console.log('[CADASTRAR-CONTA-VALOR] Valor recebido, mas falta DIA - perguntando...');
+    
+    // Salvar contexto com o valor e perguntar o dia
+    await salvarContexto(userId, 'awaiting_due_day' as ContextType, {
+      ...dados,
+      valor: valor
+    });
+    
+    const emoji = getEmojiConta(descricao);
+    return `📝 Vou cadastrar *${descricao}* por R$ ${valor.toFixed(2).replace('.', ',')}.\n\n${emoji}📅 Qual o dia do vencimento? (1-31)\n\n_Ex: "10", "dia 15", "todo dia 20"_`;
+  }
   
   // Calcular due_date
   const hoje = new Date();
@@ -2314,10 +2501,8 @@ _Digite o número ou o nome da conta (ex: Luz, Netflix, Aluguel)_`;
   if (camposFaltantes.length > 0) {
     const proximoCampo = camposFaltantes[0];
     
-    await salvarContexto(userId, dados.phone as string || '', {
-      context_type: getStateForField(proximoCampo) as any,
-      context_data: dados
-    });
+    // CORRIGIDO: assinatura é (userId, contextType, contextData)
+    await salvarContexto(userId, getStateForField(proximoCampo) as ContextType, dados);
     
     return getPerguntaParaCampo(proximoCampo, dados as any);
   }
@@ -2398,10 +2583,8 @@ async function continuarFluxoCadastro(
   if (camposFaltantes.length > 0) {
     const proximoCampo = camposFaltantes[0];
     
-    await salvarContexto(userId, dados.phone as string || '', {
-      context_type: getStateForField(proximoCampo) as any,
-      context_data: dados
-    });
+    // CORRIGIDO: assinatura é (userId, contextType, contextData)
+    await salvarContexto(userId, getStateForField(proximoCampo) as ContextType, dados);
     
     return getPerguntaParaCampo(proximoCampo, dados as any);
   }
@@ -2430,11 +2613,16 @@ async function finalizarCadastroConta(
     return '❌ Dados incompletos. Tente novamente.';
   }
   
-  // Calcular due_date
-  const hoje = new Date();
-  let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento);
-  if (dueDate < hoje) {
-    dueDate.setMonth(dueDate.getMonth() + 1);
+  // Calcular due_date - suporta número (15) ou string ("15/03")
+  const dueDate = calcularDataVencimento(diaVencimento);
+  
+  if (!dueDate) {
+    console.error(`[CADASTRAR-CONTA] Data inválida: ${diaVencimento}`);
+    return `❓ Não entendi a data "${diaVencimento}".
+
+📅 Qual o dia do vencimento? (1-31)
+
+_Ex: "15", "dia 10"_`;
   }
   
   // Mapear tipo para bill_type do banco usando função inteligente
@@ -2553,4 +2741,602 @@ async function finalizarCadastroConta(
   msg += `\n🔔 _Vou te lembrar 1 dia antes!_`;
   
   return msg;
+}
+
+// Handler para desambiguação "cadastrar conta" (bancária ou a pagar)
+async function processarSelecaoCadastrarConta(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const { processarRespostaCadastrarContaAmbiguo, getPerguntaParaCampo } = await import('./contas-pagar.ts');
+  
+  const escolha = processarRespostaCadastrarContaAmbiguo(texto);
+  
+  if (!escolha) {
+    return `❓ Não entendi. Digite:
+
+1️⃣ Para Conta Bancária (Nubank, Itaú)
+2️⃣ Para Conta a Pagar (luz, Netflix)`;
+  }
+  
+  await limparContexto(userId);
+  
+  if (escolha === 'bancaria') {
+    // Redirecionar para cadastro de conta bancária
+    return `🏦 Para cadastrar uma conta bancária, use:
+
+_"Adicionar conta Nubank"_
+_"Nova conta Itaú"_
+
+Ou acesse o app e vá em *Contas Bancárias*.`;
+  }
+  
+  // Conta a pagar - iniciar fluxo de cadastro
+  await salvarContexto(userId, 'awaiting_bill_description' as ContextType, {});
+  
+  return getPerguntaParaCampo('descricao', {});
+}
+
+// ============================================
+// HANDLERS DE FATURAS DE CARTÃO DE CRÉDITO
+// ============================================
+
+// Handler para dia de vencimento da fatura
+async function processarDiaVencimentoFatura(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const { extrairDiaTexto, criarOuAtualizarFaturaCartao } = await import('./contas-pagar.ts');
+  
+  const dia = extrairDiaTexto(texto);
+  
+  if (!dia) {
+    return `❌ Não entendi o dia. Informe um número de 1 a 31.
+
+Ex: "10", "dia 15", "todo dia 7"`;
+  }
+  
+  const dados = contexto.context_data || {};
+  const cartaoId = dados.cartaoId as string;
+  const cartaoNome = dados.cartaoNome as string;
+  const valor = dados.valor as number;
+  
+  // Calcular data de vencimento
+  const hoje = new Date();
+  let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), dia);
+  if (dueDate < hoje) {
+    dueDate.setMonth(dueDate.getMonth() + 1);
+  }
+  const dueDateStr = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
+  
+  // Criar fatura
+  const resultado = await criarOuAtualizarFaturaCartao(userId, cartaoId, valor, dueDateStr);
+  
+  await limparContexto(userId);
+  
+  if (resultado.sucesso) {
+    return `✅ *Fatura cadastrada!*
+
+💳 ${cartaoNome}
+💰 R$ ${valor.toFixed(2).replace('.', ',')}
+📅 Vence dia ${dia}
+🔔 _Vou te lembrar 3 dias antes!_
+
+💡 Acesse a página de *Cartões* para ver os detalhes.`;
+  }
+  
+  return `❌ Erro ao cadastrar fatura: ${resultado.erro}`;
+}
+
+// Handler para valor da fatura
+async function processarValorFatura(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const { extrairValorTexto, criarOuAtualizarFaturaCartao } = await import('./contas-pagar.ts');
+  
+  const valor = extrairValorTexto(texto);
+  
+  if (!valor || valor <= 0) {
+    return `❌ Não entendi o valor. Informe um número válido.
+
+Ex: "2500", "R$ 1.850,00"`;
+  }
+  
+  const dados = contexto.context_data || {};
+  const cartaoId = dados.cartaoId as string;
+  const cartaoNome = dados.cartaoNome as string;
+  const diaVencimento = dados.diaVencimento as string;
+  
+  // Criar fatura
+  const resultado = await criarOuAtualizarFaturaCartao(userId, cartaoId, valor, diaVencimento);
+  
+  await limparContexto(userId);
+  
+  if (resultado.sucesso) {
+    const dia = new Date(diaVencimento).getDate();
+    return `✅ *Fatura cadastrada!*
+
+💳 ${cartaoNome}
+💰 R$ ${valor.toFixed(2).replace('.', ',')}
+📅 Vence dia ${dia}
+🔔 _Vou te lembrar 3 dias antes!_
+
+💡 Acesse a página de *Cartões* para ver os detalhes.`;
+  }
+  
+  return `❌ Erro ao cadastrar fatura: ${resultado.erro}`;
+}
+
+// Handler para seleção de cartão (faturas)
+async function processarSelecaoCartaoFatura(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const { criarOuAtualizarFaturaCartao } = await import('./contas-pagar.ts');
+  
+  const dados = contexto.context_data || {};
+  const cartoes = dados.cartoes as Array<{ id: string; name: string }> || [];
+  const valor = dados.valor as number;
+  const diaVencimento = dados.diaVencimento as string;
+  
+  // Tentar interpretar a resposta
+  const textoLimpo = texto.trim().toLowerCase();
+  let cartaoSelecionado: { id: string; name: string } | null = null;
+  
+  // Verificar se é número
+  const numero = parseInt(textoLimpo);
+  if (!isNaN(numero) && numero >= 1 && numero <= cartoes.length) {
+    cartaoSelecionado = cartoes[numero - 1];
+  } else {
+    // Tentar match por nome
+    cartaoSelecionado = cartoes.find(c => 
+      c.name.toLowerCase().includes(textoLimpo) || 
+      textoLimpo.includes(c.name.toLowerCase())
+    ) || null;
+  }
+  
+  // Opção de criar novo cartão
+  if (numero === cartoes.length + 1 || textoLimpo.includes('outro') || textoLimpo.includes('novo')) {
+    await salvarContexto(userId, 'awaiting_card_creation_confirmation' as ContextType, {
+      ...dados,
+      criarNovoCartao: true
+    });
+    
+    return `💳 Qual o nome do novo cartão?
+
+Ex: "Nubank", "Itaú Platinum", "Bradesco"`;
+  }
+  
+  if (!cartaoSelecionado) {
+    let opcoes = cartoes.map((c, i) => `${i + 1}️⃣ ${c.name}`).join('\n');
+    opcoes += `\n${cartoes.length + 1}️⃣ Outro cartão (cadastrar novo)`;
+    
+    return `❓ Não entendi. Digite o número ou nome do cartão:
+
+${opcoes}`;
+  }
+  
+  // Se temos valor e data, criar fatura direto
+  if (valor && diaVencimento) {
+    const resultado = await criarOuAtualizarFaturaCartao(userId, cartaoSelecionado.id, valor, diaVencimento);
+    
+    await limparContexto(userId);
+    
+    if (resultado.sucesso) {
+      const dia = new Date(diaVencimento).getDate();
+      return `✅ *Fatura cadastrada!*
+
+💳 ${cartaoSelecionado.name}
+💰 R$ ${valor.toFixed(2).replace('.', ',')}
+📅 Vence dia ${dia}
+🔔 _Vou te lembrar 3 dias antes!_`;
+    }
+    
+    return `❌ Erro ao cadastrar fatura: ${resultado.erro}`;
+  }
+  
+  // Falta valor ou data - perguntar
+  if (!valor) {
+    await salvarContexto(userId, 'awaiting_invoice_amount' as ContextType, {
+      cartaoId: cartaoSelecionado.id,
+      cartaoNome: cartaoSelecionado.name,
+      diaVencimento
+    });
+    
+    return `💳 Fatura do *${cartaoSelecionado.name}*
+
+💰 Qual o valor da fatura?
+
+Ex: "2500", "R$ 1.850,00"`;
+  }
+  
+  if (!diaVencimento) {
+    await salvarContexto(userId, 'awaiting_invoice_due_date' as ContextType, {
+      cartaoId: cartaoSelecionado.id,
+      cartaoNome: cartaoSelecionado.name,
+      valor
+    });
+    
+    return `💳 Fatura do *${cartaoSelecionado.name}*
+
+📅 Qual o dia de vencimento?
+
+Ex: "10", "dia 15"`;
+  }
+  
+  return '❌ Erro inesperado. Tente novamente.';
+}
+
+// Handler para confirmação de criar cartão
+async function processarConfirmacaoCriarCartao(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const dados = contexto.context_data || {};
+  const textoLimpo = texto.trim();
+  
+  // Se está criando novo cartão, o texto é o nome do cartão
+  if (dados.criarNovoCartao) {
+    const nomeCartao = textoLimpo;
+    
+    // Perguntar o limite
+    await salvarContexto(userId, 'awaiting_card_limit' as ContextType, {
+      ...dados,
+      nomeCartao
+    });
+    
+    return `💳 Cartão: *${nomeCartao}*
+
+💰 Qual o limite do cartão?
+
+Ex: "5000", "R$ 10.000"`;
+  }
+  
+  // Opção 1 ou 2 para criar cartão ou conta avulsa
+  const opcao = textoLimpo;
+  
+  if (opcao === '1' || opcao.includes('cartão') || opcao.includes('cartao')) {
+    // Cadastrar cartão e fatura
+    await salvarContexto(userId, 'awaiting_card_limit' as ContextType, {
+      ...dados,
+      criarCartao: true
+    });
+    
+    const bancoNome = dados.bancoNome as string || 'Novo';
+    const nomeCapitalizado = bancoNome.charAt(0).toUpperCase() + bancoNome.slice(1);
+    
+    return `💳 Vou cadastrar o cartão *${nomeCapitalizado}*.
+
+💰 Qual o limite do cartão?
+
+Ex: "5000", "R$ 10.000"`;
+  }
+  
+  if (opcao === '2' || opcao.includes('avulsa') || opcao.includes('conta')) {
+    // Cadastrar como conta avulsa (fallback)
+    const valor = dados.valor as number;
+    const diaVencimento = dados.diaVencimento as number;
+    const bancoNome = dados.bancoNome as string || 'Cartão';
+    
+    await limparContexto(userId);
+    
+    // Calcular data de vencimento
+    const hoje = new Date();
+    let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento || 10);
+    if (dueDate < hoje) {
+      dueDate.setMonth(dueDate.getMonth() + 1);
+    }
+    const dueDateStr = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
+    
+    const supabase = getSupabase();
+    const nomeCapitalizado = bancoNome.charAt(0).toUpperCase() + bancoNome.slice(1);
+    
+    const { error } = await supabase
+      .from('payable_bills')
+      .insert({
+        user_id: userId,
+        description: `Fatura ${nomeCapitalizado}`,
+        amount: valor || 0,
+        due_date: dueDateStr,
+        bill_type: 'credit_card',
+        status: 'pending',
+        is_recurring: false
+      });
+    
+    if (!error) {
+      let msg = `✅ *Fatura cadastrada como conta avulsa!*
+
+💳 Fatura ${nomeCapitalizado}`;
+      
+      if (valor) {
+        msg += `\n💰 R$ ${valor.toFixed(2).replace('.', ',')}`;
+      }
+      
+      msg += `\n📅 Vence dia ${diaVencimento || 10}`;
+      msg += `\n\n💡 _Dica: Cadastre seu cartão para ter controle completo das faturas!_`;
+      
+      return msg;
+    }
+    
+    return '❌ Erro ao cadastrar fatura. Tente novamente.';
+  }
+  
+  return `❓ Não entendi. Digite:
+
+1️⃣ Para cadastrar o cartão e a fatura
+2️⃣ Para cadastrar só a fatura como conta avulsa`;
+}
+
+// Handler para limite do cartão
+async function processarLimiteCartao(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const { extrairValorTexto, criarOuAtualizarFaturaCartao } = await import('./contas-pagar.ts');
+  
+  const limite = extrairValorTexto(texto);
+  
+  if (!limite || limite <= 0) {
+    return `❌ Não entendi o limite. Informe um número válido.
+
+Ex: "5000", "R$ 10.000"`;
+  }
+  
+  const dados = contexto.context_data || {};
+  const nomeCartao = dados.nomeCartao as string || dados.bancoNome as string || 'Novo Cartão';
+  const valor = dados.valor as number;
+  const diaVencimento = dados.diaVencimento as number;
+  
+  const supabase = getSupabase();
+  
+  // Criar o cartão
+  const { data: novoCartao, error: erroCartao } = await supabase
+    .from('credit_cards')
+    .insert({
+      user_id: userId,
+      name: nomeCartao.charAt(0).toUpperCase() + nomeCartao.slice(1),
+      brand: 'visa', // Default
+      credit_limit: limite,
+      available_limit: limite,
+      closing_day: 1, // Default
+      due_day: diaVencimento || 10,
+      is_active: true
+    })
+    .select()
+    .single();
+  
+  if (erroCartao || !novoCartao) {
+    await limparContexto(userId);
+    return `❌ Erro ao criar cartão: ${erroCartao?.message || 'Erro desconhecido'}`;
+  }
+  
+  console.log(`[FATURA-CARTAO] Cartão criado: ${novoCartao.id}`);
+  
+  // Se temos valor, criar a fatura também
+  if (valor) {
+    const hoje = new Date();
+    let dueDate = new Date(hoje.getFullYear(), hoje.getMonth(), diaVencimento || 10);
+    if (dueDate < hoje) {
+      dueDate.setMonth(dueDate.getMonth() + 1);
+    }
+    const dueDateStr = `${dueDate.getFullYear()}-${String(dueDate.getMonth() + 1).padStart(2, '0')}-${String(dueDate.getDate()).padStart(2, '0')}`;
+    
+    const resultado = await criarOuAtualizarFaturaCartao(userId, novoCartao.id, valor, dueDateStr);
+    
+    await limparContexto(userId);
+    
+    if (resultado.sucesso) {
+      return `✅ *Cartão e fatura cadastrados!*
+
+💳 ${novoCartao.name}
+💰 Limite: R$ ${limite.toFixed(2).replace('.', ',')}
+📄 Fatura: R$ ${valor.toFixed(2).replace('.', ',')}
+📅 Vence dia ${diaVencimento || 10}
+🔔 _Vou te lembrar 3 dias antes!_`;
+    }
+  }
+  
+  await limparContexto(userId);
+  
+  return `✅ *Cartão cadastrado!*
+
+💳 ${novoCartao.name}
+💰 Limite: R$ ${limite.toFixed(2).replace('.', ',')}
+
+💡 Para adicionar a fatura, diga:
+_"Fatura ${novoCartao.name} 2500 dia 10"_`;
+}
+
+// ============================================
+// FASE 3.4: HANDLERS DE PARCELAMENTOS
+// ============================================
+
+// Handler para método de pagamento do parcelamento (cartão ou boleto)
+async function processarMetodoPagamentoParcelamento(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const { listarCartoesUsuario, criarContaDiretamente } = await import('./contas-pagar.ts');
+  
+  const textoLimpo = texto.trim().toLowerCase();
+  const dados = contexto.context_data || {};
+  
+  // Detectar escolha: 1 = cartão, 2 = boleto
+  const ehCartao = textoLimpo === '1' || 
+                   textoLimpo.includes('cartão') || 
+                   textoLimpo.includes('cartao') ||
+                   textoLimpo.includes('crédito') ||
+                   textoLimpo.includes('credito');
+  
+  const ehBoleto = textoLimpo === '2' || 
+                   textoLimpo.includes('boleto') || 
+                   textoLimpo.includes('carnê') ||
+                   textoLimpo.includes('carne');
+  
+  if (!ehCartao && !ehBoleto) {
+    return `❓ Não entendi. Digite:
+
+1️⃣ Para *cartão de crédito*
+2️⃣ Para *boleto/carnê*`;
+  }
+  
+  // Se escolheu BOLETO - cadastrar direto como conta a pagar
+  if (ehBoleto) {
+    const resultado = await criarContaDiretamente(userId, {
+      tipo: 'installment',
+      descricao: dados.descricao as string,
+      valor: dados.valor as number,
+      diaVencimento: dados.diaVencimento as number,
+      parcelaAtual: dados.parcelaAtual as number,
+      totalParcelas: dados.totalParcelas as number,
+      recorrencia: 'unica',
+      paymentMethod: 'boleto'
+    });
+    
+    await limparContexto(userId);
+    return resultado.mensagem;
+  }
+  
+  // Se escolheu CARTÃO - listar cartões do usuário
+  const cartoes = await listarCartoesUsuario(userId);
+  
+  if (cartoes.length === 0) {
+    // Usuário não tem cartões - cadastrar como boleto mesmo
+    const resultado = await criarContaDiretamente(userId, {
+      tipo: 'installment',
+      descricao: dados.descricao as string,
+      valor: dados.valor as number,
+      diaVencimento: dados.diaVencimento as number,
+      parcelaAtual: dados.parcelaAtual as number,
+      totalParcelas: dados.totalParcelas as number,
+      recorrencia: 'unica',
+      paymentMethod: 'boleto'
+    });
+    
+    await limparContexto(userId);
+    return `⚠️ Você não tem cartões cadastrados.
+
+${resultado.mensagem}
+
+💡 _Cadastrei como boleto. Para adicionar cartões, acesse a página de Cartões no app._`;
+  }
+  
+  // Salvar contexto para seleção de cartão
+  await salvarContexto(userId, 'awaiting_installment_card_selection', {
+    ...dados,
+    cartoes
+  });
+  
+  let opcoes = cartoes.map((c, i) => `${i + 1}️⃣ ${c.name}`).join('\n');
+  
+  return `💳 Em qual cartão está esse parcelamento?
+
+${opcoes}
+
+_Digite o número do cartão_`;
+}
+
+// Handler para seleção de cartão no parcelamento
+async function processarSelecaoCartaoParcelamento(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const { criarContaDiretamente } = await import('./contas-pagar.ts');
+  
+  const dados = contexto.context_data || {};
+  const cartoes = dados.cartoes as Array<{ id: string; name: string }> || [];
+  const textoLimpo = texto.trim().toLowerCase();
+  
+  // Tentar encontrar o cartão pela resposta
+  let cartaoSelecionado: { id: string; name: string } | null = null;
+  
+  // Por número (1, 2, 3...)
+  const numero = parseInt(textoLimpo);
+  if (!isNaN(numero) && numero >= 1 && numero <= cartoes.length) {
+    cartaoSelecionado = cartoes[numero - 1];
+  }
+  
+  // Por nome
+  if (!cartaoSelecionado) {
+    cartaoSelecionado = cartoes.find(c => 
+      c.name.toLowerCase().includes(textoLimpo) ||
+      textoLimpo.includes(c.name.toLowerCase())
+    ) || null;
+  }
+  
+  if (!cartaoSelecionado) {
+    let opcoes = cartoes.map((c, i) => `${i + 1}️⃣ ${c.name}`).join('\n');
+    return `❓ Não encontrei esse cartão. Escolha:
+
+${opcoes}`;
+  }
+  
+  // Cadastrar parcelamento vinculado ao cartão (em payable_bills)
+  const resultado = await criarContaDiretamente(userId, {
+    tipo: 'installment',
+    descricao: dados.descricao as string,
+    valor: dados.valor as number,
+    diaVencimento: dados.diaVencimento as number,
+    parcelaAtual: dados.parcelaAtual as number,
+    totalParcelas: dados.totalParcelas as number,
+    recorrencia: 'unica',
+    paymentMethod: 'credit_card',
+    creditCardId: cartaoSelecionado.id
+  });
+  
+  // TAMBÉM criar transações em credit_card_transactions para aparecer na fatura
+  const supabase = getSupabase();
+  const valor = dados.valor as number;
+  const totalParcelas = dados.totalParcelas as number || 1;
+  const parcelaAtual = dados.parcelaAtual as number || 1;
+  const descricao = dados.descricao as string;
+  
+  const installmentGroupId = crypto.randomUUID();
+  const transacoes = [];
+  
+  for (let i = 0; i < (totalParcelas - parcelaAtual + 1); i++) {
+    const numeroParcela = parcelaAtual + i;
+    transacoes.push({
+      user_id: userId,
+      credit_card_id: cartaoSelecionado.id,
+      amount: valor,
+      description: totalParcelas > 1 
+        ? `${descricao} (${numeroParcela}/${totalParcelas})` 
+        : descricao,
+      purchase_date: new Date().toISOString().split('T')[0],
+      is_installment: totalParcelas > 1,
+      total_installments: totalParcelas,
+      installment_number: numeroParcela,
+      installment_group_id: totalParcelas > 1 ? installmentGroupId : null,
+      source: 'whatsapp'
+    });
+  }
+  
+  const { error: insertError } = await supabase
+    .from('credit_card_transactions')
+    .insert(transacoes);
+  
+  if (insertError) {
+    console.error('[PARCELAMENTO] Erro ao criar transações de cartão:', insertError);
+  } else {
+    console.log(`[PARCELAMENTO] ${transacoes.length} transações criadas em credit_card_transactions`);
+  }
+  
+  await limparContexto(userId);
+  
+  // Adicionar info do cartão na mensagem
+  if (resultado.mensagem.includes('✅')) {
+    return resultado.mensagem.replace('✅', `✅ 💳 *${cartaoSelecionado.name}*\n`);
+  }
+  
+  return resultado.mensagem;
 }

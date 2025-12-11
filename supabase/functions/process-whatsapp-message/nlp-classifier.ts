@@ -1091,8 +1091,29 @@ async function buscarNomeUsuario(
  * Detecta se a mensagem é claramente uma conta a pagar (não compra)
  * Retorna a intenção forçada ou null para deixar o NLP decidir
  */
-function preProcessarIntencaoContaPagar(texto: string): 'CADASTRAR_CONTA_PAGAR' | null {
+function preProcessarIntencaoContaPagar(texto: string): 'CADASTRAR_CONTA_PAGAR' | 'CADASTRAR_CONTA_AMBIGUO' | null {
   const textoLower = texto.toLowerCase().trim();
+  
+  // REGRA -1: "Parcela de/da [item]" = CONTA A PAGAR (parcelamento), NÃO compra!
+  // Ex: "Parcela da geladeira", "Parcela do celular"
+  if (/^parcela\s+(de|da|do)\s+\w+/i.test(textoLower)) {
+    console.log('🎯 Pré-processamento: "Parcela de/da [item]" → CADASTRAR_CONTA_PAGAR (parcelamento)');
+    return 'CADASTRAR_CONTA_PAGAR';
+  }
+  
+  // REGRA 0: "cadastrar conta" sem especificar qual tipo = AMBÍGUO
+  if (/\b(quero|vou|preciso|tenho que)\s+(cadastrar|adicionar|incluir|registrar)\s+(uma\s+)?conta\b/i.test(textoLower) ||
+      /^(cadastrar|adicionar|nova)\s+conta$/i.test(textoLower)) {
+    // Verificar se NÃO tem indicadores de conta a pagar
+    const temIndicadorContaPagar = /\b(luz|água|agua|netflix|spotify|aluguel|condomínio|condominio|internet|gás|gas|escola|plano|seguro|ipva|iptu)\b/i.test(textoLower);
+    const temDia = /\bdia\s*\d+\b/i.test(textoLower);
+    const temValor = /\d+\s*(reais?|r\$)/i.test(textoLower);
+    
+    if (!temIndicadorContaPagar && !temDia && !temValor) {
+      console.log('🎯 Pré-processamento: "cadastrar conta" ambíguo → CADASTRAR_CONTA_AMBIGUO');
+      return 'CADASTRAR_CONTA_AMBIGUO';
+    }
+  }
   
   // Padrão 1: Tem "dia [número]" = indicador de vencimento
   const temDiaVencimento = /\bdia\s*\d+\b|\bvence\s*dia\b|\btodo\s*dia\b|\bdia\s+do\s+m[eê]s\b/i.test(textoLower);

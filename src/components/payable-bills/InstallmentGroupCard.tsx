@@ -47,6 +47,10 @@ export interface InstallmentGroup {
   paidBeforeSystem?: number;  // Parcelas pagas antes de cadastrar no sistema
   paidInSystem?: number;      // Valor pago no sistema
   paidBeforeSystemAmount?: number;  // Valor pago antes de cadastrar
+  // Método de pagamento
+  paymentMethod?: string;  // 'credit_card', 'boleto', etc
+  creditCardId?: string;   // ID do cartão (se for no cartão)
+  creditCardName?: string; // Nome do cartão (para exibição)
 }
 
 interface InstallmentGroupCardProps {
@@ -99,9 +103,22 @@ export function InstallmentGroupCard({
                   {group.description}
                 </h3>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {BILL_TYPE_LABELS[group.billType as keyof typeof BILL_TYPE_LABELS] || group.billType}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm text-muted-foreground">
+                  {BILL_TYPE_LABELS[group.billType as keyof typeof BILL_TYPE_LABELS] || group.billType}
+                </p>
+                {group.paymentMethod === 'credit_card' && (
+                  <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                    <CreditCard className="h-3 w-3 mr-1" />
+                    {group.creditCardName || 'Cartão'}
+                  </Badge>
+                )}
+                {group.paymentMethod === 'boleto' && (
+                  <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                    📄 Boleto
+                  </Badge>
+                )}
+              </div>
             </div>
 
             <DropdownMenu>
@@ -383,6 +400,9 @@ export function groupInstallments(bills: PayableBill[]): InstallmentGroup[] {
       paidBeforeSystem,
       paidInSystem,
       paidBeforeSystemAmount,
+      // Método de pagamento
+      paymentMethod: firstInstallment.payment_method || undefined,
+      creditCardId: firstInstallment.credit_card_id || undefined,
     } as InstallmentGroup);
   });
 

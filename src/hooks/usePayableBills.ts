@@ -49,9 +49,24 @@ export function usePayableBills(initialFilters?: BillFilters) {
 
       if (filters.bill_type) {
         if (Array.isArray(filters.bill_type)) {
-          query = query.in('bill_type', filters.bill_type);
+          // Se inclui 'credit_card', também incluir parcelamentos com payment_method='credit_card'
+          if (filters.bill_type.includes('credit_card')) {
+            const otherTypes = filters.bill_type.filter(t => t !== 'credit_card');
+            if (otherTypes.length > 0) {
+              query = query.or(`bill_type.in.(${filters.bill_type.join(',')}),payment_method.eq.credit_card`);
+            } else {
+              query = query.or(`bill_type.eq.credit_card,payment_method.eq.credit_card`);
+            }
+          } else {
+            query = query.in('bill_type', filters.bill_type);
+          }
         } else {
-          query = query.eq('bill_type', filters.bill_type);
+          // Se filtro é 'credit_card', incluir também parcelamentos com payment_method='credit_card'
+          if (filters.bill_type === 'credit_card') {
+            query = query.or(`bill_type.eq.credit_card,payment_method.eq.credit_card`);
+          } else {
+            query = query.eq('bill_type', filters.bill_type);
+          }
         }
       }
 
@@ -436,13 +451,19 @@ export function usePayableBills(initialFilters?: BillFilters) {
         groups.get(groupId)!.push(bill);
       });
 
-    return Array.from(groups.entries()).map(([group_id, bills]) => ({
-      group_id,
-      bills: bills.sort((a, b) => a.installment_number! - b.installment_number!),
-      total: bills[0]?.original_purchase_amount || 0,
-      paid_count: bills.filter((b) => b.status === 'paid').length,
-      total_count: bills.length,
-    }));
+    return Array.from(groups.entries()).map(([group_id, groupBills]) => {
+      const firstBill = groupBills[0];
+      return {
+        group_id,
+        bills: groupBills.sort((a, b) => a.installment_number! - b.installment_number!),
+        total: firstBill?.original_purchase_amount || 0,
+        paid_count: groupBills.filter((b) => b.status === 'paid').length,
+        total_count: groupBills.length,
+        // Método de pagamento (pegar do primeiro bill do grupo)
+        payment_method: firstBill?.payment_method || null,
+        credit_card_id: firstBill?.credit_card_id || null,
+      };
+    });
   }, [bills]);
 
   // ============================================

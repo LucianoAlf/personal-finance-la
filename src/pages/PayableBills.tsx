@@ -171,7 +171,13 @@ export default function PayableBills() {
     
     // Filtrar por categoria
     if (categoryFilter !== 'all') {
-      filtered = filtered.filter((bill) => bill.bill_type === categoryFilter);
+      filtered = filtered.filter((bill) => {
+        // Se filtro é 'credit_card', incluir também parcelamentos com payment_method='credit_card'
+        if (categoryFilter === 'credit_card') {
+          return bill.bill_type === 'credit_card' || bill.payment_method === 'credit_card';
+        }
+        return bill.bill_type === categoryFilter;
+      });
     }
     
     // Filtrar por tipo de recorrência (fixa/variável)

@@ -15,6 +15,7 @@ export type BillType =
   | 'loan'         // Empréstimos
   | 'credit_card'  // Cartão terceiros
   | 'tax'          // IPTU, IPVA
+  | 'food'         // Alimentação
   | 'other';
 
 export type PaymentMethod = 
@@ -102,6 +103,7 @@ export interface PayableBill {
   installment_total?: number;
   installment_group_id?: string;
   original_purchase_amount?: number;
+  credit_card_id?: string; // ID do cartão (para parcelamentos no cartão)
   
   // Lembretes
   reminder_enabled: boolean;
@@ -265,6 +267,7 @@ export const BILL_TYPE_LABELS: Record<BillType, string> = {
   loan: 'Empréstimos',
   credit_card: 'Cartão de Crédito',
   tax: 'Impostos e Taxas',
+  food: 'Alimentação',
   other: 'Outros',
 };
 

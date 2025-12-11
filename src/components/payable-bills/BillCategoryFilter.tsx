@@ -13,7 +13,12 @@ import {
   Heart, 
   CreditCard,
   Package,
-  Layers
+  Layers,
+  GraduationCap,
+  Receipt,
+  Shield,
+  Banknote,
+  UtensilsCrossed
 } from 'lucide-react';
 import { BillType } from '@/types/payable-bills.types';
 
@@ -31,6 +36,11 @@ const CATEGORY_OPTIONS: { value: CategoryFilter; label: string; icon: React.Reac
   { value: 'housing', label: 'Moradia', icon: <Home className="h-4 w-4" /> },
   { value: 'telecom', label: 'Telecomunicações', icon: <Smartphone className="h-4 w-4" /> },
   { value: 'healthcare', label: 'Saúde', icon: <Heart className="h-4 w-4" /> },
+  { value: 'education', label: 'Educação', icon: <GraduationCap className="h-4 w-4" /> },
+  { value: 'food', label: 'Alimentação', icon: <UtensilsCrossed className="h-4 w-4" /> },
+  { value: 'tax', label: 'Impostos e Taxas', icon: <Receipt className="h-4 w-4" /> },
+  { value: 'insurance', label: 'Seguros', icon: <Shield className="h-4 w-4" /> },
+  { value: 'loan', label: 'Empréstimos', icon: <Banknote className="h-4 w-4" /> },
   { value: 'credit_card', label: 'Cartão de Crédito', icon: <CreditCard className="h-4 w-4" /> },
   { value: 'other', label: 'Outros', icon: <Package className="h-4 w-4" /> },
 ];
