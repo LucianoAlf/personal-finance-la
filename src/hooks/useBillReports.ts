@@ -140,6 +140,7 @@ export const BILL_TYPE_LABELS: Record<string, string> = {
   tax: 'Impostos',
   rent: 'Aluguel',
   loan: 'Empréstimos',
+  installment: 'Parcelamentos',
   insurance: 'Seguros',
   education: 'Educação',
   health: 'Saúde',

@@ -299,6 +299,7 @@ export function templateTransacaoRegistrada(data: {
   account?: string;
   data?: Date | string;
   paymentMethod?: string; // ✅ NOVO: forma de pagamento
+  saldoConta?: number; // ✅ NOVO: saldo atualizado da conta
 }): string {
   const emojiTipo = data.type === 'income' ? '🟢' : '🔴';
   const tipoLabel = data.type === 'income' ? 'Receita' : 'Despesa';
@@ -326,7 +327,17 @@ export function templateTransacaoRegistrada(data: {
   mensagem += `${emojiConta} *Conta:* ${data.account || 'Não especificada'}\n`;
   mensagem += `📅 *Data:* ${dataFormatada}\n\n`;
   mensagem += `${statusEmoji} *Status:* ${statusLabel}\n`;
-  mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
+  
+  // ✅ Mostrar saldo atualizado da conta
+  if (data.saldoConta !== undefined) {
+    const saldoFormatado = formatarValor(data.saldoConta);
+    mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
+    mensagem += `${emojiConta} *Saldo ${data.account}:* R$ ${saldoFormatado}\n`;
+    mensagem += `━━━━━━━━━━━━━━━━━━\n`;
+  } else {
+    mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
+  }
+  
   mensagem += `💡 *Quer alterar algo?*\n`;
   mensagem += `• Valor → "era 95"\n`;
   mensagem += `• Conta → "muda pra Nubank"\n`;

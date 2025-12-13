@@ -10,6 +10,7 @@ interface BillListProps {
   onPay?: (bill: PayableBill) => void;
   onEdit?: (bill: PayableBill) => void;
   onDelete?: (bill: PayableBill) => void;
+  onCopy?: (bill: PayableBill) => void;
   onConfigReminders?: (bill: PayableBill) => void;
   onDeleteInstallmentGroup?: (groupId: string) => void;
   emptyMessage?: string;
@@ -20,6 +21,7 @@ export function BillList({
   onPay,
   onEdit,
   onDelete,
+  onCopy,
   onConfigReminders,
   onDeleteInstallmentGroup,
   emptyMessage = 'Nenhuma conta encontrada',
@@ -108,6 +110,7 @@ export function BillList({
                 onPay={onPay}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onCopy={onCopy}
                 onConfigReminders={onConfigReminders}
               />
             ))}

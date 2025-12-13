@@ -537,10 +537,10 @@ export async function registrarTransacao(
     
     console.log('[TRANSACTION] Transação criada:', data.id);
     
-    // Buscar dados para mensagem de confirmação
+    // Buscar dados para mensagem de confirmação (incluindo saldo)
     const { data: conta } = await supabase
       .from('accounts')
-      .select('name, icon')
+      .select('name, icon, current_balance')
       .eq('id', data.account_id)
       .single();
     
@@ -550,7 +550,7 @@ export async function registrarTransacao(
       .eq('id', data.category_id)
       .single();
     
-    // Usar novo template profissional
+    // Usar novo template profissional com saldo
     const mensagem = templateTransacaoRegistrada({
       type: input.type,
       amount: input.amount,
@@ -558,7 +558,8 @@ export async function registrarTransacao(
       category: categoria?.name || 'Outros',
       account: conta?.name || 'Conta',
       data: new Date(),
-      paymentMethod: input.payment_method // ✅ Incluir forma de pagamento
+      paymentMethod: input.payment_method,
+      saldoConta: conta?.current_balance // ✅ Incluir saldo atualizado
     });
     
     return {

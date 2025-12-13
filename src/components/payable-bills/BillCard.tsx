@@ -21,6 +21,7 @@ import {
   AlertTriangle,
   Bell,
   Tag as TagIcon,
+  Copy,
 } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
 import {
@@ -32,18 +33,19 @@ import {
   canMarkAsPaid,
   formatInstallment,
 } from '@/utils/billCalculations';
-import { BILL_STATUS_LABELS, BILL_TYPE_LABELS } from '@/types/payable-bills.types';
+import { BILL_STATUS_LABELS, BILL_TYPE_LABELS, PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
 
 interface BillCardProps {
   bill: PayableBill;
   onPay?: (bill: PayableBill) => void;
   onEdit?: (bill: PayableBill) => void;
   onDelete?: (bill: PayableBill) => void;
+  onCopy?: (bill: PayableBill) => void;
   onConfigReminders?: (bill: PayableBill) => void;
   highlight?: boolean;
 }
 
-export function BillCard({ bill, onPay, onEdit, onDelete, onConfigReminders, highlight }: BillCardProps) {
+export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigReminders, highlight }: BillCardProps) {
   const statusColor = getStatusColor(bill.status);
   // Passar status para não mostrar alerta vermelho em contas pagas
   const dueDateColor = getDueDateColor(bill.due_date, bill.status);
@@ -107,13 +109,10 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onConfigReminders, hig
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {canMarkAsPaid(bill) && onPay && (
-                  <>
-                    <DropdownMenuItem onClick={() => onPay(bill)}>
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                      Marcar como Paga
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                  </>
+                  <DropdownMenuItem onClick={() => onPay(bill)}>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Marcar como Paga
+                  </DropdownMenuItem>
                 )}
                 {onEdit && (
                   <DropdownMenuItem onClick={() => onEdit(bill)}>
@@ -121,19 +120,26 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onConfigReminders, hig
                     Editar
                   </DropdownMenuItem>
                 )}
+                {onCopy && (
+                  <DropdownMenuItem onClick={() => onCopy(bill)}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Duplicar
+                  </DropdownMenuItem>
+                )}
                 {onConfigReminders && bill.status !== 'paid' && (
                   <DropdownMenuItem onClick={() => onConfigReminders(bill)}>
                     <Bell className="mr-2 h-4 w-4" />
-                    Configurar Lembretes
+                    Lembretes
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuSeparator />
                 {onDelete && (
                   <DropdownMenuItem
                     onClick={() => onDelete(bill)}
-                    className="text-red-600"
+                    className="text-red-600 focus:text-red-600"
                   >
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Deletar
+                    Excluir
                   </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
@@ -200,7 +206,7 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onConfigReminders, hig
             {bill.payment_method && (
               <Badge variant="outline">
                 <CreditCard className="h-3 w-3 mr-1" />
-                {bill.payment_method === 'pix' ? 'PIX' : bill.payment_method}
+                {PAYMENT_METHOD_LABELS[bill.payment_method] || bill.payment_method}
               </Badge>
             )}
           </div>

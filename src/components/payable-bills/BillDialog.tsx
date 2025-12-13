@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { DatePickerInput } from '@/components/ui/date-picker-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,12 +38,34 @@ import { PayableBill, CreateBillInput, BillType, Priority, PaymentMethod } from 
 import { BILL_TYPE_LABELS, PRIORITY_LABELS, PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
 import { useCategories } from '@/hooks/useCategories';
 import { useAccounts } from '@/hooks/useAccounts';
+import { ACCOUNT_ICONS } from '@/constants/accounts';
 import { TagSelector } from './TagSelector';
-import { Plus, X, MessageCircle, Mail, Bell, Calendar, Send, ClipboardList } from 'lucide-react';
+import { 
+  Plus, X, MessageCircle, Mail, Bell, Calendar, Send, ClipboardList,
+  Tv, Lightbulb, Home, Smartphone, Heart, CreditCard as CreditCardIcon,
+  Package, GraduationCap, Receipt, Shield, Banknote, UtensilsCrossed, ShoppingBag
+} from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+
+// Categorias com ícones - mesma ordem do BillCategoryFilter
+const CATEGORY_OPTIONS = [
+  { value: 'subscription', label: 'Assinaturas', icon: <Tv className="h-4 w-4" /> },
+  { value: 'service', label: 'Serviços (Água, Luz, Gás)', icon: <Lightbulb className="h-4 w-4" /> },
+  { value: 'housing', label: 'Moradia', icon: <Home className="h-4 w-4" /> },
+  { value: 'telecom', label: 'Telecomunicações', icon: <Smartphone className="h-4 w-4" /> },
+  { value: 'healthcare', label: 'Saúde', icon: <Heart className="h-4 w-4" /> },
+  { value: 'education', label: 'Educação', icon: <GraduationCap className="h-4 w-4" /> },
+  { value: 'food', label: 'Alimentação', icon: <UtensilsCrossed className="h-4 w-4" /> },
+  { value: 'tax', label: 'Impostos e Taxas', icon: <Receipt className="h-4 w-4" /> },
+  { value: 'insurance', label: 'Seguros', icon: <Shield className="h-4 w-4" /> },
+  { value: 'loan', label: 'Empréstimos', icon: <Banknote className="h-4 w-4" /> },
+  { value: 'installment', label: 'Parcelamentos', icon: <ShoppingBag className="h-4 w-4" /> },
+  { value: 'credit_card', label: 'Cartão de Crédito', icon: <CreditCardIcon className="h-4 w-4" /> },
+  { value: 'other', label: 'Outros', icon: <Package className="h-4 w-4" /> },
+];
 
 const billSchema = z.object({
   description: z.string().min(3, 'Mínimo 3 caracteres'),
@@ -91,6 +114,20 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
   const { accounts } = useAccounts();
   const isEditing = !!bill;
 
+  const normalizeTime = (time?: string) => {
+    if (!time) return '09:00';
+    return time.slice(0, 5);
+  };
+
+  const normalizeReminderChannels = (channels?: string[]): ('whatsapp' | 'email' | 'push')[] => {
+    const allowed = ['whatsapp', 'email', 'push'] as const;
+    const normalized = (channels || [])
+      .map((c) => (c === 'app' ? 'whatsapp' : c))
+      .filter((c): c is 'whatsapp' | 'email' | 'push' => allowed.includes(c as any));
+
+    return normalized.length > 0 ? [...new Set(normalized)] : ['whatsapp'];
+  };
+
   const form = useForm<BillFormData>({
     resolver: zodResolver(billSchema),
     defaultValues: {
@@ -132,14 +169,12 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
         recurrence_day: bill.recurrence_config?.day,
         recurrence_end_date: bill.recurrence_config?.end_date || '',
         is_installment: bill.is_installment,
-        installment_total: bill.installment_total,
+        installment_total: bill.installment_total ?? undefined,
         enable_reminders: bill.reminders && bill.reminders.length > 0 ? true : false,
         reminders: bill.reminders && bill.reminders.length > 0 
-          ? bill.reminders.map(r => ({ days_before: r.days_before, time: r.time }))
+          ? bill.reminders.map(r => ({ days_before: r.days_before, time: normalizeTime(r.time) }))
           : [{ days_before: 1, time: '09:00' }],
-        reminder_channels: bill.reminder_channels && bill.reminder_channels.length > 0
-          ? bill.reminder_channels as ('whatsapp' | 'email' | 'push')[]
-          : ['whatsapp'],
+        reminder_channels: normalizeReminderChannels(bill.reminder_channels),
       });
     } else {
       form.reset({
@@ -157,6 +192,11 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
     }
   }, [bill, form]);
 
+  const handleInvalidSubmit = (errors: unknown) => {
+    console.error('Erros de validação ao salvar conta:', errors);
+    toast.error('Existem campos inválidos. Confira as abas e os campos obrigatórios.');
+  };
+
   const handleSubmit = async (data: BillFormData) => {
     if (!user) {
       toast.error('Usuário não autenticado');
@@ -169,21 +209,21 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
         amount: data.amount,
         due_date: data.due_date,
         bill_type: data.bill_type as BillType,
-        provider_name: data.provider_name,
-        category_id: data.category_id,
-        payment_account_id: data.payment_account_id,
-        payment_method: data.payment_method as PaymentMethod,
-        barcode: data.barcode,
-        qr_code_pix: data.qr_code_pix,
-        reference_number: data.reference_number,
+        provider_name: data.provider_name || undefined,
+        category_id: data.category_id || undefined,
+        payment_account_id: data.payment_account_id || undefined,
+        payment_method: (data.payment_method || undefined) as PaymentMethod | undefined,
+        barcode: data.barcode || undefined,
+        qr_code_pix: data.qr_code_pix || undefined,
+        reference_number: data.reference_number || undefined,
         priority: data.priority as Priority,
-        notes: data.notes,
-        is_recurring: data.is_recurring,
-        recurrence_config: data.is_recurring
+        notes: data.notes || undefined,
+        is_recurring: data.is_recurring && !!data.recurrence_frequency,
+        recurrence_config: data.is_recurring && data.recurrence_frequency
           ? {
               frequency: data.recurrence_frequency as any,
               day: data.recurrence_day || 1,
-              end_date: data.recurrence_end_date,
+              end_date: data.recurrence_end_date || undefined,
             }
           : undefined,
         is_installment: data.is_installment,
@@ -208,7 +248,7 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
               p_bill_id: billId,
               p_user_id: user.id,
               p_days_before: data.reminders.map(r => r.days_before),
-              p_times: data.reminders.map(r => r.time + ':00'), // Converter HH:MM para HH:MM:SS
+              p_times: data.reminders.map(r => `${normalizeTime(r.time)}:00`),
               p_channels: data.reminder_channels || ['whatsapp']
             }
           );
@@ -249,8 +289,8 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
         </DialogHeader>
 
         <Form {...form}>
-          <div className="max-h-[calc(90vh-140px)] overflow-y-auto px-1">
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(handleSubmit, handleInvalidSubmit)} className="space-y-6">
+            <div className="max-h-[calc(90vh-140px)] overflow-y-auto px-1">
             <Tabs defaultValue="basic" className="w-full">
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="basic">Básico</TabsTrigger>
@@ -283,12 +323,10 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                       <FormItem>
                         <FormLabel>Valor*</FormLabel>
                         <FormControl>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            placeholder="0,00"
-                            {...field}
-                            onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                          <CurrencyInput
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            onBlur={field.onBlur}
                           />
                         </FormControl>
                         <FormMessage />
@@ -317,7 +355,7 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                     name="bill_type"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Tipo*</FormLabel>
+                        <FormLabel>Categoria*</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
@@ -325,9 +363,12 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {Object.entries(BILL_TYPE_LABELS).map(([key, label]) => (
-                              <SelectItem key={key} value={key}>
-                                {label}
+                            {CATEGORY_OPTIONS.map((option) => (
+                              <SelectItem key={option.value} value={option.value}>
+                                <span className="inline-flex items-center gap-2">
+                                  {option.icon}
+                                  {option.label}
+                                </span>
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -377,36 +418,6 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                   )}
                 />
 
-                <FormField
-                  control={form.control}
-                  name="category_id"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Categoria</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Selecione uma categoria" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {categories.map((cat) => {
-                            const Icon = (LucideIcons as any)[cat.icon] || LucideIcons.Tag;
-                            return (
-                              <SelectItem key={cat.id} value={cat.id}>
-                                <span className="inline-flex items-center gap-2">
-                                  <Icon className="h-4 w-4" style={{ color: cat.color }} />
-                                  {cat.name}
-                                </span>
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
               </TabsContent>
 
               {/* ABA 2: PAGAMENTO */}
@@ -425,11 +436,17 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {accounts.map((acc) => (
-                              <SelectItem key={acc.id} value={acc.id}>
-                                {acc.icon} {acc.name}
-                              </SelectItem>
-                            ))}
+                            {accounts.map((acc) => {
+                              const IconComponent = ACCOUNT_ICONS[acc.icon as keyof typeof ACCOUNT_ICONS] || ACCOUNT_ICONS.checking;
+                              return (
+                                <SelectItem key={acc.id} value={acc.id}>
+                                  <span className="inline-flex items-center gap-2">
+                                    <IconComponent className="h-4 w-4" style={{ color: acc.color }} />
+                                    {acc.name}
+                                  </span>
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -908,17 +925,19 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                 )}
               </TabsContent>
             </Tabs>
-
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Cancelar
               </Button>
-              <Button type="submit">
-                {isEditing ? 'Salvar' : 'Criar Conta'}
+              <Button
+                type="submit"
+                disabled={form.formState.isSubmitting}
+              >
+                {form.formState.isSubmitting ? 'Salvando...' : (isEditing ? 'Salvar' : 'Criar Conta')}
               </Button>
             </DialogFooter>
           </form>
-          </div>
         </Form>
       </DialogContent>
     </Dialog>

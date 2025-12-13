@@ -116,10 +116,14 @@ export default function PayableBills() {
           new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         );
       case 'due_soon':
+        // Excluir pagas - mostrar apenas pendentes/vencidas ordenadas por vencimento próximo
+        sorted = sorted.filter(b => b.status !== 'paid');
         return sorted.sort((a, b) => 
           parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime()
         );
       case 'due_late':
+        // Excluir pagas - mostrar apenas pendentes/vencidas ordenadas por vencimento distante
+        sorted = sorted.filter(b => b.status !== 'paid');
         return sorted.sort((a, b) => 
           parseISO(b.due_date).getTime() - parseISO(a.due_date).getTime()
         );
@@ -342,6 +346,7 @@ export default function PayableBills() {
                 onPay={handlePay}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onCopy={handleCopy}
                 onConfigReminders={handleConfigReminders}
               />
             )}
@@ -421,6 +426,7 @@ export default function PayableBills() {
                   onPay={handlePay}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  onCopy={handleCopy}
                   onConfigReminders={handleConfigReminders}
                   onDeleteInstallmentGroup={handleDeleteInstallmentGroup}
                   emptyMessage="Nenhuma conta cadastrada. Clique em 'Nova Conta' para começar."

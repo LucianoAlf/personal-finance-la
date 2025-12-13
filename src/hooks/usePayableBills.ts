@@ -138,54 +138,33 @@ export function usePayableBills(initialFilters?: BillFilters) {
   useEffect(() => {
     if (!user?.id) return;
 
-    const channelName = `payable_bills_${user.id}_${Date.now()}`;
+    // Nome único para evitar conflitos de canal
+    const channelName = `payable-bills-${user.id}`;
     
-    const subscription = supabase
+    // Remover canal existente antes de criar novo
+    const existingChannel = supabase.channel(channelName);
+    supabase.removeChannel(existingChannel);
+
+    const channel = supabase
       .channel(channelName)
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'payable_bills',
-        },
+        { event: '*', schema: 'public', table: 'payable_bills', filter: `user_id=eq.${user.id}` },
         (payload) => {
-          console.log('🔄 Realtime INSERT detectado:', payload.new);
-          fetchBills();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'payable_bills',
-        },
-        (payload) => {
-          console.log('🔄 Realtime UPDATE detectado:', payload.new);
-          fetchBills();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'payable_bills',
-        },
-        (payload) => {
-          console.log('🔄 Realtime DELETE detectado:', payload.old);
+          console.log('🔄 Payable bills atualizado:', payload.eventType);
           fetchBills();
         }
       )
       .subscribe((status) => {
-        console.log('📡 Realtime status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Erro no canal realtime payable_bills');
+        }
       });
 
     return () => {
-      supabase.removeChannel(subscription);
+      supabase.removeChannel(channel);
     };
-  }, [user?.id, fetchBills]);
+  }, [user?.id]); // Removido fetchBills das dependências para evitar re-criação do canal
 
   // ============================================
   // CREATE: Criar conta
@@ -285,9 +264,49 @@ export function usePayableBills(initialFilters?: BillFilters) {
     if (!user?.id) return null;
 
     try {
+      // 1. Buscar conta atual para verificar status e valores
+      const { data: currentBill, error: fetchError } = await supabase
+        .from('payable_bills')
+        .select('status, amount, paid_amount, paid_at, is_recurring, recurrence_config')
+        .eq('id', id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // 2. Limpar dados para evitar violação de constraints
+      const cleanInput: Record<string, unknown> = { ...input };
+
+      // 3. Constraint valid_paid_status: Se a conta está PAGA e o valor foi alterado
+      if (currentBill.status === 'paid' && cleanInput.amount !== undefined) {
+        // Se o novo valor é diferente do valor pago, atualizar paid_amount também
+        if (cleanInput.amount !== currentBill.paid_amount) {
+          cleanInput.paid_amount = cleanInput.amount;
+        }
+      }
+
+      // 4. Constraint valid_recurrence: Se is_recurring = true, recurrence_config deve existir e ter frequency válido
+      if (cleanInput.is_recurring) {
+        const config = cleanInput.recurrence_config as { frequency?: string } | null | undefined;
+        if (!config || !config.frequency) {
+          // Se não tem config válida, desativar recorrência
+          cleanInput.is_recurring = false;
+          cleanInput.recurrence_config = null;
+        }
+      } else if (cleanInput.is_recurring === false) {
+        // Se desativou recorrência, limpar config
+        cleanInput.recurrence_config = null;
+      }
+
+      // 5. Remover campos undefined
+      Object.keys(cleanInput).forEach(key => {
+        if (cleanInput[key] === undefined) {
+          delete cleanInput[key];
+        }
+      });
+
       const { data, error } = await supabase
         .from('payable_bills')
-        .update(input)
+        .update(cleanInput)
         .eq('id', id)
         .eq('user_id', user.id)
         .select()

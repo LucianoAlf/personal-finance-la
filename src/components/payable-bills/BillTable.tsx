@@ -384,6 +384,12 @@ export function BillTable({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        {bill.status !== 'paid' && (
+                          <DropdownMenuItem onClick={() => onPay(bill)}>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Marcar como Paga
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => onEdit(bill)}>
                           <Pencil className="h-4 w-4 mr-2" />
                           Editar
@@ -392,7 +398,7 @@ export function BillTable({
                           <Copy className="h-4 w-4 mr-2" />
                           Duplicar
                         </DropdownMenuItem>
-                        {onConfigReminders && (
+                        {onConfigReminders && bill.status !== 'paid' && (
                           <DropdownMenuItem onClick={() => onConfigReminders(bill)}>
                             <Bell className="h-4 w-4 mr-2" />
                             Lembretes

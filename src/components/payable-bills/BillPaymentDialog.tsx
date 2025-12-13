@@ -26,11 +26,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { CurrencyInput } from '@/components/ui/currency-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { PayableBill, MarkBillAsPaidInput, PaymentMethod } from '@/types/payable-bills.types';
 import { PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
 import { useAccounts } from '@/hooks/useAccounts';
+import { ACCOUNT_ICONS } from '@/constants/accounts';
 import { formatCurrency, getRemainingAmount } from '@/utils/billCalculations';
 import { CheckCircle2 } from 'lucide-react';
 
@@ -134,12 +136,10 @@ export function BillPaymentDialog({
                     <FormItem>
                       <FormLabel>Valor Pago*</FormLabel>
                       <FormControl>
-                        <Input
-                          type="number"
-                          step="0.01"
-                          placeholder="0,00"
-                          {...field}
-                          onChange={(e) => field.onChange(parseFloat(e.target.value))}
+                        <CurrencyInput
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          onBlur={field.onBlur}
                         />
                       </FormControl>
                       <FormDescription>
@@ -188,11 +188,17 @@ export function BillPaymentDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {accounts.map((acc) => (
-                            <SelectItem key={acc.id} value={acc.id}>
-                              {acc.icon} {acc.name}
-                            </SelectItem>
-                          ))}
+                          {accounts.map((acc) => {
+                            const IconComponent = ACCOUNT_ICONS[acc.icon as keyof typeof ACCOUNT_ICONS] || ACCOUNT_ICONS.checking;
+                            return (
+                              <SelectItem key={acc.id} value={acc.id}>
+                                <span className="inline-flex items-center gap-2">
+                                  <IconComponent className="h-4 w-4" style={{ color: acc.color }} />
+                                  {acc.name}
+                                </span>
+                              </SelectItem>
+                            );
+                          })}
                         </SelectContent>
                       </Select>
                       <FormMessage />

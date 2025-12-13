@@ -18,7 +18,8 @@ import {
   Receipt,
   Shield,
   Banknote,
-  UtensilsCrossed
+  UtensilsCrossed,
+  ShoppingBag
 } from 'lucide-react';
 import { BillType } from '@/types/payable-bills.types';
 
@@ -41,6 +42,7 @@ const CATEGORY_OPTIONS: { value: CategoryFilter; label: string; icon: React.Reac
   { value: 'tax', label: 'Impostos e Taxas', icon: <Receipt className="h-4 w-4" /> },
   { value: 'insurance', label: 'Seguros', icon: <Shield className="h-4 w-4" /> },
   { value: 'loan', label: 'Empréstimos', icon: <Banknote className="h-4 w-4" /> },
+  { value: 'installment', label: 'Parcelamentos', icon: <ShoppingBag className="h-4 w-4" /> },
   { value: 'credit_card', label: 'Cartão de Crédito', icon: <CreditCard className="h-4 w-4" /> },
   { value: 'other', label: 'Outros', icon: <Package className="h-4 w-4" /> },
 ];

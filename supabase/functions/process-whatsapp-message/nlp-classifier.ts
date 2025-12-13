@@ -12,6 +12,74 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 // ============================================
+// BANCOS BRASILEIROS - Para distinguir conta a pagar de conta bancária
+// ============================================
+
+const BANCOS_BRASILEIROS = [
+  'itau', 'itaú', 'bradesco', 'santander', 'banco do brasil', 'bb',
+  'caixa', 'cef', 'nubank', 'inter', 'c6', 'c6 bank', 'next', 'neon',
+  'original', 'safra', 'btg', 'xp', 'rico', 'modal', 'pan', 'bmg',
+  'sicredi', 'sicoob', 'banrisul', 'bnb', 'banese', 'picpay', 'mercado pago',
+  'pagbank', 'pagseguro', 'iti', 'digio', 'will', 'agibank'
+];
+
+function ehBanco(texto: string): boolean {
+  if (!texto) return false;
+  const textoLower = texto.toLowerCase().trim();
+  return BANCOS_BRASILEIROS.some(banco => 
+    textoLower === banco || textoLower.includes(banco)
+  );
+}
+
+/**
+ * Corrige entidades quando NLP confunde conta a pagar com conta bancária
+ * Exemplo: "paguei a academia no Itau" → conta="academia", conta_bancaria="itau"
+ */
+export function corrigirEntidadesContaBancaria(
+  textoOriginal: string, 
+  entidades: Record<string, unknown>
+): Record<string, unknown> {
+  const texto = textoOriginal.toLowerCase();
+  const entidadesCorrigidas = { ...entidades };
+  
+  // Padrão: "no/pelo/na/via [BANCO]"
+  const padroesBanco = /(?:no|na|pelo|pela|via|do|da)\s+(itau|itaú|bradesco|santander|nubank|inter|c6|caixa|bb|banco do brasil|next|neon|original|picpay|mercado pago|pagbank)/i;
+  
+  const matchBanco = texto.match(padroesBanco);
+  if (matchBanco) {
+    const bancoEncontrado = matchBanco[1].toLowerCase()
+      .replace('itaú', 'itau')
+      .replace('banco do brasil', 'bb');
+    
+    // Se o NLP colocou o banco como "conta", corrigir
+    const contaAtual = entidadesCorrigidas.conta as string || '';
+    if (contaAtual && ehBanco(contaAtual)) {
+      console.log('[NLP-CORREÇÃO] Detectado banco como conta, corrigindo...');
+      
+      // Padrão: "paguei a/o [CONTA]" - extrair a conta real
+      const padraoContaPagar = /pagu?e?i\s+(?:a|o|as|os)?\s*(\w+)/i;
+      const matchConta = texto.match(padraoContaPagar);
+      
+      if (matchConta && !ehBanco(matchConta[1])) {
+        entidadesCorrigidas.conta = matchConta[1];
+        console.log('[NLP-CORREÇÃO] Conta extraída do texto:', matchConta[1]);
+      }
+    }
+    
+    // Garantir que conta_bancaria está preenchida
+    if (!entidadesCorrigidas.conta_bancaria || entidadesCorrigidas.conta_bancaria === '') {
+      entidadesCorrigidas.conta_bancaria = bancoEncontrado;
+      console.log('[NLP-CORREÇÃO] Conta bancária extraída:', bancoEncontrado);
+    }
+  }
+  
+  console.log('[NLP-CORREÇÃO] Original:', JSON.stringify(entidades));
+  console.log('[NLP-CORREÇÃO] Corrigido:', JSON.stringify(entidadesCorrigidas));
+  
+  return entidadesCorrigidas;
+}
+
+// ============================================
 // TIPOS
 // ============================================
 
@@ -91,7 +159,11 @@ const INTENT_CLASSIFICATION_FUNCTION = {
           'EDITAR_CONTA_PAGAR',
           'EXCLUIR_CONTA_PAGAR',
           'MARCAR_CONTA_PAGA',
+          'VALOR_CONTA_VARIAVEL',
           'HISTORICO_CONTA',
+          'PAGAR_FATURA_CARTAO',
+          'DESFAZER_PAGAMENTO',
+          'RESUMO_PAGAMENTOS_MES',
           'CONTAS_AMBIGUO',
           // FIM CONTAS A PAGAR
           'SAUDACAO',
@@ -155,7 +227,8 @@ function gerarSystemPrompt(
   dataHoraAtual: string,
   contasDisponiveis: string,
   categoriasDisponiveis: string,
-  nomeUsuario?: string
+  nomeUsuario?: string,
+  contasAPagar?: string
 ): string {
   const primeiroNome = nomeUsuario?.split(' ')[0] || 'amigo';
   
@@ -205,8 +278,14 @@ ${dataHoraAtual}
 ## NOME DO USUÁRIO
 ${nomeUsuario || 'Usuário'} (chame de ${primeiroNome}!)
 
-## CONTAS DISPONÍVEIS DO USUÁRIO
+## CONTAS BANCÁRIAS DO USUÁRIO (de onde sai o dinheiro)
 ${contasDisponiveis}
+
+## CONTAS A PAGAR DO USUÁRIO (o que precisa pagar)
+${contasAPagar || 'Nenhuma conta a pagar cadastrada.'}
+
+⚠️ IMPORTANTE: Quando o usuário disser "paguei [algo]", faça match INTELIGENTE com as contas acima.
+Exemplo: "financiamento do carro" = "Financiamento carro" (ignore preposições como "do", "da", "de")
 
 ## HISTÓRICO RECENTE DA CONVERSA
 ${historicoConversa}
@@ -218,8 +297,25 @@ ${memoriaUsuario}
 
 ## INTENÇÕES POSSÍVEIS (28 tipos)
 
+### ⚠️ REGRA CRÍTICA: MARCAR_CONTA_PAGA vs REGISTRAR_DESPESA
+
+**MARCAR_CONTA_PAGA** (conta recorrente/fixa):
+- "paguei a luz", "paguei a academia", "paguei o aluguel", "paguei a internet"
+- "paguei a netflix", "paguei o spotify", "paguei o condomínio"
+- Palavras-chave: luz, água, gás, aluguel, condomínio, academia, internet, netflix, spotify, disney, hbo, telefone, celular, seguro, plano de saúde
+
+**REGISTRAR_DESPESA** (compra avulsa):
+- "gastei 50 no mercado", "paguei 30 no uber", "comprei 100 de gasolina"
+- "almocei 45 reais", "paguei 200 no restaurante"
+- Palavras-chave: mercado, supermercado, restaurante, uber, 99, ifood, gasolina, farmácia, loja
+
+**REGRA:** Se "paguei" + conta recorrente (luz, academia, aluguel, etc) = **MARCAR_CONTA_PAGA**
+**REGRA:** Se "paguei/gastei" + valor + local/compra avulsa = **REGISTRAR_DESPESA**
+
+---
+
 ### Transações
-1. **REGISTRAR_DESPESA**: Gastou, pagou, comprou algo (sem mencionar cartão de crédito)
+1. **REGISTRAR_DESPESA**: Gastou, pagou, comprou algo AVULSO (mercado, restaurante, uber, etc)
 2. **REGISTRAR_RECEITA**: Recebeu, ganhou, entrou dinheiro
 3. **REGISTRAR_TRANSFERENCIA**: Transferiu dinheiro. Dois tipos:
    - **Para terceiros**: "Transferi 500 para João" → conta (origem), descricao (destinatário)
@@ -368,23 +464,72 @@ ${memoriaUsuario}
     - "renomear aluguel para moradia"
     - EXTRAIA: conta (nome), campo (valor/dia/nome), novo_valor
 
-33. **EXCLUIR_CONTA_PAGAR**: Excluir conta. Exemplos:
-    - "excluir conta de luz"
-    - "apagar internet"
-    - "remover netflix"
-    - "cancelar conta de spotify"
+33. **EXCLUIR_CONTA_PAGAR**: Excluir conta do sistema. Exemplos:
+    - "excluir conta de luz", "deletar a netflix"
+    - "remover internet do sistema"
+    - "cancelar cadastro do spotify"
+    - ⚠️ NÃO confundir com "apaguei a luz" que significa PAGUEI (erro de transcrição)!
+    - ⚠️ "apaguei a conta de X" = MARCAR_CONTA_PAGA (paguei!)
     - EXTRAIA: conta (nome)
     
-34. **MARCAR_CONTA_PAGA**: Marcar como paga. Exemplos:
+34. **MARCAR_CONTA_PAGA**: Marcar conta recorrente/fixa como paga. Exemplos:
     - "paguei a luz", "paguei 185 de luz"
+    - "paguei a academia", "paguei a academia no Itau"
+    - "paguei o aluguel", "paguei o condomínio"
+    - "paguei a internet", "paguei a netflix"
     - "paguei a 1" (após listar)
     - "quitei o aluguel"
+    - ⚠️ REGRA: Se menciona conta RECORRENTE (luz, água, aluguel, academia, internet, netflix, spotify, etc) = MARCAR_CONTA_PAGA
+    - ⚠️ DIFERENTE de REGISTRAR_DESPESA que é compra avulsa (mercado, restaurante, uber, etc)
     
-35. **HISTORICO_CONTA**: Ver histórico de pagamentos. Exemplos:
+    ⚠️⚠️⚠️ CRÍTICO - DISTINÇÃO CONTA vs CONTA_BANCARIA:
+    - **conta** = O QUE está sendo pago (luz, academia, aluguel, netflix, internet)
+    - **conta_bancaria** = DE ONDE sai o dinheiro (Itaú, Nubank, Bradesco, Inter, C6)
+    
+    EXEMPLOS DE EXTRAÇÃO CORRETA:
+    | Frase | conta | conta_bancaria |
+    | "paguei a academia no Itaú" | "academia" | "itau" |
+    | "paguei a luz pelo Nubank" | "luz" | "nubank" |
+    | "paguei o aluguel na conta do Bradesco" | "aluguel" | "bradesco" |
+    | "paguei a Netflix" | "netflix" | "" |
+    
+    REGRA DE OURO:
+    - Se houver nome de BANCO após "no/pelo/na/via" → É conta_bancaria
+    - O que vem ANTES (após "paguei a/o") → É a conta (o que está sendo pago)
+    - NUNCA coloque nome de banco (Itaú, Nubank, etc) no campo "conta"!
+    
+    - EXTRAIA: conta (nome da conta A PAGAR - USE O NOME EXATO da lista de CONTAS A PAGAR acima!), valor (se informado), conta_bancaria (banco de onde sai: Itau, Nubank, etc)
+    - ⚠️ MATCH INTELIGENTE: Se usuário diz "financiamento do carro", extraia "Financiamento carro" (o nome exato da lista)
+    - ⚠️ IGNORE preposições (do, da, de) ao fazer match
+    
+35. **VALOR_CONTA_VARIAVEL**: Informar valor de conta variável (luz, água, gás). Exemplos:
+    - "luz veio 190", "água deu 85", "gás ficou 120"
+    - "conta de luz chegou 185"
+    - EXTRAIA: conta (nome), valor
+    
+36. **HISTORICO_CONTA**: Ver histórico de pagamentos. Exemplos:
     - "histórico da luz", "pagamentos de internet"
     - "quanto paguei de luz nos últimos meses"
 
-36. **CONTAS_AMBIGUO**: Quando usuário diz APENAS "minhas contas" sem especificar se quer:
+37. **PAGAR_FATURA_CARTAO**: Pagar fatura de cartão de crédito. Exemplos:
+    - "paguei a fatura do Nubank", "paguei o cartão Itaú"
+    - "paguei 2500 no Nubank", "paguei o mínimo do Itaú"
+    - "fatura do Nubank paga"
+    - EXTRAIA: cartao (nome do cartão/banco), valor (se informado), tipoPagamento ('total', 'parcial', 'minimo')
+
+38. **DESFAZER_PAGAMENTO**: Estornar/desfazer pagamento feito por engano. Exemplos:
+    - "desfazer pagamento da luz", "cancelar pagamento do aluguel"
+    - "errei, a luz não foi paga", "a luz ainda não foi paga"
+    - "estornar pagamento da netflix"
+    - EXTRAIA: conta (nome da conta)
+
+39. **RESUMO_PAGAMENTOS_MES**: Ver o que foi pago no mês. Exemplos:
+    - "o que paguei esse mês", "resumo de pagamentos"
+    - "quanto gastei em dezembro", "pagamentos de novembro"
+    - "o que já paguei"
+    - EXTRAIA: mes (opcional, ex: 'dezembro', 'novembro')
+
+40. **CONTAS_AMBIGUO**: Quando usuário diz APENAS "minhas contas" sem especificar se quer:
     - Contas bancárias (saldos) ou contas a pagar (luz, água)
     - Use quando: "minhas contas", "ver minhas contas" (sem mais contexto)
     - NÃO use se tiver "bancárias", "a pagar", "saldo", "pendentes"
@@ -443,6 +588,10 @@ Exemplos que DEVEM ser COMPRA_CARTAO:
 ### Ações
 - "torrei", "queimei", "rasguei", "detonei" = gastei
 - "entrou", "caiu", "pintou" = recebeu
+- ⚠️ "apaguei a conta de X" = "paguei a conta de X" (erro comum de transcrição de áudio!)
+  - "apaguei a luz" → MARCAR_CONTA_PAGA (NÃO é excluir!)
+  - "apaguei o aluguel" → MARCAR_CONTA_PAGA
+  - Só use EXCLUIR_CONTA_PAGAR se tiver palavras como "excluir", "deletar", "remover", "cancelar conta"
 
 ### Bancos/Contas (CRÍTICO!)
 - "roxinho", "roxinha", "nu", "nuno bank", "nuno benk" = Nubank
@@ -914,6 +1063,46 @@ async function buscarContasUsuario(
 }
 
 // ============================================
+// BUSCAR CONTAS A PAGAR DO USUÁRIO
+// ============================================
+
+async function buscarContasAPagar(
+  supabase: any,
+  userId: string
+): Promise<string> {
+  try {
+    const { data: contas } = await supabase
+      .from('payable_bills')
+      .select('id, description, bill_type, due_date, amount, status')
+      .eq('user_id', userId)
+      .in('status', ['pending', 'overdue'])
+      .order('due_date', { ascending: true })
+      .limit(20);
+
+    if (!contas || contas.length === 0) {
+      return 'Nenhuma conta a pagar pendente.';
+    }
+
+    // Agrupar por descrição única (para não repetir parcelas)
+    const contasUnicas = new Map<string, any>();
+    for (const c of contas) {
+      const key = c.description.toLowerCase();
+      if (!contasUnicas.has(key)) {
+        contasUnicas.set(key, c);
+      }
+    }
+
+    return Array.from(contasUnicas.values()).map((c: any, i: number) => {
+      const valor = c.amount ? `R$ ${c.amount}` : '';
+      return `${i + 1}. ${c.description} ${valor}`.trim();
+    }).join('\n');
+  } catch (error) {
+    console.error('Erro ao buscar contas a pagar:', error);
+    return 'Erro ao carregar contas a pagar.';
+  }
+}
+
+// ============================================
 // BUSCAR CONFIGURAÇÃO DO PROVEDOR DE IA
 // ============================================
 
@@ -1094,6 +1283,13 @@ async function buscarNomeUsuario(
 function preProcessarIntencaoContaPagar(texto: string): 'CADASTRAR_CONTA_PAGAR' | 'CADASTRAR_CONTA_AMBIGUO' | null {
   const textoLower = texto.toLowerCase().trim();
   
+  // REGRA -2: "[item] parcela X de Y" = CONTA A PAGAR (parcelamento), NÃO compra!
+  // Ex: "TV parcela 15 de 10", "Geladeira parcela 3 de 12"
+  if (/parcela\s*\d+\s*(de|\/)\s*\d+/i.test(textoLower)) {
+    console.log('🎯 Pré-processamento: "parcela X de Y" → CADASTRAR_CONTA_PAGAR (parcelamento)');
+    return 'CADASTRAR_CONTA_PAGAR';
+  }
+  
   // REGRA -1: "Parcela de/da [item]" = CONTA A PAGAR (parcelamento), NÃO compra!
   // Ex: "Parcela da geladeira", "Parcela do celular"
   if (/^parcela\s+(de|da|do)\s+\w+/i.test(textoLower)) {
@@ -1188,13 +1384,14 @@ export async function classificarIntencaoNLP(
   }
 
   // Buscar configuração do usuário E contexto em paralelo
-  const [configIA, historicoConversa, contasDisponiveis, categoriasDisponiveis, memoriaUsuario, nomeUsuario] = await Promise.all([
+  const [configIA, historicoConversa, contasDisponiveis, categoriasDisponiveis, memoriaUsuario, nomeUsuario, contasAPagar] = await Promise.all([
     buscarConfiguracaoIA(supabase, userId),
     buscarHistoricoConversa(supabase, userId, 8),
     buscarContasUsuario(supabase, userId),
     buscarCategoriasUsuario(supabase, userId),
     buscarMemoriaUsuario(supabase, userId),
-    buscarNomeUsuario(supabase, userId)
+    buscarNomeUsuario(supabase, userId),
+    buscarContasAPagar(supabase, userId)
   ]);
 
   // Usar configuração do usuário ou fallback para env
@@ -1227,7 +1424,8 @@ export async function classificarIntencaoNLP(
     dataHoraAtual,
     contasDisponiveis,
     categoriasDisponiveis,
-    nomeUsuario
+    nomeUsuario,
+    contasAPagar
   );
 
   console.log('🧠 Chamando IA para classificação NLP...');

@@ -41,6 +41,7 @@ export type IntencaoTipo =
   | 'SAUDACAO'
   | 'AJUDA'
   | 'AGRADECIMENTO'
+  | 'MARCAR_CONTA_PAGA'
   | 'OUTRO';
 
 export interface EntidadesExtraidas {
@@ -50,6 +51,7 @@ export interface EntidadesExtraidas {
   descricao?: string;
   conta?: string;
   conta_destino?: string;
+  conta_bancaria?: string;
   data?: string;
   periodo?: 'hoje' | 'ontem' | 'semana' | 'mes' | 'ano';
   novo_valor?: number;
@@ -815,6 +817,23 @@ function criarRespostaFallback(texto: string): IntencaoClassificada {
     };
   } else if (/exclui|apaga|deleta|remove/i.test(textoLower)) {
     intencao = 'EXCLUIR_TRANSACAO';
+  } else if (/(?:paguei|quitei|pago)\s+(?:a|o|da|do)?\s*(?:conta\s+(?:de|da|do)?\s*)?(luz|água|agua|gás|gas|aluguel|condomínio|condominio|academia|internet|netflix|spotify|disney|hbo|telefone|celular|seguro|plano|escola|faculdade|empréstimo|emprestimo|financiamento)/i.test(textoLower)) {
+    // FALLBACK: Detectar pagamento de conta recorrente
+    intencao = 'MARCAR_CONTA_PAGA';
+    const matchConta = textoLower.match(/(?:paguei|quitei|pago)\s+(?:a|o|da|do)?\s*(?:conta\s+(?:de|da|do)?\s*)?(luz|água|agua|gás|gas|aluguel|condomínio|condominio|academia|internet|netflix|spotify|disney|hbo|telefone|celular|seguro|plano|escola|faculdade|empréstimo|emprestimo|financiamento)/i);
+    const contaNome = matchConta ? matchConta[1] : '';
+    
+    // Extrair conta bancária se mencionada (no/na + banco)
+    const matchBanco = textoLower.match(/(?:no|na|pelo|pela|com)\s+(nubank|itau|itaú|bradesco|santander|inter|c6|caixa|bb|picpay|mercado\s*pago)/i);
+    const contaBancaria = matchBanco ? matchBanco[1] : undefined;
+    
+    return {
+      intencao,
+      confianca: 0.85,
+      entidades: { conta: contaNome, conta_bancaria: contaBancaria },
+      resposta_conversacional: '',
+      comando_original: texto
+    };
   } else if (/^(oi|olá|ola|bom\s+dia|boa\s+tarde|boa\s+noite|opa|eai|e\s+ai)/i.test(textoLower)) {
     intencao = 'SAUDACAO';
     resposta = 'Oi! 👋\n\nComo posso te ajudar hoje?';

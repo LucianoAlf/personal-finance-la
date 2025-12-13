@@ -9,6 +9,7 @@ interface AttentionSectionProps {
   onPay: (bill: PayableBill) => void;
   onEdit: (bill: PayableBill) => void;
   onDelete: (bill: PayableBill) => void;
+  onCopy: (bill: PayableBill) => void;
   onConfigReminders: (bill: PayableBill) => void;
 }
 
@@ -17,6 +18,7 @@ export function AttentionSection({
   onPay,
   onEdit,
   onDelete,
+  onCopy,
   onConfigReminders,
 }: AttentionSectionProps) {
   const today = new Date();
@@ -88,6 +90,7 @@ export function AttentionSection({
               onPay={onPay}
               onEdit={onEdit}
               onDelete={onDelete}
+              onCopy={onCopy}
               onConfigReminders={onConfigReminders}
               highlight
             />

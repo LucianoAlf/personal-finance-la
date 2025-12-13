@@ -800,6 +800,19 @@ serve(async (req: Request) => {
     }
     
     // ============================================
+    // 9.5 AÇÕES RÁPIDAS DE CARTÃO (BYPASS NLP) - DESATIVADO
+    // ============================================
+    // ⚠️ REMOVIDO em 13/12/2025: O bypass estava interceptando consultas
+    // ANTES do GPT-4 ser chamado, causando problemas como:
+    // - "quanto gastei em alimentação?" → regex falha → "nenhum gasto"
+    // 
+    // Agora TODAS as consultas de cartão passam pelo GPT-4 primeiro
+    // que interpreta corretamente independente de acentos/pontuação.
+    // 
+    // O contexto de cartão (credit_card_context) é usado pelo
+    // processarAcaoRapidaCartao() que JÁ usa GPT-4 para interpretar.
+    
+    // ============================================
     // 10. CONSULTA ANALÍTICA - DESATIVADO (MOVIDO PARA NLP)
     // ============================================
     // ⚠️ REMOVIDO em 08/12/2025: O handler de analytics estava interceptando
@@ -1085,7 +1098,11 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       'EDITAR_CONTA_PAGAR',
       'EXCLUIR_CONTA_PAGAR',
       'MARCAR_CONTA_PAGA',
+      'VALOR_CONTA_VARIAVEL',
       'HISTORICO_CONTA',
+      'PAGAR_FATURA_CARTAO',
+      'DESFAZER_PAGAMENTO',
+      'RESUMO_PAGAMENTOS_MES',
       'CONTAS_AMBIGUO',
       'CADASTRAR_CONTA_AMBIGUO'
     ];
@@ -1109,13 +1126,27 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       await enviarViaEdgeFunction(phone, resultado.mensagem);
       
       // Salvar contexto se precisar de confirmação (FASE 3.2)
-      if (resultado.precisaConfirmacao && resultado.dados?.step) {
-        const step = resultado.dados.step as ContextType;
-        await salvarContexto(user.id, step, {
-          ...resultado.dados,
-          phone
-        }, phone);
-        console.log(`📋 [CONTAS-PAGAR] Contexto salvo: ${step}`);
+      // Suporta tanto 'step' quanto 'contextType' para flexibilidade
+      console.log(`📋 [CONTAS-PAGAR] Resultado:`, JSON.stringify({ 
+        precisaConfirmacao: resultado.precisaConfirmacao, 
+        step: resultado.dados?.step,
+        contextType: resultado.dados?.contextType,
+        temDados: !!resultado.dados 
+      }));
+      
+      const contextStep = (resultado.dados?.step || resultado.dados?.contextType) as ContextType;
+      if (resultado.precisaConfirmacao && contextStep) {
+        try {
+          await salvarContexto(user.id, contextStep, {
+            ...resultado.dados,
+            phone
+          }, phone);
+          console.log(`📋 [CONTAS-PAGAR] ✅ Contexto salvo: ${contextStep}`);
+        } catch (ctxError) {
+          console.error(`📋 [CONTAS-PAGAR] ❌ Erro ao salvar contexto:`, ctxError);
+        }
+      } else {
+        console.log(`📋 [CONTAS-PAGAR] ⚠️ Contexto NÃO salvo - precisaConfirmacao: ${resultado.precisaConfirmacao}, contextStep: ${contextStep}`);
       }
       
       await supabase.from('whatsapp_messages').update({
@@ -1312,6 +1343,33 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
     
     if (INTENCOES_GASTOS.includes(intencaoNLP.intencao)) {
       console.log('📊 Intenção de GASTOS detectada:', intencaoNLP.intencao);
+      
+      // ============================================
+      // 🔥 VERIFICAR SE É CONSULTA DE CARTÃO DE CRÉDITO
+      // Se menciona "cartão" + "gastei/compras", redirecionar para módulo de cartão
+      // ============================================
+      const textoLowerGastos = content.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const mencionaCartao = textoLowerGastos.includes('cartao') || 
+                             textoLowerGastos.includes('credito') ||
+                             textoLowerGastos.includes('fatura');
+      
+      if (mencionaCartao) {
+        console.log('💳 [REDIRECT] Consulta de gastos menciona CARTÃO - redirecionando para módulo de cartão');
+        
+        const { processarAcaoRapidaCartao } = await import('./context-manager.ts');
+        const respostaCartao = await processarAcaoRapidaCartao(content, { tipo: 'credit_card_context' } as any, user.id);
+        
+        await enviarViaEdgeFunction(phone, respostaCartao);
+        await supabase.from('whatsapp_messages').update({
+          processing_status: 'completed',
+          intent: 'consultar_gastos_cartao',
+          processed_at: new Date().toISOString()
+        }).eq('id', message.id);
+        
+        return new Response(JSON.stringify({ success: true, type: 'cartao_gastos' }), { 
+          headers: { 'Content-Type': 'application/json' } 
+        });
+      }
       
       // ============================================
       // 🔥 SISTEMA DE CONSULTAS UNIFICADO

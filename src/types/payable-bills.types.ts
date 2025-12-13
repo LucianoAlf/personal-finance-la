@@ -12,7 +12,8 @@ export type BillType =
   | 'education'    // Escola, curso
   | 'healthcare'   // Plano de saúde
   | 'insurance'    // Seguros
-  | 'loan'         // Empréstimos
+  | 'loan'         // Empréstimos pessoais (dinheiro emprestado)
+  | 'installment'  // Parcelamentos/Financiamentos (compras parceladas)
   | 'credit_card'  // Cartão terceiros
   | 'tax'          // IPTU, IPVA
   | 'food'         // Alimentação
@@ -265,6 +266,7 @@ export const BILL_TYPE_LABELS: Record<BillType, string> = {
   healthcare: 'Saúde',
   insurance: 'Seguros',
   loan: 'Empréstimos',
+  installment: 'Parcelamentos',
   credit_card: 'Cartão de Crédito',
   tax: 'Impostos e Taxas',
   food: 'Alimentação',

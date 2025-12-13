@@ -63,7 +63,14 @@ export const BILL_CATEGORIES: BillCategory[] = [
     name: 'Empréstimos',
     icon: 'Banknote',
     color: '#f97316',
-    description: 'Financiamentos, parcelamentos',
+    description: 'Empréstimos pessoais, consignados',
+  },
+  {
+    id: 'installment',
+    name: 'Parcelamentos',
+    icon: 'ShoppingBag',
+    color: '#8b5cf6',
+    description: 'Compras parceladas, financiamentos',
   },
   {
     id: 'credit_card',

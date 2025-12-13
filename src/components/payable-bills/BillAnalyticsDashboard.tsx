@@ -101,6 +101,7 @@ export function BillAnalyticsDashboard() {
         tax: 'Impostos',
         rent: 'Aluguel',
         loan: 'Empréstimos',
+        installment: 'Parcelamentos',
         insurance: 'Seguros',
         education: 'Educação',
         health: 'Saúde',

@@ -4,7 +4,17 @@
 // FASE 3.1: Consultas | FASE 3.2: CRUD
 // ============================================
 
-import { getSupabase } from './utils.ts';
+import { getSupabase, getEmojiBanco } from './utils.ts';
+import { 
+  validarValor, 
+  validarDiaVencimento, 
+  validarDescricao, 
+  validarParcelas,
+  textoContemValorNegativo,
+  validarDataCompleta,
+  extrairEValidarData,
+  type ValidacaoDataCompleta
+} from './validacoes.ts';
 
 // ============================================
 // TIMEZONE HELPERS - SEMPRE USA SÃO PAULO (BRT)
@@ -61,8 +71,11 @@ export type TipoIntencaoContaPagar =
   | 'EDITAR_CONTA_PAGAR'       // "mudar valor da luz para 180"
   | 'EXCLUIR_CONTA_PAGAR'      // "excluir conta de luz"
   | 'MARCAR_CONTA_PAGA'        // (fase 3.3)
-  | 'VALOR_CONTA_VARIAVEL'     // (fase 3.3)
-  | 'HISTORICO_CONTA'          // (fase 3.3)
+  | 'VALOR_CONTA_VARIAVEL'     // "luz veio 190"
+  | 'HISTORICO_CONTA'          // "histórico da luz"
+  | 'PAGAR_FATURA_CARTAO'      // "paguei a fatura do Nubank"
+  | 'DESFAZER_PAGAMENTO'       // "desfazer pagamento da luz"
+  | 'RESUMO_PAGAMENTOS_MES'    // "o que paguei esse mês"
   | 'CONTAS_AMBIGUO'           // "minhas contas" (perguntar ao usuário)
   | 'CADASTRAR_CONTA_AMBIGUO'  // "cadastrar conta" (bancária ou a pagar?)
   | null;
@@ -473,6 +486,7 @@ export interface DadosCadastroConta {
   textoOriginal?: string;
   paymentMethod?: 'credit_card' | 'boleto' | 'pix' | 'debit';  // Método de pagamento
   creditCardId?: string;  // ID do cartão (se for parcelamento no cartão)
+  creditCardName?: string;  // Nome do cartão (para exibição)
 }
 
 // ============================================
@@ -669,14 +683,24 @@ export function validarCamposConta(dados: DadosCadastroConta, camposObrigatorios
 
 export function extrairValorTexto(texto: string): number | null {
   const limpo = texto.replace(/\s/g, '').toLowerCase();
-  const match = limpo.match(/r?\$?([\d]+[.,]?[\d]*)/);
+  // Captura sinal negativo opcional antes do valor
+  const match = limpo.match(/(-?)r?\$?([\d]+[.,]?[\d]*)/);
   
   if (match) {
-    const valor = parseFloat(match[1].replace(',', '.'));
+    const isNegativo = match[1] === '-';
+    const valor = parseFloat(match[2].replace(',', '.'));
+    
+    // Se for negativo, retorna o valor negativo para que o chamador possa tratar
+    if (isNegativo) {
+      return -valor;
+    }
+    
     return valor > 0 ? valor : null;
   }
   return null;
 }
+
+// Função textoContemValorNegativo movida para validacoes.ts
 
 export function extrairDiaTexto(texto: string): number | null {
   const limpo = texto.toLowerCase();
@@ -906,6 +930,18 @@ ${emoji} 💰 Qual o *valor médio* da conta de *${descricao}*?
 _O valor pode variar, mas informe uma média, ex: "150" ou "R$ 180,00"_`;
       }
       
+      // Se é parcelamento, perguntar valor da PARCELA especificamente
+      const ehParcelamento = dados.totalParcelas && dados.totalParcelas > 1;
+      if (ehParcelamento) {
+        return `📝 Vou cadastrar *${descricao}* em *${dados.totalParcelas}x*.
+
+${emoji} 💰 Qual o valor de *cada parcela*?
+
+_Ex: "250" significa R$ 250 por parcela (total: R$ ${(250 * (dados.totalParcelas || 1)).toLocaleString('pt-BR')})_
+
+💡 _Ou digite "total 2500" se quiser informar o valor total_`;
+      }
+      
       return `📝 Vou cadastrar *${descricao}*.
 
 ${emoji} 💰 Qual é o valor?
@@ -964,7 +1000,7 @@ _Digite o número ou o nome_`;
 
 // Valores aceitos pela constraint payable_bills_bill_type_check:
 // 'service', 'telecom', 'subscription', 'housing', 'education', 
-// 'healthcare', 'insurance', 'loan', 'credit_card', 'tax', 'other'
+// 'healthcare', 'insurance', 'loan', 'installment', 'credit_card', 'tax', 'food', 'other'
 
 export function mapearBillTypeParaBanco(tipoInterno: BillType, descricao: string): string {
   const descLower = descricao.toLowerCase();
@@ -1004,9 +1040,14 @@ export function mapearBillTypeParaBanco(tipoInterno: BillType, descricao: string
     return 'tax';
   }
   
-  // EMPRÉSTIMOS/FINANCIAMENTOS
-  if (/empr[ée]stimo|financiamento|consignado/.test(descLower)) {
+  // EMPRÉSTIMOS (dinheiro emprestado)
+  if (/empr[ée]stimo|consignado/.test(descLower)) {
     return 'loan';
+  }
+  
+  // PARCELAMENTOS/FINANCIAMENTOS (compras parceladas)
+  if (/financiamento|parcela|geladeira|tv|televis[ãa]o|celular|notebook|computador|m[óo]vel|eletrodom[ée]stico|carro|moto|ve[íi]culo|im[óo]vel|casa|apartamento/.test(descLower)) {
+    return 'installment';
   }
   
   // ALIMENTAÇÃO
@@ -1020,12 +1061,10 @@ export function mapearBillTypeParaBanco(tipoInterno: BillType, descricao: string
   }
   
   // Mapear pelo tipo interno se não identificou pela descrição
-  // NOTA: 'installment' agora mapeia para 'other' (Compras Parceladas)
-  // 'loan' é reservado apenas para empréstimos/financiamentos explícitos
   const mapeamentoPorTipo: Record<BillType, string> = {
     'subscription': 'subscription',
     'credit_card': 'credit_card',
-    'installment': 'other',  // Compras parceladas (geladeira, TV, etc)
+    'installment': 'installment',  // Compras parceladas (geladeira, TV, etc)
     'fixed': 'service',
     'variable': 'service',
     'one_time': 'other',
@@ -1045,11 +1084,21 @@ export interface ContaPagar {
   is_recurring: boolean;
   bill_type?: string;
   category?: { name: string };
+  category_id?: string;
   account?: { name: string };
   // Para exibição numerada
   index?: number;
   // Tipo para diferenciação
   tipo?: 'conta' | 'fatura';
+  // FASE 3.3: Campos adicionais para pagamentos
+  paid_at?: string;
+  paid_amount?: number;
+  payment_method?: string;
+  credit_card_id?: string;
+  recurrence_config?: Record<string, unknown>;
+  parent_recurring_id?: string;
+  reminder_enabled?: boolean;
+  reminder_days_before?: number;
 }
 
 export interface FaturaCartao {
@@ -1845,11 +1894,22 @@ export async function processarIntencaoContaPagar(
       return await processarExclusaoConta(userId, _phone, _entidades);
     
     case 'MARCAR_CONTA_PAGA':
+      return await processarMarcarPago(userId, _phone, _entidades);
+    
     case 'VALOR_CONTA_VARIAVEL':
+      return await processarValorContaVariavel(userId, _phone, _entidades);
+    
     case 'HISTORICO_CONTA':
-      return { 
-        mensagem: `🚧 _Funcionalidade em desenvolvimento..._\n\nEm breve você poderá marcar contas como pagas!\n\n💡 Por enquanto, use:\n• _"contas a pagar"_\n• _"contas vencidas"_` 
-      };
+      return await processarHistoricoConta(userId, _phone, _entidades);
+    
+    case 'PAGAR_FATURA_CARTAO':
+      return await processarPagarFaturaCartao(userId, _phone, _entidades);
+    
+    case 'DESFAZER_PAGAMENTO':
+      return await processarDesfazerPagamento(userId, _phone, _entidades);
+    
+    case 'RESUMO_PAGAMENTOS_MES':
+      return await processarResumoPagamentosMes(userId, _phone, _entidades);
     
     case 'CONTAS_AMBIGUO':
       return { 
@@ -2092,6 +2152,7 @@ async function processarCadastroConta(
   }
   
   // Só aceitar valor se REALMENTE foi mencionado no texto
+  // IMPORTANTE: Não confundir "3 de 10" (parcelas) com valor!
   const textoMencionaValor = comandoOriginal && (
     /r\s*\$\s*\d/i.test(comandoOriginal) ||
     /\d+\s*(reais|real)/i.test(comandoOriginal) ||
@@ -2100,9 +2161,26 @@ async function processarCadastroConta(
     /\d+[.,]\d{2}/i.test(comandoOriginal)  // 150,00 ou 150.00
   );
   
+  // Se menciona parcelas no formato "X de Y", NÃO considerar como valor
+  const textoTemPadraoParcelasXdeY = comandoOriginal && /parcela\s*\d+\s*(de|\/)\s*\d+/i.test(comandoOriginal);
+  
   if (valor && !textoMencionaValor) {
     console.log('[CADASTRAR-CONTA] NLP inventou valor. Ignorando.');
     valor = undefined;
+  }
+  
+  // CRÍTICO: Se o texto tem padrão "parcela X de Y", limpar valor que veio do NLP
+  // pois provavelmente é confusão com o número de parcelas
+  if (valor && textoTemPadraoParcelasXdeY) {
+    const matchParcela = comandoOriginal.match(/parcela\s*(\d+)\s*(de|\/)\s*(\d+)/i);
+    if (matchParcela) {
+      const numParcela = parseInt(matchParcela[1]);
+      const totalParc = parseInt(matchParcela[3]);
+      if (valor === numParcela || valor === totalParc) {
+        console.log(`[CADASTRAR-CONTA] ⚠️ Valor ${valor} é número de parcela (${numParcela}/${totalParc}). Limpando.`);
+        valor = undefined;
+      }
+    }
   }
   
   // Só aceitar parcelas se REALMENTE foi mencionado no texto
@@ -2121,29 +2199,89 @@ async function processarCadastroConta(
     parcelaAtual = undefined;
   }
   
+  // FALLBACK: Extrair parcelas do texto manualmente (padrão "parcela X de Y")
+  // Isso é CRÍTICO para casos como "TV parcela 3 de 10" onde o NLP pode confundir
+  if (comandoOriginal && textoMencionaParcelas) {
+    // Padrão 1: "parcela 15 de 10" ou "parcela 3/12"
+    const matchParcela = comandoOriginal.match(/parcela\s*(\d+)\s*(de|\/)\s*(\d+)/i);
+    if (matchParcela) {
+      parcelaAtual = parseInt(matchParcela[1]);
+      totalParcelas = parseInt(matchParcela[3]);
+      console.log(`[CADASTRAR-CONTA] Parcelas extraídas manualmente: ${parcelaAtual}/${totalParcelas}`);
+      
+      // IMPORTANTE: Se o NLP confundiu o número da parcela com valor, limpar o valor
+      // Verifica se o valor é igual a qualquer número do padrão de parcelas
+      if (valor === parcelaAtual || valor === totalParcelas) {
+        console.log(`[CADASTRAR-CONTA] ⚠️ NLP confundiu parcela com valor (${valor}). Limpando valor.`);
+        valor = undefined;
+      }
+    }
+    
+    // Padrão 2: "3 de 12" ou "5/10" (sem a palavra "parcela")
+    if (!parcelaAtual && !totalParcelas) {
+      const matchSimples = comandoOriginal.match(/(\d+)\s*(de|\/)\s*(\d+)/i);
+      if (matchSimples) {
+        const num1 = parseInt(matchSimples[1]);
+        const num2 = parseInt(matchSimples[3]);
+        // Só considerar se parecer parcela (num1 <= num2 ou num2 > 1)
+        if (num2 > 1) {
+          parcelaAtual = num1;
+          totalParcelas = num2;
+          console.log(`[CADASTRAR-CONTA] Parcelas extraídas (padrão simples): ${parcelaAtual}/${totalParcelas}`);
+          
+          // Limpar valor se foi confundido
+          if (valor === parcelaAtual || valor === totalParcelas) {
+            console.log(`[CADASTRAR-CONTA] ⚠️ NLP confundiu parcela com valor (${valor}). Limpando valor.`);
+            valor = undefined;
+          }
+        }
+      }
+    }
+    
+    // VERIFICAÇÃO EXTRA: Se detectamos parcelas e o valor é muito baixo (< 50), provavelmente é confusão
+    // Ex: "TV parcela 3 de 10" → valor=10 é claramente o total de parcelas
+    if (parcelaAtual && totalParcelas && valor !== undefined && valor <= totalParcelas && valor < 50) {
+      console.log(`[CADASTRAR-CONTA] ⚠️ Valor ${valor} muito baixo para parcelamento. Provavelmente é número de parcela. Limpando.`);
+      valor = undefined;
+    }
+  }
+  
   // Fallback: extrair dia do texto (SEMPRE tentar, mesmo se NLP retornou algo)
   console.log(`[CADASTRAR-CONTA] Tentando extrair dia do texto: "${comandoOriginal}", diaVencimento atual: ${diaVencimento}`);
   
+  // Variável para armazenar data completa extraída (para validação posterior)
+  let dataCompletaExtraida: string | undefined = undefined;
+  
   if (comandoOriginal) {
+    // PRIMEIRO: Verificar se há data completa (DD/MM/YYYY) - precisa validar!
+    const matchDataCompleta = comandoOriginal.match(/(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/);
+    if (matchDataCompleta) {
+      dataCompletaExtraida = matchDataCompleta[0];
+      diaVencimento = parseInt(matchDataCompleta[1]);
+      console.log(`[CADASTRAR-CONTA] Data completa extraída: ${dataCompletaExtraida}, dia: ${diaVencimento}`);
+    }
+    
     // Padrão 1: "dia 15/03" ou "dia 15-03" ou "dia 15.03" → extrair só o dia (15)
-    let diaMatch = comandoOriginal.match(/dia\s*(\d{1,2})[\/\-\.]\d{1,2}/i);
-    if (diaMatch && !diaVencimento) {
-      diaVencimento = parseInt(diaMatch[1]);
-      console.log(`[CADASTRAR-CONTA] Dia extraído de data completa: ${diaVencimento}`);
+    if (!diaVencimento) {
+      let diaMatch = comandoOriginal.match(/dia\s*(\d{1,2})[\/\-\.]\d{1,2}/i);
+      if (diaMatch) {
+        diaVencimento = parseInt(diaMatch[1]);
+        console.log(`[CADASTRAR-CONTA] Dia extraído de data completa: ${diaVencimento}`);
+      }
     }
     
     // Padrão 2: "dia 15" (sem mês) - MAIS FLEXÍVEL
     if (!diaVencimento) {
-      diaMatch = comandoOriginal.match(/dia\s*(\d{1,2})/i);
+      const diaMatch = comandoOriginal.match(/dia\s*(\d{1,2})/i);
       if (diaMatch) {
         diaVencimento = parseInt(diaMatch[1]);
         console.log(`[CADASTRAR-CONTA] Dia extraído simples: ${diaVencimento}`);
       }
     }
     
-    // Padrão 3: "15/03" ou "15-03" em qualquer lugar do texto (sem "dia")
+    // Padrão 3: "15/03" ou "15-03" em qualquer lugar do texto (sem "dia") - SEM ANO
     if (!diaVencimento) {
-      diaMatch = comandoOriginal.match(/(\d{1,2})[\/\-\.](\d{1,2})/i);
+      const diaMatch = comandoOriginal.match(/(\d{1,2})[\/\-\.](\d{1,2})(?![\/\-\.]\d)/i);
       if (diaMatch) {
         diaVencimento = parseInt(diaMatch[1]);
         console.log(`[CADASTRAR-CONTA] Dia extraído de data: ${diaVencimento}`);
@@ -2187,13 +2325,25 @@ async function processarCadastroConta(
   }
   
   // Fallback: extrair valor do texto (só se não foi extraído do parcelamento)
-  if (!valor && comandoOriginal) {
+  // CRÍTICO: Criar texto sem padrão de parcelas para não confundir
+  let textoParaExtrairValor = comandoOriginal || '';
+  if (parcelaAtual && totalParcelas && comandoOriginal) {
+    // Remover padrões de parcela do texto antes de buscar valor
+    textoParaExtrairValor = comandoOriginal
+      .replace(/parcela\s*\d+\s*(?:de|\/)\s*\d+/gi, ' ')  // "parcela 3 de 10"
+      .replace(/\d+\s*(?:de|\/)\s*\d+/gi, ' ')            // "3 de 10" ou "3/10"
+      .replace(/\d+\s*x\b/gi, ' ')                         // "10x"
+      .trim();
+    console.log(`[CADASTRAR-CONTA] Texto sem parcelas para extrair valor: "${textoParaExtrairValor}"`);
+  }
+  
+  if (!valor && textoParaExtrairValor) {
     // Evitar capturar número de parcelas como valor
     // Padrão: busca valor após "de" ou "R$" ou "reais", mas NÃO após "x"
-    const valorMatch = comandoOriginal.match(/(?:de\s*)?r\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*reais/i);
+    const valorMatch = textoParaExtrairValor.match(/(?:de\s*)?r\$\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*reais/i);
     if (valorMatch) {
       const valorCapturado = valorMatch[1] || valorMatch[2];
-      if (valorCapturado && !comandoOriginal.includes('dia ' + valorCapturado)) {
+      if (valorCapturado && !textoParaExtrairValor.includes('dia ' + valorCapturado)) {
         valor = parseFloat(valorCapturado.replace(',', '.'));
         console.log(`[CADASTRAR-CONTA] Valor extraído do texto (R$/reais): R$ ${valor}`);
       }
@@ -2202,17 +2352,20 @@ async function processarCadastroConta(
     // Fallback 2: Capturar número solto que parece ser valor (>= 10 e não é dia)
     // Ex: "Conta de luz 180, vence dia 10" → 180 é valor, 10 é dia
     if (!valor) {
-      // Encontrar todos os números no texto
-      const numeros = comandoOriginal.match(/\d+(?:[.,]\d+)?/g);
+      // Encontrar todos os números no texto LIMPO (sem parcelas)
+      const numeros = textoParaExtrairValor.match(/\d+(?:[.,]\d+)?/g);
       if (numeros) {
         for (const num of numeros) {
           const numFloat = parseFloat(num.replace(',', '.'));
           // Ignorar números que são dias (1-31) ou que aparecem após "dia"
-          const isDia = comandoOriginal.match(new RegExp(`dia\\s*${num}\\b`, 'i'));
-          const isVencimento = comandoOriginal.match(new RegExp(`vence\\s*(dia\\s*)?${num}\\b`, 'i'));
+          const isDia = textoParaExtrairValor.match(new RegExp(`dia\\s*${num}\\b`, 'i'));
+          const isVencimento = textoParaExtrairValor.match(new RegExp(`vence\\s*(dia\\s*)?${num}\\b`, 'i'));
           
-          // Se é um número >= 10 e não é dia de vencimento, provavelmente é valor
-          if (numFloat >= 10 && !isDia && !isVencimento) {
+          // EXTRA: Ignorar se é igual a parcelaAtual ou totalParcelas
+          const isParcela = (parcelaAtual && numFloat === parcelaAtual) || (totalParcelas && numFloat === totalParcelas);
+          
+          // Se é um número >= 10 e não é dia de vencimento e não é parcela, provavelmente é valor
+          if (numFloat >= 10 && !isDia && !isVencimento && !isParcela) {
             valor = numFloat;
             console.log(`[CADASTRAR-CONTA] Valor extraído do texto (número solto): R$ ${valor}`);
             break;
@@ -2268,6 +2421,123 @@ async function processarCadastroConta(
   };
   
   console.log('[CADASTRAR-CONTA] Dados extraídos:', JSON.stringify(dados));
+  
+  // ============================================
+  // PASSO 4.5: Validações inteligentes
+  // ============================================
+  
+  // 4.5.1: Verificar valor negativo no texto original
+  if (textoContemValorNegativo(comandoOriginal || '')) {
+    console.log('[CADASTRAR-CONTA] ❌ Valor negativo detectado no texto!');
+    const validacao = validarValor(-1, tipo, descricao); // Força validação de negativo
+    return {
+      mensagem: validacao.mensagem || `❌ *Ops!* O valor não pode ser negativo.\n\n💰 Qual o valor correto${descricao ? ` da *${descricao}*` : ''}?`,
+      precisaConfirmacao: true,
+      dados: {
+        contextType: 'awaiting_bill_amount',
+        descricao,
+        diaVencimento,
+        tipo,
+        parcelaAtual,
+        totalParcelas,
+        phone
+      }
+    };
+  }
+  
+  // 4.5.2: Validar valor com limites inteligentes por tipo
+  if (valor !== undefined) {
+    const validacaoValor = validarValor(valor, tipo, descricao);
+    if (!validacaoValor.valido) {
+      console.log(`[CADASTRAR-CONTA] ❌ Valor inválido: ${validacaoValor.tipo} - R$ ${valor}`);
+      return {
+        mensagem: validacaoValor.mensagem!,
+        precisaConfirmacao: true,
+        dados: {
+          contextType: 'awaiting_bill_amount',
+          descricao,
+          diaVencimento,
+          tipo,
+          parcelaAtual,
+          totalParcelas,
+          phone
+        }
+      };
+    }
+  }
+  
+  // 4.5.3: Validar data completa (DD/MM/YYYY) se foi informada
+  if (dataCompletaExtraida) {
+    const validacaoData = validarDataCompleta(dataCompletaExtraida);
+    if (!validacaoData.valido) {
+      console.log(`[CADASTRAR-CONTA] ❌ Data completa inválida: ${dataCompletaExtraida} - ${validacaoData.tipo}`);
+      return {
+        mensagem: validacaoData.mensagem!,
+        precisaConfirmacao: true,
+        dados: {
+          contextType: 'awaiting_due_day',
+          descricao,
+          valor,
+          tipo,
+          parcelaAtual,
+          totalParcelas,
+          phone
+        }
+      };
+    }
+    // Se tem alerta (data passada recente), guardar para mostrar na confirmação
+    if (validacaoData.alerta) {
+      console.log(`[CADASTRAR-CONTA] ⚠️ Alerta de data: ${validacaoData.alerta}`);
+      // O alerta será mostrado junto com a confirmação de cadastro
+    }
+  }
+  
+  // 4.5.4: Validar dia de vencimento (se não foi data completa)
+  if (diaVencimento !== undefined && !dataCompletaExtraida) {
+    const validacaoDia = validarDiaVencimento(diaVencimento);
+    if (!validacaoDia.valido) {
+      console.log(`[CADASTRAR-CONTA] ❌ Dia inválido: ${diaVencimento}`);
+      return {
+        mensagem: validacaoDia.mensagem!,
+        precisaConfirmacao: true,
+        dados: {
+          contextType: 'awaiting_due_day',
+          descricao,
+          valor,
+          tipo,
+          parcelaAtual,
+          totalParcelas,
+          phone
+        }
+      };
+    }
+  }
+  
+  // 4.5.5: Validar parcelas (se for parcelamento)
+  if (parcelaAtual !== undefined || totalParcelas !== undefined) {
+    const validacaoParcelas = validarParcelas(parcelaAtual, totalParcelas);
+    if (!validacaoParcelas.valido) {
+      console.log(`[CADASTRAR-CONTA] ❌ Parcelas inválidas: ${parcelaAtual}/${totalParcelas}`);
+      // IMPORTANTE: NÃO salvar valor se foi confundido com número de parcela
+      // O valor será perguntado depois que as parcelas forem corrigidas
+      const valorParaSalvar = (valor === parcelaAtual || valor === totalParcelas) ? undefined : valor;
+      if (valorParaSalvar !== valor) {
+        console.log(`[CADASTRAR-CONTA] ⚠️ Valor ${valor} parece ser número de parcela. Não salvando.`);
+      }
+      return {
+        mensagem: validacaoParcelas.mensagem!,
+        precisaConfirmacao: true,
+        dados: {
+          contextType: 'awaiting_installment_info',
+          descricao,
+          valor: valorParaSalvar,  // Só salva se não foi confundido
+          diaVencimento,
+          tipo: 'installment',
+          phone
+        }
+      };
+    }
+  }
   
   // ============================================
   // PASSO 5: Se tipo desconhecido, perguntar
@@ -3026,4 +3296,1711 @@ function templateConfirmarExclusao(conta: ContaPagar): string {
 
 export function templateContaExcluida(nome: string): string {
   return `✅ Conta de *${nome}* excluída com sucesso!`;
+}
+
+// ============================================
+// FASE 3.3: REGISTRO DE PAGAMENTOS
+// ============================================
+
+/**
+ * Verifica se uma conta é variável baseado no histórico de valores
+ * Uma conta é variável se teve mais de 10% de variação nos últimos 6 meses
+ */
+async function verificarContaVariavelPorHistorico(userId: string, descricao: string): Promise<boolean> {
+  const supabase = getSupabase();
+  
+  // Buscar histórico de pagamentos desta conta
+  const { data: contas } = await supabase
+    .from('payable_bills')
+    .select('amount, paid_amount')
+    .eq('user_id', userId)
+    .ilike('description', `%${descricao}%`)
+    .eq('status', 'paid')
+    .order('due_date', { ascending: false })
+    .limit(6);
+  
+  if (!contas || contas.length < 2) {
+    // Sem histórico suficiente - verificar pelo tipo
+    const contasVariaveis = ['luz', 'água', 'agua', 'gás', 'gas', 'energia', 'elétrica', 'eletrica', 'esgoto'];
+    return contasVariaveis.some((c: string) => descricao.toLowerCase().includes(c));
+  }
+  
+  // Calcular variação
+  const valores = contas.map((c: { paid_amount?: number; amount?: number }) => c.paid_amount || c.amount || 0).filter((v: number) => v > 0);
+  if (valores.length < 2) return false;
+  
+  const min = Math.min(...valores);
+  const max = Math.max(...valores);
+  const variacao = (max - min) / min;
+  
+  return variacao > 0.1; // Mais de 10% de variação = variável
+}
+
+/**
+ * Extrai palavras principais removendo artigos e preposições
+ */
+const PALAVRAS_IGNORADAS = [
+  'de', 'da', 'do', 'das', 'dos', 'a', 'o', 'as', 'os',
+  'um', 'uma', 'uns', 'umas', 'e', 'ou', 'para', 'por',
+  'com', 'sem', 'em', 'no', 'na', 'nos', 'nas', 'ao', 'aos',
+  'conta', 'pagar', 'pagamento', 'parcela', 'fatura'
+];
+
+function extrairPalavrasPrincipais(texto: string): string[] {
+  return texto
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(p => p.length > 2 && !PALAVRAS_IGNORADAS.includes(p));
+}
+
+/**
+ * CAMADA 2: Validação Anti-Alucinação
+ * Valida se o nome extraído pelo GPT-4 existe na lista de contas
+ * Previne alucinações onde o GPT inventa nomes que não existem
+ */
+interface ValidacaoResult {
+  valido: boolean;
+  contaExata?: ContaPagar;
+  sugestoes?: ContaPagar[];
+}
+
+async function validarContaExtraida(
+  userId: string,
+  nomeExtraido: string
+): Promise<ValidacaoResult> {
+  const supabase = getSupabase();
+  
+  if (!nomeExtraido || nomeExtraido.trim() === '') {
+    return { valido: false };
+  }
+  
+  const nomeNormalizado = nomeExtraido.toLowerCase().trim();
+  console.log(`[CAMADA-2] Validando: "${nomeExtraido}"`);
+  
+  // Buscar TODAS as contas pendentes do usuário
+  const { data: contasPendentes } = await supabase
+    .from('payable_bills')
+    .select('*')
+    .eq('user_id', userId)
+    .in('status', ['pending', 'overdue'])
+    .order('due_date', { ascending: true });
+  
+  if (!contasPendentes || contasPendentes.length === 0) {
+    console.log(`[CAMADA-2] ❌ Usuário não tem contas pendentes`);
+    return { valido: false };
+  }
+  
+  console.log(`[CAMADA-2] Contas disponíveis: ${contasPendentes.map((c: any) => c.description).join(', ')}`);
+  
+  // 1. Busca EXATA (case-insensitive)
+  const matchExato = contasPendentes.find((c: any) => 
+    c.description.toLowerCase().trim() === nomeNormalizado
+  );
+  
+  if (matchExato) {
+    console.log(`[CAMADA-2] ✅ Match EXATO: "${matchExato.description}"`);
+    return { valido: true, contaExata: matchExato as ContaPagar };
+  }
+  
+  // 2. Busca por CONTÉM (o nome extraído contém ou está contido)
+  const matchParcial = contasPendentes.find((c: any) => {
+    const contaNorm = c.description.toLowerCase().trim();
+    return contaNorm.includes(nomeNormalizado) || nomeNormalizado.includes(contaNorm);
+  });
+  
+  if (matchParcial) {
+    console.log(`[CAMADA-2] ✅ Match PARCIAL: "${matchParcial.description}"`);
+    return { valido: true, contaExata: matchParcial as ContaPagar };
+  }
+  
+  // 3. Busca por PALAVRAS-CHAVE (fuzzy)
+  const palavrasExtraidas = extrairPalavrasPrincipais(nomeNormalizado);
+  console.log(`[CAMADA-2] Palavras extraídas: [${palavrasExtraidas.join(', ')}]`);
+  
+  if (palavrasExtraidas.length === 0) {
+    console.log(`[CAMADA-2] ❌ Nenhuma palavra principal extraída`);
+    return { valido: false };
+  }
+  
+  const sugestoes = contasPendentes.filter((conta: any) => {
+    const palavrasConta = extrairPalavrasPrincipais(conta.description.toLowerCase());
+    // Conta deve ter pelo menos 50% das palavras em comum
+    const palavrasComuns = palavrasExtraidas.filter(p => 
+      palavrasConta.some(pc => pc.includes(p) || p.includes(pc))
+    );
+    return palavrasComuns.length >= Math.ceil(palavrasExtraidas.length * 0.5);
+  });
+  
+  if (sugestoes.length === 1) {
+    // Uma única sugestão forte - provavelmente é essa
+    console.log(`[CAMADA-2] ✅ Match ÚNICO por palavras: "${sugestoes[0].description}"`);
+    return { valido: true, contaExata: sugestoes[0] as ContaPagar };
+  } else if (sugestoes.length > 1) {
+    // Múltiplas sugestões - precisa perguntar
+    console.log(`[CAMADA-2] ⚠️ Múltiplas sugestões: ${sugestoes.map((s: any) => s.description).join(', ')}`);
+    return { valido: false, sugestoes: sugestoes as ContaPagar[] };
+  }
+  
+  // 4. Nenhum match - GPT provavelmente alucionou
+  console.log(`[CAMADA-2] ❌ Nenhum match encontrado - possível alucinação do GPT`);
+  return { valido: false };
+}
+
+/**
+ * CAMADA 3: Busca Fuzzy (fallback)
+ * Busca conta pendente pelo nome usando match inteligente
+ * Retorna também sugestões se houver múltiplos matches
+ */
+export interface BuscaContaResult {
+  conta: ContaPagar | null;
+  sugestoes?: ContaPagar[];
+  precisaEscolher?: boolean;
+}
+
+export async function buscarContaPendenteComSugestoes(
+  userId: string, 
+  nomeConta: string
+): Promise<BuscaContaResult> {
+  console.log(`[BUSCAR-PENDENTE] Iniciando busca para: "${nomeConta}"`);
+  
+  // ============================================
+  // CAMADA 2: Validação Anti-Alucinação
+  // ============================================
+  const validacao = await validarContaExtraida(userId, nomeConta);
+  
+  if (validacao.valido && validacao.contaExata) {
+    return { conta: validacao.contaExata };
+  }
+  
+  if (validacao.sugestoes && validacao.sugestoes.length > 0) {
+    console.log(`[BUSCAR-PENDENTE] Múltiplas sugestões encontradas`);
+    return { conta: null, sugestoes: validacao.sugestoes, precisaEscolher: true };
+  }
+  
+  // ============================================
+  // CAMADA 3: Busca Fuzzy (fallback anti-alucinação)
+  // ============================================
+  console.log(`[CAMADA-3] Iniciando busca fuzzy para: "${nomeConta}"`);
+  
+  const palavrasBusca = extrairPalavrasPrincipais(nomeConta);
+  console.log(`[CAMADA-3] Palavras principais: [${palavrasBusca.join(', ')}]`);
+  
+  const supabase = getSupabase();
+  
+  // Buscar todas as contas pendentes do usuário
+  const { data: todasContas } = await supabase
+    .from('payable_bills')
+    .select('*')
+    .eq('user_id', userId)
+    .in('status', ['pending', 'overdue'])
+    .order('due_date', { ascending: true });
+  
+  if (!todasContas || todasContas.length === 0) {
+    console.log(`[CAMADA-3] ❌ Usuário não tem contas pendentes`);
+    return { conta: null };
+  }
+  
+  console.log(`[CAMADA-3] Contas disponíveis: ${todasContas.map((c: any) => c.description).join(', ')}`);
+  
+  // Estratégia 1: Match por palavras principais (TODAS as palavras)
+  if (palavrasBusca.length > 0) {
+    const contaMatchTodas = todasContas.find((c: any) => {
+      const descLower = c.description.toLowerCase();
+      return palavrasBusca.every(p => descLower.includes(p));
+    });
+    
+    if (contaMatchTodas) {
+      console.log(`[CAMADA-3] ✅ Match por TODAS palavras: "${contaMatchTodas.description}"`);
+      return { conta: contaMatchTodas as ContaPagar };
+    }
+  }
+  
+  // Estratégia 2: Match por palavra principal mais relevante (maior peso)
+  if (palavrasBusca.length > 0) {
+    // Ordenar por quantidade de matches
+    const contasComScore = todasContas.map((c: any) => {
+      const descLower = c.description.toLowerCase();
+      const matchCount = palavrasBusca.filter((p: string) => descLower.includes(p)).length;
+      return { conta: c, score: matchCount };
+    }).filter((item: { conta: any; score: number }) => item.score > 0)
+      .sort((a: { score: number }, b: { score: number }) => b.score - a.score);
+    
+    if (contasComScore.length > 0) {
+      const melhorMatch = contasComScore[0];
+      console.log(`[CAMADA-3] ✅ Melhor match (${melhorMatch.score}/${palavrasBusca.length} palavras): "${melhorMatch.conta.description}"`);
+      return { conta: melhorMatch.conta as ContaPagar };
+    }
+  }
+  
+  // Estratégia 3: Busca por substring simples (última tentativa)
+  const nomeContaLower = nomeConta.toLowerCase();
+  const contaSubstring = todasContas.find((c: any) => {
+    const descLower = c.description.toLowerCase();
+    return descLower.includes(nomeContaLower) || nomeContaLower.includes(descLower);
+  });
+  
+  if (contaSubstring) {
+    console.log(`[CAMADA-3] ✅ Match por substring: "${contaSubstring.description}"`);
+    return { conta: contaSubstring as ContaPagar };
+  }
+  
+  // Estratégia 4: Busca por aliases conhecidos
+  const aliases: Record<string, string[]> = {
+    'luz': ['energia', 'elétrica', 'eletrica', 'light', 'enel', 'cpfl', 'cemig', 'celpe', 'energisa'],
+    'água': ['agua', 'saneamento', 'sabesp', 'cedae', 'copasa', 'sanepar'],
+    'gás': ['gas', 'comgas', 'naturgy'],
+    'internet': ['wifi', 'fibra', 'net', 'claro', 'vivo', 'oi', 'tim'],
+    'telefone': ['celular', 'móvel', 'movel'],
+    'aluguel': ['moradia', 'apartamento', 'casa'],
+    'condomínio': ['condominio', 'condo'],
+    'empréstimo': ['emprestimo', 'consignado'],
+    'financiamento': ['financ', 'carro', 'veículo', 'veiculo', 'moto', 'casa', 'imóvel', 'imovel'],
+  };
+  
+  for (const [principal, variacoes] of Object.entries(aliases)) {
+    if (nomeContaLower.includes(principal) || variacoes.some(v => nomeContaLower.includes(v))) {
+      const contaAlias = todasContas.find((c: any) => {
+        const descLower = c.description.toLowerCase();
+        return descLower.includes(principal) || variacoes.some(v => descLower.includes(v));
+      });
+      
+      if (contaAlias) {
+        console.log(`[CAMADA-3] ✅ Match por alias "${principal}": "${contaAlias.description}"`);
+        return { conta: contaAlias as ContaPagar };
+      }
+    }
+  }
+  
+  console.log(`[CAMADA-3] ❌ Nenhuma conta encontrada para: "${nomeConta}"`);
+  return { conta: null };
+}
+
+/**
+ * Função de compatibilidade - mantém a interface antiga
+ */
+export async function buscarContaPendente(
+  userId: string, 
+  nomeConta: string
+): Promise<ContaPagar | null> {
+  const resultado = await buscarContaPendenteComSugestoes(userId, nomeConta);
+  return resultado.conta;
+}
+
+/**
+ * Calcula comparativo com mês anterior
+ */
+interface Comparativo {
+  valorAtual: number;
+  valorAnterior: number | null;
+  variacao: number;
+  media6Meses: number;
+  media12Meses: number;
+  tendencia: 'subindo' | 'estavel' | 'descendo';
+}
+
+export async function calcularComparativo(userId: string, descricao: string, valorAtual: number): Promise<Comparativo> {
+  const supabase = getSupabase();
+  
+  // Buscar histórico de pagamentos desta conta (últimos 12 meses)
+  const { data: historico } = await supabase
+    .from('payable_bills')
+    .select('amount, paid_amount')
+    .eq('user_id', userId)
+    .ilike('description', `%${descricao}%`)
+    .eq('status', 'paid')
+    .order('due_date', { ascending: false })
+    .limit(12);
+  
+  if (!historico || historico.length === 0) {
+    return { 
+      valorAtual,
+      variacao: 0, 
+      media6Meses: valorAtual, 
+      media12Meses: valorAtual,
+      valorAnterior: null,
+      tendencia: 'estavel'
+    };
+  }
+  
+  const valores = historico.map((h: { paid_amount?: number; amount?: number }) => h.paid_amount || h.amount || 0);
+  const valorAnterior = valores[0];
+  
+  // Variação percentual
+  const variacao = valorAnterior ? ((valorAtual - valorAnterior) / valorAnterior) * 100 : 0;
+  
+  // Médias
+  const ultimos6 = valores.slice(0, 6);
+  const media6Meses = ultimos6.length > 0 
+    ? ultimos6.reduce((a: number, b: number) => a + b, 0) / ultimos6.length 
+    : valorAtual;
+  
+  const media12Meses = valores.length > 0 
+    ? valores.reduce((a: number, b: number) => a + b, 0) / valores.length 
+    : valorAtual;
+  
+  // Tendência (comparar média dos últimos 3 com média dos 3 anteriores)
+  let tendencia: 'subindo' | 'estavel' | 'descendo' = 'estavel';
+  if (valores.length >= 6) {
+    const media3Recentes = valores.slice(0, 3).reduce((a: number, b: number) => a + b, 0) / 3;
+    const media3Anteriores = valores.slice(3, 6).reduce((a: number, b: number) => a + b, 0) / 3;
+    
+    const diferencaPercentual = ((media3Recentes - media3Anteriores) / media3Anteriores) * 100;
+    
+    if (diferencaPercentual > 5) tendencia = 'subindo';
+    else if (diferencaPercentual < -5) tendencia = 'descendo';
+  }
+  
+  return { valorAtual, variacao, media6Meses, media12Meses, valorAnterior, tendencia };
+}
+
+/**
+ * Marca uma conta como paga
+ */
+export async function marcarComoPago(
+  userId: string,
+  billId: string,
+  valorPago?: number,
+  metodoPagamento?: string
+): Promise<{ sucesso: boolean; mensagem: string; proximaOcorrencia?: ContaPagar }> {
+  const supabase = getSupabase();
+  const agora = new Date().toISOString();
+  
+  // Buscar a conta
+  const { data: conta, error: erroBusca } = await supabase
+    .from('payable_bills')
+    .select('*')
+    .eq('id', billId)
+    .eq('user_id', userId)
+    .single();
+  
+  if (erroBusca || !conta) {
+    return { sucesso: false, mensagem: '❌ Conta não encontrada.' };
+  }
+  
+  const valorFinal = valorPago || conta.amount;
+  
+  // Atualizar status para pago
+  const { error: erroUpdate } = await supabase
+    .from('payable_bills')
+    .update({
+      status: 'paid',
+      paid_at: agora,
+      paid_amount: valorFinal,
+      payment_method: metodoPagamento || conta.payment_method,
+      updated_at: agora
+    })
+    .eq('id', billId);
+  
+  if (erroUpdate) {
+    console.error('[MARCAR-PAGO] Erro ao atualizar:', erroUpdate);
+    return { sucesso: false, mensagem: '❌ Erro ao marcar como pago.' };
+  }
+  
+  // Registrar no histórico de pagamentos
+  await supabase.from('bill_payment_history').insert({
+    bill_id: billId,
+    user_id: userId,
+    payment_date: agora,
+    amount_paid: valorFinal,
+    payment_method: metodoPagamento || conta.payment_method
+  });
+  
+  // Se é recorrente, criar próxima ocorrência
+  let proximaOcorrencia: ContaPagar | undefined;
+  if (conta.is_recurring && conta.recurrence_config) {
+    proximaOcorrencia = await criarProximaOcorrencia(userId, conta);
+  }
+  
+  // Calcular comparativo se for conta variável
+  const ehVariavel = await verificarContaVariavelPorHistorico(userId, conta.description);
+  let comparativoMsg = '';
+  
+  if (ehVariavel && valorFinal) {
+    const comp = await calcularComparativo(userId, conta.description, valorFinal);
+    if (comp.valorAnterior) {
+      const seta = comp.variacao > 0 ? '📈' : comp.variacao < 0 ? '📉' : '➡️';
+      const variacaoStr = comp.variacao > 0 ? `+${comp.variacao.toFixed(1)}%` : `${comp.variacao.toFixed(1)}%`;
+      comparativoMsg = `\n\n${seta} *${variacaoStr}* vs mês anterior\n📊 Média (6 meses): ${formatarMoeda(comp.media6Meses)}`;
+    }
+  }
+  
+  const emoji = getEmojiConta(conta.description);
+  let msg = `✅ *Pagamento registrado!*\n\n`;
+  msg += `${emoji} *${conta.description}*\n`;
+  msg += `💰 ${formatarMoeda(valorFinal)}\n`;
+  msg += `📅 Vencimento: ${formatarData(conta.due_date)}`;
+  msg += comparativoMsg;
+  
+  if (proximaOcorrencia) {
+    msg += `\n\n🔄 Próxima: ${formatarData(proximaOcorrencia.due_date)}`;
+  }
+  
+  return { sucesso: true, mensagem: msg, proximaOcorrencia };
+}
+
+/**
+ * Cria próxima ocorrência de conta recorrente
+ */
+async function criarProximaOcorrencia(userId: string, contaAtual: ContaPagar): Promise<ContaPagar | undefined> {
+  const supabase = getSupabase();
+  
+  const config = contaAtual.recurrence_config as { frequency?: string; interval?: number } | null;
+  if (!config) return undefined;
+  
+  const frequency = config.frequency || 'monthly';
+  const interval = config.interval || 1;
+  
+  // Calcular próxima data
+  const dataAtual = new Date(contaAtual.due_date);
+  let proximaData: Date;
+  
+  switch (frequency) {
+    case 'weekly':
+      proximaData = new Date(dataAtual.setDate(dataAtual.getDate() + (7 * interval)));
+      break;
+    case 'monthly':
+      proximaData = new Date(dataAtual.setMonth(dataAtual.getMonth() + interval));
+      break;
+    case 'yearly':
+      proximaData = new Date(dataAtual.setFullYear(dataAtual.getFullYear() + interval));
+      break;
+    default:
+      proximaData = new Date(dataAtual.setMonth(dataAtual.getMonth() + 1));
+  }
+  
+  const proximaDataStr = proximaData.toISOString().split('T')[0];
+  
+  // Verificar se já existe
+  const { data: existente } = await supabase
+    .from('payable_bills')
+    .select('id')
+    .eq('user_id', userId)
+    .ilike('description', contaAtual.description)
+    .eq('due_date', proximaDataStr)
+    .limit(1);
+  
+  if (existente && existente.length > 0) {
+    return undefined; // Já existe
+  }
+  
+  // Criar nova ocorrência
+  const novaConta = {
+    user_id: userId,
+    description: contaAtual.description,
+    amount: contaAtual.amount,
+    due_date: proximaDataStr,
+    bill_type: contaAtual.bill_type,
+    provider_name: contaAtual.provider_name,
+    category_id: contaAtual.category_id,
+    status: 'pending',
+    is_recurring: true,
+    recurrence_config: contaAtual.recurrence_config,
+    parent_recurring_id: contaAtual.parent_recurring_id || contaAtual.id,
+    reminder_enabled: contaAtual.reminder_enabled,
+    reminder_days_before: contaAtual.reminder_days_before,
+    payment_method: contaAtual.payment_method,
+    credit_card_id: contaAtual.credit_card_id
+  };
+  
+  const { data: nova, error } = await supabase
+    .from('payable_bills')
+    .insert(novaConta)
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('[CRIAR-PROXIMA] Erro:', error);
+    return undefined;
+  }
+  
+  return nova as ContaPagar;
+}
+
+/**
+ * Consulta histórico de uma conta
+ */
+export async function consultarHistorico(
+  userId: string,
+  nomeConta: string
+): Promise<string> {
+  const supabase = getSupabase();
+  
+  // Buscar últimos 12 meses
+  const { data: historico } = await supabase
+    .from('payable_bills')
+    .select('description, amount, paid_amount, due_date, status, paid_at')
+    .eq('user_id', userId)
+    .ilike('description', `%${nomeConta}%`)
+    .order('due_date', { ascending: false })
+    .limit(12);
+  
+  if (!historico || historico.length === 0) {
+    return `❓ Não encontrei histórico de *${nomeConta}*.\n\n💡 Verifique o nome ou cadastre a conta primeiro.`;
+  }
+  
+  const emoji = getEmojiConta(nomeConta);
+  const valores = historico.filter((h: { paid_amount?: number; amount?: number }) => h.paid_amount || h.amount).map((h: { paid_amount?: number; amount?: number }) => h.paid_amount || h.amount || 0);
+  const media = valores.length > 0 ? valores.reduce((a: number, b: number) => a + b, 0) / valores.length : 0;
+  const min = valores.length > 0 ? Math.min(...valores) : 0;
+  const max = valores.length > 0 ? Math.max(...valores) : 0;
+  
+  let msg = `📊 *Histórico: ${nomeConta}*\n`;
+  msg += `━━━━━━━━━━━━━━━━━━\n\n`;
+  
+  // Estatísticas
+  msg += `📈 *Estatísticas (${valores.length} meses)*\n`;
+  msg += `• Média: ${formatarMoeda(media)}\n`;
+  msg += `• Menor: ${formatarMoeda(min)}\n`;
+  msg += `• Maior: ${formatarMoeda(max)}\n\n`;
+  
+  // Últimos pagamentos
+  msg += `📅 *Últimos pagamentos*\n`;
+  historico.slice(0, 6).forEach((h: { due_date: string; paid_amount?: number; amount?: number; status: string }) => {
+    const data = new Date(h.due_date);
+    const mesAno = data.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+    const valor = h.paid_amount || h.amount;
+    const status = h.status === 'paid' ? '✅' : h.status === 'overdue' ? '⚠️' : '⏳';
+    msg += `${status} ${mesAno}: ${valor ? formatarMoeda(valor) : 'Variável'}\n`;
+  });
+  
+  return msg;
+}
+
+/**
+ * Atualiza valor de conta pendente (para contas variáveis)
+ */
+export async function atualizarValorConta(
+  userId: string,
+  billId: string,
+  novoValor: number
+): Promise<{ sucesso: boolean; mensagem: string }> {
+  const supabase = getSupabase();
+  
+  const { error } = await supabase
+    .from('payable_bills')
+    .update({ 
+      amount: novoValor,
+      updated_at: new Date().toISOString()
+    })
+    .eq('id', billId)
+    .eq('user_id', userId);
+  
+  if (error) {
+    return { sucesso: false, mensagem: '❌ Erro ao atualizar valor.' };
+  }
+  
+  return { sucesso: true, mensagem: `✅ Valor atualizado para ${formatarMoeda(novoValor)}` };
+}
+
+/**
+ * Processa intenção MARCAR_CONTA_PAGA
+ */
+export async function processarMarcarPago(
+  userId: string,
+  phone: string,
+  entidades: Record<string, unknown>
+): Promise<{ mensagem: string; precisaConfirmacao?: boolean; dados?: Record<string, unknown> }> {
+  const supabase = getSupabase();
+  const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
+  const valorInformado = entidades.valor as number | undefined;
+  let nomeConta = entidades.conta as string || entidades.descricao as string || '';
+  let contaBancariaInformada = entidades.conta_bancaria as string || '';
+  
+  console.log(`[MARCAR-PAGO] Comando: "${comandoOriginal}", Conta: "${nomeConta}", Valor: ${valorInformado}, ContaBancaria: "${contaBancariaInformada}"`);
+  
+  // ⚠️ CORREÇÃO BUG CRÍTICO: Detectar se NLP confundiu banco com conta
+  const BANCOS_CONHECIDOS = ['itau', 'itaú', 'bradesco', 'santander', 'nubank', 'inter', 'c6', 'caixa', 'bb', 'next', 'neon', 'original', 'picpay', 'mercado pago', 'pagbank'];
+  const nomeContaLower = nomeConta.toLowerCase();
+  
+  if (BANCOS_CONHECIDOS.some(b => nomeContaLower.includes(b))) {
+    console.log('[MARCAR-PAGO] ⚠️ Detectado BANCO como conta! Corrigindo...');
+    
+    // Extrair conta real do texto original
+    const matchContaReal = comandoOriginal.match(/pagu?e?i\s+(?:a|o|as|os)?\s*(\w+)/i);
+    if (matchContaReal && !BANCOS_CONHECIDOS.some(b => matchContaReal[1].toLowerCase().includes(b))) {
+      console.log(`[MARCAR-PAGO] Conta real extraída: "${matchContaReal[1]}"`);
+      // O banco que estava em "conta" vai para "conta_bancaria"
+      if (!contaBancariaInformada) {
+        contaBancariaInformada = nomeConta;
+      }
+      nomeConta = matchContaReal[1];
+    }
+  }
+  
+  // Extrair banco do texto se não veio nas entidades
+  if (!contaBancariaInformada && comandoOriginal) {
+    const matchBanco = comandoOriginal.match(/(?:no|na|pelo|pela|via|do|da)\s+(itau|itaú|bradesco|santander|nubank|inter|c6|caixa|bb|next|neon|original|picpay|mercado pago|pagbank)/i);
+    if (matchBanco) {
+      contaBancariaInformada = matchBanco[1].toLowerCase().replace('itaú', 'itau');
+      console.log(`[MARCAR-PAGO] Banco extraído do texto: "${contaBancariaInformada}"`);
+    }
+  }
+  
+  // Extrair nome da conta do texto se não veio nas entidades
+  let nomeContaFinal = nomeConta;
+  if (!nomeContaFinal && comandoOriginal) {
+    // Padrões: "paguei a luz", "paguei 185 de luz", "quitei o aluguel"
+    const match = comandoOriginal.match(/(?:paguei|quitei|pago|apaguei)\s+(?:a|o|de|da|do)?\s*(?:\d+(?:[.,]\d+)?\s*(?:de|da|do)?\s*)?(.+?)(?:\s+(?:no|na|pelo|pela|com|do|da)\s+(?:nubank|itau|itaú|bradesco|santander|inter|c6|caixa|bb|banco|conta).*)?$/i);
+    if (match) {
+      nomeContaFinal = match[1].trim();
+    }
+  }
+  
+  if (!nomeContaFinal) {
+    return {
+      mensagem: `❓ Qual conta você pagou?\n\n💡 Exemplos:\n• _"paguei a luz"_\n• _"paguei 185 de luz"_\n• _"quitei o aluguel"_`,
+      precisaConfirmacao: true,
+      dados: { step: 'awaiting_bill_name_for_payment', phone }
+    };
+  }
+  
+  // Verificar se já foi paga este mês
+  const jaPaga = await verificarContaJaPaga(userId, nomeContaFinal);
+  if (jaPaga) {
+    return {
+      mensagem: `✅ *${nomeContaFinal}* já está paga este mês!\n\n💡 Use _"histórico da ${nomeContaFinal}"_ para ver detalhes.`,
+    };
+  }
+  
+  // ============================================
+  // ARQUITETURA HÍBRIDA: Buscar conta com sugestões
+  // ============================================
+  const resultado = await buscarContaPendenteComSugestoes(userId, nomeContaFinal);
+  
+  // Caso 1: Múltiplas sugestões - perguntar ao usuário
+  if (resultado.precisaEscolher && resultado.sugestoes && resultado.sugestoes.length > 0) {
+    const opcoes = resultado.sugestoes
+      .slice(0, 5) // Máximo 5 opções
+      .map((s, i) => `${i + 1}️⃣ ${s.description} - ${formatarMoeda(s.amount || 0)}`)
+      .join('\n');
+    
+    return {
+      mensagem: `🤔 Encontrei algumas contas parecidas:\n\n${opcoes}\n\n*Qual delas você pagou?* _(digite o número)_`,
+      precisaConfirmacao: true,
+      dados: {
+        step: 'awaiting_bill_selection',
+        sugestoes: resultado.sugestoes.slice(0, 5).map(s => ({ id: s.id, description: s.description, amount: s.amount })),
+        valor: valorInformado,
+        contaBancaria: contaBancariaInformada,
+        textoOriginal: comandoOriginal,
+        phone
+      }
+    };
+  }
+  
+  // Caso 2: Nenhuma conta encontrada - listar pendentes
+  if (!resultado.conta) {
+    // Buscar contas pendentes para mostrar ao usuário
+    const { data: contasPendentes } = await supabase
+      .from('payable_bills')
+      .select('description, amount')
+      .eq('user_id', userId)
+      .in('status', ['pending', 'overdue'])
+      .order('due_date', { ascending: true })
+      .limit(5);
+    
+    if (contasPendentes && contasPendentes.length > 0) {
+      const listaPendentes = contasPendentes
+        .map((c: any, i: number) => `${i + 1}️⃣ ${c.description} - ${formatarMoeda(c.amount || 0)}`)
+        .join('\n');
+      
+      return {
+        mensagem: `❓ Não encontrei conta de *${nomeContaFinal}* pendente.\n\n📋 *Suas contas pendentes:*\n${listaPendentes}\n\n💡 Diga o nome exato ou o número da conta.`,
+      };
+    }
+    
+    return {
+      mensagem: `❓ Não encontrei conta de *${nomeContaFinal}* pendente.\n\n💡 Verifique:\n• _"contas a pagar"_ para ver suas contas\n• O nome está correto?`,
+    };
+  }
+  
+  // Caso 3: Conta encontrada com sucesso
+  const conta = resultado.conta;
+  
+  // Verificar se é conta variável e precisa do valor
+  const ehVariavel = await verificarContaVariavelPorHistorico(userId, conta.description);
+  
+  if (ehVariavel && !valorInformado && !conta.amount) {
+    return {
+      mensagem: `💰 Quanto veio a conta de *${conta.description}*?\n\n_Digite o valor, ex: "185" ou "R$ 185,00"_`,
+      precisaConfirmacao: true,
+      dados: { 
+        step: 'awaiting_payment_value', 
+        billId: conta.id,
+        descricao: conta.description,
+        phone 
+      }
+    };
+  }
+  
+  // Extrair método de pagamento do texto
+  const metodoPagamento = extrairMetodoPagamento(comandoOriginal);
+  
+  // Extrair multa/juros se houver
+  const valorBase = valorInformado || conta.amount || 0;
+  const multaJuros = extrairMultaJuros(comandoOriginal, valorBase);
+  const valorFinal = multaJuros ? multaJuros.total : valorBase;
+  
+  // ============================================
+  // VERIFICAR CONTA BANCÁRIA
+  // ============================================
+  
+  // Tentar extrair conta bancária do comando
+  let contaBancariaId: string | null = null;
+  let contaBancariaNome: string | null = null;
+  
+  // Verificar se foi informada nas entidades
+  if (contaBancariaInformada) {
+    const contaEncontrada = await buscarContaBancariaPorNome(userId, contaBancariaInformada);
+    if (contaEncontrada) {
+      contaBancariaId = contaEncontrada.id;
+      contaBancariaNome = contaEncontrada.name;
+    }
+  }
+  
+  // Se não veio nas entidades, tentar extrair do texto
+  if (!contaBancariaId && comandoOriginal) {
+    const bancos = ['nubank', 'itau', 'itaú', 'bradesco', 'santander', 'inter', 'c6', 'caixa', 'bb', 'banco do brasil', 'picpay', 'mercado pago'];
+    for (const banco of bancos) {
+      if (comandoOriginal.includes(banco)) {
+        const contaEncontrada = await buscarContaBancariaPorNome(userId, banco);
+        if (contaEncontrada) {
+          contaBancariaId = contaEncontrada.id;
+          contaBancariaNome = contaEncontrada.name;
+          break;
+        }
+      }
+    }
+  }
+  
+  // Se não encontrou conta bancária, perguntar ao usuário
+  if (!contaBancariaId) {
+    // Listar contas do usuário
+    const { data: contas } = await supabase
+      .from('accounts')
+      .select('id, name, current_balance')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('name');
+    
+    if (!contas || contas.length === 0) {
+      return {
+        mensagem: `❌ Você não tem contas bancárias cadastradas.\n\n💡 Cadastre uma conta primeiro para registrar pagamentos.`,
+      };
+    }
+    
+    let msg = `💳 *De qual conta saiu o pagamento?*\n\n`;
+    msg += `${getEmojiConta(conta.description)} *${conta.description}*\n`;
+    msg += `💰 ${formatarMoeda(valorFinal)}\n\n`;
+    
+    contas.forEach((c: { id: string; name: string; current_balance: number }, i: number) => {
+      const emoji = getEmojiBanco(c.name);
+      msg += `${i + 1}️⃣ ${emoji} ${c.name} (${formatarMoeda(c.current_balance)})\n`;
+    });
+    
+    msg += `\n_Digite o número ou o nome da conta_`;
+    
+    return {
+      mensagem: msg,
+      precisaConfirmacao: true,
+      dados: { 
+        step: 'awaiting_payment_account', 
+        billId: conta.id,
+        descricao: conta.description,
+        valorFinal,
+        metodoPagamento,
+        multaJuros,
+        contasDisponiveis: contas.map((c: { id: string; name: string }) => ({ id: c.id, name: c.name })),
+        phone 
+      }
+    };
+  }
+  
+  // Marcar como pago E criar transação
+  const resultadoPagamento = await marcarComoPagoComTransacao(
+    userId, 
+    conta.id, 
+    valorFinal, 
+    contaBancariaId,
+    contaBancariaNome || 'Conta',
+    metodoPagamento || undefined
+  );
+  
+  // Adicionar info de multa/juros se houver
+  let mensagemFinal = resultadoPagamento.mensagem;
+  if (multaJuros && multaJuros.multa > 0) {
+    mensagemFinal = mensagemFinal.replace(
+      `💰 ${formatarMoeda(valorFinal)}`,
+      `💰 Valor original: ${formatarMoeda(multaJuros.valorOriginal)}\n💸 Multa/Juros: ${formatarMoeda(multaJuros.multa)}\n💰 Total pago: ${formatarMoeda(multaJuros.total)}`
+    );
+  }
+  
+  return { mensagem: mensagemFinal };
+}
+
+/**
+ * Busca conta bancária por nome (fuzzy match)
+ */
+async function buscarContaBancariaPorNome(
+  userId: string, 
+  nomeBanco: string
+): Promise<{ id: string; name: string; balance: number } | null> {
+  const supabase = getSupabase();
+  const nomeLower = nomeBanco.toLowerCase().trim();
+  
+  // Aliases de bancos
+  const aliases: Record<string, string[]> = {
+    'nubank': ['nu', 'roxinho', 'roxo', 'nuno'],
+    'itau': ['itaú', 'ita', 'itauzinho', 'laranjinha'],
+    'bradesco': ['brades', 'vermelhinho'],
+    'santander': ['santan', 'vermelho'],
+    'inter': ['laranjão', 'banco inter'],
+    'c6': ['c6 bank', 'pretinho', 'carbono'],
+    'caixa': ['cef', 'caixa economica'],
+    'banco do brasil': ['bb', 'amarelinho'],
+    'picpay': ['pic', 'verdinho'],
+    'mercado pago': ['mp', 'mercadopago'],
+  };
+  
+  // Buscar todas as contas do usuário
+  const { data: contas } = await supabase
+    .from('accounts')
+    .select('id, name, current_balance')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+  
+  if (!contas || contas.length === 0) return null;
+  
+  // Tentar match exato primeiro
+  for (const conta of contas) {
+    if (conta.name.toLowerCase() === nomeLower) {
+      return conta;
+    }
+  }
+  
+  // Tentar match parcial
+  for (const conta of contas) {
+    if (conta.name.toLowerCase().includes(nomeLower) || nomeLower.includes(conta.name.toLowerCase())) {
+      return conta;
+    }
+  }
+  
+  // Tentar por aliases
+  for (const [banco, aliasesList] of Object.entries(aliases)) {
+    if (nomeLower.includes(banco) || aliasesList.some(a => nomeLower.includes(a))) {
+      for (const conta of contas) {
+        const contaNome = conta.name.toLowerCase();
+        if (contaNome.includes(banco) || aliasesList.some(a => contaNome.includes(a))) {
+          return conta;
+        }
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Busca estatísticas do mês para exibir no output de pagamento
+ */
+async function buscarEstatisticasMes(
+  userId: string,
+  contaBancariaId: string
+): Promise<{ saldoConta: number; contasPagas: number; totalContas: number; totalPagoMes: number }> {
+  const supabase = getSupabase();
+  const agora = new Date();
+  const inicioMes = new Date(agora.getFullYear(), agora.getMonth(), 1).toISOString().split('T')[0];
+  const fimMes = new Date(agora.getFullYear(), agora.getMonth() + 1, 0).toISOString().split('T')[0];
+  
+  // Buscar saldo atualizado da conta
+  const { data: conta } = await supabase
+    .from('accounts')
+    .select('current_balance')
+    .eq('id', contaBancariaId)
+    .single();
+  
+  const saldoConta = conta?.current_balance || 0;
+  
+  // Buscar contas do mês
+  const { data: contasMes } = await supabase
+    .from('payable_bills')
+    .select('status, paid_amount, amount')
+    .eq('user_id', userId)
+    .gte('due_date', inicioMes)
+    .lte('due_date', fimMes);
+  
+  const totalContas = contasMes?.length || 0;
+  const contasPagas = contasMes?.filter((c: { status: string }) => c.status === 'paid').length || 0;
+  const totalPagoMes = contasMes
+    ?.filter((c: { status: string }) => c.status === 'paid')
+    .reduce((sum: number, c: { paid_amount: number; amount: number }) => sum + (c.paid_amount || c.amount || 0), 0) || 0;
+  
+  return { saldoConta, contasPagas, totalContas, totalPagoMes };
+}
+
+/**
+ * Marca conta como paga E cria transação de despesa
+ */
+async function marcarComoPagoComTransacao(
+  userId: string,
+  billId: string,
+  valorPago: number,
+  contaBancariaId: string,
+  contaBancariaNome: string,
+  metodoPagamento?: string
+): Promise<{ sucesso: boolean; mensagem: string; proximaOcorrencia?: ContaPagar }> {
+  const supabase = getSupabase();
+  const agora = new Date().toISOString();
+  
+  // Buscar a conta a pagar
+  const { data: conta, error: erroBusca } = await supabase
+    .from('payable_bills')
+    .select('*')
+    .eq('id', billId)
+    .eq('user_id', userId)
+    .single();
+  
+  if (erroBusca || !conta) {
+    return { sucesso: false, mensagem: '❌ Conta não encontrada.' };
+  }
+  
+  const valorFinal = valorPago || conta.amount;
+  
+  // 1. Atualizar status para pago
+  const { error: erroUpdate } = await supabase
+    .from('payable_bills')
+    .update({
+      status: 'paid',
+      paid_at: agora,
+      paid_amount: valorFinal,
+      payment_method: metodoPagamento || conta.payment_method,
+      payment_account_id: contaBancariaId,
+      updated_at: agora
+    })
+    .eq('id', billId);
+  
+  if (erroUpdate) {
+    console.error('[MARCAR-PAGO] Erro ao atualizar:', erroUpdate);
+    return { sucesso: false, mensagem: '❌ Erro ao marcar como pago.' };
+  }
+  
+  // 2. Registrar no histórico de pagamentos
+  await supabase.from('bill_payment_history').insert({
+    bill_id: billId,
+    user_id: userId,
+    payment_date: agora,
+    amount_paid: valorFinal,
+    payment_method: metodoPagamento || conta.payment_method,
+    account_from_id: contaBancariaId
+  });
+  
+  // 3. Criar transação de despesa
+  const { error: erroTransacao } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      account_id: contaBancariaId,
+      type: 'expense',
+      amount: valorFinal,
+      description: `Pagamento: ${conta.description}`,
+      category_id: conta.category_id,
+      transaction_date: agora.split('T')[0],
+      is_recurring: false,
+      is_paid: true,
+      source: 'whatsapp',
+      notes: `Conta a pagar: ${billId}`
+    });
+  
+  if (erroTransacao) {
+    console.error('[MARCAR-PAGO] Erro ao criar transação:', erroTransacao);
+    // Não falha o pagamento, apenas loga
+  }
+  
+  // 4. Atualizar saldo da conta bancária
+  const { error: erroSaldo } = await supabase.rpc('update_account_balance', {
+    p_account_id: contaBancariaId,
+    p_amount: -valorFinal
+  });
+  
+  if (erroSaldo) {
+    console.error('[MARCAR-PAGO] Erro ao atualizar saldo:', erroSaldo);
+    // Tenta atualização direta
+    await supabase
+      .from('accounts')
+      .update({ balance: supabase.rpc('decrement_balance', { amount: valorFinal }) })
+      .eq('id', contaBancariaId);
+  }
+  
+  // 5. Se é recorrente, criar próxima ocorrência
+  let proximaOcorrencia: ContaPagar | undefined;
+  if (conta.is_recurring && conta.recurrence_config) {
+    proximaOcorrencia = await criarProximaOcorrencia(userId, conta);
+  }
+  
+  // 6. Calcular comparativo se for conta variável
+  const ehVariavel = await verificarContaVariavelPorHistorico(userId, conta.description);
+  let comparativoMsg = '';
+  
+  if (ehVariavel && valorFinal) {
+    const comp = await calcularComparativo(userId, conta.description, valorFinal);
+    if (comp.valorAnterior) {
+      const seta = comp.variacao > 0 ? '📈' : comp.variacao < 0 ? '📉' : '➡️';
+      const variacaoStr = comp.variacao > 0 ? `+${comp.variacao.toFixed(1)}%` : `${comp.variacao.toFixed(1)}%`;
+      comparativoMsg = ` (${seta} ${variacaoStr} vs mês anterior)\n📊 Média (6 meses): ${formatarMoeda(comp.media6Meses)}`;
+    }
+  }
+  
+  // 7. Buscar estatísticas do mês e saldo atualizado
+  const stats = await buscarEstatisticasMes(userId, contaBancariaId);
+  
+  const emoji = getEmojiConta(conta.description);
+  const emojiBanco = getEmojiBanco(contaBancariaNome);
+  let msg = `✅ *Pagamento registrado!*\n\n`;
+  msg += `${emoji} *${conta.description}*\n`;
+  msg += `💰 ${formatarMoeda(valorFinal)}`;
+  
+  // Adicionar info de parcelas para empréstimos/financiamentos
+  if (conta.is_installment && conta.installment_number && conta.installment_total) {
+    const parcelaAtual = conta.installment_number;
+    const totalParcelas = conta.installment_total;
+    const parcelasPagas = parcelaAtual; // A parcela atual foi paga
+    const parcelasRestantes = totalParcelas - parcelaAtual;
+    const valorRestante = parcelasRestantes * valorFinal;
+    
+    msg += `\n📋 Parcela ${parcelaAtual}/${totalParcelas}`;
+    if (parcelasRestantes > 0) {
+      msg += `\n💵 Restante: ${formatarMoeda(valorRestante)} (${parcelasRestantes} parcelas)`;
+    } else {
+      msg += `\n🎉 *Última parcela! Quitado!*`;
+    }
+  }
+  
+  // Adicionar comparativo inline para contas variáveis
+  if (comparativoMsg) {
+    msg += comparativoMsg;
+  }
+  msg += `\n`;
+  
+  msg += `${emojiBanco} Conta: ${contaBancariaNome}\n`;
+  msg += `📅 Vencimento: ${formatarData(conta.due_date)}`;
+  
+  if (metodoPagamento) {
+    const metodoNomes: Record<string, string> = {
+      'pix': 'PIX', 'debit': 'Débito', 'credit': 'Crédito', 'boleto': 'Boleto',
+      'transfer': 'Transferência', 'cash': 'Dinheiro', 'auto_debit': 'Débito Automático'
+    };
+    msg += `\n💳 Via: ${metodoNomes[metodoPagamento] || metodoPagamento}`;
+  }
+  
+  // Adicionar seção de estatísticas
+  const mesAtual = new Date().toLocaleString('pt-BR', { month: 'short' }).replace('.', '');
+  const mesCapitalizado = mesAtual.charAt(0).toUpperCase() + mesAtual.slice(1);
+  
+  msg += `\n\n━━━━━━━━━━━━━━━━━━━━`;
+  msg += `\n💳 Saldo ${contaBancariaNome}: ${formatarMoeda(stats.saldoConta)}`;
+  msg += `\n📊 Contas pagas este mês: ${stats.contasPagas}/${stats.totalContas}`;
+  msg += `\n💸 Total pago em ${mesCapitalizado}: ${formatarMoeda(stats.totalPagoMes)}`;
+  msg += `\n━━━━━━━━━━━━━━━━━━━━`;
+  
+  if (proximaOcorrencia) {
+    msg += `\n\n🔄 Próxima: ${formatarData(proximaOcorrencia.due_date)}`;
+  }
+  
+  return { sucesso: true, mensagem: msg, proximaOcorrencia };
+}
+
+/**
+ * Mapeia bill_type para categoria de transação
+ */
+function mapBillTypeToCategory(billType: string): string {
+  const mapping: Record<string, string> = {
+    'service': 'Serviços',
+    'housing': 'Moradia',
+    'telecom': 'Telecomunicações',
+    'subscription': 'Assinaturas',
+    'loan': 'Empréstimos',
+    'insurance': 'Seguros',
+    'healthcare': 'Saúde',
+    'education': 'Educação',
+    'tax': 'Impostos',
+    'credit_card': 'Cartão de Crédito',
+    'other': 'Outros'
+  };
+  return mapping[billType] || 'Contas a Pagar';
+}
+
+/**
+ * Processa intenção VALOR_CONTA_VARIAVEL (ex: "luz veio 190")
+ */
+export async function processarValorContaVariavel(
+  userId: string,
+  phone: string,
+  entidades: Record<string, unknown>
+): Promise<{ mensagem: string; precisaConfirmacao?: boolean; dados?: Record<string, unknown> }> {
+  const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
+  const valorInformado = entidades.valor as number | undefined;
+  const nomeConta = entidades.conta as string || entidades.descricao as string || '';
+  
+  console.log(`[VALOR-VARIAVEL] Comando: "${comandoOriginal}", Conta: "${nomeConta}", Valor: ${valorInformado}`);
+  
+  // Extrair do texto: "luz veio 190", "água deu 85"
+  let nomeContaFinal = nomeConta;
+  let valorFinal = valorInformado;
+  
+  if (comandoOriginal) {
+    const match = comandoOriginal.match(/(.+?)\s+(?:veio|deu|chegou|ficou)\s+(?:r\$\s*)?(\d+(?:[.,]\d+)?)/i);
+    if (match) {
+      nomeContaFinal = match[1].trim();
+      valorFinal = parseFloat(match[2].replace(',', '.'));
+    }
+  }
+  
+  if (!nomeContaFinal || !valorFinal) {
+    return {
+      mensagem: `❓ Não entendi. Tente:\n\n💡 _"luz veio 190"_\n💡 _"água deu 85"_`,
+    };
+  }
+  
+  // Buscar conta pendente
+  const conta = await buscarContaPendente(userId, nomeContaFinal);
+  
+  if (!conta) {
+    return {
+      mensagem: `❓ Não encontrei conta de *${nomeContaFinal}* pendente.\n\n💡 Quer cadastrar? Diga:\n• _"cadastrar luz 190 dia 15"_`,
+    };
+  }
+  
+  // Verificar variação significativa (>50% acima da média)
+  const alerta = await verificarVariacaoSignificativa(userId, conta.description, valorFinal);
+  
+  if (alerta.alertar) {
+    // Salvar contexto para aguardar confirmação
+    return {
+      mensagem: alerta.mensagem,
+      precisaConfirmacao: true,
+      dados: { 
+        step: 'awaiting_variation_confirmation', 
+        billId: conta.id,
+        valor: valorFinal,
+        descricao: conta.description,
+        phone 
+      }
+    };
+  }
+  
+  // Atualizar valor
+  const resultado = await atualizarValorConta(userId, conta.id, valorFinal);
+  
+  if (resultado.sucesso) {
+    const emoji = getEmojiConta(conta.description);
+    return {
+      mensagem: `${emoji} *${conta.description}*\n${resultado.mensagem}\n📅 Vence: ${formatarData(conta.due_date)}\n\n💡 Para pagar: _"paguei a ${nomeContaFinal}"_`,
+    };
+  }
+  
+  return { mensagem: resultado.mensagem };
+}
+
+/**
+ * Processa intenção HISTORICO_CONTA
+ */
+export async function processarHistoricoConta(
+  userId: string,
+  _phone: string,
+  entidades: Record<string, unknown>
+): Promise<{ mensagem: string; precisaConfirmacao?: boolean; dados?: Record<string, unknown> }> {
+  const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
+  const nomeConta = entidades.conta as string || entidades.descricao as string || '';
+  
+  // Extrair do texto: "histórico da luz", "histórico luz"
+  let nomeContaFinal = nomeConta;
+  if (!nomeContaFinal && comandoOriginal) {
+    const match = comandoOriginal.match(/hist[óo]rico\s+(?:da|do|de)?\s*(.+)/i);
+    if (match) {
+      nomeContaFinal = match[1].trim();
+    }
+  }
+  
+  if (!nomeContaFinal) {
+    return {
+      mensagem: `❓ Histórico de qual conta?\n\n💡 Exemplos:\n• _"histórico da luz"_\n• _"histórico água"_`,
+    };
+  }
+  
+  const historico = await consultarHistorico(userId, nomeContaFinal);
+  return { mensagem: historico };
+}
+
+/**
+ * Processa intenção PAGAR_FATURA_CARTAO
+ * Suporta: pagamento total, parcial e mínimo
+ */
+export async function processarPagarFaturaCartao(
+  userId: string,
+  _phone: string,
+  entidades: Record<string, unknown>
+): Promise<{ mensagem: string; precisaConfirmacao?: boolean; dados?: Record<string, unknown> }> {
+  const supabase = getSupabase();
+  const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
+  const nomeCartao = entidades.cartao as string || '';
+  const valorInformado = entidades.valor as number | undefined;
+  const tipoPagamento = entidades.tipoPagamento as 'total' | 'parcial' | 'minimo' | undefined;
+  
+  console.log(`[PAGAR-FATURA] Comando: "${comandoOriginal}", Cartão: "${nomeCartao}", Valor: ${valorInformado}, Tipo: ${tipoPagamento}`);
+  
+  // Extrair nome do cartão do texto se não veio nas entidades
+  let nomeCartaoFinal = nomeCartao;
+  if (!nomeCartaoFinal && comandoOriginal) {
+    // Padrões: "paguei a fatura do Nubank", "paguei o cartão Itaú", "paguei 2500 no Nubank"
+    const matchFatura = comandoOriginal.match(/(?:fatura|cartão|cartao)\s+(?:do|da|de)?\s*(\w+)/i);
+    const matchValor = comandoOriginal.match(/paguei\s+[\d.,]+\s+(?:no|na|do|da)\s+(\w+)/i);
+    if (matchFatura) nomeCartaoFinal = matchFatura[1];
+    else if (matchValor) nomeCartaoFinal = matchValor[1];
+  }
+  
+  // Detectar tipo de pagamento do texto
+  let tipoPagamentoFinal = tipoPagamento;
+  if (!tipoPagamentoFinal && comandoOriginal) {
+    if (comandoOriginal.includes('mínimo') || comandoOriginal.includes('minimo')) {
+      tipoPagamentoFinal = 'minimo';
+    } else if (valorInformado) {
+      tipoPagamentoFinal = 'parcial'; // Se informou valor específico
+    } else {
+      tipoPagamentoFinal = 'total';
+    }
+  }
+  
+  if (!nomeCartaoFinal) {
+    return {
+      mensagem: `❓ Qual cartão você pagou?\n\n💡 Exemplos:\n• _"paguei a fatura do Nubank"_\n• _"paguei o cartão Itaú"_`,
+    };
+  }
+  
+  // Buscar cartão do usuário
+  const { data: cartao } = await supabase
+    .from('credit_cards')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('is_active', true)
+    .or(`name.ilike.%${nomeCartaoFinal}%,bank.ilike.%${nomeCartaoFinal}%`)
+    .limit(1)
+    .single();
+  
+  if (!cartao) {
+    return {
+      mensagem: `🤔 Não encontrei o cartão *${nomeCartaoFinal}*.\n\n💡 Use *"meus cartões"* para ver seus cartões cadastrados.`,
+    };
+  }
+  
+  // Buscar fatura pendente do cartão
+  const { data: fatura } = await supabase
+    .from('credit_card_invoices')
+    .select('*')
+    .eq('credit_card_id', cartao.id)
+    .in('status', ['open', 'closed', 'pending'])
+    .order('due_date', { ascending: true })
+    .limit(1)
+    .single();
+  
+  if (!fatura) {
+    return {
+      mensagem: `✅ Não há fatura pendente para *${cartao.name}*!`,
+    };
+  }
+  
+  // Determinar valor do pagamento
+  let valorPagamento: number;
+  let statusNovo: string;
+  let mensagemTipo: string;
+  
+  if (tipoPagamentoFinal === 'minimo') {
+    valorPagamento = fatura.minimum_payment || fatura.total_amount * 0.15;
+    statusNovo = 'partial';
+    mensagemTipo = '(pagamento mínimo)';
+  } else if (valorInformado && valorInformado < fatura.total_amount) {
+    valorPagamento = valorInformado;
+    statusNovo = 'partial';
+    mensagemTipo = '(pagamento parcial)';
+  } else {
+    valorPagamento = valorInformado || fatura.total_amount;
+    statusNovo = 'paid';
+    mensagemTipo = '(pagamento total)';
+  }
+  
+  const agora = new Date().toISOString();
+  
+  // Registrar pagamento da fatura
+  const { error: updateError } = await supabase
+    .from('credit_card_invoices')
+    .update({
+      status: statusNovo,
+      paid_amount: valorPagamento,
+      paid_at: agora,
+      updated_at: agora
+    })
+    .eq('id', fatura.id);
+  
+  if (updateError) {
+    console.error('[PAGAR-FATURA] Erro ao atualizar fatura:', updateError);
+    return { mensagem: `❌ Erro ao registrar pagamento da fatura.` };
+  }
+  
+  // Atualizar limite disponível do cartão
+  const novoLimiteDisponivel = (cartao.available_limit || 0) + valorPagamento;
+  await supabase
+    .from('credit_cards')
+    .update({
+      available_limit: Math.min(novoLimiteDisponivel, cartao.credit_limit || novoLimiteDisponivel),
+      updated_at: agora
+    })
+    .eq('id', cartao.id);
+  
+  // Formatar data de vencimento
+  const dataVenc = new Date(fatura.due_date);
+  const dataVencFormatada = dataVenc.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  
+  let resposta = `✅ Fatura *${cartao.name}* paga! ${mensagemTipo}
+💰 Valor pago: ${formatarMoeda(valorPagamento)}
+📅 Vencimento: ${dataVencFormatada}`;
+  
+  if (statusNovo === 'partial') {
+    const restante = fatura.total_amount - valorPagamento;
+    resposta += `
+
+⚠️ *Valor restante: ${formatarMoeda(restante)}*
+_Atenção: juros podem ser cobrados sobre o saldo._`;
+  }
+  
+  // Mostrar novo limite disponível
+  resposta += `
+
+💳 Limite disponível: ${formatarMoeda(novoLimiteDisponivel)}`;
+  
+  console.log(`[PAGAR-FATURA] ✅ Fatura ${cartao.name} paga: ${valorPagamento}`);
+  
+  return { mensagem: resposta };
+}
+
+/**
+ * Processa intenção DESFAZER_PAGAMENTO
+ * Estorna pagamento feito por engano
+ */
+export async function processarDesfazerPagamento(
+  userId: string,
+  _phone: string,
+  entidades: Record<string, unknown>
+): Promise<{ mensagem: string; precisaConfirmacao?: boolean; dados?: Record<string, unknown> }> {
+  const supabase = getSupabase();
+  const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
+  const nomeConta = entidades.conta as string || '';
+  
+  console.log(`[DESFAZER-PAGAMENTO] Comando: "${comandoOriginal}", Conta: "${nomeConta}"`);
+  
+  // Extrair nome da conta do texto se não veio nas entidades
+  let nomeContaFinal = nomeConta;
+  if (!nomeContaFinal && comandoOriginal) {
+    // Padrões: "desfazer pagamento da luz", "cancelar pagamento do aluguel", "errei, a luz não foi paga"
+    const match = comandoOriginal.match(/(?:desfazer|cancelar|estornar)\s+(?:pagamento\s+)?(?:da|do|de)?\s*(.+)/i);
+    const matchErrei = comandoOriginal.match(/(?:errei|erro).+?(?:da|do|de|a|o)\s+(\w+)/i);
+    const matchNaoPaga = comandoOriginal.match(/(\w+)\s+(?:não|nao)\s+foi\s+pag/i);
+    
+    if (match) nomeContaFinal = match[1].trim();
+    else if (matchErrei) nomeContaFinal = matchErrei[1].trim();
+    else if (matchNaoPaga) nomeContaFinal = matchNaoPaga[1].trim();
+  }
+  
+  if (!nomeContaFinal) {
+    return {
+      mensagem: `❓ Qual pagamento deseja desfazer?\n\n💡 Exemplos:\n• _"desfazer pagamento da luz"_\n• _"cancelar pagamento do aluguel"_`,
+    };
+  }
+  
+  const hoje = new Date();
+  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0];
+  const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().split('T')[0];
+  
+  // Buscar conta paga no mês atual
+  const { data: contaPaga } = await supabase
+    .from('payable_bills')
+    .select('*')
+    .eq('user_id', userId)
+    .ilike('description', `%${nomeContaFinal}%`)
+    .eq('status', 'paid')
+    .gte('due_date', inicioMes)
+    .lte('due_date', fimMes)
+    .order('paid_at', { ascending: false })
+    .limit(1)
+    .single();
+  
+  if (!contaPaga) {
+    return {
+      mensagem: `❓ Não encontrei pagamento de *${nomeContaFinal}* registrado este mês.\n\n💡 Use _"o que paguei esse mês"_ para ver seus pagamentos.`,
+    };
+  }
+  
+  const agora = new Date().toISOString();
+  
+  // Reverter status para pendente ou overdue
+  const dataVenc = new Date(contaPaga.due_date);
+  const novoStatus = dataVenc < hoje ? 'overdue' : 'pending';
+  
+  const { error: updateError } = await supabase
+    .from('payable_bills')
+    .update({
+      status: novoStatus,
+      paid_at: null,
+      paid_amount: null,
+      updated_at: agora
+    })
+    .eq('id', contaPaga.id);
+  
+  if (updateError) {
+    console.error('[DESFAZER-PAGAMENTO] Erro:', updateError);
+    return { mensagem: `❌ Erro ao desfazer pagamento.` };
+  }
+  
+  // Remover do histórico de pagamentos
+  await supabase
+    .from('bill_payment_history')
+    .delete()
+    .eq('bill_id', contaPaga.id)
+    .order('payment_date', { ascending: false })
+    .limit(1);
+  
+  const emoji = getEmojiConta(contaPaga.description);
+  const dataVencFormatada = dataVenc.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const statusStr = novoStatus === 'overdue' ? '⚠️ Vencida' : '⏳ Pendente';
+  
+  console.log(`[DESFAZER-PAGAMENTO] ✅ Pagamento de ${contaPaga.description} desfeito`);
+  
+  return {
+    mensagem: `🔄 *Pagamento desfeito!*\n\n${emoji} *${contaPaga.description}*\n📅 Vencimento: ${dataVencFormatada}\n${statusStr}`,
+  };
+}
+
+/**
+ * Processa intenção RESUMO_PAGAMENTOS_MES
+ * Mostra o que foi pago no mês
+ */
+export async function processarResumoPagamentosMes(
+  userId: string,
+  _phone: string,
+  entidades: Record<string, unknown>
+): Promise<{ mensagem: string; precisaConfirmacao?: boolean; dados?: Record<string, unknown> }> {
+  const supabase = getSupabase();
+  const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
+  const mesInformado = entidades.mes as string || '';
+  
+  console.log(`[RESUMO-PAGAMENTOS] Comando: "${comandoOriginal}", Mês: "${mesInformado}"`);
+  
+  // Determinar mês de referência
+  const hoje = new Date();
+  let mesRef = hoje.getMonth();
+  let anoRef = hoje.getFullYear();
+  
+  // Detectar mês do texto
+  const meses: Record<string, number> = {
+    'janeiro': 0, 'fevereiro': 1, 'março': 2, 'marco': 2, 'abril': 3,
+    'maio': 4, 'junho': 5, 'julho': 6, 'agosto': 7,
+    'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+  };
+  
+  const textoCompleto = `${mesInformado} ${comandoOriginal}`.toLowerCase();
+  for (const [nomeMes, numMes] of Object.entries(meses)) {
+    if (textoCompleto.includes(nomeMes)) {
+      mesRef = numMes;
+      // Se mês futuro, assume ano anterior
+      if (numMes > hoje.getMonth()) anoRef--;
+      break;
+    }
+  }
+  
+  const inicioMes = new Date(anoRef, mesRef, 1).toISOString().split('T')[0];
+  const fimMes = new Date(anoRef, mesRef + 1, 0).toISOString().split('T')[0];
+  const nomeMesRef = obterNomeMes(mesRef);
+  
+  // Buscar contas pagas no mês
+  const { data: contasPagas } = await supabase
+    .from('payable_bills')
+    .select('description, paid_amount, amount, paid_at')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .gte('due_date', inicioMes)
+    .lte('due_date', fimMes)
+    .order('paid_at', { ascending: true });
+  
+  // Buscar faturas pagas no mês
+  const { data: faturasPagas } = await supabase
+    .from('credit_card_invoices')
+    .select('credit_card_id, paid_amount, total_amount, paid_at')
+    .eq('status', 'paid')
+    .gte('due_date', inicioMes)
+    .lte('due_date', fimMes);
+  
+  // Buscar nomes dos cartões
+  let faturasPagasComNome: Array<{ nome: string; valor: number }> = [];
+  if (faturasPagas && faturasPagas.length > 0) {
+    const cartaoIds = [...new Set(faturasPagas.map(f => f.credit_card_id))];
+    const { data: cartoes } = await supabase
+      .from('credit_cards')
+      .select('id, name')
+      .in('id', cartaoIds);
+    
+    const cartaoMap = new Map(cartoes?.map(c => [c.id, c.name]) || []);
+    faturasPagasComNome = faturasPagas.map(f => ({
+      nome: cartaoMap.get(f.credit_card_id) || 'Cartão',
+      valor: f.paid_amount || f.total_amount
+    }));
+  }
+  
+  // Buscar contas pendentes
+  const { data: contasPendentes } = await supabase
+    .from('payable_bills')
+    .select('description, amount, due_date')
+    .eq('user_id', userId)
+    .in('status', ['pending', 'overdue'])
+    .gte('due_date', inicioMes)
+    .lte('due_date', fimMes)
+    .order('due_date', { ascending: true });
+  
+  // Calcular totais
+  const totalPagoContas = (contasPagas || []).reduce((sum, c) => sum + (c.paid_amount || c.amount || 0), 0);
+  const totalPagoFaturas = faturasPagasComNome.reduce((sum, f) => sum + f.valor, 0);
+  const totalPago = totalPagoContas + totalPagoFaturas;
+  const totalPendente = (contasPendentes || []).reduce((sum, c) => sum + (c.amount || 0), 0);
+  
+  let msg = `📊 *Resumo: ${nomeMesRef}/${anoRef}*\n━━━━━━━━━━━━━━━━━━\n\n`;
+  
+  // Seção de pagos
+  const qtdPagos = (contasPagas?.length || 0) + faturasPagasComNome.length;
+  if (qtdPagos > 0) {
+    msg += `✅ *Pagos (${qtdPagos})*\n`;
+    
+    (contasPagas || []).forEach(c => {
+      const emoji = getEmojiConta(c.description);
+      const valor = c.paid_amount || c.amount || 0;
+      msg += `  ${emoji} ${c.description} - ${formatarMoeda(valor)}\n`;
+    });
+    
+    faturasPagasComNome.forEach(f => {
+      msg += `  💳 Fatura ${f.nome} - ${formatarMoeda(f.valor)}\n`;
+    });
+    
+    msg += `\n💰 *Total pago: ${formatarMoeda(totalPago)}*\n`;
+  } else {
+    msg += `✅ Nenhum pagamento registrado em ${nomeMesRef}.\n`;
+  }
+  
+  // Seção de pendentes
+  if (contasPendentes && contasPendentes.length > 0) {
+    msg += `\n⏳ *Pendentes (${contasPendentes.length})*\n`;
+    
+    contasPendentes.forEach(c => {
+      const emoji = getEmojiConta(c.description);
+      const dataVenc = new Date(c.due_date);
+      const diaVenc = dataVenc.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      msg += `  ${emoji} ${c.description} - ${formatarMoeda(c.amount || 0)} (vence ${diaVenc})\n`;
+    });
+    
+    msg += `\n💸 *Total pendente: ${formatarMoeda(totalPendente)}*`;
+  }
+  
+  console.log(`[RESUMO-PAGAMENTOS] ${qtdPagos} pagos, ${contasPendentes?.length || 0} pendentes`);
+  
+  return { mensagem: msg };
+}
+
+/**
+ * Extrai método de pagamento do texto
+ */
+export function extrairMetodoPagamento(texto: string): string | null {
+  const textoLower = texto.toLowerCase();
+  
+  if (textoLower.includes('pix')) return 'pix';
+  if (textoLower.includes('débito') || textoLower.includes('debito')) return 'debit';
+  if (textoLower.includes('crédito') || textoLower.includes('credito')) return 'credit';
+  if (textoLower.includes('boleto')) return 'boleto';
+  if (textoLower.includes('transferência') || textoLower.includes('transferencia') || textoLower.includes('ted') || textoLower.includes('doc')) return 'transfer';
+  if (textoLower.includes('dinheiro') || textoLower.includes('espécie') || textoLower.includes('especie')) return 'cash';
+  if (textoLower.includes('débito automático') || textoLower.includes('debito automatico')) return 'auto_debit';
+  
+  return null;
+}
+
+/**
+ * Extrai multa/juros do texto
+ * Retorna { valorOriginal, multa, total } ou null
+ */
+export function extrairMultaJuros(texto: string, valorPrincipal: number): { valorOriginal: number; multa: number; total: number } | null {
+  const textoLower = texto.toLowerCase();
+  
+  // Padrões: "com multa de 10", "mais 10 de juros", "paguei 205 com juros"
+  const matchMulta = textoLower.match(/(?:multa|juros)\s+(?:de\s+)?(?:r\$\s*)?(\d+(?:[.,]\d+)?)/i);
+  const matchMais = textoLower.match(/(?:mais|mais)\s+(?:r\$\s*)?(\d+(?:[.,]\d+)?)\s+(?:de\s+)?(?:multa|juros)/i);
+  
+  if (matchMulta) {
+    const multa = parseFloat(matchMulta[1].replace(',', '.'));
+    return { valorOriginal: valorPrincipal, multa, total: valorPrincipal + multa };
+  }
+  
+  if (matchMais) {
+    const multa = parseFloat(matchMais[1].replace(',', '.'));
+    return { valorOriginal: valorPrincipal, multa, total: valorPrincipal + multa };
+  }
+  
+  return null;
+}
+
+/**
+ * Verifica variação significativa e retorna alerta se necessário
+ */
+export async function verificarVariacaoSignificativa(
+  userId: string,
+  descricao: string,
+  valorAtual: number
+): Promise<{ alertar: boolean; mensagem: string; percentual: number }> {
+  const comparativo = await calcularComparativo(userId, descricao, valorAtual);
+  
+  // Alertar se variação > 50% acima da média
+  const variacaoMedia = comparativo.media6Meses > 0 
+    ? ((valorAtual - comparativo.media6Meses) / comparativo.media6Meses) * 100 
+    : 0;
+  
+  if (variacaoMedia > 50) {
+    const msg = `⚠️ *Atenção!* ${formatarMoeda(valorAtual)} está *${variacaoMedia.toFixed(0)}% acima* da sua média (${formatarMoeda(comparativo.media6Meses)}).
+
+Possíveis causas:
+• Maior consumo no mês
+• Reajuste tarifário
+• Erro de leitura
+
+Deseja que eu registre esse valor? (sim/não)`;
+    
+    return { alertar: true, mensagem: msg, percentual: variacaoMedia };
+  }
+  
+  return { alertar: false, mensagem: '', percentual: variacaoMedia };
+}
+
+/**
+ * Verifica se uma conta já foi paga no mês atual
+ */
+async function verificarContaJaPaga(userId: string, descricao: string): Promise<boolean> {
+  const supabase = getSupabase();
+  const hoje = new Date();
+  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0];
+  const fimMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().split('T')[0];
+  
+  const { data: contaPaga } = await supabase
+    .from('payable_bills')
+    .select('id')
+    .eq('user_id', userId)
+    .ilike('description', `%${descricao}%`)
+    .eq('status', 'paid')
+    .gte('due_date', inicioMes)
+    .lte('due_date', fimMes)
+    .limit(1)
+    .single();
+  
+  return !!contaPaga;
 }

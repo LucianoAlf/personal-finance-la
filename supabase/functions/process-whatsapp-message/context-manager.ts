@@ -64,7 +64,13 @@ export type ContextType =
   | 'awaiting_card_limit'           // Aguardando limite do cartão
   // FASE 3.4 - Parcelamentos com método de pagamento
   | 'awaiting_installment_payment_method'  // Aguardando: cartão ou boleto?
-  | 'awaiting_installment_card_selection'; // Aguardando seleção de cartão para parcelamento
+  | 'awaiting_installment_card_selection'  // Aguardando seleção de cartão para parcelamento
+  // FASE 3.3 - Registro de Pagamentos
+  | 'awaiting_payment_value'               // Aguardando valor do pagamento (conta variável)
+  | 'awaiting_bill_name_for_payment'       // Aguardando nome da conta para marcar como paga
+  | 'awaiting_payment_account'             // Aguardando conta bancária de onde sai o pagamento
+  // Contexto de ações rápidas de cartão
+  | 'credit_card_context';                 // Contexto de cartão para ações rápidas
 
 export interface ContextData {
   intencao_pendente?: IntencaoClassificada;
@@ -526,6 +532,24 @@ export async function processarNoContexto(
     return await processarSelecaoCartaoParcelamento(texto, contexto, userId);
   }
   
+  // FASE 3.3: Handlers de registro de pagamentos
+  if (contextType === 'awaiting_payment_value') {
+    return await processarValorPagamento(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_bill_name_for_payment') {
+    return await processarNomeContaPagamento(texto, contexto, userId);
+  }
+  
+  if (contextType === 'awaiting_payment_account') {
+    return await processarSelecaoContaPagamento(texto, contexto, userId);
+  }
+  
+  // AÇÕES RÁPIDAS DE CARTÃO DE CRÉDITO
+  if (contextType === 'credit_card_context') {
+    return await processarAcaoRapidaCartao(texto, contexto, userId);
+  }
+  
   await limparContexto(userId);
   return '❓ Não entendi. Vamos recomeçar?';
 }
@@ -533,6 +557,206 @@ export async function processarNoContexto(
 // ============================================
 // HANDLERS DE CONTEXTO
 // ============================================
+
+// Mapeamento de nomes de meses para números (0-11)
+const MESES_MAP: Record<string, number> = {
+  'janeiro': 0, 'jan': 0,
+  'fevereiro': 1, 'fev': 1,
+  'marco': 2, 'mar': 2,
+  'abril': 3, 'abr': 3,
+  'maio': 4, 'mai': 4,
+  'junho': 5, 'jun': 5,
+  'julho': 6, 'jul': 6,
+  'agosto': 7, 'ago': 7,
+  'setembro': 8, 'set': 8,
+  'outubro': 9, 'out': 9,
+  'novembro': 10, 'nov': 10,
+  'dezembro': 11, 'dez': 11
+};
+
+// Extrair mês de uma string
+function extrairMesDaString(texto: string): number | null {
+  const textoNorm = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  
+  for (const [nome, numero] of Object.entries(MESES_MAP)) {
+    const nomeNorm = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (textoNorm.includes(nomeNorm)) {
+      return numero;
+    }
+  }
+  return null;
+}
+
+// Handler para ações rápidas de cartão de crédito
+// ============================================
+// ARQUITETURA DE 3 CAMADAS
+// ============================================
+export async function processarAcaoRapidaCartao(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const { 
+    listarComprasCartao, 
+    compararMeses, 
+    consultarGastoEspecifico, 
+    consultarFatura,
+    classificarIntencaoCartaoIA,
+    validarCartaoExtraido,
+    buscarCartaoFuzzy,
+    buscarCategoriaFuzzy,
+    buscarCartoesUsuario
+  } = await import('./cartao-credito.ts');
+  
+  const cartaoIdContexto = contexto.context_data?.cartao_id as string | undefined;
+  const cartaoNomeContexto = contexto.context_data?.cartao_nome as string | undefined;
+  
+  console.log('[CARTAO-3CAMADAS] ========================================');
+  console.log('[CARTAO-3CAMADAS] Processando:', texto);
+  console.log('[CARTAO-3CAMADAS] Cartão do contexto:', cartaoNomeContexto);
+  console.log('[CARTAO-3CAMADAS] ========================================');
+  
+  // Buscar cartões do usuário para as 3 camadas
+  const cartoesUsuario = await buscarCartoesUsuario(userId);
+  console.log('[CARTAO-3CAMADAS] Cartões do usuário:', cartoesUsuario.map((c: any) => c.name));
+  
+  // ============================================
+  // CAMADA 1: GPT-4 INTELIGENTE
+  // ============================================
+  console.log('[CARTAO-3CAMADAS] CAMADA 1: Classificando com GPT-4...');
+  
+  const classificacao = await classificarIntencaoCartaoIA(texto, cartoesUsuario);
+  
+  if (!classificacao || !classificacao.intencao) {
+    console.log('[CARTAO-3CAMADAS] Camada 1 não identificou intenção');
+    await limparContexto(userId);
+    return `💳 *Ações disponíveis para ${cartaoNomeContexto}:*\n\n` +
+      `• _"ver todas compras"_ - Lista completa\n` +
+      `• _"compras de novembro"_ - Mês específico\n` +
+      `• _"comparar meses"_ - Histórico\n` +
+      `• _"quanto gastei de alimentação"_ - Gasto por categoria\n\n` +
+      `💡 Ou digite qualquer outra coisa para uma nova consulta.`;
+  }
+  
+  console.log('[CARTAO-3CAMADAS] Camada 1 retornou:', JSON.stringify(classificacao));
+  
+  // ============================================
+  // CAMADA 2: VALIDAÇÃO ANTI-ALUCINAÇÃO
+  // ============================================
+  let cartaoFinal: { id: string; name: string } | null = null;
+  
+  // Se GPT-4 retornou um cartão, validar
+  if (classificacao.cartao) {
+    console.log('[CARTAO-3CAMADAS] CAMADA 2: Validando cartão:', classificacao.cartao);
+    const validacao = validarCartaoExtraido(classificacao.cartao, cartoesUsuario);
+    
+    if (validacao.valido && validacao.cartaoExato) {
+      console.log('[CARTAO-3CAMADAS] Camada 2 ✅ Validou:', validacao.cartaoExato.name);
+      cartaoFinal = validacao.cartaoExato;
+    } else {
+      // ============================================
+      // CAMADA 3: BUSCA FUZZY
+      // ============================================
+      console.log('[CARTAO-3CAMADAS] CAMADA 3: Busca fuzzy...');
+      const fuzzy = buscarCartaoFuzzy(texto, cartoesUsuario);
+      
+      if (fuzzy.encontrado && fuzzy.cartao) {
+        console.log('[CARTAO-3CAMADAS] Camada 3 ✅ Encontrou:', fuzzy.cartao.name, 'via', fuzzy.estrategia);
+        cartaoFinal = fuzzy.cartao;
+      }
+    }
+  } else {
+    // GPT-4 não retornou cartão, usar contexto ou busca fuzzy
+    if (cartaoIdContexto && cartaoNomeContexto) {
+      console.log('[CARTAO-3CAMADAS] Usando cartão do contexto:', cartaoNomeContexto);
+      cartaoFinal = { id: cartaoIdContexto, name: cartaoNomeContexto };
+    } else {
+      // Tentar busca fuzzy na mensagem
+      console.log('[CARTAO-3CAMADAS] CAMADA 3: Busca fuzzy sem menção explícita...');
+      const fuzzy = buscarCartaoFuzzy(texto, cartoesUsuario);
+      
+      if (fuzzy.encontrado && fuzzy.cartao) {
+        console.log('[CARTAO-3CAMADAS] Camada 3 ✅ Encontrou:', fuzzy.cartao.name);
+        cartaoFinal = fuzzy.cartao;
+      } else if (cartoesUsuario.length === 1) {
+        // Único cartão disponível
+        cartaoFinal = cartoesUsuario[0];
+        console.log('[CARTAO-3CAMADAS] Único cartão disponível:', cartaoFinal.name);
+      }
+    }
+  }
+  
+  // Se ainda não tem cartão, perguntar ao usuário
+  if (!cartaoFinal && cartoesUsuario.length > 1) {
+    console.log('[CARTAO-3CAMADAS] Nenhum cartão identificado, perguntando ao usuário');
+    let msg = `💳 *Qual cartão você quer consultar?*\n\n`;
+    cartoesUsuario.forEach((c: any, i: number) => {
+      msg += `${i + 1}. ${c.name}\n`;
+    });
+    msg += `\n_Responda com o número ou nome do cartão_`;
+    return msg;
+  }
+  
+  // Usar cartão do contexto como fallback final
+  if (!cartaoFinal && cartaoIdContexto && cartaoNomeContexto) {
+    cartaoFinal = { id: cartaoIdContexto, name: cartaoNomeContexto };
+  }
+  
+  const cartaoNome = cartaoFinal?.name || cartaoNomeContexto;
+  
+  // ============================================
+  // PROCESSAR TERMO (CATEGORIA) COM FUZZY
+  // ============================================
+  let termoFinal = classificacao.termo;
+  if (termoFinal) {
+    termoFinal = buscarCategoriaFuzzy(termoFinal);
+    console.log('[CARTAO-3CAMADAS] Termo normalizado:', termoFinal);
+  }
+  
+  // ============================================
+  // EXECUTAR AÇÃO BASEADA NA INTENÇÃO
+  // ============================================
+  console.log('[CARTAO-3CAMADAS] Executando:', classificacao.intencao, '| Cartão:', cartaoNome, '| Termo:', termoFinal, '| Mês:', classificacao.mes, '| Período:', classificacao.periodo);
+  
+  switch (classificacao.intencao) {
+    case 'listar_compras_cartao':
+      return await listarComprasCartao(userId, cartaoNome, classificacao.mes ?? undefined, classificacao.periodo ?? undefined);
+      
+    case 'comparar_meses':
+      return await compararMeses(userId, cartaoNome);
+      
+    case 'consulta_fatura':
+      return await consultarFatura(userId, cartaoNome);
+      
+    case 'consulta_gasto_especifico':
+      if (termoFinal) {
+        return await consultarGastoEspecifico(userId, termoFinal, cartaoNome, classificacao.mes ?? undefined);
+      }
+      // Se não tem termo, perguntar
+      return `💳 *${cartaoNome}*\n\n❓ Qual categoria ou estabelecimento você quer consultar?\n\n_Exemplos: alimentação, transporte, iFood, Uber_`;
+      
+    case 'consulta_limite':
+      // TODO: Implementar consulta de limite
+      return `💳 *${cartaoNome}*\n\n⚠️ Consulta de limite ainda não implementada.\n\n💡 Use o app para ver seu limite disponível.`;
+      
+    case 'listar_cartoes':
+      let msg = `💳 *Seus Cartões de Crédito*\n\n`;
+      cartoesUsuario.forEach((c: any, i: number) => {
+        msg += `${i + 1}. ${c.name}\n`;
+      });
+      return msg;
+      
+    default:
+      console.log('[CARTAO-3CAMADAS] Intenção não mapeada:', classificacao.intencao);
+      await limparContexto(userId);
+      return `💳 *Ações disponíveis para ${cartaoNome}:*\n\n` +
+        `• _"ver todas compras"_ - Lista completa\n` +
+        `• _"compras de novembro"_ - Mês específico\n` +
+        `• _"comparar meses"_ - Histórico\n` +
+        `• _"quanto gastei de alimentação"_ - Gasto por categoria\n\n` +
+        `💡 Ou digite qualquer outra coisa para uma nova consulta.`;
+  }
+}
 
 // Handler para desambiguação "minhas contas"
 async function processarSelecaoTipoConta(
@@ -929,10 +1153,17 @@ async function processarSelecaoConta(
     
     console.log('✅ Transação inserida com sucesso! ID:', transacao?.id);
     
+    // Buscar saldo atualizado da conta
+    const { data: contaAtualizada } = await supabase
+      .from('accounts')
+      .select('current_balance')
+      .eq('id', contaSelecionada.id)
+      .single();
+    
     // Limpar contexto após sucesso
     await limparContexto(userId);
     
-    // Usar novo template profissional
+    // Usar novo template profissional com saldo
     const mensagemSucesso = templateTransacaoRegistrada({
       type: intencao.intencao === 'REGISTRAR_RECEITA' ? 'income' : 'expense',
       amount: valorTransacao,
@@ -940,7 +1171,8 @@ async function processarSelecaoConta(
       category: categoriaNome,
       account: contaSelecionada.name,
       data: new Date(),
-      paymentMethod: paymentMethod // ✅ Incluir forma de pagamento
+      paymentMethod: paymentMethod,
+      saldoConta: contaAtualizada?.current_balance // ✅ Incluir saldo atualizado
     });
     
     return mensagemSucesso;
@@ -1386,6 +1618,15 @@ async function processarSelecaoContaImagem(
     return `❌ Erro ao registrar: ${error.message}`;
   }
   
+  // Buscar saldo atualizado da conta
+  const { data: contaAtualizada } = await supabase
+    .from('accounts')
+    .select('current_balance')
+    .eq('id', contaSelecionada.id)
+    .single();
+  
+  const saldoAtual = contaAtualizada?.current_balance || 0;
+  
   // Buscar nome da categoria
   let nomeCategoria = dadosImagem.categoria;
   if (categoryId && categorias) {
@@ -1401,15 +1642,20 @@ async function processarSelecaoContaImagem(
     ? new Date(dadosImagem.data + 'T12:00:00').toLocaleDateString('pt-BR')
     : new Date().toLocaleDateString('pt-BR');
   
+  const formatarMoeda = (v: number) => v.toFixed(2).replace('.', ',');
+  
   return `Anotado! 📝\n\n` +
          `⭐ *Transação Registrada!* ⭐\n\n` +
          `📝 *Descrição:* ${dadosImagem.descricao}\n` +
-         `${emoji} *Valor:* R$ ${dadosImagem.valor.toFixed(2).replace('.', ',')}\n` +
+         `${emoji} *Valor:* R$ ${formatarMoeda(dadosImagem.valor)}\n` +
          `🔴 *Tipo:* ${tipoTexto}\n` +
          `🏷️ *Categoria:* ${nomeCategoria}\n` +
          `${emojiBanco} *Conta:* ${contaSelecionada.name}\n` +
          `📅 *Data:* ${dataFormatada}\n\n` +
          `✅ *Status:* Pago\n\n` +
+         `━━━━━━━━━━━━━━━━━━\n` +
+         `${emojiBanco} *Saldo ${contaSelecionada.name}:* R$ ${formatarMoeda(saldoAtual)}\n` +
+         `━━━━━━━━━━━━━━━━━━\n\n` +
          `💡 *Quer alterar algo?*\n` +
          `• Valor → _"era 95"_\n` +
          `• Conta → _"muda pra Nubank"_\n` +
@@ -1795,8 +2041,15 @@ async function processarSelecaoMetodoPagamento(
     
     await limparContexto(userId);
     
-    // ✅ BUG #11: Usar template correto
+    // ✅ BUG #11: Usar template correto com saldo
     if (resultado.success) {
+      // Buscar saldo atualizado
+      const { data: contaAtualizada } = await getSupabase()
+        .from('accounts')
+        .select('current_balance')
+        .eq('id', contaSelecionada.id)
+        .single();
+      
       return templateTransacaoRegistrada({
         type: 'expense',
         amount: valor,
@@ -1804,7 +2057,8 @@ async function processarSelecaoMetodoPagamento(
         category: categoriaNome,
         account: contaSelecionada.name,
         data: new Date(),
-        paymentMethod: metodo.method
+        paymentMethod: metodo.method,
+        saldoConta: contaAtualizada?.current_balance
       });
     }
     return resultado.mensagem;
@@ -1848,8 +2102,15 @@ async function processarSelecaoMetodoPagamento(
     
     await limparContexto(userId);
     
-    // ✅ BUG #11: Usar template correto
+    // ✅ BUG #11: Usar template correto com saldo
     if (resultado.success) {
+      // Buscar saldo atualizado
+      const { data: contaAtualizada } = await getSupabase()
+        .from('accounts')
+        .select('current_balance')
+        .eq('id', contas[0].id)
+        .single();
+      
       return templateTransacaoRegistrada({
         type: 'expense',
         amount: valor,
@@ -1857,7 +2118,8 @@ async function processarSelecaoMetodoPagamento(
         category: categoriaNome,
         account: contas[0].name,
         data: new Date(),
-        paymentMethod: metodo.method
+        paymentMethod: metodo.method,
+        saldoConta: contaAtualizada?.current_balance
       });
     }
     return resultado.mensagem;
@@ -2271,6 +2533,22 @@ async function processarValorConta(
 ): Promise<string> {
   const supabase = getSupabase();
   const dados = contexto.context_data || {};
+  const textoLower = texto.toLowerCase().trim();
+  
+  // Verificar se é parcelamento e usuário informou valor TOTAL
+  const totalParcelas = dados.totalParcelas as number | undefined;
+  const matchTotal = textoLower.match(/^total\s*r?\$?\s*(\d+(?:[.,]\d+)?)/i);
+  
+  if (matchTotal && totalParcelas && totalParcelas > 1) {
+    const valorTotal = parseFloat(matchTotal[1].replace(',', '.'));
+    const valorParcela = valorTotal / totalParcelas;
+    
+    console.log(`[VALOR] Usuário informou valor TOTAL: R$ ${valorTotal} / ${totalParcelas}x = R$ ${valorParcela.toFixed(2)} por parcela`);
+    
+    dados.valor = Math.round(valorParcela * 100) / 100; // Arredondar para 2 casas
+    
+    return await continuarFluxoCadastro(supabase, userId, dados);
+  }
   
   // Tentar converter valor (suporta números e extenso)
   const valor = converterExtensoParaNumero(texto);
@@ -2587,6 +2865,26 @@ async function continuarFluxoCadastro(
     await salvarContexto(userId, getStateForField(proximoCampo) as ContextType, dados);
     
     return getPerguntaParaCampo(proximoCampo, dados as any);
+  }
+  
+  // VERIFICAÇÃO EXTRA: Se é parcelamento, perguntar método de pagamento
+  const totalParcelas = dados.totalParcelas as number | undefined;
+  const paymentMethod = dados.paymentMethod as string | undefined;
+  
+  if (totalParcelas && totalParcelas > 1 && !paymentMethod) {
+    const descricao = dados.descricao as string;
+    console.log('[FLUXO] Parcelamento sem método de pagamento. Perguntando...');
+    
+    await salvarContexto(userId, 'awaiting_installment_payment_method' as ContextType, dados);
+    
+    return `📝 Vou cadastrar o parcelamento de *${descricao}*.
+
+💳 Esse parcelamento é no *cartão* ou no *boleto*?
+
+1️⃣ Cartão de crédito
+2️⃣ Boleto/Carnê
+
+_Digite 1 ou 2_`;
   }
   
   // Todos os campos preenchidos, cadastrar!
@@ -3229,7 +3527,64 @@ ${resultado.mensagem}
 💡 _Cadastrei como boleto. Para adicionar cartões, acesse a página de Cartões no app._`;
   }
   
-  // Salvar contexto para seleção de cartão
+  // ✅ NOVO: Verificar se o usuário já mencionou qual cartão na resposta
+  // Ex: "Cartão no Nubank" → detectar "Nubank" e usar direto
+  const cartaoMencionado = cartoes.find(cartao => {
+    const nomeCartao = cartao.name.toLowerCase();
+    // Verificar se o nome do cartão está na resposta
+    return textoLimpo.includes(nomeCartao) ||
+           // Variações comuns de bancos
+           (nomeCartao.includes('nubank') && (textoLimpo.includes('nubank') || textoLimpo.includes('nu '))) ||
+           (nomeCartao.includes('itau') && (textoLimpo.includes('itau') || textoLimpo.includes('itaú'))) ||
+           (nomeCartao.includes('bradesco') && textoLimpo.includes('bradesco')) ||
+           (nomeCartao.includes('santander') && textoLimpo.includes('santander')) ||
+           (nomeCartao.includes('inter') && textoLimpo.includes('inter')) ||
+           (nomeCartao.includes('c6') && textoLimpo.includes('c6'));
+  });
+  
+  if (cartaoMencionado) {
+    // ✅ Cartão já identificado na resposta - pular pergunta!
+    console.log(`[FLUXO] Cartão "${cartaoMencionado.name}" detectado na resposta do usuário`);
+    
+    const resultado = await criarContaDiretamente(userId, {
+      tipo: 'installment',
+      descricao: dados.descricao as string,
+      valor: dados.valor as number,
+      diaVencimento: dados.diaVencimento as number,
+      parcelaAtual: dados.parcelaAtual as number,
+      totalParcelas: dados.totalParcelas as number,
+      recorrencia: 'unica',
+      paymentMethod: 'credit_card',
+      creditCardId: cartaoMencionado.id,
+      creditCardName: cartaoMencionado.name
+    });
+    
+    await limparContexto(userId);
+    return resultado.mensagem;
+  }
+  
+  // Se só tem 1 cartão, usa esse automaticamente
+  if (cartoes.length === 1) {
+    console.log(`[FLUXO] Usuário tem apenas 1 cartão: ${cartoes[0].name}`);
+    
+    const resultado = await criarContaDiretamente(userId, {
+      tipo: 'installment',
+      descricao: dados.descricao as string,
+      valor: dados.valor as number,
+      diaVencimento: dados.diaVencimento as number,
+      parcelaAtual: dados.parcelaAtual as number,
+      totalParcelas: dados.totalParcelas as number,
+      recorrencia: 'unica',
+      paymentMethod: 'credit_card',
+      creditCardId: cartoes[0].id,
+      creditCardName: cartoes[0].name
+    });
+    
+    await limparContexto(userId);
+    return resultado.mensagem;
+  }
+  
+  // Múltiplos cartões e não mencionou qual - perguntar
   await salvarContexto(userId, 'awaiting_installment_card_selection', {
     ...dados,
     cartoes
@@ -3241,7 +3596,7 @@ ${resultado.mensagem}
 
 ${opcoes}
 
-_Digite o número do cartão_`;
+_Digite o número ou nome do cartão_`;
 }
 
 // Handler para seleção de cartão no parcelamento
@@ -3339,4 +3694,308 @@ ${opcoes}`;
   }
   
   return resultado.mensagem;
+}
+
+// ============================================
+// FASE 3.3: HANDLERS DE REGISTRO DE PAGAMENTOS
+// ============================================
+
+// Handler para valor do pagamento (conta variável)
+async function processarValorPagamento(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const { marcarComoPago } = await import('./contas-pagar.ts');
+  
+  const dados = contexto.context_data || {};
+  const billId = dados.billId as string;
+  const descricao = dados.descricao as string;
+  
+  // Converter valor
+  const valor = converterExtensoParaNumero(texto);
+  
+  if (!valor || isNaN(valor) || valor <= 0) {
+    return `❓ Valor inválido. Digite o valor da conta de *${descricao}*.\n\n_Exemplo: "185" ou "R$ 185,00"_`;
+  }
+  
+  // Marcar como pago
+  const resultado = await marcarComoPago(userId, billId, valor);
+  
+  await limparContexto(userId);
+  return resultado.mensagem;
+}
+
+// Handler para nome da conta para pagamento
+async function processarNomeContaPagamento(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const { buscarContaPendente, marcarComoPago } = await import('./contas-pagar.ts');
+  
+  const nomeConta = texto.trim();
+  
+  if (!nomeConta) {
+    return `❓ Qual conta você pagou?\n\n💡 Exemplos:\n• _"luz"_\n• _"aluguel"_\n• _"netflix"_`;
+  }
+  
+  // Buscar conta pendente
+  const conta = await buscarContaPendente(userId, nomeConta);
+  
+  if (!conta) {
+    await limparContexto(userId);
+    return `❓ Não encontrei conta de *${nomeConta}* pendente.\n\n💡 Verifique:\n• _"contas a pagar"_ para ver suas contas`;
+  }
+  
+  // Se tem valor, marcar como pago direto
+  if (conta.amount) {
+    const resultado = await marcarComoPago(userId, conta.id, conta.amount);
+    await limparContexto(userId);
+    return resultado.mensagem;
+  }
+  
+  // Se não tem valor (conta variável), perguntar
+  await salvarContexto(userId, 'awaiting_payment_value' as ContextType, {
+    billId: conta.id,
+    descricao: conta.description
+  });
+  
+  return `💰 Quanto veio a conta de *${conta.description}*?\n\n_Digite o valor, ex: "185" ou "R$ 185,00"_`;
+}
+
+// Handler para seleção de conta bancária para pagamento
+async function processarSelecaoContaPagamento(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const supabase = getSupabase();
+  
+  const dados = contexto.context_data || {};
+  const billId = dados.billId as string;
+  const descricao = dados.descricao as string;
+  const valorFinal = dados.valorFinal as number;
+  const metodoPagamento = dados.metodoPagamento as string | undefined;
+  const contasDisponiveis = dados.contasDisponiveis as Array<{ id: string; name: string }> || [];
+  
+  if (!billId || !valorFinal) {
+    await limparContexto(userId);
+    return '❌ Erro no contexto. Por favor, tente novamente.';
+  }
+  
+  // Tentar identificar a conta pela resposta
+  const textoLower = texto.toLowerCase().trim();
+  let contaSelecionada: { id: string; name: string } | null = null;
+  
+  // Verificar se é um número (1, 2, 3...)
+  const numero = parseInt(textoLower, 10);
+  if (!isNaN(numero) && numero >= 1 && numero <= contasDisponiveis.length) {
+    contaSelecionada = contasDisponiveis[numero - 1];
+  }
+  
+  // Se não é número, tentar por nome
+  if (!contaSelecionada) {
+    for (const conta of contasDisponiveis) {
+      if (conta.name.toLowerCase().includes(textoLower) || textoLower.includes(conta.name.toLowerCase())) {
+        contaSelecionada = conta;
+        break;
+      }
+    }
+  }
+  
+  // Aliases de bancos
+  if (!contaSelecionada) {
+    const aliases: Record<string, string[]> = {
+      'nubank': ['nu', 'roxinho', 'roxo'],
+      'itau': ['itaú', 'ita', 'laranjinha'],
+      'bradesco': ['brades', 'vermelhinho'],
+      'inter': ['laranjão'],
+      'c6': ['pretinho', 'carbono'],
+    };
+    
+    for (const [banco, aliasesList] of Object.entries(aliases)) {
+      if (textoLower.includes(banco) || aliasesList.some(a => textoLower.includes(a))) {
+        for (const conta of contasDisponiveis) {
+          const contaNome = conta.name.toLowerCase();
+          if (contaNome.includes(banco) || aliasesList.some(a => contaNome.includes(a))) {
+            contaSelecionada = conta;
+            break;
+          }
+        }
+        if (contaSelecionada) break;
+      }
+    }
+  }
+  
+  if (!contaSelecionada) {
+    let msg = `❓ Não entendi. Digite o *número* ou *nome* da conta:\n\n`;
+    contasDisponiveis.forEach((c: { id: string; name: string }, i: number) => {
+      msg += `${i + 1}️⃣ ${c.name}\n`;
+    });
+    return msg;
+  }
+  
+  // Importar função de marcar como pago com transação
+  const { marcarComoPago } = await import('./contas-pagar.ts');
+  
+  // Buscar a conta a pagar
+  const { data: conta } = await supabase
+    .from('payable_bills')
+    .select('*')
+    .eq('id', billId)
+    .eq('user_id', userId)
+    .single();
+  
+  if (!conta) {
+    await limparContexto(userId);
+    return '❌ Conta não encontrada.';
+  }
+  
+  const agora = new Date().toISOString();
+  
+  // 1. Atualizar status para pago
+  await supabase
+    .from('payable_bills')
+    .update({
+      status: 'paid',
+      paid_at: agora,
+      paid_amount: valorFinal,
+      payment_method: metodoPagamento || conta.payment_method,
+      payment_account_id: contaSelecionada.id,
+      updated_at: agora
+    })
+    .eq('id', billId);
+  
+  // 2. Registrar no histórico
+  await supabase.from('bill_payment_history').insert({
+    bill_id: billId,
+    user_id: userId,
+    payment_date: agora,
+    amount_paid: valorFinal,
+    payment_method: metodoPagamento || conta.payment_method,
+    account_from_id: contaSelecionada.id
+  });
+  
+  // 3. Criar transação de despesa
+  await supabase
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      account_id: contaSelecionada.id,
+      type: 'expense',
+      amount: valorFinal,
+      description: `Pagamento: ${conta.description}`,
+      transaction_date: agora.split('T')[0],
+      is_recurring: false
+    });
+  
+  // 4. Atualizar saldo da conta (decrementa)
+  const { data: contaBancaria } = await supabase
+    .from('accounts')
+    .select('current_balance')
+    .eq('id', contaSelecionada.id)
+    .single();
+  
+  const novoSaldo = contaBancaria ? contaBancaria.current_balance - valorFinal : 0;
+  
+  if (contaBancaria) {
+    await supabase
+      .from('accounts')
+      .update({ current_balance: novoSaldo })
+      .eq('id', contaSelecionada.id);
+  }
+  
+  // 5. Buscar estatísticas do mês
+  const mesAtual = new Date().toISOString().slice(0, 7);
+  const { data: contasMes } = await supabase
+    .from('payable_bills')
+    .select('id, status')
+    .eq('user_id', userId)
+    .gte('due_date', `${mesAtual}-01`)
+    .lte('due_date', `${mesAtual}-31`);
+  
+  const totalContas = contasMes?.length || 0;
+  const contasPagas = contasMes?.filter((c: any) => c.status === 'paid').length || 0;
+  
+  // 6. Calcular total pago no mês
+  const { data: pagamentosMes } = await supabase
+    .from('payable_bills')
+    .select('paid_amount')
+    .eq('user_id', userId)
+    .eq('status', 'paid')
+    .gte('paid_at', `${mesAtual}-01`);
+  
+  const totalPagoMes = pagamentosMes?.reduce((sum: number, p: any) => sum + (p.paid_amount || 0), 0) || 0;
+  
+  await limparContexto(userId);
+  
+  const emoji = getEmojiConta(conta.description);
+  const emojiBanco = getEmojiBanco(contaSelecionada.name);
+  const mesNome = new Date().toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+  
+  // Formatar valor
+  const formatarMoeda = (valor: number) => `R$ ${valor.toFixed(2).replace('.', ',')}`;
+  
+  // Template completo
+  let msg = `✅ *Pagamento registrado!*\n\n`;
+  msg += `${emoji} *${conta.description}*\n`;
+  msg += `💰 ${formatarMoeda(valorFinal)}\n`;
+  
+  // Info de parcelas se for parcelamento/financiamento
+  if (conta.is_installment && conta.installment_number && conta.installment_total) {
+    msg += `📋 Parcela ${conta.installment_number}/${conta.installment_total}\n`;
+    const restante = (conta.installment_total - conta.installment_number) * valorFinal;
+    const parcelasRestantes = conta.installment_total - conta.installment_number;
+    msg += `💵 Restante: ${formatarMoeda(restante)} (${parcelasRestantes} parcelas)\n`;
+  }
+  
+  msg += `🏦 Conta: ${contaSelecionada.name}\n`;
+  
+  if (conta.due_date) {
+    const vencimento = new Date(conta.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    msg += `📅 Vencimento: ${vencimento}\n`;
+  }
+  
+  if (metodoPagamento) {
+    const metodoNomes: Record<string, string> = {
+      'pix': 'PIX', 'debit': 'Débito', 'credit': 'Crédito', 'boleto': 'Boleto',
+      'transfer': 'Transferência', 'cash': 'Dinheiro', 'auto_debit': 'Débito Automático'
+    };
+    msg += `💳 Via: ${metodoNomes[metodoPagamento] || metodoPagamento}\n`;
+  }
+  
+  msg += `\n━━━━━━━━━━━━━━━━━━━━\n`;
+  msg += `💳 Saldo ${contaSelecionada.name}: ${formatarMoeda(novoSaldo)}\n`;
+  msg += `📊 Contas pagas este mês: ${contasPagas}/${totalContas}\n`;
+  msg += `💸 Total pago em ${mesNome}: ${formatarMoeda(totalPagoMes)}\n`;
+  msg += `━━━━━━━━━━━━━━━━━━━━\n`;
+  
+  // Próxima parcela se for parcelamento
+  if (conta.is_installment && conta.installment_number && conta.installment_total && conta.installment_number < conta.installment_total) {
+    const proximaData = new Date(conta.due_date);
+    proximaData.setMonth(proximaData.getMonth() + 1);
+    const proximaFormatada = proximaData.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    msg += `\n🔄 Próxima: ${proximaFormatada}`;
+  }
+  
+  return msg;
+}
+
+// Mapeia bill_type para categoria de transação
+function mapBillTypeToCategory(billType: string): string {
+  const mapping: Record<string, string> = {
+    'service': 'Serviços',
+    'housing': 'Moradia',
+    'telecom': 'Telecomunicações',
+    'subscription': 'Assinaturas',
+    'loan': 'Empréstimos',
+    'insurance': 'Seguros',
+    'healthcare': 'Saúde',
+    'education': 'Educação',
+    'tax': 'Impostos',
+    'credit_card': 'Cartão de Crédito',
+    'other': 'Outros'
+  };
+  return mapping[billType] || 'Contas a Pagar';
 }
