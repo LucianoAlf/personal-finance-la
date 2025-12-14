@@ -18,7 +18,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { CreditCard } from '@/types/database.types';
-import { MoreVertical, Edit, BarChart3, FileText, RefreshCw, Archive, Trash2 } from 'lucide-react';
+import { MoreVertical, Edit, RefreshCw, Archive, Trash2 } from 'lucide-react';
+import { ReassignCategoriesDialog } from './ReassignCategoriesDialog';
 
 interface CreditCardMenuProps {
   card: CreditCard;
@@ -37,6 +38,7 @@ export function CreditCardMenu({
 }: CreditCardMenuProps) {
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [reassignDialogOpen, setReassignDialogOpen] = useState(false);
 
   return (
     <>
@@ -52,17 +54,7 @@ export function CreditCardMenu({
             Editar cartão
           </DropdownMenuItem>
           
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); /* TODO */ }}>
-            <BarChart3 size={16} className="mr-2" />
-            Gráfico de despesas
-          </DropdownMenuItem>
-          
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onViewInvoices(); }}>
-            <FileText size={16} className="mr-2" />
-            Histórico de faturas
-          </DropdownMenuItem>
-          
-          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); /* TODO */ }}>
+          <DropdownMenuItem onClick={(e) => { e.stopPropagation(); setReassignDialogOpen(true); }}>
             <RefreshCw size={16} className="mr-2" />
             Reassociar categorias
           </DropdownMenuItem>
@@ -148,6 +140,14 @@ export function CreditCardMenu({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog de Reassociar Categorias */}
+      <ReassignCategoriesDialog
+        open={reassignDialogOpen}
+        onOpenChange={setReassignDialogOpen}
+        cardId={card.id}
+        cardName={card.name}
+      />
     </>
   );
 }

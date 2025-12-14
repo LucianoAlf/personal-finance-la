@@ -8,7 +8,25 @@ export interface BillCategory {
   description?: string;
 }
 
+// ORDEM EXATA igual à tela de Contas a Pagar (Imagem 1)
+// 1. Assinaturas, 2. Serviços (Água, Luz, Gás), 3. Moradia, 4. Telecomunicações,
+// 5. Saúde, 6. Educação, 7. Alimentação, 8. Impostos e Taxas, 9. Seguros,
+// 10. Empréstimos, 11. Parcelamentos, 12. Cartão de Crédito, 13. Outros
 export const BILL_CATEGORIES: BillCategory[] = [
+  {
+    id: 'subscription',
+    name: 'Assinaturas',
+    icon: 'Play',
+    color: '#f59e0b',
+    description: 'Streaming, apps, clubes',
+  },
+  {
+    id: 'service',
+    name: 'Serviços (Água, Luz, Gás)',
+    icon: 'Zap',
+    color: '#10b981',
+    description: 'Água, luz, gás',
+  },
   {
     id: 'housing',
     name: 'Moradia',
@@ -24,18 +42,11 @@ export const BILL_CATEGORIES: BillCategory[] = [
     description: 'Internet, telefone, TV',
   },
   {
-    id: 'service',
-    name: 'Serviços Públicos',
-    icon: 'Zap',
-    color: '#10b981',
-    description: 'Água, luz, gás',
-  },
-  {
-    id: 'subscription',
-    name: 'Assinaturas',
-    icon: 'Play',
-    color: '#f59e0b',
-    description: 'Streaming, apps, clubes',
+    id: 'healthcare',
+    name: 'Saúde',
+    icon: 'Heart',
+    color: '#ec4899',
+    description: 'Plano de saúde, remédios',
   },
   {
     id: 'education',
@@ -45,11 +56,18 @@ export const BILL_CATEGORIES: BillCategory[] = [
     description: 'Escola, cursos, livros',
   },
   {
-    id: 'healthcare',
-    name: 'Saúde',
-    icon: 'Heart',
-    color: '#ec4899',
-    description: 'Plano de saúde, remédios',
+    id: 'food',
+    name: 'Alimentação',
+    icon: 'Utensils',
+    color: '#f97316',
+    description: 'Mercado, restaurantes',
+  },
+  {
+    id: 'tax',
+    name: 'Impostos e Taxas',
+    icon: 'Receipt',
+    color: '#ef4444',
+    description: 'IRPF, veículos, propriedades',
   },
   {
     id: 'insurance',
@@ -78,13 +96,6 @@ export const BILL_CATEGORIES: BillCategory[] = [
     icon: 'CreditCard',
     color: '#a855f7',
     description: 'Fatura do cartão',
-  },
-  {
-    id: 'tax',
-    name: 'Impostos',
-    icon: 'Receipt',
-    color: '#ef4444',
-    description: 'IRPF, veículos, propriedades',
   },
   {
     id: 'other',

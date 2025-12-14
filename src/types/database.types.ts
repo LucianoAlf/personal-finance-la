@@ -262,6 +262,7 @@ export interface CreditCard {
   account_id?: string;
   name: string;
   brand: CardBrand;
+  issuing_bank?: string;
   last_four_digits: string;
   credit_limit: number;
   available_limit: number;
@@ -279,6 +280,7 @@ export interface CreditCard {
 export interface CreateCreditCardInput {
   name: string;
   brand: CardBrand;
+  issuing_bank?: string;
   last_four_digits: string;
   credit_limit: number;
   closing_day: number;

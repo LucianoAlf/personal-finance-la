@@ -1,16 +1,20 @@
+import { useState, useEffect } from 'react';
 import { PeriodMetrics } from './PeriodMetrics';
 import { InsightsPanel } from './InsightsPanel';
 import { ChartsSection } from './ChartsSection';
 import { AdvancedAnalytics } from './AdvancedAnalytics';
+import { AnalyticsFilters, PeriodOption } from './AnalyticsFilters';
 import { useAnalytics } from '@/hooks/useAnalytics';
-import { useEffect } from 'react';
 
 export function AnalyticsTab() {
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodOption>('3m');
+  
   const { data, loading, error } = useAnalytics();
 
   useEffect(() => {
-    console.log('🔍 AnalyticsTab - Debug:', { data, loading, error });
-  }, [data, loading, error]);
+    console.log('🔍 AnalyticsTab - Debug:', { data, loading, error, selectedCardId, selectedPeriod });
+  }, [data, loading, error, selectedCardId, selectedPeriod]);
 
   if (error) {
     return (
@@ -35,6 +39,14 @@ export function AnalyticsTab() {
   try {
     return (
       <div className="space-y-8">
+        {/* Filtros */}
+        <AnalyticsFilters
+          selectedCardId={selectedCardId}
+          selectedPeriod={selectedPeriod}
+          onCardChange={setSelectedCardId}
+          onPeriodChange={setSelectedPeriod}
+        />
+
         {/* Seção 1: Métricas do Período */}
         <PeriodMetrics />
 
@@ -46,16 +58,6 @@ export function AnalyticsTab() {
 
         {/* Seção 4: Análises Avançadas */}
         <AdvancedAnalytics />
-
-        {/* Seções futuras - Em breve */}
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Mais seções em breve...
-          </h3>
-          <p className="text-gray-600">
-            Histórico completo e metas de gastos
-          </p>
-        </div>
       </div>
     );
   } catch (err) {

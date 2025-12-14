@@ -1,14 +1,13 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CreditCardInvoice, CreditCard } from '@/types/database.types';
 import { formatCurrency } from '@/utils/formatters';
-import { formatCardNumber, calculateUsagePercentage } from '@/utils/creditCardUtils';
-import { INVOICE_STATUS_LABELS } from '@/constants/creditCards';
+import { formatCardNumber, calculateUsagePercentage, getInvoiceStatusInfo } from '@/utils/creditCardUtils';
 import { differenceInDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { formatLongDateBR } from '@/lib/date-utils';
-import { FileText, Lock, CheckCircle, AlertCircle, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
+import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 
 interface InvoiceCardProps {
   invoice: CreditCardInvoice;
@@ -21,8 +20,18 @@ interface InvoiceCardProps {
 export function InvoiceCard({ invoice, card, isHighlighted = false, onViewDetails, onPayInvoice }: InvoiceCardProps) {
   const usagePercentage = calculateUsagePercentage(invoice.total_amount, card.credit_limit);
   const daysUntilDue = differenceInDays(new Date(invoice.due_date), new Date());
-  const isOverdue = invoice.status === 'overdue';
-  const isPaid = invoice.status === 'paid';
+  
+  // Usar status dinâmico calculado
+  const statusInfo = getInvoiceStatusInfo(
+    invoice.closing_date,
+    invoice.due_date,
+    invoice.total_amount,
+    invoice.paid_amount,
+    invoice.status
+  );
+  
+  const isOverdue = statusInfo.status === 'overdue';
+  const isPaid = statusInfo.status === 'paid';
 
   // Determinar cor da barra de progresso
   const getProgressColor = () => {
@@ -30,31 +39,6 @@ export function InvoiceCard({ invoice, card, isHighlighted = false, onViewDetail
     if (usagePercentage >= 70) return 'bg-orange-500';
     if (usagePercentage >= 50) return 'bg-yellow-500';
     return 'bg-green-500';
-  };
-
-  // Determinar variante do badge
-  const getBadgeVariant = (): "default" | "outline" | "success" | "warning" | "danger" | "info" => {
-    if (invoice.status === 'paid') return 'success';
-    if (invoice.status === 'overdue') return 'danger';
-    if (invoice.status === 'open') return 'info';
-    if (invoice.status === 'closed') return 'warning';
-    return 'default';
-  };
-
-  // Determinar ícone do status
-  const getStatusIcon = () => {
-    switch (invoice.status) {
-      case 'open':
-        return <FileText size={16} className="text-blue-600" />;
-      case 'closed':
-        return <Lock size={16} className="text-orange-600" />;
-      case 'paid':
-        return <CheckCircle size={16} className="text-green-600" />;
-      case 'overdue':
-        return <AlertCircle size={16} className="text-red-600" />;
-      default:
-        return <FileText size={16} />;
-    }
   };
 
   return (
@@ -78,12 +62,14 @@ export function InvoiceCard({ invoice, card, isHighlighted = false, onViewDetail
               Fatura de {format(new Date(invoice.reference_month), 'MMMM yyyy', { locale: ptBR })}
             </h3>
           </div>
-          <div className="flex items-center gap-2">
-            {getStatusIcon()}
-            <Badge variant={getBadgeVariant()}>
-              {INVOICE_STATUS_LABELS[invoice.status]}
-            </Badge>
-          </div>
+          <InvoiceStatusBadge
+            closingDate={invoice.closing_date}
+            dueDate={invoice.due_date}
+            totalAmount={invoice.total_amount}
+            paidAmount={invoice.paid_amount}
+            currentStatus={invoice.status}
+            size="md"
+          />
         </div>
 
         {/* Valores */}

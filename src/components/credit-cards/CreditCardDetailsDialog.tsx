@@ -8,6 +8,49 @@ import { CreditCard as CreditCardIcon, Calendar, TrendingUp, Wallet, AlertCircle
 import { CARD_BRANDS } from '@/constants/creditCards';
 import { calculateUsagePercentage, getUsageColor } from '@/utils/creditCardUtils';
 
+// Mapa de logos por banco (arquivos em /public/logos/banks/)
+const BANK_LOGOS: Record<string, string> = {
+  'nubank': '/logos/banks/nubank.svg',
+  'itau': '/logos/banks/itau.svg',
+};
+
+// Mapa de logos de bandeiras
+const BRAND_LOGOS: Record<string, string> = {
+  'mastercard': '/logos/banks/mastercard.svg',
+};
+
+// Função para detectar banco pelo nome do cartão
+function getBankLogo(cardName: string): string | null {
+  const name = cardName.toLowerCase();
+  if (name.includes('nubank') || name.includes('nu ') || name.includes('roxinho')) return BANK_LOGOS['nubank'];
+  if (name.includes('itau') || name.includes('itaú')) return BANK_LOGOS['itau'];
+  return null;
+}
+
+// Componente Contactless
+function ContactlessIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M8.5 14.5c2-2 5-2 7 0"/>
+      <path d="M5.5 11.5c4-4 9-4 13 0"/>
+      <path d="M2.5 8.5c6-6 13-6 19 0"/>
+    </svg>
+  );
+}
+
+// Componente Chip
+function ChipIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 36" className={className}>
+      <rect x="2" y="2" width="44" height="32" rx="4" fill="#D4AF37" stroke="#B8960C" strokeWidth="1"/>
+      <rect x="8" y="8" width="12" height="8" fill="#C5A028" />
+      <rect x="8" y="20" width="12" height="8" fill="#C5A028" />
+      <rect x="24" y="8" width="16" height="20" fill="#E8C547" opacity="0.6"/>
+      <line x1="8" y1="18" x2="40" y2="18" stroke="#B8960C" strokeWidth="1"/>
+    </svg>
+  );
+}
+
 interface CreditCardDetailsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -40,39 +83,68 @@ export function CreditCardDetailsDialog({ open, onOpenChange, card }: CreditCard
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Card Visual */}
+          {/* Card Visual - Proporção real de cartão de crédito */}
           <div
-            className="rounded-2xl p-6 text-white shadow-lg"
-            style={{ backgroundColor: card.color || '#6366f1' }}
+            className="relative rounded-2xl p-6 text-white shadow-lg"
+            style={{ 
+              backgroundColor: card.color || '#8A05BE',
+              aspectRatio: '1.586 / 1',
+            }}
           >
-            <div className="flex items-start justify-between mb-8">
-              <div>
-                {brand && (
-                  <div className="text-sm font-medium opacity-90 mb-1">{brand.name}</div>
-                )}
-                <div className="text-2xl font-bold">{card.name}</div>
-              </div>
-              <div className="text-sm opacity-75">
-                {brand?.icon && <span className="text-2xl">{brand.icon}</span>}
-              </div>
+            {/* Header: Logo do banco + Bandeira */}
+            <div className="flex justify-between items-start">
+              {/* Logo do banco (topo esquerdo) */}
+              {getBankLogo(card.name) ? (
+                <img 
+                  src={getBankLogo(card.name)!} 
+                  alt="Logo do banco"
+                  className="h-12 w-auto"
+                />
+              ) : (
+                <div className="h-12" />
+              )}
+
+              {/* Bandeira (topo direito) */}
+              {BRAND_LOGOS[card.brand] ? (
+                <img 
+                  src={BRAND_LOGOS[card.brand]} 
+                  alt={brand?.name}
+                  className="h-8 w-auto"
+                />
+              ) : (
+                <span className="text-sm font-medium uppercase opacity-80">
+                  {brand?.name}
+                </span>
+              )}
             </div>
 
-            <div className="space-y-4">
-              <div>
-                <div className="text-sm opacity-75 mb-1">Número do Cartão</div>
-                <div className="text-xl font-mono tracking-wider">
-                  •••• •••• •••• {card.last_four_digits}
-                </div>
-              </div>
+            {/* Chip (centro-direita) */}
+            <div className="absolute top-1/2 right-6 -translate-y-1/2">
+              <ChipIcon className="h-10 w-14" />
+            </div>
 
-              <div className="grid grid-cols-2 gap-4">
+            {/* Footer: Nome + Dígitos + Vencimento/Fechamento + Crédito/Contactless */}
+            <div className="absolute bottom-6 left-6 right-6">
+              <div className="flex justify-between items-end">
                 <div>
-                  <div className="text-xs opacity-75 mb-1">Vencimento</div>
-                  <div className="text-sm font-medium">Dia {card.due_day}</div>
+                  <div className="text-white text-lg font-medium mb-1">{card.name}</div>
+                  <div className="text-white/70 text-sm font-mono tracking-widest mb-3">
+                    •••• •••• •••• {card.last_four_digits}
+                  </div>
+                  <div className="flex gap-6 text-xs">
+                    <div>
+                      <div className="text-white/60 mb-0.5">Vencimento</div>
+                      <div className="text-white font-medium">Dia {card.due_day}</div>
+                    </div>
+                    <div>
+                      <div className="text-white/60 mb-0.5">Fechamento</div>
+                      <div className="text-white font-medium">Dia {card.closing_day}</div>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-xs opacity-75 mb-1">Fechamento</div>
-                  <div className="text-sm font-medium">Dia {card.closing_day}</div>
+                <div className="flex items-center gap-2 text-white/60">
+                  <span className="text-xs">crédito</span>
+                  <ContactlessIcon className="h-5 w-5" />
                 </div>
               </div>
             </div>

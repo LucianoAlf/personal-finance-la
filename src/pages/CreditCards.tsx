@@ -11,7 +11,9 @@ import { InvoiceList } from '@/components/invoices/InvoiceList';
 import { InvoiceDetailsDialog } from '@/components/invoices/InvoiceDetailsDialog';
 import { InvoicePaymentDialog } from '@/components/invoices/InvoicePaymentDialog';
 import { InvoiceHistory } from '@/components/invoices/InvoiceHistory';
+import { DeleteInvoiceDialog } from '@/components/invoices/DeleteInvoiceDialog';
 import { AnalyticsTab } from '@/components/analytics/AnalyticsTab';
+import { CreditCardAlerts } from '@/components/credit-cards/CreditCardAlerts';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
@@ -45,6 +47,8 @@ export function CreditCards() {
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string>('');
   const [selectedInvoice, setSelectedInvoice] = useState<CreditCardInvoice | undefined>();
   const [highlightedInvoiceId, setHighlightedInvoiceId] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
   const invoicesRef = useRef<HTMLDivElement>(null);
 
   const handleEdit = (card: CreditCardSummary) => {
@@ -132,6 +136,9 @@ export function CreditCards() {
       />
 
       <div className="p-6 space-y-6">
+        {/* Alertas Proativos */}
+        <CreditCardAlerts cards={cardsSummary} />
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
           <StatCard
@@ -184,6 +191,11 @@ export function CreditCards() {
               onArchive={handleArchive}
               onDelete={handleDelete}
               onViewDetails={handleViewDetails}
+              onPayInvoice={(card) => {
+                if (card.current_invoice_id) {
+                  handlePayInvoice(card.current_invoice_id);
+                }
+              }}
               onAddNew={() => { setSelectedCard(undefined); setDialogOpen(true); }}
             />
           </TabsContent>
@@ -209,11 +221,8 @@ export function CreditCards() {
             <InvoiceHistory 
               onEditInvoice={(id) => handleViewInvoiceDetails(id)}
               onDeleteInvoice={(id) => {
-                toast({
-                  title: 'Excluir fatura',
-                  description: 'Funcionalidade em desenvolvimento',
-                  variant: 'destructive',
-                });
+                setInvoiceToDelete(id);
+                setDeleteDialogOpen(true);
               }}
             />
           </TabsContent>
@@ -293,6 +302,23 @@ export function CreditCards() {
           open={cardDetailsDialogOpen}
           onOpenChange={setCardDetailsDialogOpen}
           card={selectedCardForDetails as any}
+        />
+      )}
+
+      {/* Dialog Excluir Fatura */}
+      {invoiceToDelete && (
+        <DeleteInvoiceDialog
+          open={deleteDialogOpen}
+          onOpenChange={(open) => {
+            setDeleteDialogOpen(open);
+            if (!open) setInvoiceToDelete(null);
+          }}
+          invoiceId={invoiceToDelete}
+          onSuccess={() => {
+            setInvoiceToDelete(null);
+            fetchCards();
+            fetchCardsSummary();
+          }}
         />
       )}
     </div>

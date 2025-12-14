@@ -208,3 +208,158 @@ export function calculateDueDate(referenceMonth: Date, dueDay: number): Date {
   due.setDate(dueDay);
   return due;
 }
+
+/**
+ * Tipo de status dinâmico da fatura
+ */
+export type DynamicInvoiceStatus = 'open' | 'closed' | 'due_soon' | 'overdue' | 'paid' | 'partial';
+
+/**
+ * Calcular status dinâmico da fatura baseado nas datas e valores
+ * 
+ * Lógica:
+ * - open: Antes da data de fechamento (período de compras)
+ * - closed: Após fechamento, antes do vencimento (aguardando pagamento)
+ * - due_soon: Fatura fechada que vence em até 3 dias
+ * - overdue: Passou do vencimento sem pagamento total
+ * - paid: Fatura quitada
+ * - partial: Pagamento parcial realizado
+ */
+export function calculateDynamicInvoiceStatus(
+  closingDate: Date | string,
+  dueDate: Date | string,
+  totalAmount: number,
+  paidAmount: number,
+  currentStatus: string
+): DynamicInvoiceStatus {
+  const now = new Date();
+  const closing = new Date(closingDate);
+  const due = new Date(dueDate);
+  
+  // Se já está paga, mantém
+  if (currentStatus === 'paid' || paidAmount >= totalAmount) {
+    return 'paid';
+  }
+  
+  // Se tem pagamento parcial
+  if (paidAmount > 0 && paidAmount < totalAmount) {
+    // Verificar se está vencida
+    if (now > due) {
+      return 'overdue';
+    }
+    return 'partial';
+  }
+  
+  // Sem pagamento
+  // Verificar se está vencida
+  if (now > due) {
+    return 'overdue';
+  }
+  
+  // Verificar se ainda está aberta (antes do fechamento)
+  if (now < closing) {
+    return 'open';
+  }
+  
+  // Após fechamento, verificar se vence em breve (3 dias)
+  const daysUntil = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysUntil <= 3) {
+    return 'due_soon';
+  }
+  
+  // Fechada, aguardando pagamento
+  return 'closed';
+}
+
+/**
+ * Obter informações detalhadas do status da fatura
+ */
+export function getInvoiceStatusInfo(
+  closingDate: Date | string,
+  dueDate: Date | string,
+  totalAmount: number,
+  paidAmount: number,
+  currentStatus: string
+): {
+  status: DynamicInvoiceStatus;
+  label: string;
+  description: string;
+  daysUntilDue: number;
+  daysOverdue: number;
+  isUrgent: boolean;
+  canAddPurchases: boolean;
+} {
+  const status = calculateDynamicInvoiceStatus(closingDate, dueDate, totalAmount, paidAmount, currentStatus);
+  const now = new Date();
+  const due = new Date(dueDate);
+  const closing = new Date(closingDate);
+  
+  const daysUntilDue = Math.ceil((due.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  const daysOverdue = daysUntilDue < 0 ? Math.abs(daysUntilDue) : 0;
+  
+  const statusLabels: Record<DynamicInvoiceStatus, { label: string; description: string }> = {
+    open: { 
+      label: 'Aberta', 
+      description: 'Período de compras em andamento' 
+    },
+    closed: { 
+      label: 'Fechada', 
+      description: `Vence em ${daysUntilDue} dias` 
+    },
+    due_soon: { 
+      label: 'Vence em breve', 
+      description: daysUntilDue === 0 ? 'Vence hoje!' : `Vence em ${daysUntilDue} dia${daysUntilDue > 1 ? 's' : ''}` 
+    },
+    overdue: { 
+      label: 'Vencida', 
+      description: `Atrasada há ${daysOverdue} dia${daysOverdue > 1 ? 's' : ''}` 
+    },
+    paid: { 
+      label: 'Paga', 
+      description: 'Fatura quitada' 
+    },
+    partial: { 
+      label: 'Parcial', 
+      description: `Falta pagar R$ ${(totalAmount - paidAmount).toFixed(2)}` 
+    },
+  };
+  
+  return {
+    status,
+    label: statusLabels[status].label,
+    description: statusLabels[status].description,
+    daysUntilDue,
+    daysOverdue,
+    isUrgent: status === 'overdue' || status === 'due_soon',
+    canAddPurchases: status === 'open',
+  };
+}
+
+/**
+ * Calcular limite comprometido com parcelas futuras
+ */
+export interface LimitBreakdown {
+  totalLimit: number;
+  currentInvoice: number;
+  futureInstallments: number;
+  availableReal: number;
+  usagePercentage: number;
+}
+
+export function calculateLimitBreakdown(
+  creditLimit: number,
+  currentInvoiceAmount: number,
+  futureInstallmentsTotal: number
+): LimitBreakdown {
+  const totalUsed = currentInvoiceAmount + futureInstallmentsTotal;
+  const availableReal = Math.max(0, creditLimit - totalUsed);
+  const usagePercentage = creditLimit > 0 ? Math.round((totalUsed / creditLimit) * 100) : 0;
+  
+  return {
+    totalLimit: creditLimit,
+    currentInvoice: currentInvoiceAmount,
+    futureInstallments: futureInstallmentsTotal,
+    availableReal,
+    usagePercentage,
+  };
+}

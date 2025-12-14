@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { CreditCard, CardBrand } from '@/types/database.types';
 import { CARD_BRANDS, DEFAULT_CARD_COLORS } from '@/constants/creditCards';
+import { BANK_LIST, getBankByCode } from '@/constants/banks';
 import { formatCurrency } from '@/utils/formatters';
 import { formatCardNumber } from '@/utils/creditCardUtils';
 
@@ -23,6 +24,7 @@ const creditCardSchema = z.object({
   brand: z.enum(['visa', 'mastercard', 'elo', 'amex', 'hipercard', 'diners'], {
     errorMap: () => ({ message: 'Selecione uma bandeira' }),
   }),
+  issuing_bank: z.string().optional(),
   last_four_digits: z
     .string()
     .length(4, 'Informe os 4 últimos dígitos')
@@ -59,6 +61,7 @@ export function CreditCardForm({ card, onSubmit, onCancel, loading }: CreditCard
       ? {
           name: card.name,
           brand: card.brand,
+          issuing_bank: card.issuing_bank || '',
           last_four_digits: card.last_four_digits,
           credit_limit: card.credit_limit,
           closing_day: card.closing_day,
@@ -70,6 +73,7 @@ export function CreditCardForm({ card, onSubmit, onCancel, loading }: CreditCard
           color: DEFAULT_CARD_COLORS[0],
           closing_day: 1,
           due_day: 10,
+          issuing_bank: '',
         },
   });
 
@@ -92,31 +96,58 @@ export function CreditCardForm({ card, onSubmit, onCancel, loading }: CreditCard
         {errors.name && <p className="text-sm text-red-500">{errors.name.message}</p>}
       </div>
 
-      {/* Bandeira */}
-      <div className="space-y-2">
-        <Label htmlFor="brand">Bandeira *</Label>
-        <Select
-          onValueChange={(value) => setValue('brand', value as CardBrand)}
-          defaultValue={card?.brand}
-        >
-          <SelectTrigger className={errors.brand ? 'border-red-500' : ''}>
-            <SelectValue placeholder="Selecione a bandeira" />
-          </SelectTrigger>
-          <SelectContent>
-            {Object.entries(CARD_BRANDS).map(([key, brand]) => (
-              <SelectItem key={key} value={key}>
-                <div className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: brand.color }}
-                  />
-                  {brand.name}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {errors.brand && <p className="text-sm text-red-500">{errors.brand.message}</p>}
+      {/* Bandeira e Banco Emissor */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="brand">Bandeira *</Label>
+          <Select
+            onValueChange={(value) => setValue('brand', value as CardBrand)}
+            defaultValue={card?.brand}
+          >
+            <SelectTrigger className={errors.brand ? 'border-red-500' : ''}>
+              <SelectValue placeholder="Selecione a bandeira" />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(CARD_BRANDS).map(([key, brand]) => (
+                <SelectItem key={key} value={key}>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: brand.color }}
+                    />
+                    {brand.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {errors.brand && <p className="text-sm text-red-500">{errors.brand.message}</p>}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="issuing_bank">Banco Emissor</Label>
+          <Select
+            onValueChange={(value) => setValue('issuing_bank', value)}
+            defaultValue={card?.issuing_bank || ''}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Selecione o banco" />
+            </SelectTrigger>
+            <SelectContent>
+              {BANK_LIST.map((bank) => (
+                <SelectItem key={bank.code} value={bank.code}>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: bank.color }}
+                    />
+                    {bank.shortName}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Últimos 4 Dígitos */}

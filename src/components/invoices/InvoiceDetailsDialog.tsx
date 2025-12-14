@@ -5,6 +5,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { InvoiceSummary } from './InvoiceSummary';
 import { InvoiceTransactionsList } from './InvoiceTransactionsList';
 import { InvoicePaymentHistory } from './InvoicePaymentHistory';
+import { InvoiceComparison } from './InvoiceComparison';
+import { InstallmentTimeline } from './InstallmentTimeline';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { formatCurrency } from '@/utils/formatters';
@@ -12,7 +14,7 @@ import { INVOICE_STATUS_LABELS } from '@/constants/creditCards';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Receipt, History } from 'lucide-react';
+import { Receipt, History, BarChart3, Calendar } from 'lucide-react';
 
 interface InvoiceDetailsDialogProps {
   open: boolean;
@@ -123,26 +125,52 @@ export function InvoiceDetailsDialog({
             )}
           </div>
 
-          {/* Gráfico de Despesas */}
-          <div>
-            <InvoiceSummary invoiceId={invoiceId} />
-          </div>
+          {/* Comparativo com Mês Anterior */}
+          <InvoiceComparison
+            invoiceId={invoiceId}
+            creditCardId={invoice.credit_card_id}
+            referenceMonth={typeof invoice.reference_month === 'string' ? invoice.reference_month : format(new Date(invoice.reference_month), 'yyyy-MM-dd')}
+            currentTotal={invoice.total_amount}
+          />
 
-          {/* Tabs: Transações e Histórico de Pagamentos */}
+          {/* Tabs: Transações, Categorias, Parcelas e Pagamentos */}
           <Tabs defaultValue="transactions" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="transactions" className="flex items-center gap-2">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="transactions" className="flex items-center gap-1 text-xs sm:text-sm">
                 <Receipt className="h-4 w-4" />
-                Transações
+                <span className="hidden sm:inline">Transações</span>
+                <span className="sm:hidden">Trans.</span>
               </TabsTrigger>
-              <TabsTrigger value="payments" className="flex items-center gap-2">
+              <TabsTrigger value="categories" className="flex items-center gap-1 text-xs sm:text-sm">
+                <BarChart3 className="h-4 w-4" />
+                <span className="hidden sm:inline">Categorias</span>
+                <span className="sm:hidden">Cat.</span>
+              </TabsTrigger>
+              <TabsTrigger value="installments" className="flex items-center gap-1 text-xs sm:text-sm">
+                <Calendar className="h-4 w-4" />
+                <span className="hidden sm:inline">Parcelas</span>
+                <span className="sm:hidden">Parc.</span>
+              </TabsTrigger>
+              <TabsTrigger value="payments" className="flex items-center gap-1 text-xs sm:text-sm">
                 <History className="h-4 w-4" />
-                Histórico de Pagamentos
+                <span className="hidden sm:inline">Pagamentos</span>
+                <span className="sm:hidden">Pag.</span>
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="transactions" className="mt-4">
               <InvoiceTransactionsList invoiceId={invoiceId} />
+            </TabsContent>
+
+            <TabsContent value="categories" className="mt-4">
+              <InvoiceSummary invoiceId={invoiceId} />
+            </TabsContent>
+
+            <TabsContent value="installments" className="mt-4">
+              <InstallmentTimeline 
+                invoiceId={invoiceId} 
+                creditCardId={invoice.credit_card_id}
+              />
             </TabsContent>
 
             <TabsContent value="payments" className="mt-4">
