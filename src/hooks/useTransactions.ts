@@ -114,6 +114,11 @@ export const useTransactions = () => {
       }
 
       console.log('📊 Transações de cartão encontradas:', ccData?.length || 0);
+      console.log('📊 Dados brutos de cartão:', ccData?.map((c: any) => ({ 
+        desc: c.description, 
+        is_installment: c.is_installment, 
+        total: c.total_installments 
+      })));
       
       // Mapear transações de cartão para o formato de Transaction
       const creditCardTransactions = (ccData || []).map((cc: any) => ({
