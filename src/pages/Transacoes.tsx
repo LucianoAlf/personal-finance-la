@@ -78,8 +78,39 @@ export const Transacoes = () => {
       .replace(/[\u0300-\u036f]/g, '');
   };
 
+  // EXPANDIR PARCELAMENTOS: Gerar parcelas virtuais para cada mês
+  const expandedTransactions = transactions.flatMap(t => {
+    // Se NÃO é parcelamento, retorna a transação normal
+    if (!t.is_installment || !t.total_installments || t.total_installments <= 1) {
+      return [t];
+    }
+
+    // Para parcelamentos: gerar uma "parcela virtual" para cada mês
+    const installments = [];
+    const purchaseDate = new Date(t.transaction_date + 'T00:00:00');
+    
+    for (let i = 0; i < t.total_installments; i++) {
+      const installmentDate = new Date(purchaseDate);
+      installmentDate.setMonth(installmentDate.getMonth() + i);
+      
+      const installmentYearMonth = `${installmentDate.getFullYear()}-${String(installmentDate.getMonth() + 1).padStart(2, '0')}`;
+      const installmentDay = String(purchaseDate.getDate()).padStart(2, '0');
+      
+      installments.push({
+        ...t,
+        id: `${t.id}-installment-${i + 1}`, // ID único para cada parcela virtual
+        transaction_date: `${installmentYearMonth}-${installmentDay}`,
+        description: `${t.description} (${i + 1}/${t.total_installments})`,
+        installment_number: i + 1,
+        // Manter o valor da parcela (já está correto no registro pai)
+      });
+    }
+    
+    return installments;
+  });
+
   // FILTRAR TRANSAÇÕES POR MÊS SELECIONADO
-  let filteredTransactions = transactions.filter(t => {
+  let filteredTransactions = expandedTransactions.filter(t => {
     const selectedYear = selectedDate.getFullYear();
     const selectedMonth = String(selectedDate.getMonth() + 1).padStart(2, '0');
     const selectedYearMonth = `${selectedYear}-${selectedMonth}`;
