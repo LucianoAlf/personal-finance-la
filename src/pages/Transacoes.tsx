@@ -78,12 +78,18 @@ export const Transacoes = () => {
       .replace(/[\u0300-\u036f]/g, '');
   };
 
+  // DEBUG: Verificar transações com parcelamento
+  const installmentTransactions = transactions.filter(t => t.is_installment);
+  console.log('🔍 Transações com parcelamento:', installmentTransactions.length, installmentTransactions);
+
   // EXPANDIR PARCELAMENTOS: Gerar parcelas virtuais para cada mês
   const expandedTransactions = transactions.flatMap(t => {
     // Se NÃO é parcelamento, retorna a transação normal
     if (!t.is_installment || !t.total_installments || t.total_installments <= 1) {
       return [t];
     }
+    
+    console.log('📦 Expandindo parcelamento:', t.description, 'total_installments:', t.total_installments);
 
     // Para parcelamentos: gerar uma "parcela virtual" para cada mês
     const installments = [];
