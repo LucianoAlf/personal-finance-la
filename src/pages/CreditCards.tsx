@@ -164,7 +164,7 @@ export function CreditCards() {
             value={formatCurrency(getCurrentMonthInvoicesTotal().total)}
             icon={Receipt}
             gradient="red"
-            subtitle={`${getCurrentMonthInvoicesTotal().monthName} • ${getCurrentMonthInvoicesTotal().count} cartão(ões)`}
+            subtitle={`${getCurrentMonthInvoicesTotal().monthName} • ${getCurrentMonthInvoicesTotal().count} ${getCurrentMonthInvoicesTotal().count === 1 ? 'cartão' : 'cartões'}`}
           />
         </div>
 
