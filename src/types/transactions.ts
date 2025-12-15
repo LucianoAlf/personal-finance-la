@@ -18,6 +18,14 @@ export interface Transaction {
   transfer_to_account_id?: string;
   created_at: string;
   updated_at: string;
+  // Campos de parcelamento (transações de cartão)
+  is_installment?: boolean;
+  installment_number?: number;
+  total_installments?: number;
+  installment_group_id?: string;
+  total_amount?: number;
+  credit_card_id?: string;
+  credit_card_name?: string;
   
   // Joins (quando buscar com relacionamentos)
   category?: {

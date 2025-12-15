@@ -96,6 +96,11 @@ export const useTransactions = () => {
           purchase_date,
           created_at,
           credit_card_id,
+          is_installment,
+          installment_number,
+          total_installments,
+          installment_group_id,
+          total_amount,
           category:categories(id, name, icon, color),
           credit_card:credit_cards(id, name, color)
         `)
@@ -140,6 +145,12 @@ export const useTransactions = () => {
         tags: [],
         credit_card_id: cc.credit_card_id,
         credit_card_name: cc.credit_card?.name,
+        // Campos de parcelamento
+        is_installment: cc.is_installment || false,
+        installment_number: cc.installment_number,
+        total_installments: cc.total_installments,
+        installment_group_id: cc.installment_group_id,
+        total_amount: cc.total_amount,
       }));
 
       // Combinar e ordenar
