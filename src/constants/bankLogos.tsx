@@ -1,24 +1,16 @@
 // Imports estáticos (seguro em Vite + ESM)
 import type { ComponentType } from 'react';
-// Logos SVG customizados (inline)
-import { 
-  NubankLogo,
-  ItauLogo,
-  BradescoLogo,
-  SantanderLogo,
-  BancoDoBrasilLogo,
-  CaixaLogo,
-  InterLogo,
-  C6Logo,
-} from '@/assets/bank-logos/bank-logos';
-// Fallbacks (lucide e react-icons)
+// Logos oficiais (react-icons)
 import { 
   FaUniversity,
   FaWallet,
   FaCreditCard,
   FaMoneyBillWave,
   FaPiggyBank,
+  FaLandmark,
 } from 'react-icons/fa';
+import { SiNubank } from 'react-icons/si';
+// Fallbacks (lucide)
 import { 
   Building2, 
   Wallet,
@@ -26,10 +18,10 @@ import {
 
 // Mapeamento de códigos de banco para logos
 export const BANK_LOGOS: Record<string, ComponentType<any>> = {
-  // Bancos Digitais - Logos SVG customizados
-  'nubank': NubankLogo, // 🟣 Logo oficial do Nubank
-  'c6': C6Logo, // ⚫ C6 Bank
-  'inter': InterLogo, // 🟠 Inter
+  // Bancos Digitais - Com logos oficiais
+  'nubank': SiNubank, // 🟣 Logo oficial do Nubank
+  'c6': Building2, // ⚫ C6 Bank (moderno)
+  'inter': FaLandmark, // 🟠 Inter (banco digital)
   'neon': FaCreditCard, // 🟢 Neon (cartão)
   'next': Building2, // 🟢 Next
   'original': Building2, // 🟢 Original
@@ -37,12 +29,12 @@ export const BANK_LOGOS: Record<string, ComponentType<any>> = {
   'mercadopago': FaMoneyBillWave, // 🔵 Mercado Pago
   'picpay': FaWallet, // 🟢 PicPay
   
-  // Bancos Tradicionais - Logos SVG customizados
-  'itau': ItauLogo, // 🟠 Itaú
-  'bradesco': BradescoLogo, // 🔴 Bradesco
-  'santander': SantanderLogo, // 🔴 Santander
-  'bb': BancoDoBrasilLogo, // 🟡 Banco do Brasil
-  'caixa': CaixaLogo, // 🔵 Caixa Econômica
+  // Bancos Tradicionais - Ícones profissionais
+  'itau': FaUniversity, // 🟠 Itaú
+  'bradesco': FaUniversity, // 🔴 Bradesco
+  'santander': FaUniversity, // 🔴 Santander
+  'bb': FaUniversity, // 🟡 Banco do Brasil
+  'caixa': FaUniversity, // 🔵 Caixa Econômica
   'safra': FaUniversity, // 🔵 Safra
   'banrisul': FaUniversity, // 🔵 Banrisul
   'sicoob': FaUniversity, // 🟢 Sicoob
