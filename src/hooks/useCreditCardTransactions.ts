@@ -88,52 +88,40 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
     }
   };
 
-  // Criar transação parcelada
+  // Criar transação parcelada (REFATORADO: 1 registro pai, parcelas calculadas dinamicamente)
   const createInstallmentTransaction = async (
     input: CreateInstallmentInput
   ): Promise<CreditCardTransaction[] | null> => {
     if (!user) return null;
 
     try {
-      // Buscar dados do cartão
-      const { data: card, error: cardError } = await supabase
-        .from('credit_cards')
-        .select('closing_day')
-        .eq('id', input.credit_card_id)
-        .single();
-
-      if (cardError) throw cardError;
-
-      // Gerar plano de parcelas
-      const installmentPlan = generateInstallments(
-        input.amount,
-        input.total_installments,
-        input.purchase_date,
-        card.closing_day
-      );
-
-      // Gerar UUID para agrupar parcelas
+      // Calcular valor da parcela
+      const installmentAmount = input.amount / input.total_installments;
+      
+      // Gerar UUID para identificar o grupo (mesmo que seja 1 registro)
       const groupId = crypto.randomUUID();
 
-      // Criar todas as parcelas
-      const installments = installmentPlan.map((plan, index) => ({
+      // Criar APENAS 1 registro pai com todos os dados do parcelamento
+      const parentTransaction = {
         user_id: user.id,
         credit_card_id: input.credit_card_id,
         description: input.description,
-        amount: plan.amount,
+        amount: Math.round(installmentAmount * 100) / 100, // Valor da parcela
+        total_amount: input.amount, // Valor total da compra
         purchase_date: input.purchase_date,
         category_id: input.category_id,
         establishment: input.establishment,
         notes: input.notes,
         is_installment: true,
-        installment_number: plan.installment_number,
+        is_parent_installment: true, // Indica que é registro pai
+        installment_number: 1, // Começa na parcela 1
         total_installments: input.total_installments,
         installment_group_id: groupId,
-      }));
+      };
 
       const { data, error: createError } = await supabase
         .from('credit_card_transactions')
-        .insert(installments)
+        .insert(parentTransaction)
         .select();
 
       if (createError) throw createError;

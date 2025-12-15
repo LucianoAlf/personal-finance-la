@@ -337,8 +337,10 @@ export interface CreditCardTransaction {
   category_id?: string;
   description: string;
   amount: number;
+  total_amount?: number; // Valor total da compra parcelada
   purchase_date: Date;
   is_installment: boolean;
+  is_parent_installment?: boolean; // True se for registro pai de parcelamento
   installment_number?: number;
   total_installments?: number;
   installment_group_id?: string;
@@ -348,6 +350,10 @@ export interface CreditCardTransaction {
   source: TransactionSource;
   created_at: Date;
   updated_at: Date;
+  // Campos da view (opcionais)
+  credit_card_name?: string;
+  category_name?: string;
+  category_icon?: string;
 }
 
 export interface CreateCreditCardTransactionInput {
