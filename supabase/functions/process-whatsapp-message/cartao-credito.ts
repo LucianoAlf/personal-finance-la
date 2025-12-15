@@ -2104,7 +2104,7 @@ export async function compararMeses(userId: string, nomeCartao?: string): Promis
 export async function registrarCompraCartao(
   userId: string,
   dados: DadosCompraCartao
-): Promise<{ sucesso: boolean; mensagem: string }> {
+): Promise<{ sucesso: boolean; mensagem: string; transactionId?: string }> {
   const supabase = getSupabase();
   
   try {
@@ -2145,32 +2145,32 @@ export async function registrarCompraCartao(
       console.log('[CARTAO] Categoria detectada:', categoriaId);
     }
     
-    // Criar transações (uma para cada parcela)
-    const transacoes = [];
+    // ✅ CORREÇÃO: Criar apenas 1 registro PAI para parcelamentos
+    // O frontend gera as parcelas virtuais dinamicamente
     const installmentGroupId = dados.parcelas > 1 ? crypto.randomUUID() : null;
     
-    for (let i = 1; i <= dados.parcelas; i++) {
-      transacoes.push({
-        user_id: userId,
-        credit_card_id: dados.cartao_id,
-        invoice_id: invoiceId, // ← ASSOCIAR À FATURA!
-        category_id: categoriaId || null,
-        amount: valorParcela,
-        description: dados.parcelas > 1 
-          ? `${dados.descricao} (${i}/${dados.parcelas})` 
-          : dados.descricao,
-        purchase_date: dados.data_compra,
-        is_installment: dados.parcelas > 1,
-        total_installments: dados.parcelas,
-        installment_number: i,
-        installment_group_id: installmentGroupId,
-        source: 'whatsapp'
-      });
-    }
+    const transacaoUnica = {
+      user_id: userId,
+      credit_card_id: dados.cartao_id,
+      invoice_id: invoiceId,
+      category_id: categoriaId || null,
+      amount: valorParcela, // Valor da parcela mensal
+      description: dados.descricao, // Sem sufixo (1/5) - frontend adiciona
+      purchase_date: dados.data_compra,
+      is_installment: dados.parcelas > 1,
+      total_installments: dados.parcelas,
+      installment_number: 1, // Sempre 1 (registro pai)
+      installment_group_id: installmentGroupId,
+      is_parent_installment: dados.parcelas > 1, // Marca como pai
+      total_amount: dados.valor, // Valor total da compra
+      source: 'whatsapp'
+    };
     
-    const { error: insertError } = await supabase
+    const { data: insertedData, error: insertError } = await supabase
       .from('credit_card_transactions')
-      .insert(transacoes);
+      .insert([transacaoUnica])
+      .select('id')
+      .single();
     
     // Atualizar total da fatura
     if (invoiceId) {
@@ -2255,7 +2255,12 @@ export async function registrarCompraCartao(
     mensagem += `• Valor → "era 95"\n`;
     mensagem += `• Excluir → "exclui essa"`;
     
-    return { sucesso: true, mensagem };
+    // ✅ Retornar ID da transação para salvar no contexto
+    return { 
+      sucesso: true, 
+      mensagem,
+      transactionId: insertedData?.id 
+    };
     
   } catch (error) {
     console.error('[CARTAO] Erro:', error);

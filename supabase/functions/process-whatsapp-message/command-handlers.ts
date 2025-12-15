@@ -14,7 +14,125 @@ import {
 } from './response-templates.ts';
 
 // ============================================
-// EXCLUIR ÚLTIMA TRANSAÇÃO
+// EXCLUIR TRANSAÇÃO POR ID (DO CONTEXTO)
+// ============================================
+
+export async function excluirTransacaoPorId(
+  userId: string, 
+  transactionId: string, 
+  isCartao: boolean
+): Promise<string> {
+  const supabase = getSupabase();
+  
+  try {
+    if (isCartao) {
+      // Buscar transação de cartão
+      const { data: transacao, error: fetchError } = await supabase
+        .from('credit_card_transactions')
+        .select('id, description, amount, credit_card_id, invoice_id')
+        .eq('id', transactionId)
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError || !transacao) {
+        console.error('[EXCLUIR_ID] Transação de cartão não encontrada:', transactionId);
+        return '❌ Transação não encontrada.';
+      }
+      
+      const valor = parseFloat(transacao.amount);
+      
+      // Atualizar fatura (subtrair valor)
+      if (transacao.invoice_id) {
+        const { data: fatura } = await supabase
+          .from('credit_card_invoices')
+          .select('total_amount')
+          .eq('id', transacao.invoice_id)
+          .single();
+        
+        if (fatura) {
+          const novoTotal = Math.max(0, (fatura.total_amount || 0) - valor);
+          await supabase
+            .from('credit_card_invoices')
+            .update({ total_amount: novoTotal })
+            .eq('id', transacao.invoice_id);
+        }
+      }
+      
+      // Atualizar limite do cartão (devolver valor)
+      if (transacao.credit_card_id) {
+        const { data: cartao } = await supabase
+          .from('credit_cards')
+          .select('available_limit')
+          .eq('id', transacao.credit_card_id)
+          .single();
+        
+        if (cartao) {
+          const novoLimite = (cartao.available_limit || 0) + valor;
+          await supabase
+            .from('credit_cards')
+            .update({ available_limit: novoLimite })
+            .eq('id', transacao.credit_card_id);
+        }
+      }
+      
+      // Deletar transação de cartão
+      const { error: deleteError } = await supabase
+        .from('credit_card_transactions')
+        .delete()
+        .eq('id', transactionId);
+      
+      if (deleteError) {
+        console.error('[EXCLUIR_ID] Erro ao excluir:', deleteError);
+        return '❌ Erro ao excluir transação.';
+      }
+      
+      console.log('[EXCLUIR_ID] ✅ Transação de cartão excluída:', transacao.description);
+      return templateTransacaoExcluida({
+        type: 'expense',
+        amount: valor,
+        description: transacao.description
+      });
+      
+    } else {
+      // Buscar transação normal
+      const { data: transacao, error: fetchError } = await supabase
+        .from('transactions')
+        .select('id, description, amount, type')
+        .eq('id', transactionId)
+        .eq('user_id', userId)
+        .single();
+      
+      if (fetchError || !transacao) {
+        console.error('[EXCLUIR_ID] Transação normal não encontrada:', transactionId);
+        return '❌ Transação não encontrada.';
+      }
+      
+      // Deletar transação normal
+      const { error: deleteError } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', transactionId);
+      
+      if (deleteError) {
+        console.error('[EXCLUIR_ID] Erro ao excluir:', deleteError);
+        return '❌ Erro ao excluir transação.';
+      }
+      
+      console.log('[EXCLUIR_ID] ✅ Transação normal excluída:', transacao.description);
+      return templateTransacaoExcluida({
+        type: transacao.type as 'income' | 'expense',
+        amount: parseFloat(transacao.amount as any),
+        description: transacao.description
+      });
+    }
+  } catch (error) {
+    console.error('[EXCLUIR_ID] Erro:', error);
+    return '❌ Erro ao processar exclusão.';
+  }
+}
+
+// ============================================
+// EXCLUIR ÚLTIMA TRANSAÇÃO (FALLBACK)
 // ============================================
 
 export async function excluirUltimaTransacao(userId: string): Promise<string> {

@@ -16,7 +16,7 @@
 // ============================================
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getSupabase, normalizeMessageType, corsHeaders, enviarViaEdgeFunction, buscarUltimaInteracao, getEmojiBanco } from './utils.ts';
-import { buscarContexto, isContextoAtivo, processarNoContexto, salvarContexto, ContextType } from './context-manager.ts';
+import { buscarContexto, isContextoAtivo, processarNoContexto, salvarContexto, limparContexto, ContextType } from './context-manager.ts';
 import { processarBotao } from './button-handler.ts';
 import { isComandoRapido, processarComandoRapido } from './quick-commands.ts';
 import { templateErroGenerico, templateComandoNaoReconhecido } from './response-templates.ts';
@@ -37,7 +37,7 @@ import { processarIntencaoTransacao, processarIntencaoTransferencia, processarTr
 // Botões desativados - 100% conversacional
 // import { enviarConfirmacaoComBotoes, extrairButtonId, parsearButtonId } from './button-sender.ts';
 import { isAudioPTT, extrairMessageId, processarAudioPTT, extrairInfoAudio } from './audio-handler.ts';
-import { excluirUltimaTransacao, mudarContaUltimaTransacao, consultarSaldo, listarContas, extrairNomeConta } from './command-handlers.ts';
+import { excluirUltimaTransacao, excluirTransacaoPorId, mudarContaUltimaTransacao, consultarSaldo, listarContas, extrairNomeConta } from './command-handlers.ts';
 import * as imageReader from './image-reader.ts';
 import { detectarIntencaoConsulta, processarConsulta } from './consultas.ts';
 import { detectarIntencaoCartao, processarIntencaoCartao } from './cartao-credito.ts';
@@ -1496,10 +1496,27 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       });
     }
     
-    // Se é EXCLUIR_TRANSACAO, usar função de excluir
+    // Se é EXCLUIR_TRANSACAO, verificar contexto primeiro
     if (intencaoNLP.intencao === 'EXCLUIR_TRANSACAO') {
       console.log('🗑️ Intenção EXCLUIR_TRANSACAO detectada via NLP');
-      const resposta = await excluirUltimaTransacao(user.id);
+      
+      // ✅ CORREÇÃO: Verificar se há transação no contexto
+      const contexto = await buscarContexto(user.id);
+      let resposta: string;
+      
+      if (contexto?.context_data?.transacao_id) {
+        // Excluir transação específica do contexto
+        const isCartao = contexto.context_data.transacao_tipo === 'credit_card_transaction';
+        console.log('🗑️ Excluindo transação do contexto:', contexto.context_data.transacao_id, 'isCartao:', isCartao);
+        resposta = await excluirTransacaoPorId(user.id, contexto.context_data.transacao_id, isCartao);
+        // Limpar contexto após exclusão
+        await limparContexto(user.id);
+      } else {
+        // Fallback: excluir última transação criada
+        console.log('🗑️ Sem contexto, excluindo última transação criada');
+        resposta = await excluirUltimaTransacao(user.id);
+      }
+      
       await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',

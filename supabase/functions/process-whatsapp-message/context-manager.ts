@@ -1715,7 +1715,16 @@ async function processarSelecaoCartao(
     data_compra: new Date().toISOString().split('T')[0]
   });
   
-  await limparContexto(userId);
+  // ✅ Salvar ID da transação no contexto para exclusão posterior
+  if (resultado.sucesso && resultado.transactionId) {
+    await salvarContexto(userId, 'credit_card_context', {
+      transacao_id: resultado.transactionId,
+      transacao_tipo: 'credit_card_transaction'
+    });
+  } else {
+    await limparContexto(userId);
+  }
+  
   return resultado.mensagem;
 }
 
@@ -1931,7 +1940,15 @@ async function processarSelecaoMetodoPagamento(
         descricao: dados?.descricao || intencao?.entidades?.descricao || 'Via WhatsApp',
         data_compra: new Date().toISOString().split('T')[0]
       });
-      await limparContexto(userId);
+      // ✅ Salvar ID da transação no contexto para exclusão posterior
+      if (resultado.sucesso && resultado.transactionId) {
+        await salvarContexto(userId, 'credit_card_context', {
+          transacao_id: resultado.transactionId,
+          transacao_tipo: 'credit_card_transaction'
+        });
+      } else {
+        await limparContexto(userId);
+      }
       return resultado.mensagem;
     }
     
@@ -1945,7 +1962,15 @@ async function processarSelecaoMetodoPagamento(
         descricao: dados?.descricao || intencao?.entidades?.descricao || 'Via WhatsApp',
         data_compra: new Date().toISOString().split('T')[0]
       });
-      await limparContexto(userId);
+      // ✅ Salvar ID da transação no contexto para exclusão posterior
+      if (resultado.sucesso && resultado.transactionId) {
+        await salvarContexto(userId, 'credit_card_context', {
+          transacao_id: resultado.transactionId,
+          transacao_tipo: 'credit_card_transaction'
+        });
+      } else {
+        await limparContexto(userId);
+      }
       return resultado.mensagem;
     }
     
