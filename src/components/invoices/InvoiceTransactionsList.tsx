@@ -6,6 +6,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
+import { InstallmentTransactionCard } from '@/components/credit-cards/InstallmentTransactionCard';
+import { CreditCardTransaction } from '@/types/database.types';
 
 interface InvoiceTransactionsListProps {
   invoiceId: string;
@@ -26,6 +28,28 @@ export function InvoiceTransactionsList({
     () => transactions.filter((t) => t.invoice_id === invoiceId),
     [transactions, invoiceId]
   );
+
+  // Separar transações simples de parcelamentos (agrupados por installment_group_id)
+  const { simpleTransactions, installmentGroups } = useMemo(() => {
+    const simple: CreditCardTransaction[] = [];
+    const groupsMap = new Map<string, CreditCardTransaction>();
+
+    invoiceTransactions.forEach((t) => {
+      if (t.is_installment && t.installment_group_id) {
+        // Para parcelamentos, pegar apenas o registro pai ou o primeiro do grupo
+        if (!groupsMap.has(t.installment_group_id)) {
+          groupsMap.set(t.installment_group_id, t);
+        }
+      } else {
+        simple.push(t);
+      }
+    });
+
+    return {
+      simpleTransactions: simple,
+      installmentGroups: Array.from(groupsMap.values()),
+    };
+  }, [invoiceTransactions]);
 
   // Buscar tags das transações desta fatura (em lote)
   useEffect(() => {
@@ -101,7 +125,16 @@ export function InvoiceTransactionsList({
         </div>
       </div>
 
-      {filteredTransactions.map((transaction) => (
+      {/* Parcelamentos agrupados */}
+      {installmentGroups.map((transaction) => (
+        <InstallmentTransactionCard
+          key={transaction.installment_group_id || transaction.id}
+          transaction={transaction}
+        />
+      ))}
+
+      {/* Transações simples */}
+      {simpleTransactions.map((transaction) => (
         <div
           key={transaction.id}
           className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
@@ -109,11 +142,6 @@ export function InvoiceTransactionsList({
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <p className="font-medium text-gray-900">{transaction.description}</p>
-              {transaction.total_installments && transaction.total_installments > 1 && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                  {transaction.installment_number}/{transaction.total_installments}x
-                </span>
-              )}
             </div>
             <div className="flex items-center gap-2 mt-1">
               <p className="text-sm text-gray-500">
