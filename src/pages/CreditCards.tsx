@@ -33,7 +33,7 @@ export function CreditCards() {
     fetchCardsSummary,
   } = useCreditCards();
 
-  const { invoices, invoicesDetailed } = useInvoices();
+  const { invoices, invoicesDetailed, getCurrentMonthInvoicesTotal } = useInvoices();
   const { formatCurrency } = useUserPreferences();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -140,7 +140,7 @@ export function CreditCards() {
         <CreditCardAlerts cards={cardsSummary} />
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-in">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-fade-in">
           <StatCard
             title="Limite Total"
             value={formatCurrency(getTotalLimit())}
@@ -158,6 +158,13 @@ export function CreditCards() {
             value={formatCurrency(getTotalAvailable())}
             icon={Wallet}
             gradient="green"
+          />
+          <StatCard
+            title="Fatura do Mês"
+            value={formatCurrency(getCurrentMonthInvoicesTotal().total)}
+            icon={Receipt}
+            gradient="red"
+            subtitle={`${getCurrentMonthInvoicesTotal().monthName} • ${getCurrentMonthInvoicesTotal().count} cartão(ões)`}
           />
         </div>
 

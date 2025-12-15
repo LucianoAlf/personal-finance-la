@@ -7,50 +7,12 @@ import { calculateUsagePercentage } from '@/utils/creditCardUtils';
 import { CARD_BRANDS, INVOICE_STATUS_LABELS } from '@/constants/creditCards';
 import { CreditCardMenu } from './CreditCardMenu';
 import { useAuth } from '@/hooks/useAuth';
-
-// Mapa de logos por banco (arquivos em /public/logos/banks/)
-const BANK_LOGOS: Record<string, string> = {
-  'nubank': '/logos/banks/nubank.svg',
-  'itau': '/logos/banks/itau.svg',
-  'santander': '/logos/banks/santander.svg',
-  'c6': '/logos/banks/c6.svg',
-};
-
-// Mapa de tamanhos individuais por banco (altura em Tailwind)
-// AJUSTE AQUI: h-6=24px, h-8=32px, h-10=40px, h-11=44px, h-12=48px, h-14=56px
-const BANK_LOGO_SIZES: Record<string, string> = {
-  'nubank': 'h-8',       // Nubank - 32px
-  'itau': 'h-11',        // Itaú - 44px
-  'santander': 'h-10',   // Santander - 40px
-  'c6': 'h-6',           // C6 Bank - 24px
-};
+import { getBankLogoPath, getBankLogoSizeForCard } from '@/constants/banks';
 
 // Mapa de logos de bandeiras
 const BRAND_LOGOS: Record<string, string> = {
   'mastercard': '/logos/banks/mastercard.svg',
 };
-
-// Função para detectar banco pelo nome do cartão
-function getBankKey(cardName: string): string | null {
-  const name = cardName.toLowerCase();
-  if (name.includes('nubank') || name.includes('nu ') || name.includes('roxinho')) return 'nubank';
-  if (name.includes('itau') || name.includes('itaú')) return 'itau';
-  if (name.includes('santander')) return 'santander';
-  if (name.includes('c6')) return 'c6';
-  return null;
-}
-
-// Retorna o caminho do logo
-function getBankLogo(cardName: string): string | null {
-  const key = getBankKey(cardName);
-  return key ? BANK_LOGOS[key] : null;
-}
-
-// Retorna o tamanho do logo
-function getBankLogoSize(cardName: string): string {
-  const key = getBankKey(cardName);
-  return key ? (BANK_LOGO_SIZES[key] || 'h-10') : 'h-10';
-}
 
 // Componente Contactless
 function ContactlessIcon({ className }: { className?: string }) {
@@ -107,7 +69,8 @@ export function CreditCardCard({ card, onClick, onEdit, onArchive, onDelete, onV
     return 'warning';
   };
 
-  const bankLogo = getBankLogo(card.name);
+  const bankLogo = getBankLogoPath(card.name);
+  const bankLogoSize = getBankLogoSizeForCard(card.name);
   const brandLogo = BRAND_LOGOS[card.brand];
 
   return (
@@ -128,7 +91,7 @@ export function CreditCardCard({ card, onClick, onEdit, onArchive, onDelete, onV
             <img 
               src={bankLogo} 
               alt="Logo do banco"
-              className={`${getBankLogoSize(card.name)} w-auto`}
+              className={`${bankLogoSize} w-auto`}
             />
           ) : (
             <div className="text-2xl font-bold">{card.name}</div>

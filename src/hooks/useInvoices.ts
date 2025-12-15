@@ -215,6 +215,35 @@ export function useInvoices(cardId?: string) {
       .reduce((sum, inv) => sum + inv.total_amount, 0);
   };
 
+  // Calcular total de faturas do mês atual (consolidado)
+  const getCurrentMonthInvoicesTotal = (): { total: number; count: number; monthName: string } => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Nomes dos meses em português
+    const monthNames = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    
+    // Filtrar faturas do mês atual que não estão pagas
+    const currentMonthInvoices = invoices.filter(inv => {
+      const invDate = new Date(inv.reference_month);
+      return invDate.getMonth() === currentMonth && 
+             invDate.getFullYear() === currentYear &&
+             inv.status !== 'paid';
+    });
+    
+    const total = currentMonthInvoices.reduce((sum, inv) => sum + (inv.remaining_amount || inv.total_amount), 0);
+    
+    return {
+      total,
+      count: currentMonthInvoices.length,
+      monthName: monthNames[currentMonth],
+    };
+  };
+
   // Pagar fatura
   const payInvoice = async (data: {
     invoice_id: string;
@@ -393,6 +422,7 @@ export function useInvoices(cardId?: string) {
     closeInvoice,
     getInvoiceTotal,
     getOpenInvoicesTotal,
+    getCurrentMonthInvoicesTotal,
     payInvoice,
   };
 }

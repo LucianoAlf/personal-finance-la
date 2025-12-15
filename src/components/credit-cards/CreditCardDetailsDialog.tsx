@@ -7,25 +7,12 @@ import { ptBR } from 'date-fns/locale';
 import { CreditCard as CreditCardIcon, Calendar, TrendingUp, Wallet, AlertCircle } from 'lucide-react';
 import { CARD_BRANDS } from '@/constants/creditCards';
 import { calculateUsagePercentage, getUsageColor } from '@/utils/creditCardUtils';
-
-// Mapa de logos por banco (arquivos em /public/logos/banks/)
-const BANK_LOGOS: Record<string, string> = {
-  'nubank': '/logos/banks/nubank.svg',
-  'itau': '/logos/banks/itau.svg',
-};
+import { getBankLogoPath, getBankLogoSizeForDetails } from '@/constants/banks';
 
 // Mapa de logos de bandeiras
 const BRAND_LOGOS: Record<string, string> = {
   'mastercard': '/logos/banks/mastercard.svg',
 };
-
-// Função para detectar banco pelo nome do cartão
-function getBankLogo(cardName: string): string | null {
-  const name = cardName.toLowerCase();
-  if (name.includes('nubank') || name.includes('nu ') || name.includes('roxinho')) return BANK_LOGOS['nubank'];
-  if (name.includes('itau') || name.includes('itaú')) return BANK_LOGOS['itau'];
-  return null;
-}
 
 // Componente Contactless
 function ContactlessIcon({ className }: { className?: string }) {
@@ -94,11 +81,11 @@ export function CreditCardDetailsDialog({ open, onOpenChange, card }: CreditCard
             {/* Header: Logo do banco + Bandeira */}
             <div className="flex justify-between items-start">
               {/* Logo do banco (topo esquerdo) */}
-              {getBankLogo(card.name) ? (
+              {getBankLogoPath(card.name) ? (
                 <img 
-                  src={getBankLogo(card.name)!} 
+                  src={getBankLogoPath(card.name)!} 
                   alt="Logo do banco"
-                  className="h-12 w-auto"
+                  className={`${getBankLogoSizeForDetails(card.name)} w-auto`}
                 />
               ) : (
                 <div className="h-12" />

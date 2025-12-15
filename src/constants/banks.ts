@@ -163,3 +163,67 @@ export function getBankByName(name: string): BankInfo | undefined {
       bank.code.includes(normalized)
   );
 }
+
+// ============================================
+// SISTEMA CENTRALIZADO DE LOGOS DE BANCOS
+// Use estas funções em TODOS os componentes
+// ============================================
+
+// Mapa de tamanhos individuais por banco (altura em Tailwind)
+// Tamanhos calibrados para visual consistente no cartão
+const BANK_LOGO_SIZES: Record<BankCode, { card: string; details: string }> = {
+  'nubank': { card: 'h-8', details: 'h-10' },
+  'itau': { card: 'h-11', details: 'h-14' },
+  'santander': { card: 'h-10', details: 'h-12' },
+  'c6': { card: 'h-6', details: 'h-8' },
+  'bradesco': { card: 'h-10', details: 'h-12' },
+  'bb': { card: 'h-10', details: 'h-12' },
+  'caixa': { card: 'h-10', details: 'h-12' },
+  'inter': { card: 'h-10', details: 'h-12' },
+  'btg': { card: 'h-10', details: 'h-12' },
+  'xp': { card: 'h-10', details: 'h-12' },
+  'picpay': { card: 'h-10', details: 'h-12' },
+  'mercadopago': { card: 'h-10', details: 'h-12' },
+  'other': { card: 'h-10', details: 'h-12' },
+};
+
+// Detecta o banco pelo nome do cartão
+export function detectBankFromCardName(cardName: string): BankCode | null {
+  const name = cardName.toLowerCase();
+  if (name.includes('nubank') || name.includes('nu ') || name.includes('roxinho')) return 'nubank';
+  if (name.includes('itau') || name.includes('itaú')) return 'itau';
+  if (name.includes('santander')) return 'santander';
+  if (name.includes('c6')) return 'c6';
+  if (name.includes('bradesco')) return 'bradesco';
+  if (name.includes('banco do brasil') || name.includes(' bb ') || name.includes('bb ')) return 'bb';
+  if (name.includes('caixa')) return 'caixa';
+  if (name.includes('inter')) return 'inter';
+  if (name.includes('btg')) return 'btg';
+  if (name.includes('xp ') || name.includes('xp.')) return 'xp';
+  if (name.includes('picpay')) return 'picpay';
+  if (name.includes('mercado pago') || name.includes('mercadopago')) return 'mercadopago';
+  return null;
+}
+
+// Retorna o caminho do logo do banco (ou null se não tiver)
+export function getBankLogoPath(cardName: string): string | null {
+  const bankCode = detectBankFromCardName(cardName);
+  if (!bankCode) return null;
+  
+  const bank = BANKS[bankCode];
+  if (!bank.hasLogo || !bank.logoFile) return null;
+  
+  return `/logos/banks/${bank.logoFile}`;
+}
+
+// Retorna o tamanho do logo para o card de listagem
+export function getBankLogoSizeForCard(cardName: string): string {
+  const bankCode = detectBankFromCardName(cardName);
+  return bankCode ? BANK_LOGO_SIZES[bankCode].card : 'h-10';
+}
+
+// Retorna o tamanho do logo para o dialog de detalhes
+export function getBankLogoSizeForDetails(cardName: string): string {
+  const bankCode = detectBankFromCardName(cardName);
+  return bankCode ? BANK_LOGO_SIZES[bankCode].details : 'h-12';
+}
