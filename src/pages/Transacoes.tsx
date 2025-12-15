@@ -95,6 +95,9 @@ export const Transacoes = () => {
     const installments = [];
     const purchaseDate = new Date(t.transaction_date + 'T00:00:00');
     
+    // Remover sufixo de parcela existente da descrição (ex: "(2/5)")
+    const baseDescription = t.description.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
+    
     for (let i = 0; i < t.total_installments; i++) {
       const installmentDate = new Date(purchaseDate);
       installmentDate.setMonth(installmentDate.getMonth() + i);
@@ -106,7 +109,7 @@ export const Transacoes = () => {
         ...t,
         id: `${t.id}-installment-${i + 1}`, // ID único para cada parcela virtual
         transaction_date: `${installmentYearMonth}-${installmentDay}`,
-        description: `${t.description} (${i + 1}/${t.total_installments})`,
+        description: `${baseDescription} (${i + 1}/${t.total_installments})`,
         installment_number: i + 1,
         // Manter o valor da parcela (já está correto no registro pai)
       });

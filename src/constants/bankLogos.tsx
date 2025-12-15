@@ -13,38 +13,40 @@ import { SiNubank } from 'react-icons/si';
 // Fallbacks (lucide)
 import { 
   Building2, 
-  Wallet,
 } from 'lucide-react';
+
+// Bancos que usam logos SVG customizados (não usado por enquanto)
+export const BANKS_WITH_CUSTOM_LOGO: string[] = [];
 
 // Mapeamento de códigos de banco para logos
 export const BANK_LOGOS: Record<string, ComponentType<any>> = {
-  // Bancos Digitais - Com logos oficiais
-  'nubank': SiNubank, // 🟣 Logo oficial do Nubank
-  'c6': Building2, // ⚫ C6 Bank (moderno)
-  'inter': FaLandmark, // 🟠 Inter (banco digital)
-  'neon': FaCreditCard, // 🟢 Neon (cartão)
-  'next': Building2, // 🟢 Next
-  'original': Building2, // 🟢 Original
-  'bs2': FaUniversity, // 🟠 BS2
-  'mercadopago': FaMoneyBillWave, // 🔵 Mercado Pago
-  'picpay': FaWallet, // 🟢 PicPay
+  // Bancos Digitais
+  'nubank': SiNubank,
+  'c6': Building2,
+  'inter': FaLandmark,
+  'neon': FaCreditCard,
+  'next': Building2,
+  'original': Building2,
+  'bs2': FaUniversity,
+  'mercadopago': FaMoneyBillWave,
+  'picpay': FaWallet,
   
-  // Bancos Tradicionais - Ícones profissionais
-  'itau': FaUniversity, // 🟠 Itaú
-  'bradesco': FaUniversity, // 🔴 Bradesco
-  'santander': FaUniversity, // 🔴 Santander
-  'bb': FaUniversity, // 🟡 Banco do Brasil
-  'caixa': FaUniversity, // 🔵 Caixa Econômica
-  'safra': FaUniversity, // 🔵 Safra
-  'banrisul': FaUniversity, // 🔵 Banrisul
-  'sicoob': FaUniversity, // 🟢 Sicoob
-  'sicredi': FaUniversity, // 🟢 Sicredi
+  // Bancos Tradicionais
+  'itau': FaUniversity,
+  'bradesco': FaUniversity,
+  'santander': FaUniversity,
+  'bb': FaUniversity,
+  'caixa': FaUniversity,
+  'safra': FaUniversity,
+  'banrisul': FaUniversity,
+  'sicoob': FaUniversity,
+  'sicredi': FaUniversity,
   
-  // Outros - Ícones específicos
-  'carteira': FaWallet, // 💰 Carteira
-  'dinheiro': FaMoneyBillWave, // 💵 Dinheiro
-  'poupanca': FaPiggyBank, // 🐷 Poupança
-  'default': FaWallet, // Padrão
+  // Outros
+  'carteira': FaWallet,
+  'dinheiro': FaMoneyBillWave,
+  'poupanca': FaPiggyBank,
+  'default': FaWallet,
 };
 
 // Cores dos bancos (para usar como fallback ou background)
