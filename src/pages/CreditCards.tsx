@@ -160,7 +160,7 @@ export function CreditCards() {
             gradient="green"
           />
           <StatCard
-            title="Fatura do Mês"
+            title={getCurrentMonthInvoicesTotal().count === 1 ? 'Fatura do Mês' : 'Faturas do Mês'}
             value={formatCurrency(getCurrentMonthInvoicesTotal().total)}
             icon={Receipt}
             gradient="red"
