@@ -2,15 +2,12 @@ import { Building2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { getBankByCode, type BankCode } from '@/constants/banks';
 
-// Importar logos disponíveis
-import nubankLogo from '@/assets/bank-logos/Logo Nu_SVG.svg';
-import itauLogo from '@/assets/bank-logos/Logo Itaú  _SVG.svg';
-
-// Mapa de logos importados
+// Mapa de logos disponíveis em /public/logos/banks/
 const LOGO_MAP: Partial<Record<BankCode, string>> = {
-  nubank: nubankLogo,
-  itau: itauLogo,
-  // Adicionar mais logos conforme forem disponibilizados
+  nubank: '/logos/banks/nubank.svg',
+  itau: '/logos/banks/itau.svg',
+  santander: '/logos/banks/santander.svg',
+  c6: '/logos/banks/c6.svg',
 };
 
 interface BankLogoProps {
