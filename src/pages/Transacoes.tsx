@@ -78,8 +78,16 @@ export const Transacoes = () => {
       .replace(/[\u0300-\u036f]/g, '');
   };
 
-  // FILTRAR TRANSAÇÕES POR CONTA (se filtro ativo)
-  let filteredTransactions = transactions;
+  // FILTRAR TRANSAÇÕES POR MÊS SELECIONADO
+  let filteredTransactions = transactions.filter(t => {
+    const selectedYear = selectedDate.getFullYear();
+    const selectedMonth = String(selectedDate.getMonth() + 1).padStart(2, '0');
+    const selectedYearMonth = `${selectedYear}-${selectedMonth}`;
+    // Compara apenas YYYY-MM (sem new Date que causa bug de timezone)
+    return t.transaction_date?.startsWith(selectedYearMonth);
+  });
+
+  // FILTRAR POR CONTA (se filtro ativo na URL)
   if (accountIdFromUrl) {
     filteredTransactions = filteredTransactions.filter(t => t.account_id === accountIdFromUrl);
   }
@@ -231,18 +239,14 @@ export const Transacoes = () => {
     setMonthModalOpen(false);
   };
 
-  // CALCULAR TOTAIS DO MÊS (DADOS REAIS) - Com filtro se ativo
-  const monthlyIncome = (accountIdFromUrl || categoryIdFromUrl)
-    ? filteredTransactions
-        .filter(t => t.type === 'income' && t.is_paid)
-        .reduce((sum, t) => sum + Number(t.amount), 0)
-    : getTotalIncome(true);
+  // CALCULAR TOTAIS DO MÊS (DADOS REAIS) - Sempre usar filteredTransactions
+  const monthlyIncome = filteredTransactions
+    .filter(t => t.type === 'income' && t.is_paid)
+    .reduce((sum, t) => sum + Number(t.amount), 0);
 
-  const monthlyExpenses = (accountIdFromUrl || categoryIdFromUrl)
-    ? filteredTransactions
-        .filter(t => t.type === 'expense' && t.is_paid)
-        .reduce((sum, t) => sum + Number(t.amount), 0)
-    : getTotalExpenses(true);
+  const monthlyExpenses = filteredTransactions
+    .filter(t => t.type === 'expense' && t.is_paid)
+    .reduce((sum, t) => sum + Number(t.amount), 0);
 
   const monthlyBalance = monthlyIncome - monthlyExpenses;
 
