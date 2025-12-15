@@ -1,32 +1,35 @@
 // Imports estáticos (seguro em Vite + ESM)
 import type { ComponentType } from 'react';
-// Logos oficiais (react-icons)
+// Logos SVG customizados (inline)
+import { 
+  NubankLogo,
+  ItauLogo,
+  BradescoLogo,
+  SantanderLogo,
+  BancoDoBrasilLogo,
+  CaixaLogo,
+  InterLogo,
+  C6Logo,
+} from '@/assets/bank-logos/bank-logos';
+// Fallbacks (lucide e react-icons)
 import { 
   FaUniversity,
   FaWallet,
   FaCreditCard,
   FaMoneyBillWave,
   FaPiggyBank,
-  FaLandmark,
 } from 'react-icons/fa';
-import { SiNubank } from 'react-icons/si';
-// Fallbacks (lucide)
 import { 
   Building2, 
-  Landmark, 
   Wallet,
-  CreditCard,
-  Banknote,
-  PiggyBank,
-  Building,
 } from 'lucide-react';
 
 // Mapeamento de códigos de banco para logos
 export const BANK_LOGOS: Record<string, ComponentType<any>> = {
-  // Bancos Digitais - Com logos oficiais
-  'nubank': SiNubank, // 🟣 Logo oficial do Nubank
-  'c6': Building2, // ⚫ C6 Bank (moderno)
-  'inter': FaLandmark, // 🟠 Inter (banco digital)
+  // Bancos Digitais - Logos SVG customizados
+  'nubank': NubankLogo, // 🟣 Logo oficial do Nubank
+  'c6': C6Logo, // ⚫ C6 Bank
+  'inter': InterLogo, // 🟠 Inter
   'neon': FaCreditCard, // 🟢 Neon (cartão)
   'next': Building2, // 🟢 Next
   'original': Building2, // 🟢 Original
@@ -34,12 +37,12 @@ export const BANK_LOGOS: Record<string, ComponentType<any>> = {
   'mercadopago': FaMoneyBillWave, // 🔵 Mercado Pago
   'picpay': FaWallet, // 🟢 PicPay
   
-  // Bancos Tradicionais - Ícones profissionais
-  'itau': FaUniversity, // 🟠 Itaú (ícone de banco/universidade)
-  'bradesco': FaUniversity, // 🔴 Bradesco
-  'santander': FaUniversity, // 🔴 Santander
-  'bb': FaUniversity, // 🟡 Banco do Brasil
-  'caixa': FaUniversity, // 🔵 Caixa Econômica
+  // Bancos Tradicionais - Logos SVG customizados
+  'itau': ItauLogo, // 🟠 Itaú
+  'bradesco': BradescoLogo, // 🔴 Bradesco
+  'santander': SantanderLogo, // 🔴 Santander
+  'bb': BancoDoBrasilLogo, // 🟡 Banco do Brasil
+  'caixa': CaixaLogo, // 🔵 Caixa Econômica
   'safra': FaUniversity, // 🔵 Safra
   'banrisul': FaUniversity, // 🔵 Banrisul
   'sicoob': FaUniversity, // 🟢 Sicoob

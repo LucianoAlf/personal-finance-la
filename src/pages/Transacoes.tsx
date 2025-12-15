@@ -19,8 +19,7 @@ import { format } from 'date-fns';
 import type { Transaction, TransactionType } from '@/types/transactions';
 import { TYPE_COLORS } from '@/constants/categories';
 import * as LucideIcons from 'lucide-react';
-import { detectBankFromName } from '@/constants/bankLogos';
-import { BankLogo } from '@/components/ui/bank-logo';
+import { getBankLogo, detectBankFromName, getBankColor } from '@/constants/bankLogos';
 
 export const Transacoes = () => {
   // HOOKS E NAVEGAÇÃO
@@ -632,9 +631,14 @@ export const Transacoes = () => {
                               {account && (() => {
                                 const bankCode = detectBankFromName(account.name);
                                 if (bankCode) {
+                                  const BankIcon = getBankLogo(bankCode);
+                                  const bankColor = getBankColor(bankCode);
                                   return (
-                                    <div className="absolute -bottom-1 -right-1 border-2 border-white rounded-lg overflow-hidden">
-                                      <BankLogo bankCode={bankCode} size="sm" showFallback={true} />
+                                    <div
+                                      className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center border-2 border-white"
+                                      style={{ backgroundColor: bankColor }}
+                                    >
+                                      <BankIcon size={12} className="text-white" />
                                     </div>
                                   );
                                 }
