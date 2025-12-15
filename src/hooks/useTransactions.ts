@@ -210,21 +210,48 @@ export const useTransactions = () => {
     }
   };
 
-  // Atualizar transação
+  // Atualizar transação (detecta automaticamente se é cartão ou normal)
   const updateTransaction = async (id: string, updates: Partial<Transaction>) => {
     try {
       setError(null);
 
-      const { error: updateError } = await supabase
-        .from('transactions')
-        .update({
-          ...updates,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id);
+      // Verificar se é transação de cartão de crédito
+      const transacao = transactions.find(t => t.id === id);
+      const isCartao = transacao?.credit_card_id || (transacao as any)?.payment_method === 'credit';
 
-      if (updateError) {
-        throw updateError;
+      if (isCartao) {
+        // Atualizar na tabela credit_card_transactions
+        const ccUpdates: Record<string, any> = {};
+        if (updates.amount !== undefined) ccUpdates.amount = updates.amount;
+        if (updates.description !== undefined) ccUpdates.description = updates.description;
+        if (updates.category_id !== undefined) ccUpdates.category_id = updates.category_id;
+        if (updates.transaction_date !== undefined) ccUpdates.purchase_date = updates.transaction_date;
+        
+        const { error: updateError } = await supabase
+          .from('credit_card_transactions')
+          .update(ccUpdates)
+          .eq('id', id);
+
+        if (updateError) {
+          console.error('❌ Erro ao atualizar transação de cartão:', updateError);
+          throw updateError;
+        }
+        console.log('✅ Transação de cartão atualizada:', id);
+      } else {
+        // Atualizar na tabela transactions (normal)
+        const { error: updateError } = await supabase
+          .from('transactions')
+          .update({
+            ...updates,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', id);
+
+        if (updateError) {
+          console.error('❌ Erro ao atualizar transação normal:', updateError);
+          throw updateError;
+        }
+        console.log('✅ Transação normal atualizada:', id);
       }
 
       await fetchTransactions();
