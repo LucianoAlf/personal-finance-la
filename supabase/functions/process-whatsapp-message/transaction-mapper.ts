@@ -271,7 +271,15 @@ function detectarCategoriaPorTexto(textos: string[], valor?: number): string | n
   console.log('[DETECTAR] Textos recebidos:', JSON.stringify(textos));
   console.log('[DETECTAR] Texto completo normalizado:', textoCompleto);
   console.log('[DETECTAR] Valor:', valor);
+  console.log('[DETECTAR] Contém "tv"?', textoCompleto.includes('tv'));
   console.log('[DETECTAR] Contém "luz"?', textoCompleto.includes('luz'));
+  
+  // ✅ REGRA ESPECIAL: "tv" → Eletrodomésticos (prioridade alta)
+  // Usar nome SEM acento para match com normalização do banco
+  if (textoCompleto.includes('tv') || textoCompleto.includes('televisao')) {
+    console.log('[DETECTAR] ✅ TV detectada → Eletrodomesticos');
+    return 'Eletrodomesticos'; // Sem acento para match normalizado
+  }
   
   // ✅ REGRA ESPECIAL: "água" depende do valor
   // < R$20 = garrafa de água (Alimentação)
@@ -317,16 +325,14 @@ async function buscarCategoriaInteligente(
 ): Promise<string | null> {
   const supabase = getSupabase();
   
-  // ✅ Usar função centralizada de shared/mappings.ts
-  const nomeNormalizado = normalizarTexto(nomeCategoria);
-  const nomeBanco = normalizarCategoriaNLP(nomeNormalizado) || nomeCategoria;
-  const nomeBancoNorm = normalizarTexto(nomeBanco);
+  // ✅ CORREÇÃO: Buscar diretamente pelo nome da categoria (normalizado)
+  // NÃO usar normalizarCategoriaNLP() aqui - ela é para converter inglês→português
+  // A categoria já vem em português de detectarCategoriaPorTexto()
+  const nomeBancoNorm = normalizarTexto(nomeCategoria);
   
   console.log('[CATEGORIA] ========================================');
   console.log('[CATEGORIA] Input:', nomeCategoria);
-  console.log('[CATEGORIA] Normalizado (sem acento):', nomeNormalizado);
-  console.log('[CATEGORIA] Mapeado para:', nomeBanco);
-  console.log('[CATEGORIA] Mapeado normalizado:', nomeBancoNorm);
+  console.log('[CATEGORIA] Normalizado (sem acento):', nomeBancoNorm);
   console.log('[CATEGORIA] Tipo:', tipo);
   
   try {
@@ -372,7 +378,7 @@ async function buscarCategoriaInteligente(
       return categoriaParcial.id;
     }
     
-    console.log('[CATEGORIA] ❌ NÃO ENCONTRADA para:', nomeBanco, '(norm:', nomeBancoNorm, ')');
+    console.log('[CATEGORIA] ❌ NÃO ENCONTRADA para:', nomeCategoria, '(norm:', nomeBancoNorm, ')');
     console.log('[CATEGORIA] ========================================');
     return null;
     

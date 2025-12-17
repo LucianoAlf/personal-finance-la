@@ -65,6 +65,8 @@ export type ContextType =
   // FASE 3.4 - Parcelamentos com método de pagamento
   | 'awaiting_installment_payment_method'  // Aguardando: cartão ou boleto?
   | 'awaiting_installment_card_selection'  // Aguardando seleção de cartão para parcelamento
+  // Contexto de transação registrada (para "exclui essa", "era X")
+  | 'transaction_registered'               // Transação acabou de ser registrada
   // FASE 3.3 - Registro de Pagamentos
   | 'awaiting_payment_value'               // Aguardando valor do pagamento (conta variável)
   | 'awaiting_bill_name_for_payment'       // Aguardando nome da conta para marcar como paga
@@ -496,6 +498,9 @@ export async function processarNoContexto(
     if (step === 'awaiting_card_selection') {
       return await processarSelecaoCartao(texto, contexto, userId);
     }
+    if (step === 'awaiting_card_purchase_description') {
+      return await processarDescricaoCompraCartao(texto, contexto, userId);
+    }
     return await processarConfirmacao(texto, contexto, userId);
   }
   
@@ -590,6 +595,16 @@ export async function processarNoContexto(
     return await processarAcaoRapidaCartao(texto, contexto, userId);
   }
   
+  // ✅ CORREÇÃO BUG #5 e #9: Contexto transaction_registered não deve bloquear novos comandos
+  // Este contexto é apenas para ações rápidas como "exclui essa", "era 95"
+  // Qualquer outro comando deve ser processado normalmente pelo NLP
+  // IMPORTANTE: Retornar '' (string vazia) para que o fluxo continue para o NLP
+  if (contextType === 'transaction_registered') {
+    console.log('[CONTEXT] transaction_registered detectado - limpando contexto para processar novo comando');
+    await limparContexto(userId);
+    return ''; // String vazia = continuar para o fluxo normal do NLP
+  }
+  
   await limparContexto(userId);
   return '❓ Não entendi. Vamos recomeçar?';
 }
@@ -659,6 +674,28 @@ export async function processarAcaoRapidaCartao(
   // Buscar cartões do usuário para as 3 camadas
   const cartoesUsuario = await buscarCartoesUsuario(userId);
   console.log('[CARTAO-3CAMADAS] Cartões do usuário:', cartoesUsuario.map((c: any) => c.name));
+  
+  // ✅ CORREÇÃO BUG #8: Detectar quando usuário digita APENAS nome/alias de cartão
+  // Nesse caso, assumir que quer ver a FATURA (não listar cartões novamente)
+  const textoLimpo = texto.trim().toLowerCase();
+  const fuzzyCheck = buscarCartaoFuzzy(texto, cartoesUsuario);
+  
+  // Se o texto é curto (≤15 chars) e corresponde a um cartão, ir direto para fatura
+  if (textoLimpo.length <= 15 && fuzzyCheck.encontrado && fuzzyCheck.cartao) {
+    // Verificar se não é um comando explícito
+    const comandosExplicitos = ['fatura', 'limite', 'compras', 'comparar', 'quanto', 'gastei', 'cartoes', 'cartões', 'meus'];
+    const ehComandoExplicito = comandosExplicitos.some(cmd => textoLimpo.includes(cmd));
+    
+    if (!ehComandoExplicito) {
+      console.log('[CARTAO-3CAMADAS] ✅ Detectado nome/alias de cartão isolado:', texto, '→', fuzzyCheck.cartao.name);
+      console.log('[CARTAO-3CAMADAS] Assumindo intenção: CONSULTAR_FATURA');
+      
+      // Ir direto para consulta de fatura sem passar pelo GPT-4
+      const resposta = await consultarFatura(userId, fuzzyCheck.cartao.name, true, '', undefined);
+      await limparContexto(userId);
+      return resposta;
+    }
+  }
   
   // ============================================
   // CAMADA 1: GPT-4 INTELIGENTE
@@ -776,8 +813,9 @@ export async function processarAcaoRapidaCartao(
       return `💳 *${cartaoNome}*\n\n❓ Qual categoria ou estabelecimento você quer consultar?\n\n_Exemplos: alimentação, transporte, iFood, Uber_`;
       
     case 'consulta_limite':
-      // TODO: Implementar consulta de limite
-      return `💳 *${cartaoNome}*\n\n⚠️ Consulta de limite ainda não implementada.\n\n💡 Use o app para ver seu limite disponível.`;
+      // ✅ FEATURE: Consulta de limite implementada
+      const { consultarLimite } = await import('./cartao-credito.ts');
+      return await consultarLimite(userId, cartaoNome);
       
     case 'listar_cartoes':
       let msg = `💳 *Seus Cartões de Crédito*\n\n`;
@@ -1739,6 +1777,14 @@ async function processarSelecaoCartao(
     return '❌ Compra cancelada.';
   }
   
+  // ✅ Detectar comandos de exclusão - não é seleção de cartão!
+  if (/^(exclui|apaga|deleta|remove)\s*(essa|este|isso|a última|a ultima)?$/i.test(resposta)) {
+    await limparContexto(userId);
+    // Importar e chamar excluirUltimaTransacao
+    const { excluirUltimaTransacao } = await import('./command-handlers.ts');
+    return await excluirUltimaTransacao(userId);
+  }
+  
   // Buscar cartão por número ou nome
   let cartaoSelecionado = null;
   const numero = parseInt(resposta);
@@ -1747,14 +1793,24 @@ async function processarSelecaoCartao(
     cartaoSelecionado = dados.cartoes[numero - 1];
   } else {
     const respostaNorm = resposta.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    cartaoSelecionado = dados.cartoes.find((c: any) => {
-      const nomeNorm = c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      return nomeNorm.includes(respostaNorm) || respostaNorm.includes(nomeNorm);
-    });
+    
+    // ✅ CORREÇÃO: Usar aliases para encontrar cartão (roxinho → nubank, laranjinha → inter)
+    const { buscarCartaoFuzzy } = await import('./cartao-credito.ts');
+    const fuzzyResult = buscarCartaoFuzzy(resposta, dados.cartoes);
+    
+    if (fuzzyResult.encontrado && fuzzyResult.cartao) {
+      cartaoSelecionado = fuzzyResult.cartao;
+    } else {
+      // Fallback: busca simples por nome
+      cartaoSelecionado = dados.cartoes.find((c: any) => {
+        const nomeNorm = c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return nomeNorm.includes(respostaNorm) || respostaNorm.includes(nomeNorm);
+      });
+    }
   }
   
   if (!cartaoSelecionado) {
-    return `❓ Não encontrei esse cartão.\n\nResponda com o número ou nome do cartão.`;
+    return `❓ Não encontrei esse cartão.\n\nResponda com o número ou nome do cartão.\n\n💡 _Você pode usar apelidos como "roxinho", "laranjinha", etc._`;
   }
   
   // Importar e chamar registrarCompraCartao
@@ -1769,6 +1825,79 @@ async function processarSelecaoCartao(
   });
   
   // ✅ Salvar ID da transação no contexto para exclusão posterior
+  if (resultado.sucesso && resultado.transactionId) {
+    await salvarContexto(userId, 'credit_card_context', {
+      transacao_id: resultado.transactionId,
+      transacao_tipo: 'credit_card_transaction'
+    });
+  } else {
+    await limparContexto(userId);
+  }
+  
+  return resultado.mensagem;
+}
+
+// ============================================
+// PROCESSAR DESCRIÇÃO DA COMPRA NO CARTÃO
+// ============================================
+
+async function processarDescricaoCompraCartao(
+  texto: string,
+  contexto: ContextoConversa,
+  userId: string
+): Promise<string> {
+  const dados = contexto.context_data?.dados_cartao as any;
+  
+  if (!dados || !dados.cartao_id) {
+    await limparContexto(userId);
+    return '❌ Erro: dados do cartão não encontrados.';
+  }
+  
+  const resposta = texto.toLowerCase().trim();
+  
+  // Cancelar
+  if (resposta === 'cancelar' || resposta === 'cancela' || resposta === 'não' || resposta === 'nao') {
+    await limparContexto(userId);
+    return '❌ Compra cancelada.';
+  }
+  
+  // ✅ Detectar comandos de exclusão - não é descrição de compra!
+  if (/^(exclui|apaga|deleta|remove)\s*(essa|este|isso|a última|a ultima)?$/i.test(resposta)) {
+    await limparContexto(userId);
+    const { excluirUltimaTransacao } = await import('./command-handlers.ts');
+    return await excluirUltimaTransacao(userId);
+  }
+  
+  // Extrair descrição e parcelas da resposta
+  let descricao = texto.trim();
+  let parcelas = 1;
+  
+  // Detectar parcelas na resposta: "mercado em 3x", "celular 12x", "tv 6 vezes"
+  const matchParcelas = resposta.match(/(.+?)\s+(?:em\s+)?(\d+)\s*(?:x|vezes|parcelas?)/i);
+  if (matchParcelas) {
+    descricao = matchParcelas[1].trim();
+    parcelas = parseInt(matchParcelas[2]);
+  }
+  
+  // Capitalizar primeira letra
+  descricao = descricao.charAt(0).toUpperCase() + descricao.slice(1);
+  
+  if (descricao.length < 2) {
+    return '❓ Descrição muito curta. O que você comprou?\n\n_Ex: "almoço", "gasolina", "mercado em 3x"_';
+  }
+  
+  // Registrar a compra
+  const { registrarCompraCartao } = await import('./cartao-credito.ts');
+  
+  const resultado = await registrarCompraCartao(userId, {
+    valor: dados.valor,
+    parcelas: parcelas,
+    cartao_id: dados.cartao_id,
+    descricao: descricao,
+    data_compra: new Date().toISOString().split('T')[0]
+  });
+  
+  // Salvar ID da transação no contexto para exclusão posterior
   if (resultado.sucesso && resultado.transactionId) {
     await salvarContexto(userId, 'credit_card_context', {
       transacao_id: resultado.transactionId,
@@ -3269,11 +3398,19 @@ async function processarSelecaoCartaoFatura(
   if (!isNaN(numero) && numero >= 1 && numero <= cartoes.length) {
     cartaoSelecionado = cartoes[numero - 1];
   } else {
-    // Tentar match por nome
-    cartaoSelecionado = cartoes.find(c => 
-      c.name.toLowerCase().includes(textoLimpo) || 
-      textoLimpo.includes(c.name.toLowerCase())
-    ) || null;
+    // ✅ CORREÇÃO: Usar aliases para encontrar cartão (roxinho → nubank, laranjinha → inter)
+    const { buscarCartaoFuzzy } = await import('./cartao-credito.ts');
+    const fuzzyResult = buscarCartaoFuzzy(texto, cartoes);
+    
+    if (fuzzyResult.encontrado && fuzzyResult.cartao) {
+      cartaoSelecionado = fuzzyResult.cartao;
+    } else {
+      // Fallback: busca simples por nome
+      cartaoSelecionado = cartoes.find(c => 
+        c.name.toLowerCase().includes(textoLimpo) || 
+        textoLimpo.includes(c.name.toLowerCase())
+      ) || null;
+    }
   }
   
   // Opção de criar novo cartão
@@ -3698,12 +3835,21 @@ async function processarSelecaoCartaoParcelamento(
     cartaoSelecionado = cartoes[numero - 1];
   }
   
-  // Por nome
+  // Por nome ou alias
   if (!cartaoSelecionado) {
-    cartaoSelecionado = cartoes.find(c => 
-      c.name.toLowerCase().includes(textoLimpo) ||
-      textoLimpo.includes(c.name.toLowerCase())
-    ) || null;
+    // ✅ CORREÇÃO: Usar aliases para encontrar cartão (roxinho → nubank, laranjinha → inter)
+    const { buscarCartaoFuzzy } = await import('./cartao-credito.ts');
+    const fuzzyResult = buscarCartaoFuzzy(texto, cartoes);
+    
+    if (fuzzyResult.encontrado && fuzzyResult.cartao) {
+      cartaoSelecionado = fuzzyResult.cartao;
+    } else {
+      // Fallback: busca simples por nome
+      cartaoSelecionado = cartoes.find(c => 
+        c.name.toLowerCase().includes(textoLimpo) ||
+        textoLimpo.includes(c.name.toLowerCase())
+      ) || null;
+    }
   }
   
   if (!cartaoSelecionado) {

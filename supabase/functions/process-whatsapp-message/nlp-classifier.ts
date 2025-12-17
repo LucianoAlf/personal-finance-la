@@ -187,7 +187,7 @@ const INTENT_CLASSIFICATION_FUNCTION = {
             enum: ['expense', 'income', 'transfer']
           },
           categoria: { type: 'string' },
-          descricao: { type: 'string' },
+          descricao: { type: 'string', description: 'O que foi comprado/gasto. IMPORTANTE para COMPRA_PARCELADA: extrair só o produto! Ex: "TV 2000 em 10x" → descricao="TV", "celular 3500 em 12x" → descricao="celular"' },
           data: { type: 'string' },
           periodo: { 
             type: 'string',
@@ -207,8 +207,8 @@ const INTENT_CLASSIFICATION_FUNCTION = {
             enum: ['pix', 'credito', 'debito', 'dinheiro', 'boleto']
           },
           // ENTIDADES DE CARTÃO DE CRÉDITO
-          cartao: { type: 'string', description: 'Nome do cartão de crédito (ex: Nubank, Itaú, Bradesco)' },
-          parcelas: { type: 'number', description: 'Número de parcelas (1 para compra à vista)' },
+          cartao: { type: 'string', description: 'Nome do cartão de crédito (ex: Nubank, Itaú, Bradesco). IMPORTANTE: Extrair de "no Nubank", "no Itaú", etc.' },
+          parcelas: { type: 'number', description: 'Número de parcelas. OBRIGATÓRIO para COMPRA_PARCELADA! Ex: "em 10x" → parcelas=10, "em 3 vezes" → parcelas=3. Se não parcelou, use 1.' },
           // CONTEXTO INFERIDO DO HISTÓRICO
           mes_referencia: { type: 'string', description: 'Mês inferido do histórico da conversa (ex: novembro, dezembro). Use quando o usuário pede detalhes de algo mencionado anteriormente.' }
         }
@@ -423,7 +423,23 @@ ${memoriaUsuario}
     - "comprei uma TV de 2000 em 10x no Nubank"
     - "parcelei 600 em 3 vezes"
     - "gastei 1200 em 6x no cartão"
-    - EXTRAIA: valor, descricao, cartao, parcelas (número de parcelas)
+    - "TV 2000 em 10x no Nubank" (descrição + valor + parcelas + cartão)
+    - "celular 3500 em 12x" (descrição + valor + parcelas)
+    
+    ⚠️ REGRA CRÍTICA DE EXTRAÇÃO PARA COMPRA_PARCELADA:
+    - **valor**: SEMPRE o valor TOTAL da compra (ex: "TV 2000 em 10x" → valor=2000, NÃO 200!)
+    - **descricao**: O QUE foi comprado (ex: "TV 2000 em 10x" → descricao="TV", NÃO "TV 2000"!)
+    - **cartao**: Nome do cartão (ex: "no Nubank" → cartao="nubank")
+    - **parcelas**: Número de parcelas (ex: "em 10x" → parcelas=10)
+    
+    ⚠️ PADRÃO COMUM: "[PRODUTO] [VALOR] em [N]x no [CARTÃO]"
+    Exemplo: "TV 2000 em 10x no Nubank"
+    - descricao = "TV" (só o produto!)
+    - valor = 2000 (valor TOTAL, não a parcela!)
+    - parcelas = 10
+    - cartao = "nubank"
+    
+    EXTRAIA: valor (TOTAL!), descricao (só o produto!), cartao, parcelas
     
 22. **CONSULTAR_FATURA**: Ver fatura do cartão de crédito (em aberto ou geral). Exemplos:
     - "fatura do Nubank", "fatura do cartão"

@@ -24,7 +24,13 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
 
       let query = supabase
         .from('credit_card_transactions')
-        .select('*')
+        .select(`
+          *,
+          categories:category_id (
+            id,
+            name
+          )
+        `)
         .eq('user_id', user.id);
 
       if (cardId) {
@@ -40,7 +46,14 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
       });
 
       if (fetchError) throw fetchError;
-      setTransactions(data || []);
+      
+      // Mapear categoria para category_name
+      const transactionsWithCategoryName = (data || []).map((t: any) => ({
+        ...t,
+        category_name: t.categories?.name || null,
+      }));
+      
+      setTransactions(transactionsWithCategoryName);
     } catch (err: any) {
       setError(err.message);
       console.error('Erro ao buscar transações:', err);

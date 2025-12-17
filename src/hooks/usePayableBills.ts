@@ -356,6 +356,7 @@ export function usePayableBills(initialFilters?: BillFilters) {
     if (!user?.id) return false;
 
     try {
+      // 1. Deletar de payable_bills
       const { error } = await supabase
         .from('payable_bills')
         .delete()
@@ -363,6 +364,14 @@ export function usePayableBills(initialFilters?: BillFilters) {
         .eq('user_id', user.id);
 
       if (error) throw error;
+
+      // 2. Deletar também de credit_card_transactions (se existir)
+      // Isso garante sincronização entre Contas a Pagar e Cartões
+      await supabase
+        .from('credit_card_transactions')
+        .delete()
+        .eq('installment_group_id', groupId)
+        .eq('user_id', user.id);
 
       toast.success('Parcelamento deletado com sucesso!');
       await fetchBills();

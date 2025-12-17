@@ -589,6 +589,14 @@ export const NLP_CATEGORIA_MAP: Record<string, string> = {
   'esportes': 'Esportes',
   'investimentos': 'Investimentos',
   'outros': 'Outros',
+  'eletrodomesticos': 'Eletrodomésticos',
+  'eletrodomésticos': 'Eletrodomésticos',
+  'compras': 'Compras',
+  'reparos e manutencoes': 'Reparos e Manutenções',
+  'reparos e manutenções': 'Reparos e Manutenções',
+  'contas de consumo': 'Contas de Consumo',
+  'bonificacoes': 'Bonificações',
+  'bonificações': 'Bonificações',
 };
 
 // ============================================

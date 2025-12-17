@@ -67,16 +67,20 @@ export function InstallmentGroupCard({
   onEditInstallment,
   onDeleteGroup,
 }: InstallmentGroupCardProps) {
-  const { categories } = useCategories();
+  const { categories, loading: categoriesLoading } = useCategories();
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Buscar categoria pelo ID ou usar fallback
   const getCategoryName = () => {
     // Tentar buscar pelo category_id da primeira parcela
     const firstInstallment = group.installments[0];
-    if (firstInstallment?.category_id) {
+    if (firstInstallment?.category_id && categories.length > 0) {
       const cat = categories.find(c => c.id === firstInstallment.category_id);
       if (cat) return cat.name;
+    }
+    // Se categorias ainda estão carregando, não mostrar fallback errado
+    if (categoriesLoading && firstInstallment?.category_id) {
+      return 'Carregando...';
     }
     return getBillCategoryName(group.billType);
   };

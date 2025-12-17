@@ -1068,10 +1068,14 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
                          intencaoNLP.intencao === 'PAGAR_FATURA' ? 'pagar_fatura' : 'compra_cartao';
       
       const entidadesAny = intencaoNLP.entidades as any;
+      // ✅ CORREÇÃO: Usar 'conta' como fallback para 'cartao' (NLP às vezes extrai como conta)
+      const cartaoExtraido = entidadesAny.cartao || entidadesAny.conta;
+      console.log('[CARTAO-FIX] cartao:', entidadesAny.cartao, 'conta:', entidadesAny.conta, '→ usando:', cartaoExtraido);
+      
       const intencaoCartao = {
         tipo: tipoCartao as any,
         valor: entidadesAny.valor,
-        cartao: entidadesAny.cartao,
+        cartao: cartaoExtraido,
         parcelas: entidadesAny.parcelas || 1,
         descricao: entidadesAny.descricao,
         mes_referencia: entidadesAny.mes_referencia  // Mês inferido do contexto pelo NLP
@@ -1082,11 +1086,23 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       const resultado = await processarIntencaoCartao(intencaoCartao, user.id, phone);
       
       if (resultado.precisaConfirmacao && resultado.dados) {
-        // Salvar contexto para escolha do cartão
+        // Determinar o step baseado no tipo de dados
+        const step = resultado.dados.tipo === 'compra_cartao_aguardando_descricao' 
+          ? 'awaiting_card_purchase_description' 
+          : 'awaiting_card_selection';
+        
         await salvarContexto(user.id, 'confirming_action', {
-          step: 'awaiting_card_selection',
+          step,
           phone,
           dados_cartao: resultado.dados
+        }, phone);
+      } else if (resultado.dados?.transacao_id) {
+        // ✅ CORREÇÃO: Salvar contexto da transação registrada para permitir "exclui essa"
+        console.log('[CARTAO] Salvando contexto da transação:', resultado.dados.transacao_id);
+        await salvarContexto(user.id, 'transaction_registered', {
+          transacao_id: resultado.dados.transacao_id,
+          transacao_tipo: resultado.dados.transacao_tipo,
+          phone
         }, phone);
       }
       

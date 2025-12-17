@@ -71,6 +71,32 @@ const ALIASES_CARTAO: Record<string, string[]> = {
   'xp': ['xp investimentos', 'xp card'],
 };
 
+// ✅ CORREÇÃO BUG #7: Função para detectar cartão por alias em qualquer texto
+// Retorna o nome padronizado do cartão se encontrar um alias no texto
+function detectarCartaoPorAlias(texto: string): string | null {
+  const textoNorm = texto.toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  
+  // Verificar cada cartão e seus aliases
+  for (const [cartaoPadrao, aliases] of Object.entries(ALIASES_CARTAO)) {
+    // Verificar se o texto contém o nome padrão do cartão
+    if (textoNorm.includes(cartaoPadrao)) {
+      return cartaoPadrao;
+    }
+    // Verificar se o texto contém algum alias
+    for (const alias of aliases) {
+      const aliasNorm = alias.toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (textoNorm.includes(aliasNorm)) {
+        console.log('[CARTAO-ALIAS] Detectado:', alias, '→', cartaoPadrao);
+        return cartaoPadrao;
+      }
+    }
+  }
+  
+  return null;
+}
+
 // ============================================
 // ALIASES DE CATEGORIAS (CAMADA 3)
 // ============================================
@@ -636,6 +662,31 @@ export function detectarIntencaoCartao(msg: string): IntencaoCartao | null {
   const msgLower = msg.toLowerCase().trim()
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   
+  // ✅ NOVO PADRÃO: "TV 2000 em 10x no Nubank" - descrição + valor + parcelas + cartão
+  // Captura: DESCRIÇÃO VALOR em Xx [no CARTÃO]
+  const matchDescricaoValorParcelado = msgLower.match(
+    /^(.+?)\s+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s+(?:em|de)\s+(\d+)\s*(?:x|vezes|parcelas?)(?:\s+(?:no|na|do|da)\s+(?:cartao\s+)?(.+))?$/
+  );
+  if (matchDescricaoValorParcelado) {
+    const descricao = matchDescricaoValorParcelado[1]?.trim();
+    const valor = parseFloat(matchDescricaoValorParcelado[2].replace(',', '.'));
+    const parcelas = parseInt(matchDescricaoValorParcelado[3]);
+    const cartao = matchDescricaoValorParcelado[4]?.trim();
+    
+    // Validar que a descrição não é um verbo de ação (evitar conflito com outros padrões)
+    const verbosAcao = ['comprei', 'gastei', 'paguei', 'compra'];
+    if (!verbosAcao.some(v => descricao.toLowerCase().startsWith(v))) {
+      console.log('[CARTAO-PARSE] Padrão "DESC VALOR em Xx": desc=', descricao, 'valor=', valor, 'parcelas=', parcelas, 'cartao=', cartao);
+      return { 
+        tipo: 'compra_parcelada', 
+        valor, 
+        parcelas,
+        cartao,
+        descricao: descricao.charAt(0).toUpperCase() + descricao.slice(1)
+      };
+    }
+  }
+  
   // COMPRA PARCELADA: "comprei 600 em 3x", "gastei 1200 em 6 vezes no cartão"
   const matchParcelado = msgLower.match(
     /(?:comprei|gastei|paguei)\s+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s+(?:em|de)\s+(\d+)\s*(?:x|vezes|parcelas?)(?:\s+(?:no|na|do|da)\s+(?:cartao\s+)?(.+))?/
@@ -735,22 +786,33 @@ export function detectarIntencaoCartao(msg: string): IntencaoCartao | null {
     const matchValor = msgLower.match(/(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)/);
     if (matchValor) {
       const valor = parseFloat(matchValor[1].replace(',', '.'));
-      // Tentar extrair nome do cartão - com ou sem preposição
-      const matchCartaoNome = msgLower.match(/(?:(?:no|na|do|da)\s+)?(nubank|itau|itaú|bradesco|santander|inter|c6|picpay)/i);
-      if (matchCartaoNome) {
-        return { 
-          tipo: 'compra_cartao', 
-          valor, 
-          parcelas: 1,
-          cartao: matchCartaoNome[1]
-        };
-      }
-      // Se não encontrou cartão específico, retorna sem cartão (vai perguntar)
+      // ✅ CORREÇÃO BUG #7: Usar detectarCartaoPorAlias para reconhecer aliases como "roxinho"
+      const cartaoDetectado = detectarCartaoPorAlias(msgLower);
       return { 
         tipo: 'compra_cartao', 
         valor, 
         parcelas: 1,
-        cartao: undefined
+        cartao: cartaoDetectado || undefined
+      };
+    }
+  }
+  
+  // ✅ CORREÇÃO BUG #7: Detectar compra quando menciona alias de cartão diretamente
+  // "TV 2000 em 10x no roxinho", "comprei 500 no laranjinha"
+  const cartaoAlias = detectarCartaoPorAlias(msgLower);
+  if (cartaoAlias) {
+    const matchValor = msgLower.match(/(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)/);
+    if (matchValor) {
+      const valor = parseFloat(matchValor[1].replace(',', '.'));
+      // Verificar se tem parcelas
+      const matchParcelas = msgLower.match(/(\d+)\s*(?:x|vezes|parcelas?)/i);
+      const parcelas = matchParcelas ? parseInt(matchParcelas[1]) : 1;
+      
+      return { 
+        tipo: parcelas > 1 ? 'compra_parcelada' : 'compra_cartao', 
+        valor, 
+        parcelas,
+        cartao: cartaoAlias
       };
     }
   }
@@ -776,6 +838,32 @@ export function detectarIntencaoCartao(msg: string): IntencaoCartao | null {
   // LISTAR CARTÕES: "meus cartões", "cartões"
   if (/\b(meus\s+cartoes|meus\s+cartões|cartoes|cartões)\b/.test(msgLower)) {
     return { tipo: 'listar_cartoes' };
+  }
+  
+  // ✅ CORREÇÃO BUG #6: Detectar apenas nome/alias de cartão (ex: "Nu", "Nubank", "Itau")
+  // Quando o usuário digita apenas o nome do cartão, assume que quer ver a fatura
+  const aliasesCartao: Record<string, string[]> = {
+    'nubank': ['nu', 'nubank', 'roxinho', 'roxo'],
+    'itau': ['itau', 'itaú', 'iti'],
+    'bradesco': ['bradesco', 'brades', 'brad'],
+    'santander': ['santander', 'santan', 'sant'],
+    'inter': ['inter', 'laranja'],
+    'c6': ['c6', 'c6bank'],
+    'picpay': ['picpay', 'pic'],
+    'will': ['will', 'willbank'],
+    'neon': ['neon'],
+    'next': ['next'],
+  };
+  
+  const msgTrimmed = msgLower.trim();
+  for (const [cartaoPadrao, aliases] of Object.entries(aliasesCartao)) {
+    if (aliases.includes(msgTrimmed) || msgTrimmed === cartaoPadrao) {
+      console.log('[CARTAO] Detectado nome/alias de cartão:', msgTrimmed, '→', cartaoPadrao);
+      return { 
+        tipo: 'consulta_fatura',
+        cartao: cartaoPadrao
+      };
+    }
   }
   
   // VER TODAS COMPRAS DO CARTÃO: "ver todas compras", "todas as compras", "listar compras"
@@ -882,55 +970,188 @@ export async function listarCartoes(userId: string): Promise<string> {
 // CONSULTAR LIMITE
 // ============================================
 
+// Função auxiliar para gerar barra de progresso visual
+function gerarBarraProgresso(percentual: number): string {
+  const total = 20;
+  const preenchido = Math.round((percentual / 100) * total);
+  const vazio = total - preenchido;
+  return '█'.repeat(preenchido) + '░'.repeat(vazio);
+}
+
 export async function consultarLimite(userId: string, nomeCartao?: string): Promise<string> {
+  const supabase = getSupabase();
   const cartoes = await buscarCartoesUsuario(userId);
   
   if (cartoes.length === 0) {
     return `💳 Você não tem cartões cadastrados.`;
   }
   
-  // Se especificou cartão, filtrar
+  // Se especificou cartão, usar busca fuzzy para encontrar por alias
   let cartoesParaMostrar = cartoes;
   if (nomeCartao) {
-    const nomeNorm = nomeCartao.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    cartoesParaMostrar = cartoes.filter((c: any) => {
-      const cartaoNorm = c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      return cartaoNorm.includes(nomeNorm) || nomeNorm.includes(cartaoNorm);
-    });
-    
-    if (cartoesParaMostrar.length === 0) {
-      let lista = `❓ Não encontrei o cartão "${nomeCartao}".\n\n📋 *Seus cartões:*\n`;
-      cartoes.forEach((c: any) => { lista += `• ${c.name}\n`; });
-      return lista;
+    const fuzzyResult = buscarCartaoFuzzy(nomeCartao, cartoes);
+    if (fuzzyResult.encontrado && fuzzyResult.cartao) {
+      cartoesParaMostrar = [fuzzyResult.cartao];
+    } else {
+      // Fallback para busca simples
+      const nomeNorm = nomeCartao.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      cartoesParaMostrar = cartoes.filter((c: any) => {
+        const cartaoNorm = c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return cartaoNorm.includes(nomeNorm) || nomeNorm.includes(cartaoNorm);
+      });
+      
+      if (cartoesParaMostrar.length === 0) {
+        let lista = `❓ Não encontrei o cartão "${nomeCartao}".\n\n📋 *Seus cartões:*\n`;
+        cartoes.forEach((c: any) => { lista += `• ${c.name}\n`; });
+        return lista;
+      }
     }
   }
   
+  // LIMITE INDIVIDUAL (detalhado)
   if (cartoesParaMostrar.length === 1) {
     const c = cartoesParaMostrar[0];
     const emoji = getEmojiBanco(c.name);
     const limiteUsado = c.credit_limit - c.available_limit;
-    const percentualUsado = ((limiteUsado / c.credit_limit) * 100).toFixed(0);
+    const percentualUsado = c.credit_limit > 0 ? ((limiteUsado / c.credit_limit) * 100) : 0;
+    const percentualDisponivel = 100 - percentualUsado;
     
-    return `${emoji} *${c.name}*\n\n` +
-           `💰 *Limite Total:* ${formatarMoeda(c.credit_limit)}\n` +
-           `✅ *Disponível:* ${formatarMoeda(c.available_limit)}\n` +
-           `🔴 *Usado:* ${formatarMoeda(limiteUsado)} (${percentualUsado}%)`;
+    // Buscar fatura mais recente (pode ser do mês atual ou anterior)
+    const hoje = new Date();
+    const mesAtual = hoje.getMonth() + 1;
+    const anoAtual = hoje.getFullYear();
+    
+    // Buscar fatura mais recente do cartão (ordenar por ano e mês decrescente)
+    const { data: faturaAtual } = await supabase
+      .from('credit_card_invoices')
+      .select('*')
+      .eq('credit_card_id', c.id)
+      .order('reference_year', { ascending: false })
+      .order('reference_month', { ascending: false })
+      .limit(1)
+      .single();
+    
+    // Calcular dias até fechamento usando closing_day do cartão
+    const closingDay = c.closing_day || 1;
+    let proximoFechamento: Date;
+    if (hoje.getDate() < closingDay) {
+      proximoFechamento = new Date(anoAtual, hoje.getMonth(), closingDay);
+    } else {
+      proximoFechamento = new Date(anoAtual, hoje.getMonth() + 1, closingDay);
+    }
+    const diasAteFechamento = Math.ceil((proximoFechamento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+    
+    const meses = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    
+    let mensagem = `${emoji} *Limite ${c.name}*\n`;
+    mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+    mensagem += `📊 *RESUMO*\n`;
+    mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+    mensagem += `💳 Limite Total: ${formatarMoeda(c.credit_limit)}\n`;
+    mensagem += `✅ Disponível: ${formatarMoeda(c.available_limit)} (${percentualDisponivel.toFixed(0)}%)\n`;
+    mensagem += `💸 Usado: ${formatarMoeda(limiteUsado)} (${percentualUsado.toFixed(0)}%)\n`;
+    
+    // Adicionar info da fatura ANTES da barra de progresso
+    // Se existe fatura cadastrada, usar ela; senão, mostrar valor usado como fatura
+    const nomeMes = meses[mesAtual];
+    
+    if (faturaAtual) {
+      const mesFatura = faturaAtual.reference_month || mesAtual;
+      const nomeMesFatura = meses[mesFatura] || nomeMes;
+      
+      // Determinar status visual
+      let statusEmoji = '🟡';
+      let statusTexto = 'Pendente';
+      if (faturaAtual.status === 'paid') {
+        statusEmoji = '🟢';
+        statusTexto = 'Paga';
+      } else if (faturaAtual.status === 'overdue' || (faturaAtual.due_date && new Date(faturaAtual.due_date) < hoje)) {
+        statusEmoji = '🔴';
+        statusTexto = 'Atrasada';
+      } else if (faturaAtual.status === 'partial') {
+        statusEmoji = '🟠';
+        statusTexto = 'Parcial';
+      }
+      
+      mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+      mensagem += `📅 *FATURA ATUAL* (${nomeMesFatura})\n`;
+      mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+      mensagem += `• Valor: ${formatarMoeda(faturaAtual.total_amount || 0)}\n`;
+      if (faturaAtual.due_date) {
+        const venc = new Date(faturaAtual.due_date);
+        mensagem += `• Vencimento: ${venc.toLocaleDateString('pt-BR')}\n`;
+      }
+      mensagem += `• Status: ${statusEmoji} ${statusTexto}\n`;
+    } else if (limiteUsado > 0) {
+      // Se não tem fatura cadastrada mas tem limite usado, mostrar como fatura atual
+      const dueDay = c.due_day || 10;
+      const dataVencimento = new Date(anoAtual, hoje.getMonth(), dueDay);
+      if (dataVencimento < hoje) {
+        dataVencimento.setMonth(dataVencimento.getMonth() + 1);
+      }
+      
+      mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+      mensagem += `📅 *FATURA ATUAL* (${nomeMes})\n`;
+      mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+      mensagem += `• Valor: ${formatarMoeda(limiteUsado)}\n`;
+      mensagem += `• Vencimento: ${dataVencimento.toLocaleDateString('pt-BR')}\n`;
+      mensagem += `• Status: 🟡 Pendente\n`;
+    }
+    
+    mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+    mensagem += `📈 *USO DO LIMITE*\n`;
+    mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+    mensagem += `[${gerarBarraProgresso(percentualUsado)}] ${percentualUsado.toFixed(0)}%\n`;
+    
+    mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+    mensagem += `💡 *DICAS*\n`;
+    mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+    mensagem += `• Você pode gastar mais ${formatarMoeda(c.available_limit)}\n`;
+    if (diasAteFechamento > 0) {
+      mensagem += `• Próxima fatura fecha em ${diasAteFechamento} dias\n`;
+    }
+    mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+    mensagem += `⚡ *AÇÕES RÁPIDAS*\n`;
+    mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+    mensagem += `• _"fatura ${c.name.toLowerCase()}"_ - Ver compras\n`;
+    mensagem += `• _"comprei X no ${c.name.toLowerCase()}"_ - Registrar`;
+    
+    return mensagem;
   }
   
-  // Múltiplos cartões
-  let mensagem = `💳 *Limites dos Cartões*\n\n`;
+  // MÚLTIPLOS CARTÕES (resumo)
+  let mensagem = `💳 *Limites dos Cartões*\n`;
+  mensagem += `━━━━━━━━━━━━━━━━━━━━\n\n`;
+  
   let totalLimite = 0;
   let totalDisponivel = 0;
   
   for (const c of cartoesParaMostrar) {
     const emoji = getEmojiBanco(c.name);
-    mensagem += `${emoji} *${c.name}*: ${formatarMoeda(c.available_limit)} de ${formatarMoeda(c.credit_limit)}\n`;
-    totalLimite += c.credit_limit;
-    totalDisponivel += c.available_limit;
+    const limiteUsado = c.credit_limit - c.available_limit;
+    const percentualUsado = c.credit_limit > 0 ? ((limiteUsado / c.credit_limit) * 100) : 0;
+    
+    mensagem += `${emoji} *${c.name}*\n`;
+    mensagem += `├ Total: ${formatarMoeda(c.credit_limit)}\n`;
+    mensagem += `├ Disponível: ${formatarMoeda(c.available_limit)}\n`;
+    mensagem += `├ Usado: ${percentualUsado.toFixed(0)}%\n`;
+    mensagem += `└ [${gerarBarraProgresso(percentualUsado)}]\n\n`;
+    
+    totalLimite += c.credit_limit || 0;
+    totalDisponivel += c.available_limit || 0;
   }
   
-  mensagem += `\n━━━━━━━━━━━━━━━━\n`;
-  mensagem += `💎 *Total Disponível:* ${formatarMoeda(totalDisponivel)}`;
+  const totalUsado = totalLimite - totalDisponivel;
+  const percentualTotalUsado = totalLimite > 0 ? ((totalUsado / totalLimite) * 100) : 0;
+  
+  mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+  mensagem += `📊 *RESUMO GERAL*\n`;
+  mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+  mensagem += `💳 Limite Total: ${formatarMoeda(totalLimite)}\n`;
+  mensagem += `✅ Disponível: ${formatarMoeda(totalDisponivel)} (${(100 - percentualTotalUsado).toFixed(0)}%)\n`;
+  mensagem += `💸 Usado: ${formatarMoeda(totalUsado)} (${percentualTotalUsado.toFixed(0)}%)\n`;
+  mensagem += `━━━━━━━━━━━━━━━━━━━━\n`;
+  mensagem += `💡 Digite _"limite [cartão]"_ para detalhes`;
   
   return mensagem;
 }
@@ -2432,11 +2653,15 @@ export async function registrarCompraCartao(
     // ✅ DETECTAR CATEGORIA AUTOMATICAMENTE
     let categoriaId: string | undefined = dados.categoria_id;
     if (!categoriaId && dados.descricao) {
-      console.log('[CARTAO] Detectando categoria para:', dados.descricao, 'valor:', dados.valor);
+      console.log('[CARTAO] ========================================');
+      console.log('[CARTAO] Detectando categoria para descrição:', dados.descricao);
+      console.log('[CARTAO] Descrição lowercase:', dados.descricao.toLowerCase());
+      console.log('[CARTAO] Valor:', dados.valor);
       // ✅ Passar o valor para contexto (ex: água < R$20 = Alimentação)
       const catDetectada = await detectarCategoriaAutomatica(userId, dados.descricao, 'expense', dados.valor);
       categoriaId = catDetectada || undefined;
-      console.log('[CARTAO] Categoria detectada:', categoriaId);
+      console.log('[CARTAO] Categoria detectada ID:', categoriaId);
+      console.log('[CARTAO] ========================================');
     }
     
     // ✅ CORREÇÃO: Criar apenas 1 registro PAI para parcelamentos
@@ -2487,6 +2712,51 @@ export async function registrarCompraCartao(
     if (insertError) {
       console.error('[CARTAO] Erro ao inserir transações:', insertError);
       return { sucesso: false, mensagem: '❌ Erro ao registrar compra.' };
+    }
+    
+    // ✅ CORREÇÃO: Criar parcelas em payable_bills para aparecer em Contas a Pagar
+    if (dados.parcelas > 1 && installmentGroupId) {
+      console.log('[CARTAO] Criando parcelas em payable_bills para Contas a Pagar...');
+      
+      const parcelasPayable = [];
+      for (let i = 1; i <= dados.parcelas; i++) {
+        // Calcular data de vencimento de cada parcela (mês a mês)
+        const dataVencimento = new Date(dataCompra);
+        dataVencimento.setMonth(dataVencimento.getMonth() + i - 1);
+        // Usar dia de vencimento do cartão se disponível
+        if (cartao.due_day) {
+          dataVencimento.setDate(cartao.due_day);
+        }
+        
+        parcelasPayable.push({
+          user_id: userId,
+          description: dados.descricao,
+          amount: valorParcela,
+          due_date: dataVencimento.toISOString().split('T')[0],
+          bill_type: 'installment',
+          status: 'pending',
+          is_recurring: false,
+          is_installment: true,
+          installment_number: i,
+          installment_total: dados.parcelas,
+          installment_group_id: installmentGroupId,
+          original_purchase_amount: dados.valor,
+          payment_method: 'credit_card',
+          credit_card_id: dados.cartao_id,
+          category_id: categoriaId || null
+        });
+      }
+      
+      const { error: payableError } = await supabase
+        .from('payable_bills')
+        .insert(parcelasPayable);
+      
+      if (payableError) {
+        console.error('[CARTAO] Erro ao criar parcelas em payable_bills:', payableError);
+        // Não falha a operação, apenas loga o erro
+      } else {
+        console.log('[CARTAO] ✅ Criadas', dados.parcelas, 'parcelas em payable_bills');
+      }
     }
     
     // Atualizar limite disponível
@@ -2620,6 +2890,9 @@ export async function processarIntencaoCartao(
     case 'compra_parcelada': {
       const cartoes = await buscarCartoesUsuario(userId);
       
+      console.log('[COMPRA-CARTAO] Cartão mencionado:', intencao.cartao);
+      console.log('[COMPRA-CARTAO] Cartões do usuário:', cartoes.map((c: any) => c.name));
+      
       if (cartoes.length === 0) {
         return {
           mensagem: '💳 Você não tem cartões cadastrados.\n\n💡 _Cadastre seus cartões no app!_',
@@ -2632,27 +2905,70 @@ export async function processarIntencaoCartao(
       
       if (intencao.cartao) {
         const nomeNorm = intencao.cartao.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        console.log('[COMPRA-CARTAO] Nome normalizado:', nomeNorm);
+        
         cartaoSelecionado = cartoes.find((c: any) => {
           const cartaoNorm = c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-          return cartaoNorm.includes(nomeNorm) || nomeNorm.includes(cartaoNorm);
+          const match = cartaoNorm.includes(nomeNorm) || nomeNorm.includes(cartaoNorm);
+          console.log(`[COMPRA-CARTAO] Comparando "${nomeNorm}" com "${cartaoNorm}": ${match}`);
+          return match;
         });
+        
+        console.log('[COMPRA-CARTAO] Cartão encontrado:', cartaoSelecionado?.name || 'NENHUM');
       } else if (cartoes.length === 1) {
         cartaoSelecionado = cartoes[0];
+        console.log('[COMPRA-CARTAO] Único cartão, usando:', cartaoSelecionado.name);
       }
       
       if (cartaoSelecionado) {
-        // Registrar direto
-        const resultado = await registrarCompraCartao(userId, {
-          valor: intencao.valor!,
-          parcelas: intencao.parcelas || 1,
-          cartao_id: cartaoSelecionado.id,
-          descricao: intencao.descricao || 'Compra no cartão',
-          data_compra: new Date().toISOString().split('T')[0]
-        });
+        // ✅ Se já tem descrição específica (não genérica), registrar direto
+        // Mínimo 2 chars para aceitar "TV", "PC", etc.
+        const descricaoEspecifica = intencao.descricao && 
+          intencao.descricao.toLowerCase() !== 'compra' &&
+          intencao.descricao.toLowerCase() !== 'compra no cartão' &&
+          intencao.descricao.length >= 2;
+        
+        console.log('[COMPRA-CARTAO] Descrição:', intencao.descricao, '| Específica:', descricaoEspecifica, '| Parcelas:', intencao.parcelas);
+        
+        if (descricaoEspecifica) {
+          // Registrar direto - usuário já informou o que comprou
+          const resultado = await registrarCompraCartao(userId, {
+            valor: intencao.valor!,
+            parcelas: intencao.parcelas || 1,
+            cartao_id: cartaoSelecionado.id,
+            descricao: intencao.descricao!,
+            data_compra: new Date().toISOString().split('T')[0]
+          });
+          
+          // ✅ CORREÇÃO: Retornar transactionId para salvar no contexto
+          return {
+            mensagem: resultado.mensagem,
+            precisaConfirmacao: false,
+            dados: resultado.transactionId ? {
+              transacao_id: resultado.transactionId,
+              transacao_tipo: 'credit_card_transaction'
+            } : undefined
+          };
+        }
+        
+        // ❓ Perguntar o que comprou e se parcelou
+        const msg = `💳 *Compra de ${formatarMoeda(intencao.valor!)}* no ${cartaoSelecionado.name}
+
+📝 *O que você comprou?*
+_Ex: "almoço", "gasolina", "mercado"_
+
+💳 *Parcelou?* Se sim, informe as parcelas.
+_Ex: "mercado em 3x", "celular 12x"_`;
         
         return {
-          mensagem: resultado.mensagem,
-          precisaConfirmacao: false
+          mensagem: msg,
+          precisaConfirmacao: true,
+          dados: {
+            tipo: 'compra_cartao_aguardando_descricao',
+            valor: intencao.valor,
+            cartao_id: cartaoSelecionado.id,
+            cartao_nome: cartaoSelecionado.name
+          }
         };
       }
       
