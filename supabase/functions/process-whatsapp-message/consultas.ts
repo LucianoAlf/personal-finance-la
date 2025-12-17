@@ -575,52 +575,35 @@ export async function consultarSaldo(userId: string): Promise<string> {
     return '❌ Você ainda não tem contas cadastradas.\n\n💡 Cadastre suas contas no app para acompanhar seus saldos!';
   }
   
-  const emojisTipo: Record<string, string> = {
-    checking: '🏦',
-    savings: '🐷',
-    cash: '💵',
-    investment: '📈',
-    credit_card: '💳'
-  };
-  
-  let totalContas = 0;
-  let totalCartoes = 0;
-  let mensagem = '💰 *Seus Saldos*\n\n';
-  
-  // Separar contas e cartões
-  const contasNormais = accounts.filter(c => c.type !== 'credit_card');
-  const cartoes = accounts.filter(c => c.type === 'credit_card');
-  
-  // Listar contas normais
-  for (const conta of contasNormais) {
-    const emojiBanco = getEmojiBanco(conta.name);
-    const emojiTipo = emojisTipo[conta.type] || '💰';
-    const saldoFormatado = formatarMoeda(conta.current_balance);
-    const indicador = conta.current_balance < 0 ? '🔴' : '';
+  // Usar insights inteligentes da Ana Clara
+  try {
+    const { gerarInsightsSaldo } = await import('./insights-ana-clara.ts');
+    return await gerarInsightsSaldo(userId, accounts);
+  } catch (insightError) {
+    console.error('[CONSULTA] Erro nos insights, usando fallback:', insightError);
     
-    mensagem += `${emojiBanco} *${conta.name}*: ${saldoFormatado} ${indicador}\n`;
-    totalContas += conta.current_balance;
-  }
-  
-  // Listar cartões separadamente se houver
-  if (cartoes.length > 0) {
-    mensagem += `\n💳 *Cartões de Crédito*\n`;
-    for (const cartao of cartoes) {
-      const emojiBanco = getEmojiBanco(cartao.name);
-      const saldoFormatado = formatarMoeda(Math.abs(cartao.current_balance));
-      mensagem += `${emojiBanco} *${cartao.name}*: ${saldoFormatado} (usado)\n`;
-      totalCartoes += cartao.current_balance;
+    // Fallback simples se insights falhar
+    let totalContas = 0;
+    let mensagem = '💰 *Seus Saldos*\n\n';
+    
+    for (const conta of accounts) {
+      const emojiBanco = getEmojiBanco(conta.name);
+      const saldoFormatado = formatarMoeda(conta.current_balance);
+      const indicador = conta.current_balance < 0 ? '🔴' : '';
+      
+      mensagem += `${emojiBanco} *${conta.name}*: ${saldoFormatado} ${indicador}\n`;
+      totalContas += conta.current_balance;
     }
+    
+    mensagem += `\n━━━━━━━━━━━━━━━━\n`;
+    mensagem += `💎 *Total*: ${formatarMoeda(totalContas)}`;
+    
+    if (totalContas < 0) {
+      mensagem += `\n\n⚠️ _Atenção: seu saldo está negativo!_`;
+    }
+    
+    return mensagem;
   }
-  
-  mensagem += `\n━━━━━━━━━━━━━━━━\n`;
-  mensagem += `💎 *Total em Contas*: ${formatarMoeda(totalContas)}`;
-  
-  if (totalContas < 0) {
-    mensagem += `\n\n⚠️ _Atenção: seu saldo está negativo!_`;
-  }
-  
-  return mensagem;
 }
 
 // ============================================

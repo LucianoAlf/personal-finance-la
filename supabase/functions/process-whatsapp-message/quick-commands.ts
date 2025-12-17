@@ -89,28 +89,42 @@ async function comandoSaldo(userId: string): Promise<string> {
   
   const { data: accounts } = await supabase
     .from('accounts')
-    .select('name, current_balance, icon')
+    .select('name, current_balance, type')
     .eq('user_id', userId)
-    .eq('is_active', true);
+    .eq('is_active', true)
+    .order('current_balance', { ascending: false });
   
   if (!accounts || accounts.length === 0) {
-    return '💰 Nenhuma conta cadastrada.';
+    return '💰 Nenhuma conta cadastrada.\n\n💡 Cadastre suas contas no app para acompanhar seus saldos!';
   }
   
-  let total = 0;
-  let mensagem = '💰 *Seus Saldos*\n\n';
-  
-  for (const acc of accounts) {
-    const icon = acc.icon || '🏦';
-    const balance = Number(acc.current_balance);
-    mensagem += `${icon} ${acc.name}: ${formatCurrency(balance)}\n`;
-    total += balance;
+  // Usar insights inteligentes da Ana Clara
+  try {
+    const { gerarInsightsSaldo } = await import('./insights-ana-clara.ts');
+    return await gerarInsightsSaldo(userId, accounts);
+  } catch (error) {
+    console.error('[SALDO] Erro ao gerar insights:', error);
+    
+    // Fallback simples se insights falhar
+    let total = 0;
+    let mensagem = '💰 *Seus Saldos*\n\n';
+    
+    for (const acc of accounts) {
+      const balance = Number(acc.current_balance);
+      const emoji = balance < 0 ? '🔴' : '🟢';
+      mensagem += `${emoji} *${acc.name}*: ${formatCurrency(balance)}\n`;
+      total += balance;
+    }
+    
+    mensagem += `\n━━━━━━━━━━━━━━\n`;
+    mensagem += `💵 *Total:* ${formatCurrency(total)}`;
+    
+    if (total < 0) {
+      mensagem += `\n\n⚠️ _Atenção: seu saldo total está negativo!_`;
+    }
+    
+    return mensagem;
   }
-  
-  mensagem += `\n━━━━━━━━━━━━━━\n`;
-  mensagem += `📊 *Total:* ${formatCurrency(total)}`;
-  
-  return mensagem;
 }
 
 // ============================================

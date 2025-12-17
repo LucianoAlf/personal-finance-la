@@ -363,21 +363,15 @@ export async function consultarSaldo(userId: string): Promise<string> {
       .select('name, current_balance, type')
       .eq('user_id', userId)
       .eq('is_active', true)
-      .order('name');
+      .order('current_balance', { ascending: false });
     
     if (error || !contas || contas.length === 0) {
       return '❌ Você não tem contas cadastradas.\n\nAcesse o app para criar suas contas.';
     }
     
-    // Formatar contas e calcular total
-    let total = 0;
-    const contasFormatadas = contas.map((conta: any) => {
-      const saldo = parseFloat(conta.current_balance) || 0;
-      total += saldo;
-      return { name: conta.name, balance: saldo };
-    });
-    
-    return templateSaldo(contasFormatadas, total);
+    // Usar insights inteligentes da Ana Clara
+    const { gerarInsightsSaldo } = await import('./insights-ana-clara.ts');
+    return await gerarInsightsSaldo(userId, contas);
   } catch (error) {
     console.error('Erro em consultarSaldo:', error);
     return '❌ Erro ao consultar saldo. Tente novamente.';
