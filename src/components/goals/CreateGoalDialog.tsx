@@ -324,7 +324,7 @@ export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', 
           {goalType === 'spending_limit' && (
             <>
               <div className="space-y-2">
-                <Label htmlFor="category_id">Categoria</Label>
+                <Label htmlFor="category_id">Categoria de Despesa</Label>
                 <Select
                   value={selectedCategoryId}
                   onValueChange={(value) => setValue('category_id', value)}
@@ -333,6 +333,9 @@ export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', 
                     <SelectValue placeholder="Selecione uma categoria" />
                   </SelectTrigger>
                   <SelectContent>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-red-600 flex items-center gap-1">
+                      <span>💸</span> CATEGORIAS DE DESPESA ({expenseCategories.length})
+                    </div>
                     {expenseCategories.map((category) => (
                       <SelectItem key={category.id} value={category.id}>
                         <div className="flex items-center gap-2">

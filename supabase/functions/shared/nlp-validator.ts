@@ -77,6 +77,48 @@ export function validarEntidadesNLP(
     }
   }
   
+  // ✅ FIX: Validar conta_bancaria - NLP pode inventar banco que não está no texto
+  if (resultado.conta_bancaria) {
+    const contaBancariaNorm = resultado.conta_bancaria
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    
+    // Lista de bancos conhecidos e seus aliases
+    const bancosConhecidos: Record<string, string[]> = {
+      'nubank': ['nubank', 'nu', 'roxinho', 'roxo'],
+      'itau': ['itau', 'itaú', 'laranjinha'],
+      'bradesco': ['bradesco', 'brades'],
+      'santander': ['santander', 'santan'],
+      'inter': ['inter', 'banco inter', 'laranjao'],
+      'c6': ['c6', 'c6 bank', 'pretinho'],
+      'caixa': ['caixa', 'cef'],
+      'bb': ['bb', 'banco do brasil', 'brasil'],
+      'picpay': ['picpay', 'pic'],
+      'mercado pago': ['mercado pago', 'mercadopago', 'mp'],
+      'next': ['next'],
+      'neon': ['neon'],
+      'original': ['original'],
+      'pagbank': ['pagbank', 'pagseguro'],
+    };
+    
+    // Verificar se o banco está mencionado no texto original
+    let bancoNoTexto = false;
+    for (const [banco, aliases] of Object.entries(bancosConhecidos)) {
+      if (contaBancariaNorm.includes(banco) || aliases.some(a => contaBancariaNorm.includes(a))) {
+        // Verificar se algum alias está no texto
+        bancoNoTexto = aliases.some(a => texto.includes(a)) || texto.includes(banco);
+        if (bancoNoTexto) break;
+      }
+    }
+    
+    if (!bancoNoTexto) {
+      console.log('[NLP-VALIDATOR] ⚠️ Conta bancária alucinada removida:', resultado.conta_bancaria);
+      console.log('[NLP-VALIDATOR] Texto original não menciona banco:', contaBancariaNorm);
+      resultado.conta_bancaria = null;
+    }
+  }
+  
   console.log('[NLP-VALIDATOR] ✅ Entidades validadas:', JSON.stringify(resultado));
   return resultado;
 }

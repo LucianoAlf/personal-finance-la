@@ -52,11 +52,17 @@ export const CATEGORIA_KEYWORDS: Record<string, string> = {
   'rappi': 'Alimentação',
   'restaurante': 'Alimentação',
   'lanche': 'Alimentação',
+  'lanchei': 'Alimentação',
   'almoco': 'Alimentação',
   'almoço': 'Alimentação',
+  'almocei': 'Alimentação',
   'jantar': 'Alimentação',
+  'jantei': 'Alimentação',
   'cafe': 'Alimentação',
   'café': 'Alimentação',
+  'tomei cafe': 'Alimentação',
+  'tomei café': 'Alimentação',
+  'comi': 'Alimentação',
   'padaria': 'Alimentação',
   'acougue': 'Alimentação',
   'açougue': 'Alimentação',
@@ -69,29 +75,49 @@ export const CATEGORIA_KEYWORDS: Record<string, string> = {
   'comida': 'Alimentação',
   'refeicao': 'Alimentação',
   'refeição': 'Alimentação',
+  'marmita': 'Alimentação',
+  'cantina': 'Alimentação',
+  'cafeteria': 'Alimentação',
+  'food truck': 'Alimentação',
   
-  // 🏠 Moradia
+  // 🏠 Moradia (custos fixos da casa)
   'aluguel': 'Moradia',
   'condominio': 'Moradia',
   'condomínio': 'Moradia',
-  'luz': 'Moradia',
-  'energia': 'Moradia',
-  'agua': 'Moradia',
-  'água': 'Moradia',
-  'gas': 'Moradia',
-  'gás': 'Moradia',
-  'internet': 'Moradia',
-  'wifi': 'Moradia',
   'iptu': 'Moradia',
+  
+  // ⚡ Contas de Consumo (variáveis)
+  'luz': 'Contas de Consumo',
+  'energia': 'Contas de Consumo',
+  'agua': 'Contas de Consumo',
+  'água': 'Contas de Consumo',
+  'gas': 'Contas de Consumo',
+  'gás': 'Contas de Consumo',
+  'conta de luz': 'Contas de Consumo',
+  'conta de água': 'Contas de Consumo',
+  'conta de gás': 'Contas de Consumo',
+  
+  // 📱 Internet/Telefone → Assinaturas (fixas mensais)
+  'internet': 'Assinaturas',
+  'wifi': 'Assinaturas',
+  'telefone': 'Assinaturas',
+  'celular plano': 'Assinaturas',
+  'plano celular': 'Assinaturas',
   'seguro residencial': 'Moradia',
-  'manutencao': 'Moradia',
-  'manutenção': 'Moradia',
   'reforma': 'Moradia',
   'pintura': 'Moradia',
-  'eletricista': 'Moradia',
-  'encanador': 'Moradia',
   'faxina': 'Moradia',
   'diarista': 'Moradia',
+  
+  // 🔧 Reparos e Manutenções
+  'manutencao': 'Reparos e Manutenções',
+  'manutenção': 'Reparos e Manutenções',
+  'reparo': 'Reparos e Manutenções',
+  'conserto': 'Reparos e Manutenções',
+  'eletricista': 'Reparos e Manutenções',
+  'encanador': 'Reparos e Manutenções',
+  'técnico': 'Reparos e Manutenções',
+  'tecnico': 'Reparos e Manutenções',
   // 🔌 Eletrodomésticos
   'purificador': 'Eletrodomésticos',
   'ar condicionado': 'Eletrodomésticos',
@@ -282,6 +308,32 @@ export const CATEGORIA_KEYWORDS: Record<string, string> = {
   'corretora': 'Investimentos',
   'cripto': 'Investimentos',
   'bitcoin': 'Investimentos',
+  
+  // 🏦 Financiamento (dívida com garantia - carro, imóvel)
+  'financiamento': 'Financiamento',
+  'financiar': 'Financiamento',
+  'financiado': 'Financiamento',
+  'parcela do carro': 'Financiamento',
+  'parcela do apartamento': 'Financiamento',
+  'parcela da casa': 'Financiamento',
+  'prestação do carro': 'Financiamento',
+  'prestação da casa': 'Financiamento',
+  
+  // 💳 Empréstimo (dívida sem garantia)
+  'emprestimo': 'Empréstimo',
+  'empréstimo': 'Empréstimo',
+  'consignado': 'Empréstimo',
+  'credito pessoal': 'Empréstimo',
+  'crédito pessoal': 'Empréstimo',
+  'cheque especial': 'Empréstimo',
+  'divida': 'Empréstimo',
+  'dívida': 'Empréstimo',
+  
+  // 🔄 Transferência entre Contas
+  'transferencia': 'Transferência entre Contas',
+  'transferência': 'Transferência entre Contas',
+  'ted': 'Transferência entre Contas',
+  'doc': 'Transferência entre Contas',
 };
 
 // ============================================
@@ -642,6 +694,7 @@ export const CATEGORIAS_VALIDAS = [
   'Transporte',
   'Alimentação',
   'Moradia',
+  'Contas de Consumo',
   'Saúde',
   'Educação',
   'Lazer',
@@ -653,6 +706,12 @@ export const CATEGORIAS_VALIDAS = [
   'Viagens',
   'Esportes',
   'Investimentos',
+  'Financiamento',
+  'Empréstimo',
+  'Transferência entre Contas',
+  'Eletrodomésticos',
+  'Compras',
+  'Reparos e Manutenções',
   'Outros'
 ];
 

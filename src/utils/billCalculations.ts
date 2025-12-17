@@ -317,3 +317,36 @@ export function formatDate(date: string): string {
 export function formatDateTime(date: string): string {
   return format(parseISO(date), 'dd/MM/yyyy HH:mm', { locale: ptBR });
 }
+
+// ============================================
+// MAPEAMENTO BILL_TYPE → CATEGORIA PADRÃO (FALLBACK)
+// ============================================
+
+/**
+ * Mapeia bill_type (enum do banco) para nome de categoria do master-categories.ts
+ * NOTA: Este é apenas um fallback. O sistema agora usa category_id diretamente.
+ * Todas as contas existentes já foram migradas para usar category_id.
+ */
+export const BILL_TYPE_TO_CATEGORY: Record<string, string> = {
+  'service': 'Contas de Consumo',
+  'telecom': 'Assinaturas',
+  'subscription': 'Assinaturas',
+  'housing': 'Moradia',
+  'education': 'Educação',
+  'healthcare': 'Saúde',
+  'insurance': 'Seguros',
+  'loan': 'Empréstimo',
+  'installment': 'Financiamento',
+  'credit_card': 'Compras',
+  'tax': 'Impostos',
+  'food': 'Alimentação',
+  'other': 'Outros',
+};
+
+/**
+ * Retorna o nome da categoria para exibição (fallback quando não há category_id)
+ * NOTA: Prefira usar getCategoryFromBill() que prioriza category_id
+ */
+export function getBillCategoryName(billType: string): string {
+  return BILL_TYPE_TO_CATEGORY[billType] || billType;
+}

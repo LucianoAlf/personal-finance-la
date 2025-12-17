@@ -118,7 +118,7 @@ export function BillTimeline({ bills, onPay }: BillTimelineProps) {
                       </div>
                       <div className="flex items-center gap-3 shrink-0 ml-4">
                         <span className="font-semibold text-lg">
-                          {formatCurrency(bill.amount)}
+                          {formatCurrency(bill.status === 'paid' && bill.paid_amount ? bill.paid_amount : bill.amount)}
                         </span>
                         {bill.status !== 'paid' && onPay && (
                           <Button

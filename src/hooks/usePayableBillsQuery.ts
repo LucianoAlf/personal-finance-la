@@ -27,21 +27,35 @@ export const usePayableBillsQuery = () => {
 
   const bills = (query.data || []) as Bill[];
 
-  // Overdue
-  const overdueBills = bills.filter((b) => b.status === 'overdue');
+  // Hoje (início do dia para comparação)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Overdue: não paga E data de vencimento < hoje
+  const overdueBills = bills.filter((b) => {
+    if (b.status === 'paid') return false;
+    const due = new Date(b.due_date);
+    due.setHours(0, 0, 0, 0);
+    return due < today;
+  });
 
   // Próximos 7 dias
-  const today = new Date();
   const in7Days = new Date(today);
   in7Days.setDate(today.getDate() + 7);
   const upcomingBills = bills.filter((b) => {
     if (!(b.status === 'pending' || b.status === 'scheduled')) return false;
     const due = new Date(b.due_date);
+    due.setHours(0, 0, 0, 0);
     return due >= today && due <= in7Days;
   });
 
-  // Summary
-  const pendingBills = bills.filter((b) => b.status === 'pending' || b.status === 'scheduled');
+  // Pendentes: status pending/scheduled E data de vencimento >= hoje
+  const pendingBills = bills.filter((b) => {
+    if (b.status !== 'pending' && b.status !== 'scheduled') return false;
+    const due = new Date(b.due_date);
+    due.setHours(0, 0, 0, 0);
+    return due >= today;
+  });
   const paidBills = bills.filter((b) => b.status === 'paid');
   const partialBills = bills.filter((b) => b.status === 'partial');
 

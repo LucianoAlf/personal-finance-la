@@ -11,7 +11,7 @@
 // 
 // ============================================
 
-import { getSupabase, getEmojiBanco } from './utils.ts';
+import { getSupabase, getEmojiBanco, todayBrasilia } from './utils.ts';
 import { enviarConfirmacaoComBotoes } from './button-sender.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
 import { templateTransacaoRegistrada } from './response-templates.ts';
@@ -70,7 +70,9 @@ export type ContextType =
   | 'awaiting_bill_name_for_payment'       // Aguardando nome da conta para marcar como paga
   | 'awaiting_payment_account'             // Aguardando conta bancária de onde sai o pagamento
   // Contexto de ações rápidas de cartão
-  | 'credit_card_context';                 // Contexto de cartão para ações rápidas
+  | 'credit_card_context'                  // Contexto de cartão para ações rápidas
+  // Contexto de referência para faturas vencidas
+  | 'faturas_vencidas_context';            // Contexto de faturas vencidas para follow-ups
 
 export interface ContextData {
   intencao_pendente?: IntencaoClassificada;
@@ -175,23 +177,68 @@ function calcularDataVencimento(diaVencimento: number | string): Date | null {
 // BUSCAR CONTEXTO
 // ============================================
 
+// Contextos de fluxo (multi-step) têm prioridade sobre contextos de referência
+const FLOW_CONTEXT_TYPES: ContextType[] = [
+  'creating_transaction',
+  'editing_transaction',
+  'confirming_action',
+  'multi_step_flow',
+  'awaiting_account_type_selection',
+  'awaiting_register_account_type',
+  'awaiting_bill_type',
+  'awaiting_bill_description',
+  'awaiting_due_day',
+  'awaiting_bill_amount',
+  'awaiting_installment_info',
+  'awaiting_average_value',
+  'awaiting_duplicate_decision',
+  'awaiting_delete_confirmation',
+  'awaiting_invoice_due_date',
+  'awaiting_invoice_amount',
+  'awaiting_card_selection',
+  'awaiting_card_creation_confirmation',
+  'awaiting_card_limit',
+  'awaiting_installment_payment_method',
+  'awaiting_installment_card_selection',
+  'awaiting_payment_value',
+  'awaiting_bill_name_for_payment',
+  'awaiting_payment_account'
+];
+
+// Contextos de referência (memória) - usados para inferir contexto em follow-ups
+const REFERENCE_CONTEXT_TYPES: ContextType[] = [
+  'credit_card_context',
+  'faturas_vencidas_context'
+];
+
 export async function buscarContexto(userId: string): Promise<ContextoConversa | null> {
   const supabase = getSupabase();
   
+  // Buscar TODOS os contextos ativos do usuário
   const { data, error } = await supabase
     .from('conversation_context')
     .select('*')
     .eq('user_id', userId)
     .gt('expires_at', new Date().toISOString())
-    .single();
+    .order('last_interaction', { ascending: false });
   
-  if (error || !data) {
+  if (error || !data || data.length === 0) {
     console.log('📭 Nenhum contexto ativo para usuário:', userId);
     return null;
   }
   
-  console.log('📬 Contexto encontrado:', data.context_type, '| Step:', data.context_data?.step);
-  return data as ContextoConversa;
+  console.log('📬 Contextos encontrados:', data.map(c => c.context_type).join(', '));
+  
+  // Priorizar contextos de FLUXO (multi-step) sobre contextos de REFERÊNCIA
+  const flowContext = data.find(c => FLOW_CONTEXT_TYPES.includes(c.context_type as ContextType));
+  if (flowContext) {
+    console.log('🔄 Usando contexto de FLUXO:', flowContext.context_type);
+    return flowContext as ContextoConversa;
+  }
+  
+  // Se não há contexto de fluxo, retornar o mais recente (provavelmente referência)
+  console.log('📝 Usando contexto de REFERÊNCIA:', data[0].context_type);
+  return data[0] as ContextoConversa;
 }
 
 // ============================================
@@ -213,24 +260,17 @@ export async function salvarContexto(
   
   console.log('💾 Salvando contexto:', { userId, contextType, phoneValue, step: contextData.step });
   
-  // Primeiro, deletar qualquer contexto existente para este usuário
-  const { error: deleteError } = await supabase
-    .from('conversation_context')
-    .delete()
-    .eq('user_id', userId);
-  
-  if (deleteError) {
-    console.error('⚠️ Erro ao deletar contexto antigo:', deleteError);
-  }
-  
-  // Inserir novo contexto
-  const { data, error } = await supabase.from('conversation_context').insert({
+  // UPSERT: Atualiza se existir, insere se não existir
+  // A constraint unique é (user_id, phone, context_type)
+  const { data, error } = await supabase.from('conversation_context').upsert({
     user_id: userId,
     phone: phoneValue,
     context_type: contextType,
     context_data: contextData,
     last_interaction: new Date().toISOString(),
     expires_at: expiresAt.toISOString()
+  }, {
+    onConflict: 'user_id,phone,context_type'
   }).select().single();
   
   if (error) {
@@ -1035,35 +1075,48 @@ async function processarSelecaoConta(
     // ============================================
     // BUSCAR CATEGORIA INTELIGENTE
     // ============================================
-    // 1. Busca por palavra-chave no comando original + descrição + categoria NLP
-    // 2. Busca categoria global (user_id IS NULL) ou do usuário
-    // 3. Fallback para "Outros"
+    // ORDEM DE PRIORIDADE:
+    // 1. GPT-4 (entidades.categoria) - IA entende semântica
+    // 2. Mapeamento por palavra-chave - fallback rápido
+    // 3. "Outros" - último fallback
     // ============================================
     
     const tipo = intencao.intencao === 'REGISTRAR_RECEITA' ? 'income' : 'expense';
-    // Concatenar textos para análise de categoria
-    // ⚠️ NÃO incluir entidades.categoria aqui! 
-    // O NLP pode errar a categoria e contaminar a detecção por palavra-chave
-    const textosParaAnalisar = [
-      intencao?.comando_original,
-      entidades.descricao
-      // ❌ REMOVIDO: entidades.categoria (causava bug quando NLP errava)
-    ].filter(Boolean).join(' ').toLowerCase()
-      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     
-    console.log('[CONTEXTO-CATEGORIA] Textos para análise:', textosParaAnalisar);
     console.log('[CONTEXTO-CATEGORIA] Tipo:', tipo);
+    console.log('[CONTEXTO-CATEGORIA] Categoria do GPT-4:', entidades.categoria);
     
-    // ✅ Usar mapeamento centralizado de shared/mappings.ts
-    // Detectar categoria por palavra-chave
-    let categoriaDetectada = detectarCategoriaPorPalavraChave(textosParaAnalisar);
+    // PRIORIDADE 1: Usar categoria do GPT-4 (IA entende semântica)
+    let categoriaDetectada: string | null = null;
     
-    if (!categoriaDetectada) {
-      categoriaDetectada = 'Outros';
+    if (entidades.categoria && entidades.categoria.trim() !== '') {
+      categoriaDetectada = entidades.categoria;
+      console.log('[CONTEXTO-CATEGORIA] ✅ Usando categoria do GPT-4:', categoriaDetectada);
     }
     
-    console.log('[CONTEXTO-CATEGORIA] 🔍 Categoria detectada:', categoriaDetectada);
-    console.log('[CONTEXTO-CATEGORIA] 📋 Categoria final detectada:', categoriaDetectada);
+    // PRIORIDADE 2: Fallback para mapeamento por palavra-chave
+    if (!categoriaDetectada) {
+      const textosParaAnalisar = [
+        intencao?.comando_original,
+        entidades.descricao
+      ].filter(Boolean).join(' ').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      
+      console.log('[CONTEXTO-CATEGORIA] Textos para análise por palavra-chave:', textosParaAnalisar);
+      categoriaDetectada = detectarCategoriaPorPalavraChave(textosParaAnalisar);
+      
+      if (categoriaDetectada) {
+        console.log('[CONTEXTO-CATEGORIA] ⚡ Usando mapeamento por palavra-chave:', categoriaDetectada);
+      }
+    }
+    
+    // PRIORIDADE 3: Último fallback
+    if (!categoriaDetectada) {
+      categoriaDetectada = 'Outros';
+      console.log('[CONTEXTO-CATEGORIA] ⚠️ Usando fallback "Outros"');
+    }
+    
+    console.log('[CONTEXTO-CATEGORIA] 📋 Categoria final:', categoriaDetectada);
     
     // Buscar categoria no banco (global ou do usuário)
     const { data: categorias } = await supabase
@@ -1126,7 +1179,7 @@ async function processarSelecaoConta(
       account_id: contaSelecionada.id,
       category_id: categoryId,
       description: descricaoTransacao,
-      transaction_date: new Date().toISOString().split('T')[0],
+      transaction_date: todayBrasilia(),
       is_paid: true,
       source: 'whatsapp',
       payment_method: paymentMethod // ✅ Incluir forma de pagamento

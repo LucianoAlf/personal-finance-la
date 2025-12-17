@@ -145,6 +145,7 @@ const INTENT_CLASSIFICATION_FUNCTION = {
           'COMPRA_CARTAO',
           'COMPRA_PARCELADA',
           'CONSULTAR_FATURA',
+          'CONSULTAR_FATURA_VENCIDA',
           'CONSULTAR_LIMITE',
           'LISTAR_CARTOES',
           'PAGAR_FATURA',
@@ -207,7 +208,9 @@ const INTENT_CLASSIFICATION_FUNCTION = {
           },
           // ENTIDADES DE CARTÃO DE CRÉDITO
           cartao: { type: 'string', description: 'Nome do cartão de crédito (ex: Nubank, Itaú, Bradesco)' },
-          parcelas: { type: 'number', description: 'Número de parcelas (1 para compra à vista)' }
+          parcelas: { type: 'number', description: 'Número de parcelas (1 para compra à vista)' },
+          // CONTEXTO INFERIDO DO HISTÓRICO
+          mes_referencia: { type: 'string', description: 'Mês inferido do histórico da conversa (ex: novembro, dezembro). Use quando o usuário pede detalhes de algo mencionado anteriormente.' }
         }
       },
       explicacao: { type: 'string' },
@@ -289,6 +292,26 @@ Exemplo: "financiamento do carro" = "Financiamento carro" (ignore preposições 
 
 ## HISTÓRICO RECENTE DA CONVERSA
 ${historicoConversa}
+
+## ⚠️ REGRA CRÍTICA: USE O HISTÓRICO PARA INFERIR CONTEXTO
+
+O histórico acima é FUNDAMENTAL para entender o que o usuário quer. Exemplos:
+
+1. **Se Ana acabou de listar faturas VENCIDAS e usuário pergunta "detalhes do Nubank":**
+   - EXTRAIA: mes_referencia = mês da fatura vencida mencionada (ex: "novembro")
+   - NÃO busque a fatura atual, busque a que foi mencionada no histórico
+
+2. **Se Ana acabou de mostrar transações e usuário diz "exclui essa":**
+   - EXTRAIA: transacao_id do contexto (a última mencionada)
+
+3. **Se Ana perguntou "qual conta?" e usuário responde "Nubank":**
+   - EXTRAIA: conta = "Nubank" e continue o fluxo anterior
+
+4. **Se Ana listou contas a pagar e usuário diz "paguei a primeira":**
+   - EXTRAIA: conta = primeira da lista mencionada
+
+**SEMPRE analise o histórico para extrair informações implícitas!**
+Se o usuário menciona algo que foi discutido recentemente, use essa informação.
 
 ## MEMÓRIA DO USUÁRIO (gírias, preferências aprendidas)
 ${memoriaUsuario}
@@ -402,10 +425,22 @@ ${memoriaUsuario}
     - "gastei 1200 em 6x no cartão"
     - EXTRAIA: valor, descricao, cartao, parcelas (número de parcelas)
     
-22. **CONSULTAR_FATURA**: Ver fatura do cartão. Exemplos:
-    - "fatura do Nubank"
-    - "quanto devo no cartão"
-    - "minha fatura"
+22. **CONSULTAR_FATURA**: Ver fatura do cartão de crédito (em aberto ou geral). Exemplos:
+    - "fatura do Nubank", "fatura do cartão"
+    - "quanto devo no cartão", "minha fatura"
+    - "tenho alguma fatura em aberto", "fatura em aberto"
+    - "minhas faturas", "faturas pendentes"
+    - "detalhes da fatura do Nubank", "detalhamento da fatura"
+    - ⚠️ REGRA: Se menciona "fatura" sem contexto de "conta a pagar" = CONSULTAR_FATURA (cartão)
+    - ⚠️ "fatura" sozinha = cartão de crédito, NÃO é conta a pagar
+    - ⚠️ CONTEXTO: Se no histórico Ana listou faturas vencidas e usuário pede detalhes, EXTRAIA mes_referencia do histórico!
+    - EXTRAIA: cartao (se mencionado), mes_referencia (se inferido do histórico, ex: "novembro", "dezembro")
+
+22b. **CONSULTAR_FATURA_VENCIDA**: Ver APENAS faturas vencidas/atrasadas. Exemplos:
+    - "fatura vencida", "tenho fatura vencida", "fatura atrasada"
+    - "faturas vencidas", "faturas atrasadas"
+    - "tenho alguma fatura vencida", "alguma fatura atrasada"
+    - ⚠️ Use esta intenção quando o usuário perguntar ESPECIFICAMENTE sobre faturas vencidas/atrasadas
     - EXTRAIA: cartao (se mencionado)
     
 23. **CONSULTAR_LIMITE**: Ver limite disponível. Exemplos:

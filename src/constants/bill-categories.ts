@@ -1,4 +1,11 @@
+/**
+ * BILL CATEGORIES - Categorias para Contas a Pagar
+ * 
+ * Importa do arquivo master-categories.ts para manter consistência
+ */
+
 import * as LucideIcons from 'lucide-react';
+import { BILL_TYPE_CATEGORIES, getOrderedBillTypeCategories } from './master-categories';
 
 export interface BillCategory {
   id: string;
@@ -8,103 +15,14 @@ export interface BillCategory {
   description?: string;
 }
 
-// ORDEM EXATA igual à tela de Contas a Pagar (Imagem 1)
-// 1. Assinaturas, 2. Serviços (Água, Luz, Gás), 3. Moradia, 4. Telecomunicações,
-// 5. Saúde, 6. Educação, 7. Alimentação, 8. Impostos e Taxas, 9. Seguros,
-// 10. Empréstimos, 11. Parcelamentos, 12. Cartão de Crédito, 13. Outros
-export const BILL_CATEGORIES: BillCategory[] = [
-  {
-    id: 'subscription',
-    name: 'Assinaturas',
-    icon: 'Play',
-    color: '#f59e0b',
-    description: 'Streaming, apps, clubes',
-  },
-  {
-    id: 'service',
-    name: 'Serviços (Água, Luz, Gás)',
-    icon: 'Zap',
-    color: '#10b981',
-    description: 'Água, luz, gás',
-  },
-  {
-    id: 'housing',
-    name: 'Moradia',
-    icon: 'Home',
-    color: '#3b82f6',
-    description: 'Aluguel, condomínio, IPTU',
-  },
-  {
-    id: 'telecom',
-    name: 'Telecomunicações',
-    icon: 'Wifi',
-    color: '#8b5cf6',
-    description: 'Internet, telefone, TV',
-  },
-  {
-    id: 'healthcare',
-    name: 'Saúde',
-    icon: 'Heart',
-    color: '#ec4899',
-    description: 'Plano de saúde, remédios',
-  },
-  {
-    id: 'education',
-    name: 'Educação',
-    icon: 'GraduationCap',
-    color: '#06b6d4',
-    description: 'Escola, cursos, livros',
-  },
-  {
-    id: 'food',
-    name: 'Alimentação',
-    icon: 'Utensils',
-    color: '#f97316',
-    description: 'Mercado, restaurantes',
-  },
-  {
-    id: 'tax',
-    name: 'Impostos e Taxas',
-    icon: 'Receipt',
-    color: '#ef4444',
-    description: 'IRPF, veículos, propriedades',
-  },
-  {
-    id: 'insurance',
-    name: 'Seguros',
-    icon: 'Shield',
-    color: '#14b8a6',
-    description: 'Seguro auto, vida, residencial',
-  },
-  {
-    id: 'loan',
-    name: 'Empréstimos',
-    icon: 'Banknote',
-    color: '#f97316',
-    description: 'Empréstimos pessoais, consignados',
-  },
-  {
-    id: 'installment',
-    name: 'Parcelamentos',
-    icon: 'ShoppingBag',
-    color: '#8b5cf6',
-    description: 'Compras parceladas, financiamentos',
-  },
-  {
-    id: 'credit_card',
-    name: 'Cartão de Crédito',
-    icon: 'CreditCard',
-    color: '#a855f7',
-    description: 'Fatura do cartão',
-  },
-  {
-    id: 'other',
-    name: 'Outros',
-    icon: 'MoreHorizontal',
-    color: '#6b7280',
-    description: 'Diversas despesas',
-  },
-];
+// Exporta categorias do master, convertendo para o formato esperado
+export const BILL_CATEGORIES: BillCategory[] = getOrderedBillTypeCategories().map(cat => ({
+  id: cat.id,
+  name: cat.name,
+  icon: cat.icon,
+  color: cat.color,
+  description: cat.description,
+}));
 
 /**
  * Busca categoria por ID

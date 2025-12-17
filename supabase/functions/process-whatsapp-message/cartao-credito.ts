@@ -15,6 +15,7 @@ export type TipoIntencaoCartao =
   | 'compra_cartao'           // "gastei 200 no cartão"
   | 'compra_parcelada'        // "comprei 600 em 3x"
   | 'consulta_fatura'         // "fatura do nubank"
+  | 'consulta_fatura_vencida' // "fatura vencida"
   | 'consulta_limite'         // "limite do cartão"
   | 'listar_cartoes'          // "meus cartões"
   | 'listar_compras_cartao'   // "ver todas compras"
@@ -28,6 +29,7 @@ export interface IntencaoCartao {
   parcelas?: number;
   cartao?: string;           // Nome do cartão mencionado
   descricao?: string;
+  mes_referencia?: string;   // Mês inferido do contexto (ex: "novembro")
 }
 
 export interface DadosCompraCartao {
@@ -916,11 +918,190 @@ export async function consultarLimite(userId: string, nomeCartao?: string): Prom
 }
 
 // ============================================
+// LISTAR APENAS FATURAS VENCIDAS
+// ============================================
+
+export async function listarFaturasVencidas(userId: string, phone?: string): Promise<string> {
+  const supabase = getSupabase();
+  const hoje = new Date();
+  const hojeStr = hoje.toISOString().split('T')[0];
+  
+  // Buscar APENAS faturas vencidas (due_date < hoje e não pagas)
+  const { data: faturas } = await supabase
+    .from('credit_card_invoices')
+    .select(`
+      id,
+      due_date,
+      total_amount,
+      paid_amount,
+      remaining_amount,
+      status,
+      reference_month,
+      credit_card_id,
+      credit_cards!inner(id, name, issuing_bank)
+    `)
+    .eq('user_id', userId)
+    .lt('due_date', hojeStr)
+    .not('status', 'eq', 'paid')
+    .order('due_date', { ascending: true });
+  
+  if (!faturas || faturas.length === 0) {
+    return `✅ *Parabéns!*\n\nVocê não tem faturas vencidas! 🎉\n\n_Todos os cartões estão em dia._`;
+  }
+  
+  let mensagem = `🔴 *Faturas Vencidas* (${faturas.length})\n\n`;
+  let totalGeral = 0;
+  let idx = 1;
+  
+  // Preparar dados para salvar no contexto
+  const faturasContexto: any[] = [];
+  
+  for (const f of faturas as any[]) {
+    const valorRestante = f.remaining_amount ?? (f.total_amount - (f.paid_amount || 0));
+    const diasAtraso = Math.ceil((hoje.getTime() - new Date(f.due_date).getTime()) / (1000 * 60 * 60 * 24));
+    const emoji = getEmojiBanco(f.credit_cards.name);
+    const mesRef = new Date(f.reference_month + 'T12:00:00').toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+    mensagem += `${idx}. ${emoji} ${f.credit_cards.name} (${mesRef}) - ${formatarMoeda(valorRestante)} — _há ${diasAtraso}d_\n`;
+    totalGeral += Number(valorRestante);
+    
+    // Adicionar ao contexto
+    faturasContexto.push({
+      fatura_id: f.id,
+      cartao_id: f.credit_card_id,
+      cartao_nome: f.credit_cards.name,
+      reference_month: f.reference_month,
+      valor_restante: valorRestante
+    });
+    
+    idx++;
+  }
+  
+  mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
+  mensagem += `💰 *Total em atraso:* ${formatarMoeda(totalGeral)}\n\n`;
+  mensagem += `⚠️ _Regularize o quanto antes para evitar juros!_\n\n`;
+  mensagem += `💡 _"paguei a fatura do Nubank"_ ou _"detalhes da fatura do Itau"_`;
+  
+  // Salvar contexto das faturas vencidas para próximas perguntas
+  if (phone) {
+    // Deletar contexto antigo
+    await supabase
+      .from('conversation_context')
+      .delete()
+      .eq('user_id', userId)
+      .eq('context_type', 'faturas_vencidas_context');
+    
+    // Inserir novo contexto
+    await supabase
+      .from('conversation_context')
+      .insert({
+        user_id: userId,
+        phone: phone,
+        context_type: 'faturas_vencidas_context',
+        context_data: {
+          faturas: faturasContexto,
+          ultima_consulta: new Date().toISOString()
+        },
+        updated_at: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 minutos
+      });
+    
+    console.log('[FATURAS_VENCIDAS] Contexto salvo com', faturasContexto.length, 'faturas para user:', userId);
+  }
+  
+  return mensagem;
+}
+
+// ============================================
+// LISTAR TODAS AS FATURAS PENDENTES (em aberto + vencidas)
+// ============================================
+
+export async function listarFaturasPendentes(userId: string): Promise<string> {
+  const supabase = getSupabase();
+  const hoje = new Date();
+  const hojeStr = hoje.toISOString().split('T')[0];
+  
+  // Buscar TODAS as faturas não pagas
+  const { data: faturas } = await supabase
+    .from('credit_card_invoices')
+    .select(`
+      id,
+      due_date,
+      total_amount,
+      paid_amount,
+      remaining_amount,
+      status,
+      reference_month,
+      credit_cards!inner(name, issuing_bank)
+    `)
+    .eq('user_id', userId)
+    .not('status', 'eq', 'paid')
+    .order('due_date', { ascending: true });
+  
+  if (!faturas || faturas.length === 0) {
+    return `✅ *Parabéns!*\n\nVocê não tem faturas pendentes! 🎉\n\n_Todos os cartões estão em dia._`;
+  }
+  
+  // Separar vencidas e em aberto
+  const vencidas = faturas.filter((f: any) => f.due_date < hojeStr);
+  const emAberto = faturas.filter((f: any) => f.due_date >= hojeStr);
+  
+  let mensagem = `💳 *Suas Faturas*\n`;
+  let totalGeral = 0;
+  let idx = 1;
+  
+  // Faturas VENCIDAS
+  if (vencidas.length > 0) {
+    mensagem += `\n🔴 *VENCIDAS* (${vencidas.length})\n`;
+    for (const f of vencidas as any[]) {
+      const valorRestante = f.remaining_amount ?? (f.total_amount - (f.paid_amount || 0));
+      const diasAtraso = Math.ceil((hoje.getTime() - new Date(f.due_date).getTime()) / (1000 * 60 * 60 * 24));
+      const emoji = getEmojiBanco(f.credit_cards.name);
+      const mesRef = new Date(f.reference_month).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+      mensagem += `${idx}. ${emoji} ${f.credit_cards.name} (${mesRef}) - ${formatarMoeda(valorRestante)} — _há ${diasAtraso}d_\n`;
+      totalGeral += Number(valorRestante);
+      idx++;
+    }
+  }
+  
+  // Faturas EM ABERTO
+  if (emAberto.length > 0) {
+    mensagem += `\n🟡 *EM ABERTO* (${emAberto.length})\n`;
+    for (const f of emAberto as any[]) {
+      const valorRestante = f.remaining_amount ?? (f.total_amount - (f.paid_amount || 0));
+      const diasParaVencer = Math.ceil((new Date(f.due_date).getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+      const emoji = getEmojiBanco(f.credit_cards.name);
+      const dataVenc = new Date(f.due_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+      const mesRef = new Date(f.reference_month).toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+      mensagem += `${idx}. ${emoji} ${f.credit_cards.name} (${mesRef}) - ${dataVenc}: ${formatarMoeda(valorRestante)} — _em ${diasParaVencer}d_\n`;
+      totalGeral += Number(valorRestante);
+      idx++;
+    }
+  }
+  
+  mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
+  mensagem += `💰 *Total:* ${formatarMoeda(totalGeral)}\n`;
+  
+  if (vencidas.length > 0) {
+    mensagem += `\n⚠️ _Regularize as faturas vencidas para evitar juros!_`;
+  }
+  
+  mensagem += `\n\n💡 _"paguei a fatura do Nubank"_`;
+  
+  return mensagem;
+}
+
+// ============================================
 // CONSULTAR FATURA
 // ============================================
 
-export async function consultarFatura(userId: string, nomeCartao?: string, salvarContexto: boolean = true, phone?: string): Promise<string> {
+export async function consultarFatura(userId: string, nomeCartao?: string, salvarContexto: boolean = true, phone?: string, mesReferencia?: string): Promise<string> {
   const supabase = getSupabase();
+  
+  // Se não especificou cartão, mostrar todas as faturas pendentes
+  if (!nomeCartao) {
+    return await listarFaturasPendentes(userId);
+  }
+  
   const cartoes = await buscarCartoesUsuario(userId);
   
   if (cartoes.length === 0) {
@@ -949,16 +1130,111 @@ export async function consultarFatura(userId: string, nomeCartao?: string, salva
   const mesAtual = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
   const proximoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1);
   
-  // Buscar fatura atual
-  const { data: fatura } = await supabase
-    .from('credit_card_invoices')
-    .select('*')
-    .eq('credit_card_id', cartaoSelecionado.id)
+  // ============================================
+  // VERIFICAR CONTEXTO DE FATURAS VENCIDAS
+  // Se o usuário acabou de perguntar sobre faturas vencidas e agora quer detalhes
+  // de um cartão específico, buscar a fatura vencida desse cartão
+  // ============================================
+  let faturaId: string | null = null;
+  
+  const { data: contextoVencidas } = await supabase
+    .from('conversation_context')
+    .select('context_data')
     .eq('user_id', userId)
-    .gte('reference_month', mesAtual.toISOString().split('T')[0])
-    .order('reference_month', { ascending: true })
+    .eq('context_type', 'faturas_vencidas_context')
+    .gt('expires_at', new Date().toISOString())
+    .order('updated_at', { ascending: false })
     .limit(1)
     .single();
+  
+  if (contextoVencidas?.context_data?.faturas) {
+    // Procurar se há uma fatura vencida desse cartão no contexto
+    const faturaVencida = contextoVencidas.context_data.faturas.find((f: any) => {
+      const nomeContexto = f.cartao_nome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const nomeNorm = nomeCartao.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return nomeContexto.includes(nomeNorm) || nomeNorm.includes(nomeContexto);
+    });
+    
+    if (faturaVencida) {
+      console.log('[CONTEXTO] Usando fatura vencida do contexto:', faturaVencida.fatura_id);
+      faturaId = faturaVencida.fatura_id;
+    }
+  }
+  
+  // Buscar fatura - prioridade: 1) mesReferencia do NLP, 2) contexto vencidas, 3) fatura atual
+  let fatura: any = null;
+  
+  // Se o NLP extraiu um mês de referência do histórico, buscar essa fatura específica
+  if (mesReferencia) {
+    console.log('[FATURA] Buscando fatura do mês:', mesReferencia);
+    
+    // Converter nome do mês para número
+    const mesesMap: Record<string, number> = {
+      'janeiro': 0, 'fevereiro': 1, 'março': 2, 'marco': 2, 'abril': 3,
+      'maio': 4, 'junho': 5, 'julho': 6, 'agosto': 7, 'setembro': 8,
+      'outubro': 9, 'novembro': 10, 'dezembro': 11
+    };
+    
+    const mesNum = mesesMap[mesReferencia.toLowerCase()];
+    if (mesNum !== undefined) {
+      // Determinar o ano (se mês > atual, provavelmente é ano passado)
+      const anoRef = mesNum > hoje.getMonth() ? hoje.getFullYear() - 1 : hoje.getFullYear();
+      const mesRefDate = new Date(anoRef, mesNum, 1);
+      const mesRefStr = mesRefDate.toISOString().split('T')[0];
+      
+      const { data: faturaRef } = await supabase
+        .from('credit_card_invoices')
+        .select('*')
+        .eq('credit_card_id', cartaoSelecionado.id)
+        .eq('user_id', userId)
+        .eq('reference_month', mesRefStr)
+        .single();
+      
+      if (faturaRef) {
+        console.log('[FATURA] Encontrada fatura do mês', mesReferencia, ':', faturaRef.id);
+        fatura = faturaRef;
+      }
+    }
+  }
+  
+  // Se não encontrou por mesReferencia, tentar pelo contexto de faturas vencidas
+  if (!fatura && faturaId) {
+    const { data: faturaContexto } = await supabase
+      .from('credit_card_invoices')
+      .select('*')
+      .eq('id', faturaId)
+      .eq('user_id', userId)
+      .single();
+    fatura = faturaContexto;
+  }
+  
+  // Se ainda não encontrou, buscar fatura atual (comportamento original)
+  if (!fatura) {
+    const { data: faturaAtual } = await supabase
+      .from('credit_card_invoices')
+      .select('*')
+      .eq('credit_card_id', cartaoSelecionado.id)
+      .eq('user_id', userId)
+      .gte('reference_month', mesAtual.toISOString().split('T')[0])
+      .order('reference_month', { ascending: true })
+      .limit(1)
+      .single();
+    fatura = faturaAtual;
+  }
+  
+  // Determinar período para buscar transações
+  // Se temos fatura do contexto, usar o reference_month dela
+  let periodoInicio: Date;
+  let periodoFim: Date;
+  
+  if (fatura?.reference_month) {
+    const refMonth = new Date(fatura.reference_month + 'T12:00:00');
+    periodoInicio = new Date(refMonth.getFullYear(), refMonth.getMonth(), 1);
+    periodoFim = new Date(refMonth.getFullYear(), refMonth.getMonth() + 1, 1);
+  } else {
+    periodoInicio = mesAtual;
+    periodoFim = proximoMes;
+  }
   
   // Buscar TODAS as transações do período (sem limite)
   const { data: transacoes } = await supabase
@@ -970,8 +1246,8 @@ export async function consultarFatura(userId: string, nomeCartao?: string, salva
     `)
     .eq('credit_card_id', cartaoSelecionado.id)
     .eq('user_id', userId)
-    .gte('purchase_date', mesAtual.toISOString().split('T')[0])
-    .lt('purchase_date', proximoMes.toISOString().split('T')[0])
+    .gte('purchase_date', periodoInicio.toISOString().split('T')[0])
+    .lt('purchase_date', periodoFim.toISOString().split('T')[0])
     .order('purchase_date', { ascending: false });
   
   // Dados do cartão
@@ -2294,7 +2570,13 @@ export async function processarIntencaoCartao(
     
     case 'consulta_fatura':
       return { 
-        mensagem: await consultarFatura(userId, intencao.cartao, true, _phone), 
+        mensagem: await consultarFatura(userId, intencao.cartao, true, _phone, intencao.mes_referencia), 
+        precisaConfirmacao: false 
+      };
+    
+    case 'consulta_fatura_vencida':
+      return { 
+        mensagem: await listarFaturasVencidas(userId, _phone), 
         precisaConfirmacao: false 
       };
     

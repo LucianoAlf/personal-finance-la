@@ -11,8 +11,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MoreVertical, Edit, Trash2, Repeat, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
-import { formatCurrency, formatDate } from '@/utils/billCalculations';
-import { BILL_TYPE_LABELS } from '@/types/payable-bills.types';
+import { formatCurrency, formatDate, getBillCategoryName } from '@/utils/billCalculations';
+import { useCategories } from '@/hooks/useCategories';
 
 interface RecurringBillCardProps {
   bill: PayableBill;
@@ -29,7 +29,17 @@ export function RecurringBillCard({
   lastAmount,
   variation,
 }: RecurringBillCardProps) {
+  const { categories } = useCategories();
   const frequency = bill.recurrence_config?.frequency;
+  
+  // Buscar categoria pelo ID ou usar fallback
+  const getCategoryName = () => {
+    if (bill.category_id) {
+      const cat = categories.find(c => c.id === bill.category_id);
+      if (cat) return cat.name;
+    }
+    return getBillCategoryName(bill.bill_type);
+  };
   const nextDate = bill.next_occurrence_date;
 
   const frequencyLabels = {
@@ -139,7 +149,7 @@ export function RecurringBillCard({
 
           {/* Info Adicional */}
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline">{BILL_TYPE_LABELS[bill.bill_type]}</Badge>
+            <Badge variant="outline">{getCategoryName()}</Badge>
             {bill.recurrence_config?.end_date && (
               <Badge variant="warning">
                 Encerra em {formatDate(bill.recurrence_config.end_date)}

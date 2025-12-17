@@ -416,17 +416,123 @@ export function usePayableBills(initialFilters?: BillFilters) {
   };
 
   // ============================================
+  // REVERT PAYMENT: Reverter pagamento
+  // ============================================
+  const revertPayment = async (billId: string) => {
+    if (!user?.id) return false;
+
+    try {
+      // 1. Buscar a conta para obter dados do pagamento
+      const { data: bill, error: fetchError } = await supabase
+        .from('payable_bills')
+        .select('*, payment_account_id, paid_amount')
+        .eq('id', billId)
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      if (bill.status !== 'paid' && bill.status !== 'partial') {
+        toast.error('Esta conta não está paga');
+        return false;
+      }
+
+      // 2. Se tinha conta bancária associada, reverter o saldo
+      if (bill.payment_account_id && bill.paid_amount) {
+        // Buscar saldo atual da conta
+        const { data: account, error: fetchAccountError } = await supabase
+          .from('accounts')
+          .select('current_balance')
+          .eq('id', bill.payment_account_id)
+          .single();
+
+        if (!fetchAccountError && account) {
+          const newBalance = Number(account.current_balance) + Number(bill.paid_amount);
+          const { error: updateError } = await supabase
+            .from('accounts')
+            .update({ current_balance: newBalance })
+            .eq('id', bill.payment_account_id);
+
+          if (updateError) {
+            console.error('Erro ao reverter saldo:', updateError);
+          }
+        }
+      }
+
+      // 3. Buscar e deletar transação associada (se houver)
+      const { data: transactions } = await supabase
+        .from('transactions')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('payable_bill_id', billId);
+
+      if (transactions && transactions.length > 0) {
+        await supabase
+          .from('transactions')
+          .delete()
+          .eq('payable_bill_id', billId)
+          .eq('user_id', user.id);
+      }
+
+      // 4. Deletar histórico de pagamento
+      await supabase
+        .from('bill_payment_history')
+        .delete()
+        .eq('bill_id', billId)
+        .eq('user_id', user.id);
+
+      // 5. Reverter status da conta para pending
+      const { error: updateError } = await supabase
+        .from('payable_bills')
+        .update({
+          status: 'pending',
+          paid_at: null,
+          paid_amount: null,
+          payment_method: null,
+          payment_account_id: null,
+          payment_proof_url: null,
+        })
+        .eq('id', billId)
+        .eq('user_id', user.id);
+
+      if (updateError) throw updateError;
+
+      toast.success('Pagamento revertido com sucesso!');
+      await fetchBills();
+      return true;
+    } catch (error) {
+      console.error('Erro ao reverter pagamento:', error);
+      toast.error('Erro ao reverter pagamento');
+      return false;
+    }
+  };
+
+  // ============================================
   // FILTROS COMPUTADOS
   // ============================================
-  const pendingBills = useMemo(
-    () => bills.filter((b) => b.status === 'pending' || b.status === 'scheduled'),
-    [bills]
-  );
+  // Contas vencidas: status não é 'paid' E data de vencimento < hoje
+  const overdueBills = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Início do dia
+    
+    return bills.filter((b) => {
+      if (b.status === 'paid') return false;
+      const dueDate = parseISO(b.due_date);
+      return dueDate < today;
+    });
+  }, [bills]);
 
-  const overdueBills = useMemo(
-    () => bills.filter((b) => b.status === 'overdue'),
-    [bills]
-  );
+  // Contas pendentes: status pending/scheduled E data de vencimento >= hoje
+  const pendingBills = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Início do dia
+    
+    return bills.filter((b) => {
+      if (b.status !== 'pending' && b.status !== 'scheduled') return false;
+      const dueDate = parseISO(b.due_date);
+      return dueDate >= today;
+    });
+  }, [bills]);
 
   const paidBills = useMemo(
     () => bills.filter((b) => b.status === 'paid'),
@@ -506,11 +612,11 @@ export function usePayableBills(initialFilters?: BillFilters) {
       overdue_amount: overdueAmount,
       paid_amount: paidAmount,
       partial_amount: partialAmount,
-      critical_pending: bills.filter(
-        (b) => b.priority === 'critical' && b.status === 'pending'
+      critical_pending: pendingBills.filter(
+        (b) => b.priority === 'critical'
       ).length,
-      high_pending: bills.filter(
-        (b) => b.priority === 'high' && b.status === 'pending'
+      high_pending: pendingBills.filter(
+        (b) => b.priority === 'high'
       ).length,
     };
   }, [bills, pendingBills, overdueBills, paidBills, partialBills]);
@@ -543,5 +649,6 @@ export function usePayableBills(initialFilters?: BillFilters) {
     deleteBill,
     deleteInstallmentGroup,
     markAsPaid,
+    revertPayment,
   };
 }

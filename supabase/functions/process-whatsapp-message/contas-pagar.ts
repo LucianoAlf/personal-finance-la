@@ -1074,6 +1074,81 @@ export function mapearBillTypeParaBanco(tipoInterno: BillType, descricao: string
   return mapeamentoPorTipo[tipoInterno] || 'other';
 }
 
+/**
+ * Busca o category_id do banco de dados baseado na descrição da conta
+ * Isso garante consistência com o sistema de categorias padronizado
+ */
+export async function buscarCategoryIdPorDescricao(
+  supabase: any,
+  userId: string,
+  descricao: string
+): Promise<string | null> {
+  const descLower = descricao.toLowerCase();
+  
+  // Mapeamento de palavras-chave para nome de categoria
+  const mapeamento: { regex: RegExp; categoria: string }[] = [
+    // Empréstimo
+    { regex: /empr[ée]stimo|consignado/, categoria: 'Empréstimo' },
+    // Eletrodomésticos
+    { regex: /geladeira|fog[ãa]o|m[áa]quina de lavar|microondas|ar condicionado|tv|televis[ãa]o|freezer|lava.*lou[çc]a/, categoria: 'Eletrodomésticos' },
+    // Tecnologia
+    { regex: /celular|iphone|smartphone|notebook|computador|tablet|ipad|macbook|pc|monitor/, categoria: 'Tecnologia' },
+    // Financiamento
+    { regex: /financiamento|parcela do carro|ve[íi]culo|carro|moto|im[óo]vel/, categoria: 'Financiamento' },
+    // Assinaturas
+    { regex: /netflix|spotify|amazon|disney|hbo|globoplay|youtube|apple|deezer|paramount|prime|max|internet|telefone|celular|fibra|wifi|vivo|claro|tim|plano/, categoria: 'Assinaturas' },
+    // Contas de Consumo
+    { regex: /luz|energia|[áa]gua|g[áa]s|enel|cpfl|cemig|sabesp|comg[áa]s|light/, categoria: 'Contas de Consumo' },
+    // Moradia
+    { regex: /aluguel|condom[íi]nio|moradia/, categoria: 'Moradia' },
+    // Impostos
+    { regex: /ipva|iptu|imposto|taxa|licenciamento|multa/, categoria: 'Impostos' },
+    // Seguros
+    { regex: /seguro/, categoria: 'Seguros' },
+    // Saúde
+    { regex: /plano.*sa[úu]de|hospital|m[ée]dico|consulta|unimed|amil|sa[úu]de/, categoria: 'Saúde' },
+    // Educação
+    { regex: /escola|faculdade|curso|matr[íi]cula|mensalidade/, categoria: 'Educação' },
+    // Esportes
+    { regex: /academia|smartfit|smart fit|gym/, categoria: 'Esportes' },
+    // Alimentação
+    { regex: /alimenta[çc][ãa]o|mercado|supermercado|restaurante/, categoria: 'Alimentação' },
+  ];
+  
+  // Encontrar categoria correspondente
+  let categoriaNome = 'Outros';
+  for (const item of mapeamento) {
+    if (item.regex.test(descLower)) {
+      categoriaNome = item.categoria;
+      break;
+    }
+  }
+  
+  // Buscar ID da categoria no banco
+  const { data: categoria } = await supabase
+    .from('categories')
+    .select('id')
+    .eq('name', categoriaNome)
+    .eq('type', 'expense')
+    .single();
+  
+  if (categoria) {
+    console.log(`[CATEGORY] Descrição "${descricao}" → Categoria "${categoriaNome}" (${categoria.id})`);
+    return categoria.id;
+  }
+  
+  // Fallback: buscar "Outros"
+  const { data: outros } = await supabase
+    .from('categories')
+    .select('id')
+    .eq('name', 'Outros')
+    .eq('type', 'expense')
+    .single();
+  
+  console.log(`[CATEGORY] Descrição "${descricao}" → Fallback "Outros" (${outros?.id})`);
+  return outros?.id || null;
+}
+
 export interface ContaPagar {
   id: string;
   description: string;
@@ -1486,15 +1561,77 @@ export async function contasVencendo(userId: string, dias: number = 7): Promise<
 
 export async function contasVencidas(userId: string): Promise<string> {
   const supabase = getSupabase();
+  const hoje = getHojeSaoPaulo();
+  const hojeStr = hoje.toISOString().split('T')[0];
   
-  const { data: vencidas } = await supabase
+  // Buscar contas a pagar vencidas
+  const { data: contasVencidas } = await supabase
     .from('payable_bills')
     .select('id, description, amount, due_date, bill_type')
     .eq('user_id', userId)
     .eq('status', 'overdue')
     .order('due_date', { ascending: true });
   
-  if (!vencidas || vencidas.length === 0) {
+  // ✅ CORREÇÃO: Buscar também faturas de cartão vencidas
+  const { data: faturasVencidas } = await supabase
+    .from('credit_card_invoices')
+    .select(`
+      id,
+      due_date,
+      total_amount,
+      paid_amount,
+      remaining_amount,
+      status,
+      credit_cards!inner(name)
+    `)
+    .eq('user_id', userId)
+    .lt('due_date', hojeStr)
+    .not('status', 'eq', 'paid')
+    .order('due_date', { ascending: true });
+  
+  // Combinar contas e faturas
+  const vencidas: Array<{
+    id: string;
+    description: string;
+    amount: number;
+    due_date: string;
+    bill_type: string;
+    is_fatura: boolean;
+  }> = [];
+  
+  // Adicionar contas a pagar
+  if (contasVencidas) {
+    for (const c of contasVencidas) {
+      vencidas.push({
+        id: c.id,
+        description: c.description,
+        amount: Number(c.amount),
+        due_date: c.due_date,
+        bill_type: c.bill_type || 'other',
+        is_fatura: false
+      });
+    }
+  }
+  
+  // Adicionar faturas de cartão
+  if (faturasVencidas) {
+    for (const f of faturasVencidas as any[]) {
+      const valorRestante = f.remaining_amount ?? (f.total_amount - (f.paid_amount || 0));
+      vencidas.push({
+        id: f.id,
+        description: `Fatura ${f.credit_cards.name}`,
+        amount: Number(valorRestante),
+        due_date: f.due_date,
+        bill_type: 'credit_card',
+        is_fatura: true
+      });
+    }
+  }
+  
+  // Ordenar por data de vencimento
+  vencidas.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+  
+  if (vencidas.length === 0) {
     return `✅ *Parabéns!*\n\nVocê não tem contas vencidas! 🎉\n\n_Continue assim, suas finanças agradecem!_`;
   }
   
@@ -2838,6 +2975,9 @@ async function cadastrarContaNoBanco(
   
   console.log(`[CADASTRAR-CONTA] isInstallmentFinal: ${isInstallmentFinal}, groupId: ${installmentGroupId}`);
   
+  // Buscar category_id baseado na descrição para consistência com sistema de categorias
+  const categoryId = await buscarCategoryIdPorDescricao(supabase, userId, descricao);
+  
   const insertData = {
     user_id: userId,
     description: descricao,
@@ -2846,6 +2986,7 @@ async function cadastrarContaNoBanco(
     status: 'pending',
     is_recurring: isRecurring && !isInstallmentFinal,
     bill_type: billTypeDb,
+    category_id: categoryId,  // Novo: categoria padronizada
     recurrence_config: isRecurring && !isInstallmentFinal ? { type: 'monthly', day: diaVencimento } : null,
     is_installment: isInstallmentFinal,
     installment_number: isInstallmentFinal ? finalInstallmentNumber : null,
@@ -3679,14 +3820,17 @@ export async function marcarComoPago(
   
   const valorFinal = valorPago || conta.amount;
   
-  // Atualizar status para pago
+  // ✅ FIX: Constraint valid_paid_status exige paid_amount >= amount
+  // Quando usuário informa valor diferente, atualizar o amount da conta
+  // Isso é comum para contas variáveis (luz, água, gás)
   const { error: erroUpdate } = await supabase
     .from('payable_bills')
     .update({
       status: 'paid',
       paid_at: agora,
       paid_amount: valorFinal,
-      payment_method: metodoPagamento || conta.payment_method,
+      amount: valorFinal, // Atualiza o amount para o valor pago (satisfaz constraint)
+      payment_method: metodoPagamento || conta.payment_method || 'other',
       updated_at: agora
     })
     .eq('id', billId);
@@ -3907,6 +4051,14 @@ export async function processarMarcarPago(
   let contaBancariaInformada = entidades.conta_bancaria as string || '';
   
   console.log(`[MARCAR-PAGO] Comando: "${comandoOriginal}", Conta: "${nomeConta}", Valor: ${valorInformado}, ContaBancaria: "${contaBancariaInformada}"`);
+  
+  // ✅ CORREÇÃO: Detectar se é fatura de cartão e redirecionar
+  const ehFaturaCartao = /\b(fatura|cartao|cartão)\b/i.test(comandoOriginal) || 
+                         /\b(fatura|cartao|cartão)\b/i.test(nomeConta);
+  if (ehFaturaCartao) {
+    console.log('[MARCAR-PAGO] 🔄 Detectada fatura de cartão, redirecionando para processarPagarFaturaCartao');
+    return await processarPagarFaturaCartao(userId, phone, entidades);
+  }
   
   // ⚠️ CORREÇÃO BUG CRÍTICO: Detectar se NLP confundiu banco com conta
   const BANCOS_CONHECIDOS = ['itau', 'itaú', 'bradesco', 'santander', 'nubank', 'inter', 'c6', 'caixa', 'bb', 'next', 'neon', 'original', 'picpay', 'mercado pago', 'pagbank'];
@@ -4267,13 +4419,14 @@ async function marcarComoPagoComTransacao(
   const valorFinal = valorPago || conta.amount;
   
   // 1. Atualizar status para pago
+  // ✅ FIX: payment_method deve ter valor default 'other' para não violar constraint valid_paid_status
   const { error: erroUpdate } = await supabase
     .from('payable_bills')
     .update({
       status: 'paid',
       paid_at: agora,
       paid_amount: valorFinal,
-      payment_method: metodoPagamento || conta.payment_method,
+      payment_method: metodoPagamento || conta.payment_method || 'other',
       payment_account_id: contaBancariaId,
       updated_at: agora
     })
@@ -4542,21 +4695,46 @@ export async function processarPagarFaturaCartao(
 ): Promise<{ mensagem: string; precisaConfirmacao?: boolean; dados?: Record<string, unknown> }> {
   const supabase = getSupabase();
   const comandoOriginal = (entidades.comando_original as string || '').toLowerCase();
-  const nomeCartao = entidades.cartao as string || '';
+  // ✅ CORREÇÃO: A IA pode colocar o banco em "cartao" OU em "conta_bancaria"
+  const nomeCartao = entidades.cartao as string || entidades.conta_bancaria as string || '';
   const valorInformado = entidades.valor as number | undefined;
   const tipoPagamento = entidades.tipoPagamento as 'total' | 'parcial' | 'minimo' | undefined;
   
-  console.log(`[PAGAR-FATURA] Comando: "${comandoOriginal}", Cartão: "${nomeCartao}", Valor: ${valorInformado}, Tipo: ${tipoPagamento}`);
+  console.log(`[PAGAR-FATURA] Comando: "${comandoOriginal}", Cartão: "${nomeCartao}", ContaBancaria: "${entidades.conta_bancaria}", Valor: ${valorInformado}, Tipo: ${tipoPagamento}`);
   
   // Extrair nome do cartão do texto se não veio nas entidades
   let nomeCartaoFinal = nomeCartao;
   if (!nomeCartaoFinal && comandoOriginal) {
-    // Padrões: "paguei a fatura do Nubank", "paguei o cartão Itaú", "paguei 2500 no Nubank"
-    const matchFatura = comandoOriginal.match(/(?:fatura|cartão|cartao)\s+(?:do|da|de)?\s*(\w+)/i);
-    const matchValor = comandoOriginal.match(/paguei\s+[\d.,]+\s+(?:no|na|do|da)\s+(\w+)/i);
-    if (matchFatura) nomeCartaoFinal = matchFatura[1];
-    else if (matchValor) nomeCartaoFinal = matchValor[1];
+    // Lista de bancos/cartões conhecidos para busca direta
+    const bancosConhecidos = ['nubank', 'itau', 'itaú', 'bradesco', 'santander', 'inter', 'c6', 'caixa', 'bb', 'next', 'neon', 'original', 'picpay', 'mercado pago', 'pagbank', 'pan', 'bmg', 'safra', 'sicredi', 'sicoob'];
+    
+    // Primeiro: buscar banco conhecido diretamente no texto
+    for (const banco of bancosConhecidos) {
+      if (comandoOriginal.includes(banco)) {
+        nomeCartaoFinal = banco;
+        console.log(`[PAGAR-FATURA] Banco encontrado diretamente: "${banco}"`);
+        break;
+      }
+    }
+    
+    // Fallback: padrões regex se não encontrou banco conhecido
+    if (!nomeCartaoFinal) {
+      // Padrão: "cartão Nubank", "do cartão Itaú"
+      const matchCartao = comandoOriginal.match(/(?:cartão|cartao)\s+(?:do|da|de)?\s*(\w+)/i);
+      // Padrão: "fatura do Nubank" (mas não "fatura de novembro")
+      const matchFatura = comandoOriginal.match(/fatura\s+(?:do|da)\s+(\w+)/i);
+      // Padrão: "paguei 2500 no Nubank"
+      const matchValor = comandoOriginal.match(/paguei\s+[\d.,]+\s+(?:no|na|do|da)\s+(\w+)/i);
+      
+      if (matchCartao) nomeCartaoFinal = matchCartao[1];
+      else if (matchFatura && !['novembro', 'dezembro', 'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro'].includes(matchFatura[1].toLowerCase())) {
+        nomeCartaoFinal = matchFatura[1];
+      }
+      else if (matchValor) nomeCartaoFinal = matchValor[1];
+    }
   }
+  
+  console.log(`[PAGAR-FATURA] Nome do cartão final: "${nomeCartaoFinal}"`);
   
   // Detectar tipo de pagamento do texto
   let tipoPagamentoFinal = tipoPagamento;
@@ -4576,15 +4754,18 @@ export async function processarPagarFaturaCartao(
     };
   }
   
-  // Buscar cartão do usuário
+  // Buscar cartão do usuário (ativo e não arquivado)
   const { data: cartao } = await supabase
     .from('credit_cards')
     .select('*')
     .eq('user_id', userId)
     .eq('is_active', true)
-    .or(`name.ilike.%${nomeCartaoFinal}%,bank.ilike.%${nomeCartaoFinal}%`)
+    .eq('is_archived', false)
+    .or(`name.ilike.%${nomeCartaoFinal}%,issuing_bank.ilike.%${nomeCartaoFinal}%`)
     .limit(1)
     .single();
+  
+  console.log(`[PAGAR-FATURA] Busca cartão "${nomeCartaoFinal}" → Encontrado: ${cartao ? cartao.name : 'NÃO'}`);
   
   if (!cartao) {
     return {
@@ -4592,15 +4773,36 @@ export async function processarPagarFaturaCartao(
     };
   }
   
-  // Buscar fatura pendente do cartão
-  const { data: fatura } = await supabase
+  // Buscar fatura pendente do cartão - PRIORIZAR VENCIDAS
+  // 1. Primeiro buscar faturas vencidas (overdue ou partial com due_date < hoje)
+  const hoje = new Date().toISOString().split('T')[0];
+  
+  let { data: fatura } = await supabase
     .from('credit_card_invoices')
     .select('*')
     .eq('credit_card_id', cartao.id)
-    .in('status', ['open', 'closed', 'pending'])
+    .in('status', ['overdue', 'partial'])
+    .lt('due_date', hoje)
     .order('due_date', { ascending: true })
     .limit(1)
     .single();
+  
+  // 2. Se não tem vencida, buscar próxima pendente
+  if (!fatura) {
+    const { data: faturaProxima } = await supabase
+      .from('credit_card_invoices')
+      .select('*')
+      .eq('credit_card_id', cartao.id)
+      .in('status', ['open', 'closed', 'pending', 'partial'])
+      .gte('due_date', hoje)
+      .order('due_date', { ascending: true })
+      .limit(1)
+      .single();
+    
+    fatura = faturaProxima;
+  }
+  
+  console.log(`[PAGAR-FATURA] Fatura encontrada: ${fatura ? `${fatura.reference_month} - ${fatura.status} - R$${fatura.total_amount}` : 'NENHUMA'}`);
   
   if (!fatura) {
     return {
@@ -4608,24 +4810,34 @@ export async function processarPagarFaturaCartao(
     };
   }
   
+  // Calcular valor restante (remaining_amount é gerado, mas pode não estar atualizado)
+  const valorRestante = fatura.remaining_amount ?? (fatura.total_amount - (fatura.paid_amount || 0));
+  const valorJaPago = fatura.paid_amount || 0;
+  
+  console.log(`[PAGAR-FATURA] Fatura: total=${fatura.total_amount}, jaPago=${valorJaPago}, restante=${valorRestante}`);
+  
   // Determinar valor do pagamento
   let valorPagamento: number;
   let statusNovo: string;
   let mensagemTipo: string;
   
   if (tipoPagamentoFinal === 'minimo') {
-    valorPagamento = fatura.minimum_payment || fatura.total_amount * 0.15;
+    valorPagamento = fatura.minimum_payment || valorRestante * 0.15;
     statusNovo = 'partial';
     mensagemTipo = '(pagamento mínimo)';
-  } else if (valorInformado && valorInformado < fatura.total_amount) {
+  } else if (valorInformado && valorInformado < valorRestante) {
     valorPagamento = valorInformado;
     statusNovo = 'partial';
     mensagemTipo = '(pagamento parcial)';
   } else {
-    valorPagamento = valorInformado || fatura.total_amount;
+    // Pagar o valor restante (não o total, caso já tenha pago parte)
+    valorPagamento = valorInformado || valorRestante;
     statusNovo = 'paid';
     mensagemTipo = '(pagamento total)';
   }
+  
+  // Calcular novo valor pago (acumulativo)
+  const novoValorPago = valorJaPago + valorPagamento;
   
   const agora = new Date().toISOString();
   
@@ -4634,8 +4846,8 @@ export async function processarPagarFaturaCartao(
     .from('credit_card_invoices')
     .update({
       status: statusNovo,
-      paid_amount: valorPagamento,
-      paid_at: agora,
+      paid_amount: novoValorPago,
+      payment_date: agora,
       updated_at: agora
     })
     .eq('id', fatura.id);

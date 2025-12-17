@@ -304,7 +304,7 @@ export function BillCalendar({ bills, onPay, onEdit, onDelete }: BillCalendarPro
                       {new Intl.NumberFormat('pt-BR', {
                         style: 'currency',
                         currency: 'BRL',
-                      }).format(bill.amount)}
+                      }).format(bill.status === 'paid' && bill.paid_amount ? bill.paid_amount : bill.amount)}
                     </p>
                     <Badge
                       variant={

@@ -26,8 +26,9 @@ import {
   formatCurrency,
   formatDueDateWithContext,
   getStatusColor,
+  getBillCategoryName,
 } from '@/utils/billCalculations';
-import { BILL_TYPE_LABELS } from '@/types/payable-bills.types';
+import { useCategories } from '@/hooks/useCategories';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -66,7 +67,19 @@ export function InstallmentGroupCard({
   onEditInstallment,
   onDeleteGroup,
 }: InstallmentGroupCardProps) {
+  const { categories } = useCategories();
   const [isExpanded, setIsExpanded] = useState(false);
+  
+  // Buscar categoria pelo ID ou usar fallback
+  const getCategoryName = () => {
+    // Tentar buscar pelo category_id da primeira parcela
+    const firstInstallment = group.installments[0];
+    if (firstInstallment?.category_id) {
+      const cat = categories.find(c => c.id === firstInstallment.category_id);
+      if (cat) return cat.name;
+    }
+    return getBillCategoryName(group.billType);
+  };
 
   const progressPercent = (group.paidCount / group.totalInstallments) * 100;
   
@@ -105,7 +118,7 @@ export function InstallmentGroupCard({
               </div>
               <div className="flex items-center gap-2">
                 <p className="text-sm text-muted-foreground">
-                  {BILL_TYPE_LABELS[group.billType as keyof typeof BILL_TYPE_LABELS] || group.billType}
+                  {getCategoryName()}
                 </p>
                 {group.paymentMethod === 'credit_card' && (
                   <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">

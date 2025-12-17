@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ContaConsolidada } from '@/hooks/useContasConsolidadas';
-import { formatCurrency } from '@/utils/billCalculations';
+import { formatCurrency, getBillCategoryName } from '@/utils/billCalculations';
 import { format, parseISO, differenceInDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -46,20 +46,7 @@ const BILL_TYPE_ICONS: Record<string, React.ReactNode> = {
   other: <Package className="h-5 w-5" />,
 };
 
-const BILL_TYPE_LABELS: Record<string, string> = {
-  service: 'Serviços',
-  telecom: 'Telecom',
-  subscription: 'Assinatura',
-  housing: 'Moradia',
-  education: 'Educação',
-  healthcare: 'Saúde',
-  insurance: 'Seguro',
-  loan: 'Empréstimo',
-  credit_card: 'Cartão',
-  tax: 'Imposto',
-  food: 'Alimentação',
-  other: 'Outros',
-};
+// Usa getBillCategoryName de billCalculations.ts para consistência
 
 export function ContaConsolidadaCard({ conta, onClick }: ContaConsolidadaCardProps) {
   const navigate = useNavigate();

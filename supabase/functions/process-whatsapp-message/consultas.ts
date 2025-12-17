@@ -62,6 +62,7 @@ export interface ConfigConsultaCompleta {
   metodo?: MetodoPagamento;
   tipo?: TipoTransacao;
   categoria?: string;
+  estabelecimento?: string;  // Filtro por descrição (iFood, Uber, etc.)
   
   // Visualização
   modo?: 'resumo' | 'detalhado';
@@ -1425,6 +1426,19 @@ export async function consultarFinancasUnificada(
     console.log('[UNIFICADA] 🏷️ Transações após filtro categoria:', todasTransacoes.length);
   }
   
+  // ✅ Filtrar por estabelecimento/descrição (iFood, Uber, etc.)
+  if (config.estabelecimento) {
+    const estabelecimentoNorm = config.estabelecimento.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    console.log('[UNIFICADA] 🏪 Filtrando por estabelecimento:', config.estabelecimento);
+    
+    todasTransacoes = todasTransacoes.filter(t => {
+      const descNorm = t.descricao.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      return descNorm.includes(estabelecimentoNorm);
+    });
+    
+    console.log('[UNIFICADA] 🏪 Transações após filtro estabelecimento:', todasTransacoes.length);
+  }
+  
   // Ordenar por data (mais recente primeiro)
   todasTransacoes.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
   
@@ -1447,7 +1461,8 @@ export async function consultarFinancasUnificada(
     tipo: tipoTransacao,
     modo: config.modo,
     agrupar_por: config.agrupar_por,
-    fontes
+    fontes,
+    estabelecimento: config.estabelecimento
   });
 }
 
@@ -1467,14 +1482,25 @@ function formatarRespostaUnificada(
     modo?: 'resumo' | 'detalhado';
     agrupar_por?: TipoAgrupamento;
     fontes: string[];
+    estabelecimento?: string;
   }
 ): string {
-  // Montar título
+  // Montar título - com ou sem estabelecimento
   const tipoLabel = config.tipo === 'income' ? 'Receitas' : 'Gastos';
   const metodoLabel = config.metodo ? ` (${METODO_LABELS[config.metodo] || config.metodo})` : '';
   const contaLabel = config.conta ? `\n🏦 ${capitalizar(config.conta)}` : '';
   
-  let msg = `📊 *${tipoLabel} de ${config.labelPeriodo}*${metodoLabel}${contaLabel}\n\n`;
+  let msg = '';
+  
+  // Se tem estabelecimento, usar formato específico
+  if (config.estabelecimento) {
+    const estabelecimentoCapitalizado = capitalizar(config.estabelecimento);
+    const emojiEstabelecimento = getEmojiEstabelecimento(config.estabelecimento);
+    msg = `${emojiEstabelecimento} *Gastos com ${estabelecimentoCapitalizado}*\n`;
+    msg += `📅 ${config.labelPeriodo}\n\n`;
+  } else {
+    msg = `📊 *${tipoLabel} de ${config.labelPeriodo}*${metodoLabel}${contaLabel}\n\n`;
+  }
   
   if (transacoes.length === 0) {
     return msg + '✨ Nenhuma transação encontrada no período.';
@@ -1482,15 +1508,14 @@ function formatarRespostaUnificada(
   
   // ===== MODO DETALHADO =====
   if (config.modo === 'detalhado') {
-    // ✅ BUG #20: Mostrar TODAS as transações, não truncar
-    // Usuário pediu detalhamento, precisa ver tudo
+    // Formato limpo: data - valor (método)
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
     transacoes.forEach(t => {
-      const emoji = getEmojiCategoria(t.categoria);
-      const metodoIcon = METODO_ICONS[t.metodo] || '📌';
-      const parcelaInfo = t.parcela ? ` (${t.parcela})` : '';
-      msg += `${emoji} ${t.descricao}${parcelaInfo}\n`;
-      msg += `   ${formatarMoeda(t.valor)} | ${metodoIcon} ${formatarDataCurta(t.data)}\n`;
+      const metodoLabel = getMetodoLabel(t.metodo);
+      const parcelaInfo = t.parcela ? ` [${t.parcela}]` : '';
+      msg += `• ${formatarDataCurta(t.data)} - ${formatarMoeda(t.valor)} (${metodoLabel})${parcelaInfo}\n`;
     });
+    msg += `━━━━━━━━━━━━━━━━━━━━\n`;
     
     console.log('[RESPOSTA] Modo detalhado: mostrando todas as', transacoes.length, 'transações');
   }
@@ -1539,10 +1564,10 @@ function formatarRespostaUnificada(
     });
   }
   
-  msg += `\n────────────────────\n`;
-  const totalIcon = config.tipo === 'income' ? '🟢' : '🔴';
-  msg += `${totalIcon} *Total*: ${formatarMoeda(total)}\n`;
-  msg += `📍 Fonte: ${config.fontes.join(' + ') || 'nenhuma'}`;
+  // Rodapé com total e contagem
+  const totalIcon = config.tipo === 'income' ? '💰' : '💰';
+  msg += `\n${totalIcon} *Total:* ${formatarMoeda(total)}\n`;
+  msg += `📊 *${transacoes.length} ${transacoes.length === 1 ? 'transação' : 'transações'}*`;
   
   return msg;
 }
@@ -1572,6 +1597,52 @@ function agruparTransacoes(
 function formatarDataCurta(data: string): string {
   const d = new Date(data + 'T00:00:00');
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+// Função auxiliar para emoji de estabelecimento
+function getEmojiEstabelecimento(estabelecimento: string): string {
+  const estabLower = estabelecimento.toLowerCase();
+  const emojis: Record<string, string> = {
+    'uber': '🚗',
+    '99': '🚗',
+    'ifood': '🍔',
+    'rappi': '🍔',
+    'spotify': '🎵',
+    'netflix': '🎬',
+    'disney': '🎬',
+    'hbo': '🎬',
+    'amazon': '📦',
+    'mercado livre': '📦',
+    'magalu': '🛒',
+    'americanas': '🛒',
+    'shopee': '🛒',
+    'starbucks': '☕',
+    'mcdonalds': '🍔',
+    'burger king': '🍔',
+    'subway': '🥪',
+    'outback': '🥩',
+  };
+  
+  for (const [key, emoji] of Object.entries(emojis)) {
+    if (estabLower.includes(key)) return emoji;
+  }
+  return '🏪';
+}
+
+// Função auxiliar para label de método de pagamento (texto legível)
+function getMetodoLabel(metodo: string | null | undefined): string {
+  if (!metodo) return '—'; // Não definido
+  
+  const labels: Record<string, string> = {
+    'pix': 'PIX',
+    'debit': 'Débito',
+    'credit': 'Cartão',
+    'boleto': 'Boleto',
+    'cash': 'Dinheiro',
+    'transfer': 'Transf.',
+    'outros': '—'
+  };
+  return labels[metodo] || '—';
 }
 
 // Função auxiliar para emoji de categoria

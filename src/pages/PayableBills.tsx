@@ -15,6 +15,7 @@ import {
 import { Plus, Receipt, BarChart3, History, Trash2, AlertTriangle } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { usePayableBills } from '@/hooks/usePayableBills';
+import { useCategories } from '@/hooks/useCategories';
 import { BillSummaryCards } from '@/components/payable-bills/BillSummaryCards';
 import { BillList } from '@/components/payable-bills/BillList';
 import { BillDialog } from '@/components/payable-bills/BillDialog';
@@ -37,6 +38,7 @@ import { PayableBill, CreateBillInput, MarkBillAsPaidInput } from '@/types/payab
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { toast } from 'sonner';
 import { parseISO, isAfter, isBefore, addDays, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
+import { isBillOverdue } from '@/utils/billCalculations';
 
 export default function PayableBills() {
   const {
@@ -56,10 +58,14 @@ export default function PayableBills() {
     deleteBill,
     deleteInstallmentGroup,
     markAsPaid,
+    revertPayment,
   } = usePayableBills();
 
   // Hook de Analytics de Recorrências (para alertas na seção de atenção)
   const { alerts: variationAlerts } = useRecurringTrend();
+
+  // Hook de Categorias (para mapeamento no filtro)
+  const { categories } = useCategories();
 
   // Preferências de formatação do usuário
   const { formatCurrency, formatDate } = useUserPreferences();
@@ -70,7 +76,9 @@ export default function PayableBills() {
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
+  const [revertDialogOpen, setRevertDialogOpen] = useState(false);
   const [billToDelete, setBillToDelete] = useState<PayableBill | null>(null);
+  const [billToRevert, setBillToRevert] = useState<PayableBill | null>(null);
   const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
   const [selectedBill, setSelectedBill] = useState<PayableBill | null>(null);
   const [sortOption, setSortOption] = useState<SortOption>('due_soon');
@@ -86,13 +94,15 @@ export default function PayableBills() {
     // Primeiro: aplicar filtros de status (se selecionado)
     switch (sortOption) {
       case 'only_pending':
-        sorted = sorted.filter(b => b.status === 'pending');
+        // Pendentes: status pending E não vencidas
+        sorted = sorted.filter(b => b.status === 'pending' && !isBillOverdue(b.due_date));
         // Ordenar por vencimento próximo
         return sorted.sort((a, b) => 
           parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime()
         );
       case 'only_overdue':
-        sorted = sorted.filter(b => b.status === 'overdue');
+        // Filtrar por data de vencimento < hoje (não depende do status do banco)
+        sorted = sorted.filter(b => b.status !== 'paid' && isBillOverdue(b.due_date));
         // Ordenar por mais atrasadas primeiro
         return sorted.sort((a, b) => 
           parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime()
@@ -133,8 +143,10 @@ export default function PayableBills() {
         return sorted.sort((a, b) => a.amount - b.amount);
       case 'overdue_first':
         return sorted.sort((a, b) => {
-          if (a.status === 'overdue' && b.status !== 'overdue') return -1;
-          if (a.status !== 'overdue' && b.status === 'overdue') return 1;
+          const aOverdue = a.status !== 'paid' && isBillOverdue(a.due_date);
+          const bOverdue = b.status !== 'paid' && isBillOverdue(b.due_date);
+          if (aOverdue && !bOverdue) return -1;
+          if (!aOverdue && bOverdue) return 1;
           return parseISO(a.due_date).getTime() - parseISO(b.due_date).getTime();
         });
       default:
@@ -173,14 +185,43 @@ export default function PayableBills() {
         break;
     }
     
-    // Filtrar por categoria
+    // Filtrar por categoria (category_id do banco de dados)
+    // Mapeamento: category_id (UUID) → bill_type (enum)
+    // As payable_bills usam bill_type, mas o filtro usa category_id
     if (categoryFilter !== 'all') {
       filtered = filtered.filter((bill) => {
-        // Se filtro é 'credit_card', incluir também parcelamentos com payment_method='credit_card'
-        if (categoryFilter === 'credit_card') {
-          return bill.bill_type === 'credit_card' || bill.payment_method === 'credit_card';
+        // Se a conta tem category_id preenchido, comparar diretamente
+        if (bill.category_id) {
+          return bill.category_id === categoryFilter;
         }
-        return bill.bill_type === categoryFilter;
+        
+        // Fallback: mapear category_id para bill_type baseado no nome da categoria
+        // Buscar a categoria selecionada para obter o nome
+        const selectedCategory = categories.find(c => c.id === categoryFilter);
+        if (!selectedCategory) return false;
+        
+        // Mapeamento de nome de categoria para bill_type
+        const categoryToBillType: Record<string, string[]> = {
+          'Contas de Consumo': ['service'],
+          'Assinaturas': ['subscription', 'telecom'],
+          'Moradia': ['housing'],
+          'Educação': ['education'],
+          'Saúde': ['healthcare'],
+          'Seguros': ['insurance'],
+          'Empréstimo': ['loan'],
+          'Financiamento': ['installment'],
+          'Impostos': ['tax'],
+          'Alimentação': ['food'],
+          'Outros': ['other'],
+        };
+        
+        const billTypes = categoryToBillType[selectedCategory.name];
+        if (billTypes) {
+          return billTypes.includes(bill.bill_type);
+        }
+        
+        // Se não encontrou mapeamento, não mostrar
+        return false;
       });
     }
     
@@ -200,7 +241,7 @@ export default function PayableBills() {
     }
     
     return filtered;
-  }, [sortedBills, periodFilter, categoryFilter, recurrenceTypeFilter]);
+  }, [sortedBills, periodFilter, categoryFilter, recurrenceTypeFilter, categories]);
 
   // Handler para copiar/duplicar conta
   const handleCopy = async (bill: PayableBill) => {
@@ -275,6 +316,19 @@ export default function PayableBills() {
   const handleConfigReminders = (bill: PayableBill) => {
     setSelectedBill(bill);
     setReminderDialogOpen(true);
+  };
+
+  const handleRevertPayment = (bill: PayableBill) => {
+    setBillToRevert(bill);
+    setRevertDialogOpen(true);
+  };
+
+  const confirmRevertPayment = async () => {
+    if (billToRevert) {
+      await revertPayment(billToRevert.id);
+      setBillToRevert(null);
+      setRevertDialogOpen(false);
+    }
   };
 
   const handleMarkAsPaid = async (data: MarkBillAsPaidInput) => {
@@ -419,6 +473,7 @@ export default function PayableBills() {
                   onDelete={handleDelete}
                   onCopy={handleCopy}
                   onConfigReminders={handleConfigReminders}
+                  onRevertPayment={handleRevertPayment}
                 />
               ) : (
                 <BillList
@@ -429,6 +484,7 @@ export default function PayableBills() {
                   onCopy={handleCopy}
                   onConfigReminders={handleConfigReminders}
                   onDeleteInstallmentGroup={handleDeleteInstallmentGroup}
+                  onRevertPayment={handleRevertPayment}
                   emptyMessage="Nenhuma conta cadastrada. Clique em 'Nova Conta' para começar."
                 />
               )}
@@ -508,6 +564,37 @@ export default function PayableBills() {
               className="bg-red-500 hover:bg-red-600"
             >
               Deletar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de Confirmação - Reverter Pagamento */}
+      <AlertDialog open={revertDialogOpen} onOpenChange={setRevertDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Reverter Pagamento
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>
+                Tem certeza que deseja reverter o pagamento de <strong>"{billToRevert?.description}"</strong>?
+              </p>
+              <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                <li>Mudar status para "Pendente"</li>
+                <li>Remover registro de pagamento</li>
+                <li>Reverter saldo da conta bancária</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmRevertPayment}
+              className="bg-orange-500 hover:bg-orange-600"
+            >
+              Reverter
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

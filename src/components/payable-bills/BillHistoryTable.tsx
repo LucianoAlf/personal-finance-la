@@ -19,7 +19,9 @@ import {
   formatDate,
   formatDateTime,
 } from '@/utils/billCalculations';
-import { BILL_TYPE_LABELS, PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
+import { PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
+import { getBillCategoryName } from '@/utils/billCalculations';
+import { useCategories } from '@/hooks/useCategories';
 import { HistoryDateFilter, DateRange } from './HistoryDateFilter';
 import { HistorySummaryCards } from './HistorySummaryCards';
 import { BillCategoryFilter, CategoryFilter } from './BillCategoryFilter';
@@ -30,7 +32,17 @@ interface BillHistoryTableProps {
 }
 
 export function BillHistoryTable({ bills, onDelete }: BillHistoryTableProps) {
+  const { categories } = useCategories();
   const [search, setSearch] = useState('');
+  
+  // Buscar categoria pelo ID ou usar fallback
+  const getCategoryName = (bill: PayableBill) => {
+    if (bill.category_id) {
+      const cat = categories.find(c => c.id === bill.category_id);
+      if (cat) return cat.name;
+    }
+    return getBillCategoryName(bill.bill_type);
+  };
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [dateRange, setDateRange] = useState<DateRange>(() => {
     const today = new Date();
@@ -149,7 +161,7 @@ export function BillHistoryTable({ bills, onDelete }: BillHistoryTableProps) {
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline">
-                    {BILL_TYPE_LABELS[bill.bill_type]}
+                    {getCategoryName(bill)}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-sm">

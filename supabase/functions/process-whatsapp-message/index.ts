@@ -623,20 +623,36 @@ serve(async (req: Request) => {
       console.log('🔄 Processando no contexto:', contexto!.context_type);
       const resposta = await processarNoContexto(content, contexto!, user.id, phone);
       
-      // Se resposta for null, significa que já enviamos mensagem com botões
-      if (resposta !== null) {
+      // ✅ BUG FIX: Se resposta for string vazia (''), significa que detectou NOVA transação
+      // e o contexto foi limpo - deixar o fluxo continuar para processar normalmente
+      if (resposta === '') {
+        console.log('🔄 [CONTEXT] Resposta vazia - contexto limpo, processando como nova transação');
+        // NÃO fazer return - deixar continuar para o fluxo normal de NLP
+      } else if (resposta !== null) {
+        // Resposta válida - enviar e finalizar
         await enviarViaEdgeFunction(phone, resposta);
+        
+        await supabase.from('whatsapp_messages').update({
+          processing_status: 'completed',
+          intent: 'context_response',
+          processed_at: new Date().toISOString()
+        }).eq('id', message.id);
+        
+        return new Response(JSON.stringify({ success: true, type: 'context' }), { 
+          headers: { 'Content-Type': 'application/json' } 
+        });
+      } else {
+        // resposta === null - já enviamos mensagem com botões
+        await supabase.from('whatsapp_messages').update({
+          processing_status: 'completed',
+          intent: 'context_response',
+          processed_at: new Date().toISOString()
+        }).eq('id', message.id);
+        
+        return new Response(JSON.stringify({ success: true, type: 'context' }), { 
+          headers: { 'Content-Type': 'application/json' } 
+        });
       }
-      
-      await supabase.from('whatsapp_messages').update({
-        processing_status: 'completed',
-        intent: 'context_response',
-        processed_at: new Date().toISOString()
-      }).eq('id', message.id);
-      
-      return new Response(JSON.stringify({ success: true, type: 'context' }), { 
-        headers: { 'Content-Type': 'application/json' } 
-      });
     }
     
     // ============================================
@@ -902,6 +918,7 @@ serve(async (req: Request) => {
       'COMPRA_CARTAO',
       'COMPRA_PARCELADA',
       'CONSULTAR_FATURA',
+      'CONSULTAR_FATURA_VENCIDA',
       'CONSULTAR_LIMITE',
       'LISTAR_CARTOES',
       'PAGAR_FATURA'
@@ -1045,6 +1062,7 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       const tipoCartao = intencaoNLP.intencao === 'COMPRA_CARTAO' ? 'compra_cartao' :
                          intencaoNLP.intencao === 'COMPRA_PARCELADA' ? 'compra_parcelada' :
                          intencaoNLP.intencao === 'CONSULTAR_FATURA' ? 'consulta_fatura' :
+                         intencaoNLP.intencao === 'CONSULTAR_FATURA_VENCIDA' ? 'consulta_fatura_vencida' :
                          intencaoNLP.intencao === 'CONSULTAR_LIMITE' ? 'consulta_limite' :
                          intencaoNLP.intencao === 'LISTAR_CARTOES' ? 'listar_cartoes' :
                          intencaoNLP.intencao === 'PAGAR_FATURA' ? 'pagar_fatura' : 'compra_cartao';
@@ -1055,7 +1073,8 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
         valor: entidadesAny.valor,
         cartao: entidadesAny.cartao,
         parcelas: entidadesAny.parcelas || 1,
-        descricao: entidadesAny.descricao
+        descricao: entidadesAny.descricao,
+        mes_referencia: entidadesAny.mes_referencia  // Mês inferido do contexto pelo NLP
       };
       
       console.log('💳 Intenção convertida:', JSON.stringify(intencaoCartao));
@@ -1419,12 +1438,56 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       // 5. Extrair categoria (se especificada)
       const categoriaFiltro = entidadesNLP?.categoria;
       
+      // 6. Extrair estabelecimento (iFood, Uber, Netflix, etc.)
+      let estabelecimentoFiltro: string | undefined;
+      const textoLowerEstab = content.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      
+      // Lista de estabelecimentos conhecidos
+      const estabelecimentosConhecidos = [
+        'ifood', 'uber', 'rappi', '99', 'spotify', 'netflix', 'amazon', 'disney', 
+        'hbo', 'youtube', 'google', 'apple', 'mercado livre', 'magalu', 'americanas',
+        'casas bahia', 'shopee', 'shein', 'aliexpress', 'starbucks', 'mcdonalds',
+        'burger king', 'subway', 'outback', 'madero', 'habib'
+      ];
+      
+      // Detectar padrão de consulta por estabelecimento
+      // Padrões: "quanto gastei de uber", "qual meu gasto com ifood", "meus gastos de netflix"
+      const padroesEstabelecimento = [
+        /(?:quanto|qual)\s+(?:gastei|foi|paguei)\s+(?:de|com|no|na|em)\s+(\w+)/,
+        /(?:quanto|qual)\s+(?:meu[s]?|o)\s+gasto[s]?\s+(?:de|com|no|na|em)\s+(\w+)/,
+        /meu[s]?\s+gasto[s]?\s+(?:de|com|no|na|em)\s+(\w+)/,
+        /gasto[s]?\s+(?:de|com|no|na|em)\s+(\w+)/,
+        /(?:de|com|no|na)\s+(uber|ifood|rappi|99|spotify|netflix|amazon|disney)/
+      ];
+      
+      for (const padrao of padroesEstabelecimento) {
+        const match = textoLowerEstab.match(padrao);
+        if (match && match[1]) {
+          const termoDetectado = match[1].trim();
+          
+          // Verificar se é um estabelecimento conhecido
+          const isEstabelecimento = estabelecimentosConhecidos.some(e => 
+            termoDetectado.includes(e) || e.includes(termoDetectado)
+          );
+          
+          // Verificar se NÃO é um banco (bancos são filtros de conta, não estabelecimento)
+          const isBanco = ['nubank', 'itau', 'bradesco', 'inter', 'c6', 'santander', 'caixa', 'bb', 'roxinho'].includes(termoDetectado);
+          
+          if (isEstabelecimento || (!isBanco && termoDetectado.length >= 3)) {
+            estabelecimentoFiltro = termoDetectado;
+            console.log('🏪 [ESTABELECIMENTO] Detectado:', estabelecimentoFiltro);
+            break;
+          }
+        }
+      }
+      
       // Log final dos filtros
       console.log('🔍 FILTROS FINAIS:', JSON.stringify({
         conta: contaFiltro,
         cartao: cartaoFiltro,
         metodo,
         categoria: categoriaFiltro,
+        estabelecimento: estabelecimentoFiltro,
         periodo: periodoConfig,
         modo,
         agrupar_por
@@ -1440,7 +1503,8 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
         tipo: 'expense',
         modo: entidadesNLP?.modo || modo,
         agrupar_por: entidadesNLP?.agrupar_por || agrupar_por,
-        categoria: categoriaFiltro  // ✅ BUG #19: Passar categoria para filtrar
+        categoria: categoriaFiltro,
+        estabelecimento: estabelecimentoFiltro  // ✅ Filtrar por estabelecimento
       });
       await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({

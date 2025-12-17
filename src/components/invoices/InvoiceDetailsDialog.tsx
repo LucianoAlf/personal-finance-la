@@ -64,7 +64,7 @@ export function InvoiceDetailsDialog({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            Fatura de {format(new Date(invoice.reference_month), 'MMMM yyyy', { locale: ptBR })} - {card.name}
+            Fatura de {format(new Date(invoice.reference_month + 'T12:00:00'), 'MMMM yyyy', { locale: ptBR })} - {card.name}
           </DialogTitle>
           <div className="pt-2">
             <Badge variant={getBadgeVariant(invoice.status)}>

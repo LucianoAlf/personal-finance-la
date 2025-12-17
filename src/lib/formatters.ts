@@ -96,7 +96,12 @@ export function formatRelativeDate(
   if (date instanceof Date) {
     dateObj = date;
   } else if (typeof date === 'string') {
-    dateObj = new Date(date);
+    // Se for string no formato YYYY-MM-DD, adicionar T12:00:00 para evitar problema de timezone
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      dateObj = new Date(date + 'T12:00:00');
+    } else {
+      dateObj = new Date(date);
+    }
   } else {
     dateObj = new Date(date);
   }
@@ -106,12 +111,25 @@ export function formatRelativeDate(
   }
 
   const now = new Date();
-  const diffTime = now.getTime() - dateObj.getTime();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  // Comparar apenas ano, mês e dia (ignorar horário)
+  const isSameDay = (d1: Date, d2: Date) => 
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate();
+  
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  // Calcular diferença em dias de forma mais precisa
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
+  const diffTime = startOfToday.getTime() - startOfDate.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
 
   if (locale === 'pt-BR') {
-    if (diffDays === 0) return 'Hoje';
-    if (diffDays === 1) return 'Ontem';
+    if (isSameDay(dateObj, now)) return 'Hoje';
+    if (isSameDay(dateObj, yesterday)) return 'Ontem';
     if (diffDays < 7) return `Há ${diffDays} dias`;
     if (diffDays < 30) {
       const weeks = Math.floor(diffDays / 7);

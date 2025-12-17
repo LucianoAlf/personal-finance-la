@@ -46,7 +46,8 @@ import {
   Play,
 } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
-import { BILL_TYPE_LABELS } from '@/types/payable-bills.types';
+import { getBillCategoryName } from '@/utils/billCalculations';
+import { useCategories } from '@/hooks/useCategories';
 import { cn } from '@/lib/utils';
 
 interface RecurringBillTableProps {
@@ -106,7 +107,17 @@ export function RecurringBillTable({
   onViewHistory,
   onTogglePause,
 }: RecurringBillTableProps) {
+  const { categories } = useCategories();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
+  // Buscar categoria pelo ID ou usar fallback
+  const getCategoryName = (bill: PayableBill) => {
+    if (bill.category_id) {
+      const cat = categories.find(c => c.id === bill.category_id);
+      if (cat) return cat.name;
+    }
+    return getBillCategoryName(bill.bill_type);
+  };
   const [sortColumn, setSortColumn] = useState<string>('description');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
@@ -281,7 +292,7 @@ export function RecurringBillTable({
                   <TableCell>
                     <Badge variant="outline" className="gap-1 font-normal">
                       {getCategoryIcon(bill.bill_type)}
-                      {BILL_TYPE_LABELS[bill.bill_type] || bill.bill_type}
+                      {getCategoryName(bill)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">

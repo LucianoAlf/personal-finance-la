@@ -361,24 +361,51 @@ export function useInvoices(cardId?: string) {
     fetchInvoices();
     fetchInvoicesDetailed();
 
-    // Subscription para mudanças nas faturas
+    // Subscription para mudanças nas faturas (sem filtro - RLS já filtra)
     const invoicesSubscription = supabase
-      .channel(`invoices_${user.id}`)
+      .channel(`invoices_realtime_${user.id}_${Date.now()}`)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'credit_card_invoices',
-          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          console.log('🔄 Fatura alterada:', payload);
+          console.log('🔄 [REALTIME] Fatura INSERT:', payload);
           fetchInvoices();
           fetchInvoicesDetailed();
         }
       )
-      .subscribe();
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'credit_card_invoices',
+        },
+        (payload) => {
+          console.log('🔄 [REALTIME] Fatura UPDATE:', payload);
+          fetchInvoices();
+          fetchInvoicesDetailed();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'credit_card_invoices',
+        },
+        (payload) => {
+          console.log('🔄 [REALTIME] Fatura DELETE:', payload);
+          fetchInvoices();
+          fetchInvoicesDetailed();
+        }
+      )
+      .subscribe((status) => {
+        console.log('📡 [REALTIME] Invoices subscription status:', status);
+      });
 
     // Subscription para mudanças nas transações (atualiza faturas quando transações mudam)
     const transactionsSubscription = supabase

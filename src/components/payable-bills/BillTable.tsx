@@ -44,9 +44,12 @@ import {
   CreditCard,
   Package,
   Bell,
+  Undo2,
 } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
-import { BILL_TYPE_LABELS, BILL_STATUS_LABELS } from '@/types/payable-bills.types';
+import { BILL_STATUS_LABELS } from '@/types/payable-bills.types';
+import { useCategories } from '@/hooks/useCategories';
+import * as LucideIcons from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface BillTableProps {
@@ -56,6 +59,7 @@ interface BillTableProps {
   onDelete: (bill: PayableBill) => void;
   onCopy: (bill: PayableBill) => void;
   onConfigReminders?: (bill: PayableBill) => void;
+  onRevertPayment?: (bill: PayableBill) => void;
 }
 
 const getCategoryIcon = (billType: string) => {
@@ -152,11 +156,64 @@ export function BillTable({
   onDelete,
   onCopy,
   onConfigReminders,
+  onRevertPayment,
 }: BillTableProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   // Ordenação local da tabela (null = usar ordenação do pai)
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  
+  // Hook de categorias para exibir nome/ícone correto
+  const { categories } = useCategories();
+  
+  // Função para buscar categoria pelo ID ou mapear bill_type
+  const getCategoryInfo = (bill: PayableBill) => {
+    // Se tem category_id, buscar no banco
+    if (bill.category_id) {
+      const cat = categories.find(c => c.id === bill.category_id);
+      if (cat) {
+        const IconComponent = (LucideIcons as any)[cat.icon];
+        return {
+          name: cat.name,
+          icon: IconComponent ? <IconComponent className="h-4 w-4" style={{ color: cat.color }} /> : <Package className="h-4 w-4 text-gray-500" />,
+        };
+      }
+    }
+    
+    // Fallback: mapear bill_type para categoria
+    const billTypeToCategory: Record<string, string> = {
+      'service': 'Contas de Consumo',
+      'telecom': 'Assinaturas',
+      'subscription': 'Assinaturas',
+      'housing': 'Moradia',
+      'education': 'Educação',
+      'healthcare': 'Saúde',
+      'insurance': 'Seguros',
+      'loan': 'Empréstimo',
+      'installment': 'Financiamento',
+      'credit_card': 'Cartão de Crédito',
+      'tax': 'Impostos',
+      'food': 'Alimentação',
+      'other': 'Outros',
+    };
+    
+    const categoryName = billTypeToCategory[bill.bill_type] || bill.bill_type;
+    const cat = categories.find(c => c.name === categoryName);
+    
+    if (cat) {
+      const IconComponent = (LucideIcons as any)[cat.icon];
+      return {
+        name: cat.name,
+        icon: IconComponent ? <IconComponent className="h-4 w-4" style={{ color: cat.color }} /> : <Package className="h-4 w-4 text-gray-500" />,
+      };
+    }
+    
+    // Fallback final
+    return {
+      name: categoryName,
+      icon: getCategoryIcon(bill.bill_type),
+    };
+  };
 
   const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds);
@@ -337,17 +394,22 @@ export function BillTable({
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline" className="gap-1 font-normal">
-                    {getCategoryIcon(bill.bill_type)}
-                    {BILL_TYPE_LABELS[bill.bill_type] || bill.bill_type}
-                  </Badge>
+                  {(() => {
+                    const catInfo = getCategoryInfo(bill);
+                    return (
+                      <Badge variant="outline" className="gap-1 font-normal">
+                        {catInfo.icon}
+                        {catInfo.name}
+                      </Badge>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="text-right">
                   <span className={cn(
                     "font-semibold tabular-nums",
                     bill.status === 'paid' ? 'text-muted-foreground' : 'text-foreground'
                   )}>
-                    {formatCurrency(bill.amount)}
+                    {formatCurrency(bill.status === 'paid' && bill.paid_amount ? bill.paid_amount : bill.amount)}
                   </span>
                 </TableCell>
                 <TableCell>
@@ -402,6 +464,15 @@ export function BillTable({
                           <DropdownMenuItem onClick={() => onConfigReminders(bill)}>
                             <Bell className="h-4 w-4 mr-2" />
                             Lembretes
+                          </DropdownMenuItem>
+                        )}
+                        {onRevertPayment && (bill.status === 'paid' || bill.status === 'partial') && (
+                          <DropdownMenuItem 
+                            onClick={() => onRevertPayment(bill)}
+                            className="text-orange-600 focus:text-orange-600"
+                          >
+                            <Undo2 className="h-4 w-4 mr-2" />
+                            Reverter Pagamento
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />

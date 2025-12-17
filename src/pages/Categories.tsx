@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, FolderTree, BarChart3 } from 'lucide-react';
+import { Plus, FolderTree, BarChart3, TrendingDown, TrendingUp } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCategories } from '@/hooks/useCategories';
 import { useCategoryStats } from '@/hooks/useCategoryStats';
 import { CategoryCard } from '@/components/categories/CategoryCard';
@@ -12,9 +13,17 @@ export default function Categories() {
   const { categories, loading: loadingCategories } = useCategories();
   const { stats, loading: loadingStats } = useCategoryStats();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
 
-  const defaultCategories = categories.filter(cat => cat.is_default);
-  const userCategories = categories.filter(cat => !cat.is_default);
+  // Separar categorias por tipo
+  const expenseCategories = categories.filter(cat => cat.type === 'expense');
+  const incomeCategories = categories.filter(cat => cat.type === 'income');
+
+  // Separar padrão vs personalizadas dentro de cada tipo
+  const defaultExpenseCategories = expenseCategories.filter(cat => cat.is_default);
+  const userExpenseCategories = expenseCategories.filter(cat => !cat.is_default);
+  const defaultIncomeCategories = incomeCategories.filter(cat => cat.is_default);
+  const userIncomeCategories = incomeCategories.filter(cat => !cat.is_default);
 
   const getCategoryStats = (categoryId: string) => {
     return stats.find(s => s.categoryId === categoryId) || {
@@ -55,66 +64,153 @@ export default function Categories() {
 
       <div className="max-w-7xl mx-auto p-6 space-y-6">
 
-      {/* Categorias Padrão */}
-      <div className="mb-8">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-          <BarChart3 className="h-5 w-5 text-purple-600" />
-          Categorias Padrão
-          <span className="text-sm font-normal text-gray-500">
-            ({defaultCategories.length})
-          </span>
-        </h2>
-        <div className="space-y-3">
-          {defaultCategories.map(category => (
-            <CategoryCard
-              key={category.id}
-              category={category}
-              stats={getCategoryStats(category.id)}
-              isDefault={true}
-            />
-          ))}
-        </div>
-      </div>
-
-      {/* Minhas Categorias */}
-      {userCategories.length > 0 && (
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <FolderTree className="h-5 w-5 text-purple-600" />
-            Minhas Categorias
-            <span className="text-sm font-normal text-gray-500">
-              ({userCategories.length})
+      {/* Tabs para separar Despesas e Receitas */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'expense' | 'income')} className="w-full">
+        <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
+          <TabsTrigger value="expense" className="flex items-center gap-2">
+            <TrendingDown className="h-4 w-4" />
+            <span>Despesas</span>
+            <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
+              {expenseCategories.length}
             </span>
-          </h2>
-          <div className="space-y-3">
-            {userCategories.map(category => (
-              <CategoryCard
-                key={category.id}
-                category={category}
-                stats={getCategoryStats(category.id)}
-                isDefault={false}
-              />
-            ))}
-          </div>
-        </div>
-      )}
+          </TabsTrigger>
+          <TabsTrigger value="income" className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4" />
+            <span>Receitas</span>
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+              {incomeCategories.length}
+            </span>
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Empty State */}
-      {userCategories.length === 0 && (
-        <div className="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
-          <FolderTree className="h-16 w-16 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            Nenhuma categoria personalizada
-          </h3>
-          <p className="text-gray-600 mb-4">
-            Crie suas próprias categorias para organizar melhor suas transações
-          </p>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Criar Primeira Categoria
-          </Button>
-        </div>
-      )}
+        {/* Tab de Despesas */}
+        <TabsContent value="expense" className="space-y-6">
+          {/* Categorias Padrão de Despesa */}
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-red-500" />
+              Categorias Padrão
+              <span className="text-sm font-normal text-gray-500">
+                ({defaultExpenseCategories.length})
+              </span>
+            </h2>
+            <div className="space-y-3">
+              {defaultExpenseCategories.map(category => (
+                <CategoryCard
+                  key={category.id}
+                  category={category}
+                  stats={getCategoryStats(category.id)}
+                  isDefault={true}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Minhas Categorias de Despesa */}
+          {userExpenseCategories.length > 0 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <FolderTree className="h-5 w-5 text-red-500" />
+                Minhas Categorias
+                <span className="text-sm font-normal text-gray-500">
+                  ({userExpenseCategories.length})
+                </span>
+              </h2>
+              <div className="space-y-3">
+                {userExpenseCategories.map(category => (
+                  <CategoryCard
+                    key={category.id}
+                    category={category}
+                    stats={getCategoryStats(category.id)}
+                    isDefault={false}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty State para categorias personalizadas de despesa */}
+          {userExpenseCategories.length === 0 && (
+            <div className="bg-red-50 rounded-lg border-2 border-dashed border-red-200 p-8 text-center">
+              <FolderTree className="h-12 w-12 mx-auto mb-3 text-red-300" />
+              <h3 className="text-base font-semibold text-gray-900 mb-2">
+                Nenhuma categoria personalizada de despesa
+              </h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Crie categorias personalizadas para organizar melhor seus gastos
+              </p>
+              <Button onClick={() => setCreateDialogOpen(true)} variant="outline" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Criar Categoria
+              </Button>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Tab de Receitas */}
+        <TabsContent value="income" className="space-y-6">
+          {/* Categorias Padrão de Receita */}
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-green-500" />
+              Categorias Padrão
+              <span className="text-sm font-normal text-gray-500">
+                ({defaultIncomeCategories.length})
+              </span>
+            </h2>
+            <div className="space-y-3">
+              {defaultIncomeCategories.map(category => (
+                <CategoryCard
+                  key={category.id}
+                  category={category}
+                  stats={getCategoryStats(category.id)}
+                  isDefault={true}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Minhas Categorias de Receita */}
+          {userIncomeCategories.length > 0 && (
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <FolderTree className="h-5 w-5 text-green-500" />
+                Minhas Categorias
+                <span className="text-sm font-normal text-gray-500">
+                  ({userIncomeCategories.length})
+                </span>
+              </h2>
+              <div className="space-y-3">
+                {userIncomeCategories.map(category => (
+                  <CategoryCard
+                    key={category.id}
+                    category={category}
+                    stats={getCategoryStats(category.id)}
+                    isDefault={false}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Empty State para categorias personalizadas de receita */}
+          {userIncomeCategories.length === 0 && (
+            <div className="bg-green-50 rounded-lg border-2 border-dashed border-green-200 p-8 text-center">
+              <FolderTree className="h-12 w-12 mx-auto mb-3 text-green-300" />
+              <h3 className="text-base font-semibold text-gray-900 mb-2">
+                Nenhuma categoria personalizada de receita
+              </h3>
+              <p className="text-gray-600 text-sm mb-4">
+                Crie categorias personalizadas para organizar melhor suas receitas
+              </p>
+              <Button onClick={() => setCreateDialogOpen(true)} variant="outline" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                Criar Categoria
+              </Button>
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Dialog Criar Categoria */}
       <CreateCategoryDialog

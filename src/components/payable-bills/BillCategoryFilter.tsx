@@ -1,67 +1,85 @@
+/**
+ * BillCategoryFilter - Filtro de categorias para Contas a Pagar
+ * 
+ * Usa o banco de dados como fonte única de verdade via useCategories()
+ * Atualizado em: 16/12/2025 - Corrigido para usar banco de dados
+ */
+
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  Tv, 
-  Lightbulb, 
-  Home, 
-  Smartphone, 
-  Heart, 
-  CreditCard,
-  Package,
-  Layers,
-  GraduationCap,
-  Receipt,
-  Shield,
-  Banknote,
-  UtensilsCrossed,
-  ShoppingBag
-} from 'lucide-react';
-import { BillType } from '@/types/payable-bills.types';
+import { Layers } from 'lucide-react';
+import * as LucideIcons from 'lucide-react';
+import { useCategories } from '@/hooks/useCategories';
 
-export type CategoryFilter = BillType | 'all';
+export type CategoryFilter = string | 'all';
 
 interface BillCategoryFilterProps {
   value: CategoryFilter;
   onChange: (value: CategoryFilter) => void;
 }
 
-const CATEGORY_OPTIONS: { value: CategoryFilter; label: string; icon: React.ReactNode }[] = [
-  { value: 'all', label: 'Todas as categorias', icon: <Layers className="h-4 w-4" /> },
-  { value: 'subscription', label: 'Assinaturas', icon: <Tv className="h-4 w-4" /> },
-  { value: 'service', label: 'Serviços (Água, Luz, Gás)', icon: <Lightbulb className="h-4 w-4" /> },
-  { value: 'housing', label: 'Moradia', icon: <Home className="h-4 w-4" /> },
-  { value: 'telecom', label: 'Telecomunicações', icon: <Smartphone className="h-4 w-4" /> },
-  { value: 'healthcare', label: 'Saúde', icon: <Heart className="h-4 w-4" /> },
-  { value: 'education', label: 'Educação', icon: <GraduationCap className="h-4 w-4" /> },
-  { value: 'food', label: 'Alimentação', icon: <UtensilsCrossed className="h-4 w-4" /> },
-  { value: 'tax', label: 'Impostos e Taxas', icon: <Receipt className="h-4 w-4" /> },
-  { value: 'insurance', label: 'Seguros', icon: <Shield className="h-4 w-4" /> },
-  { value: 'loan', label: 'Empréstimos', icon: <Banknote className="h-4 w-4" /> },
-  { value: 'installment', label: 'Parcelamentos', icon: <ShoppingBag className="h-4 w-4" /> },
-  { value: 'credit_card', label: 'Cartão de Crédito', icon: <CreditCard className="h-4 w-4" /> },
-  { value: 'other', label: 'Outros', icon: <Package className="h-4 w-4" /> },
-];
-
 export function BillCategoryFilter({ value, onChange }: BillCategoryFilterProps) {
+  const { categories } = useCategories();
+  
+  // Separar por tipo
+  const expenseCategories = categories.filter(cat => cat.type === 'expense');
+  const incomeCategories = categories.filter(cat => cat.type === 'income');
+
+  const renderIcon = (iconName: string, color: string) => {
+    const IconComponent = (LucideIcons as any)[iconName];
+    return IconComponent ? <IconComponent className="h-4 w-4" style={{ color }} /> : null;
+  };
+
   return (
     <Select value={value} onValueChange={(v) => onChange(v as CategoryFilter)}>
       <SelectTrigger className="w-[220px]">
         <SelectValue placeholder="Categoria" />
       </SelectTrigger>
       <SelectContent>
-        {CATEGORY_OPTIONS.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            <div className="flex items-center gap-2">
-              {option.icon}
-              <span>{option.label}</span>
-            </div>
-          </SelectItem>
-        ))}
+        {/* Opção Todas */}
+        <SelectItem value="all">
+          <div className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-gray-500" />
+            <span>Todas as categorias</span>
+          </div>
+        </SelectItem>
+
+        {/* Seção Despesas */}
+        <SelectGroup>
+          <SelectLabel className="flex items-center gap-2 text-red-600 font-semibold">
+            <span>💸</span> DESPESAS ({expenseCategories.length})
+          </SelectLabel>
+          {expenseCategories.map((cat) => (
+            <SelectItem key={cat.id} value={cat.id}>
+              <div className="flex items-center gap-2">
+                {renderIcon(cat.icon, cat.color)}
+                <span>{cat.name}</span>
+              </div>
+            </SelectItem>
+          ))}
+        </SelectGroup>
+
+        {/* Seção Receitas */}
+        <SelectGroup>
+          <SelectLabel className="flex items-center gap-2 text-green-600 font-semibold">
+            <span>💰</span> RECEITAS ({incomeCategories.length})
+          </SelectLabel>
+          {incomeCategories.map((cat) => (
+            <SelectItem key={cat.id} value={cat.id}>
+              <div className="flex items-center gap-2">
+                {renderIcon(cat.icon, cat.color)}
+                <span>{cat.name}</span>
+              </div>
+            </SelectItem>
+          ))}
+        </SelectGroup>
       </SelectContent>
     </Select>
   );

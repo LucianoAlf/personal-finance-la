@@ -59,7 +59,7 @@ export function InvoiceCard({ invoice, card, isHighlighted = false, onViewDetail
               <span className="text-xs text-gray-400">{formatCardNumber(card.last_four_digits)}</span>
             </div>
             <h3 className="text-lg font-semibold text-gray-900">
-              Fatura de {format(new Date(invoice.reference_month), 'MMMM yyyy', { locale: ptBR })}
+              Fatura de {format(new Date(invoice.reference_month + 'T12:00:00'), 'MMMM yyyy', { locale: ptBR })}
             </h3>
           </div>
           <InvoiceStatusBadge
@@ -74,12 +74,31 @@ export function InvoiceCard({ invoice, card, isHighlighted = false, onViewDetail
 
         {/* Valores */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-gray-600">Valor Total</span>
-            <span className="text-2xl font-bold text-gray-900">
-              {formatCurrency(invoice.total_amount)}
-            </span>
-          </div>
+          {(() => {
+            const paidAmount = Number(invoice.paid_amount) || 0;
+            const totalAmount = Number(invoice.total_amount) || 0;
+            const remainingAmount = Number(invoice.remaining_amount) || (totalAmount - paidAmount);
+            const hasParcial = paidAmount > 0 && paidAmount < totalAmount;
+            
+            return (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">
+                    {hasParcial ? 'Valor Restante' : 'Valor Total'}
+                  </span>
+                  <span className="text-2xl font-bold text-gray-900">
+                    {formatCurrency(hasParcial ? remainingAmount : totalAmount)}
+                  </span>
+                </div>
+                {hasParcial && (
+                  <div className="flex items-center justify-between text-xs text-gray-500">
+                    <span>Valor original: {formatCurrency(totalAmount)}</span>
+                    <span className="text-green-600">Pago: {formatCurrency(paidAmount)}</span>
+                  </div>
+                )}
+              </>
+            );
+          })()}
 
           <div className="flex items-center justify-between text-sm">
             <div className="flex items-center gap-1 text-gray-600">

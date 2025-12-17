@@ -22,6 +22,7 @@ import {
   Bell,
   Tag as TagIcon,
   Copy,
+  Undo2,
 } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
 import {
@@ -33,7 +34,9 @@ import {
   canMarkAsPaid,
   formatInstallment,
 } from '@/utils/billCalculations';
-import { BILL_STATUS_LABELS, BILL_TYPE_LABELS, PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
+import { BILL_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
+import { getBillCategoryName } from '@/utils/billCalculations';
+import { useCategories } from '@/hooks/useCategories';
 
 interface BillCardProps {
   bill: PayableBill;
@@ -42,13 +45,24 @@ interface BillCardProps {
   onDelete?: (bill: PayableBill) => void;
   onCopy?: (bill: PayableBill) => void;
   onConfigReminders?: (bill: PayableBill) => void;
+  onRevertPayment?: (bill: PayableBill) => void;
   highlight?: boolean;
 }
 
-export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigReminders, highlight }: BillCardProps) {
+export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigReminders, onRevertPayment, highlight }: BillCardProps) {
+  const { categories } = useCategories();
   const statusColor = getStatusColor(bill.status);
   // Passar status para não mostrar alerta vermelho em contas pagas
   const dueDateColor = getDueDateColor(bill.due_date, bill.status);
+  
+  // Buscar categoria pelo ID ou usar fallback
+  const getCategoryName = () => {
+    if (bill.category_id) {
+      const cat = categories.find(c => c.id === bill.category_id);
+      if (cat) return cat.name;
+    }
+    return getBillCategoryName(bill.bill_type);
+  };
   const priorityColor = getPriorityColor(bill.priority);
 
   const getStatusBadgeVariant = (color: string) => {
@@ -132,6 +146,15 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigRemind
                     Lembretes
                   </DropdownMenuItem>
                 )}
+                {onRevertPayment && (bill.status === 'paid' || bill.status === 'partial') && (
+                  <DropdownMenuItem 
+                    onClick={() => onRevertPayment(bill)}
+                    className="text-orange-600 focus:text-orange-600"
+                  >
+                    <Undo2 className="mr-2 h-4 w-4" />
+                    Reverter Pagamento
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 {onDelete && (
                   <DropdownMenuItem
@@ -146,9 +169,11 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigRemind
             </DropdownMenu>
           </div>
 
-          {/* Valor */}
+          {/* Valor - mostrar paid_amount se conta está paga */}
           <div className="mb-4">
-            <p className="text-3xl font-bold">{formatCurrency(bill.amount)}</p>
+            <p className="text-3xl font-bold">
+              {formatCurrency(bill.status === 'paid' && bill.paid_amount ? bill.paid_amount : bill.amount)}
+            </p>
             {bill.status === 'partial' && bill.paid_amount && (
               <p className="text-sm text-muted-foreground mt-1">
                 Pago: {formatCurrency(bill.paid_amount)} (
@@ -179,7 +204,7 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigRemind
               {BILL_STATUS_LABELS[bill.status]}
             </Badge>
             <Badge variant="outline">
-              {BILL_TYPE_LABELS[bill.bill_type]}
+              {getCategoryName()}
             </Badge>
             {/* Só mostrar prioridade se NÃO estiver paga */}
             {bill.status !== 'paid' && bill.priority === 'critical' && (

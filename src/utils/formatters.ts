@@ -48,15 +48,34 @@ export const formatDateForInput = (date: string | Date): string => {
 
 // Formatar data relativa (hoje, ontem, etc)
 export const formatRelativeDate = (date: string | Date): string => {
-  const d = typeof date === 'string' ? new Date(date) : date;
+  // Se for string no formato YYYY-MM-DD, adicionar T12:00:00 para evitar problema de timezone
+  // Isso garante que a data seja interpretada corretamente independente do fuso horário
+  let d: Date;
+  if (typeof date === 'string') {
+    // Se for apenas data (YYYY-MM-DD), adicionar horário do meio-dia para evitar problemas de timezone
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      d = new Date(date + 'T12:00:00');
+    } else {
+      d = new Date(date);
+    }
+  } else {
+    d = date;
+  }
+  
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
 
-  if (d.toDateString() === today.toDateString()) {
+  // Comparar apenas ano, mês e dia (ignorar horário)
+  const isSameDay = (d1: Date, d2: Date) => 
+    d1.getFullYear() === d2.getFullYear() &&
+    d1.getMonth() === d2.getMonth() &&
+    d1.getDate() === d2.getDate();
+
+  if (isSameDay(d, today)) {
     return 'Hoje';
   }
-  if (d.toDateString() === yesterday.toDateString()) {
+  if (isSameDay(d, yesterday)) {
     return 'Ontem';
   }
   

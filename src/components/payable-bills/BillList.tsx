@@ -13,6 +13,7 @@ interface BillListProps {
   onCopy?: (bill: PayableBill) => void;
   onConfigReminders?: (bill: PayableBill) => void;
   onDeleteInstallmentGroup?: (groupId: string) => void;
+  onRevertPayment?: (bill: PayableBill) => void;
   emptyMessage?: string;
 }
 
@@ -24,6 +25,7 @@ export function BillList({
   onCopy,
   onConfigReminders,
   onDeleteInstallmentGroup,
+  onRevertPayment,
   emptyMessage = 'Nenhuma conta encontrada',
 }: BillListProps) {
   // Separar contas individuais e parcelamentos agrupados
@@ -112,6 +114,7 @@ export function BillList({
                 onDelete={onDelete}
                 onCopy={onCopy}
                 onConfigReminders={onConfigReminders}
+                onRevertPayment={onRevertPayment}
               />
             ))}
           </div>
