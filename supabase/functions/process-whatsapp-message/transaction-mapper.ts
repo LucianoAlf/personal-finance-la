@@ -1343,9 +1343,6 @@ export async function processarIntencaoTransferencia(
 // Quando usuário diz: "Transferi 1000 do Itaú pro Nubank"
 // Cria 2 transações vinculadas (saída + entrada)
 
-// ID da categoria "Transferências" (criada no banco)
-const CATEGORIA_TRANSFERENCIA_ID = '240d6ea4-b18a-4a22-8247-40270f36f38c';
-
 export async function processarTransferenciaEntreContas(
   userId: string,
   valor: number,
@@ -1358,6 +1355,34 @@ export async function processarTransferenciaEntreContas(
   console.log('[TRANSFER-ENTRE-CONTAS] Processando:', {
     valor, contaOrigemNome, contaDestinoNome, data
   });
+  
+  // Buscar categoria "Transferências" ou "Outros" do usuário
+  let categoriaTransferenciaId: string | null = null;
+  
+  const { data: catTransfer } = await supabase
+    .from('categories')
+    .select('id')
+    .eq('user_id', userId)
+    .ilike('name', '%transfer%')
+    .limit(1)
+    .single();
+  
+  if (catTransfer) {
+    categoriaTransferenciaId = catTransfer.id;
+  } else {
+    // Fallback: buscar categoria "Outros"
+    const { data: catOutros } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('user_id', userId)
+      .ilike('name', '%outros%')
+      .limit(1)
+      .single();
+    
+    categoriaTransferenciaId = catOutros?.id || null;
+  }
+  
+  console.log('[TRANSFER-ENTRE-CONTAS] Categoria encontrada:', categoriaTransferenciaId);
   
   // Buscar conta de origem
   const { data: contaOrigem } = await supabase
@@ -1413,7 +1438,7 @@ export async function processarTransferenciaEntreContas(
       payment_method: 'transfer',
       description: `Transferência para ${contaDestino.name}`,
       transaction_date: dataTransacao,
-      category_id: CATEGORIA_TRANSFERENCIA_ID,
+      category_id: categoriaTransferenciaId,
       notes: `transfer_link:${linkId}:out`  // Vincular transações
     })
     .select('id');
@@ -1437,7 +1462,7 @@ export async function processarTransferenciaEntreContas(
       payment_method: 'transfer',
       description: `Transferência de ${contaOrigem.name}`,
       transaction_date: dataTransacao,
-      category_id: CATEGORIA_TRANSFERENCIA_ID,
+      category_id: categoriaTransferenciaId,
       notes: `transfer_link:${linkId}:in`  // Vincular transações
     })
     .select('id');
