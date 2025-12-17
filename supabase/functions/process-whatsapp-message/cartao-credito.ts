@@ -652,7 +652,7 @@ export function detectarIntencaoCartao(msg: string): IntencaoCartao | null {
     };
   }
   
-  // COMPRA SIMPLES NO CARTÃO: "gastei 200 no cartão", "compra de 150 no nubank"
+  // COMPRA SIMPLES NO CARTÃO: "gastei 200 no cartão", "compra de 150 no nubank", "comprei 200 no cartão nubank"
   const matchCompraCartao = msgLower.match(
     /(?:comprei|gastei|paguei|compra\s+de)\s+(?:r\$\s*)?(\d+(?:[.,]\d{1,2})?)\s+(?:no|na|do|da)\s+(?:cartao\s+)?(.+)/
   );
@@ -665,11 +665,29 @@ export function detectarIntencaoCartao(msg: string): IntencaoCartao | null {
     const isCartao = cartoesConhecidos.some(c => cartaoOuLocal.includes(c));
     
     if (isCartao) {
+      // Extrair nome do cartão removendo "cartao" e variações
+      let nomeCartao = cartaoOuLocal
+        .replace(/cartao\s*/gi, '')
+        .replace(/cartão\s*/gi, '')
+        .replace(/de\s+credito/gi, '')
+        .replace(/de\s+crédito/gi, '')
+        .trim();
+      
+      // Se sobrou algo, usar como nome do cartão
+      if (nomeCartao && nomeCartao.length > 0) {
+        return { 
+          tipo: 'compra_cartao', 
+          valor, 
+          parcelas: 1,
+          cartao: nomeCartao
+        };
+      }
+      
+      // Se não sobrou nome, retorna sem cartão (vai perguntar)
       return { 
         tipo: 'compra_cartao', 
         valor, 
-        parcelas: 1,
-        cartao: cartaoOuLocal.replace('cartao', '').replace('cartão', '').trim() || undefined
+        parcelas: 1
       };
     }
   }
