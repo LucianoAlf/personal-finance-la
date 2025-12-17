@@ -174,24 +174,33 @@ export function validarValor(valor: number, tipoContaDetectado?: string, descric
 // VALIDAÇÃO DE DIA DE VENCIMENTO (só dia 1-31)
 // ============================================
 
-export function validarDiaVencimento(dia: number | string): ValidacaoData {
+export function validarDiaVencimento(dia: number | string | null | undefined): ValidacaoData {
+  // 0. Dia não informado - apenas perguntar (não é erro!)
+  if (dia === null || dia === undefined || dia === '') {
+    return {
+      valido: false,
+      tipo: 'formato_invalido',
+      mensagem: '📅 Qual o dia do vencimento? (1-31)'
+    };
+  }
+  
   const diaNum = typeof dia === 'string' ? parseInt(dia) : dia;
   
-  // 1. Não é número
+  // 1. Não é número válido
   if (isNaN(diaNum)) {
     return {
       valido: false,
       tipo: 'formato_invalido',
-      mensagem: '❌ *Ops!* Não entendi o dia.\n\n📅 Qual o dia do vencimento? (1-31)\n\n_Ex: "10", "dia 15", "todo dia 20"_'
+      mensagem: '📅 Qual o dia do vencimento? (1-31)\n\n_Ex: "10", "dia 15", "todo dia 20"_'
     };
   }
   
-  // 2. Dia fora do range
+  // 2. Dia fora do range (1-31)
   if (diaNum < 1 || diaNum > 31) {
     return {
       valido: false,
       tipo: 'dia_invalido',
-      mensagem: `❌ *Ops!* Dia ${diaNum} não existe!\n\n📅 Qual o dia do vencimento? (1-31)`
+      mensagem: `❌ Dia ${diaNum} não é válido.\n\n📅 Informe um dia de 1 a 31.`
     };
   }
   
