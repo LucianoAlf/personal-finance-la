@@ -1356,10 +1356,12 @@ export async function processarTransferenciaEntreContas(
     valor, contaOrigemNome, contaDestinoNome, data
   });
   
-  // Buscar categoria "Transferências" ou "Outros" do usuário
+  // Buscar categoria "Transferências" ou "Outros"
+  // Primeiro tenta do usuário, depois global
   let categoriaTransferenciaId: string | null = null;
   
-  const { data: catTransfer } = await supabase
+  // Tentar categoria "Transferências" do usuário
+  const { data: catTransferUser } = await supabase
     .from('categories')
     .select('id')
     .eq('user_id', userId)
@@ -1367,11 +1369,11 @@ export async function processarTransferenciaEntreContas(
     .limit(1)
     .single();
   
-  if (catTransfer) {
-    categoriaTransferenciaId = catTransfer.id;
+  if (catTransferUser) {
+    categoriaTransferenciaId = catTransferUser.id;
   } else {
-    // Fallback: buscar categoria "Outros"
-    const { data: catOutros } = await supabase
+    // Tentar categoria "Outros" do usuário
+    const { data: catOutrosUser } = await supabase
       .from('categories')
       .select('id')
       .eq('user_id', userId)
@@ -1379,7 +1381,19 @@ export async function processarTransferenciaEntreContas(
       .limit(1)
       .single();
     
-    categoriaTransferenciaId = catOutros?.id || null;
+    if (catOutrosUser) {
+      categoriaTransferenciaId = catOutrosUser.id;
+    } else {
+      // Fallback: buscar categoria global "Outros" (sem user_id)
+      const { data: catOutrosGlobal } = await supabase
+        .from('categories')
+        .select('id')
+        .ilike('name', 'Outros')
+        .limit(1)
+        .single();
+      
+      categoriaTransferenciaId = catOutrosGlobal?.id || null;
+    }
   }
   
   console.log('[TRANSFER-ENTRE-CONTAS] Categoria encontrada:', categoriaTransferenciaId);
