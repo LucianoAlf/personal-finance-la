@@ -1383,28 +1383,10 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       // 🔥 VERIFICAR SE É CONSULTA DE CARTÃO DE CRÉDITO
       // Se menciona "cartão" + "gastei/compras", redirecionar para módulo de cartão
       // ============================================
-      const textoLowerGastos = content.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      const mencionaCartao = textoLowerGastos.includes('cartao') || 
-                             textoLowerGastos.includes('credito') ||
-                             textoLowerGastos.includes('fatura');
-      
-      if (mencionaCartao) {
-        console.log('💳 [REDIRECT] Consulta de gastos menciona CARTÃO - redirecionando para módulo de cartão');
-        
-        const { processarAcaoRapidaCartao } = await import('./context-manager.ts');
-        const respostaCartao = await processarAcaoRapidaCartao(content, { tipo: 'credit_card_context' } as any, user.id);
-        
-        await enviarViaEdgeFunction(phone, respostaCartao);
-        await supabase.from('whatsapp_messages').update({
-          processing_status: 'completed',
-          intent: 'consultar_gastos_cartao',
-          processed_at: new Date().toISOString()
-        }).eq('id', message.id);
-        
-        return new Response(JSON.stringify({ success: true, type: 'cartao_gastos' }), { 
-          headers: { 'Content-Type': 'application/json' } 
-        });
-      }
+      // 🔥 REMOVIDO REDIRECT PARA CARTÃO - agora usa sistema unificado
+      // O sistema unificado abaixo já trata consultas de cartão corretamente
+      // usando gerarRelatorioGastosCartao que busca em ambas as tabelas
+      // ============================================
       
       // ============================================
       // 🔥 SISTEMA DE CONSULTAS UNIFICADO
@@ -1486,10 +1468,11 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
             termoDetectado.includes(e) || e.includes(termoDetectado)
           );
           
-          // Verificar se NÃO é um banco (bancos são filtros de conta, não estabelecimento)
+          // Verificar se NÃO é um banco ou termo de cartão (bancos são filtros de conta, não estabelecimento)
           const isBanco = ['nubank', 'itau', 'bradesco', 'inter', 'c6', 'santander', 'caixa', 'bb', 'roxinho'].includes(termoDetectado);
+          const isTermoCartao = ['cartao', 'cartão', 'credito', 'crédito', 'debito', 'débito'].includes(termoDetectado);
           
-          if (isEstabelecimento || (!isBanco && termoDetectado.length >= 3)) {
+          if (isEstabelecimento || (!isBanco && !isTermoCartao && termoDetectado.length >= 3)) {
             estabelecimentoFiltro = termoDetectado;
             console.log('🏪 [ESTABELECIMENTO] Detectado:', estabelecimentoFiltro);
             break;
@@ -1509,19 +1492,105 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
         agrupar_por
       }));
       
-      // 🔥 USAR CONSULTA UNIFICADA
-      console.log('✅ Usando consultarFinancasUnificada');
-      const resposta = await consultarFinancasUnificada(user.id, {
-        periodo: periodoConfig,
-        conta: contaFiltro,
-        cartao: cartaoFiltro,
-        metodo: metodo as any,
-        tipo: 'expense',
-        modo: entidadesNLP?.modo || modo,
-        agrupar_por: entidadesNLP?.agrupar_por || agrupar_por,
-        categoria: categoriaFiltro,
-        estabelecimento: estabelecimentoFiltro  // ✅ Filtrar por estabelecimento
-      });
+      // 🔥 VERIFICAR TIPO DE CONSULTA E USAR TEMPLATE APROPRIADO
+      const semFiltrosComplexos = !metodo && !categoriaFiltro && !estabelecimentoFiltro;
+      
+      let resposta: string;
+      
+      // Detectar se é consulta de cartão específico
+      const isCartaoQuery = cartaoFiltro || 
+        content.toLowerCase().includes('cartão') || 
+        content.toLowerCase().includes('cartao') ||
+        content.toLowerCase().includes('crédito') ||
+        content.toLowerCase().includes('credito');
+      
+      console.log('[FLUXO-DEBUG] semFiltrosComplexos:', semFiltrosComplexos);
+      console.log('[FLUXO-DEBUG] metodo:', metodo);
+      console.log('[FLUXO-DEBUG] categoriaFiltro:', categoriaFiltro);
+      console.log('[FLUXO-DEBUG] estabelecimentoFiltro:', estabelecimentoFiltro);
+      console.log('[FLUXO-DEBUG] isCartaoQuery:', isCartaoQuery);
+      
+      // Usar novos templates para consultas sem filtros complexos
+      if (semFiltrosComplexos) {
+        const { gerarRelatorioGastosMes, gerarRelatorioGastosConta, gerarRelatorioGastosCartao } = await import('./insights-ana-clara.ts');
+        
+        // Determinar se é cartão de crédito real ou conta bancária
+        // IMPORTANTE: Se isCartaoQuery é true e temos um filtro (conta ou cartão),
+        // verificar se existe um cartão de crédito com esse nome
+        let usarRelatorioCartao = false;
+        let filtroParaCartao = cartaoFiltro || (isCartaoQuery ? contaFiltro : undefined);
+        
+        console.log('[CARTAO-DECISAO] isCartaoQuery:', isCartaoQuery);
+        console.log('[CARTAO-DECISAO] cartaoFiltro:', cartaoFiltro);
+        console.log('[CARTAO-DECISAO] contaFiltro:', contaFiltro);
+        console.log('[CARTAO-DECISAO] filtroParaCartao:', filtroParaCartao);
+        
+        if (filtroParaCartao && isCartaoQuery) {
+          const { data: cartoes } = await supabase
+            .from('credit_cards')
+            .select('id, name')
+            .eq('user_id', user.id)
+            .eq('is_active', true);
+          
+          const nomeNorm = filtroParaCartao.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          const cartaoEncontrado = cartoes?.find((c: any) => {
+            const cartaoNorm = c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            return cartaoNorm.includes(nomeNorm) || nomeNorm.includes(cartaoNorm);
+          });
+          
+          usarRelatorioCartao = !!cartaoEncontrado;
+          console.log('🔍 Verificando se é cartão de crédito:', filtroParaCartao, '→', usarRelatorioCartao ? 'SIM (cartão encontrado)' : 'NÃO (é conta bancária)');
+          
+          // Se encontrou cartão, usar esse filtro
+          if (usarRelatorioCartao) {
+            cartaoFiltro = filtroParaCartao;
+          }
+        }
+        
+        if (usarRelatorioCartao && cartaoFiltro) {
+          // 🆕 RELATÓRIO DE GASTOS NO CARTÃO DE CRÉDITO
+          console.log('✅ Usando gerarRelatorioGastosCartao (cartão:', cartaoFiltro, ', período:', periodoConfig.tipo, ')');
+          resposta = await gerarRelatorioGastosCartao(user.id, cartaoFiltro!, periodoConfig);
+        } else if (contaFiltro || (cartaoFiltro && !usarRelatorioCartao)) {
+          // 🆕 RELATÓRIO DE GASTOS NA CONTA ESPECÍFICA (inclui "cartão" que é conta)
+          const filtro = contaFiltro || cartaoFiltro;
+          console.log('✅ Usando gerarRelatorioGastosConta (conta:', filtro, ', período:', periodoConfig.tipo, ')');
+          resposta = await gerarRelatorioGastosConta(user.id, filtro!, periodoConfig);
+        } else if (!contaFiltro && !cartaoFiltro) {
+          // 🆕 RELATÓRIO GERAL (qualquer período)
+          console.log('✅ Usando gerarRelatorioGastosMes (geral, período:', periodoConfig.tipo, ')');
+          resposta = await gerarRelatorioGastosMes(user.id, periodoConfig);
+        } else {
+          // Fallback: usar consulta unificada
+          console.log('✅ Usando consultarFinancasUnificada (fallback)');
+          resposta = await consultarFinancasUnificada(user.id, {
+            periodo: periodoConfig,
+            conta: contaFiltro,
+            cartao: cartaoFiltro,
+            metodo: metodo as any,
+            tipo: 'expense',
+            modo: entidadesNLP?.modo || modo,
+            agrupar_por: entidadesNLP?.agrupar_por || agrupar_por,
+            categoria: categoriaFiltro,
+            estabelecimento: estabelecimentoFiltro
+          });
+        }
+      } else {
+        // USAR CONSULTA UNIFICADA (para filtros complexos)
+        console.log('✅ Usando consultarFinancasUnificada (com filtros complexos)');
+        resposta = await consultarFinancasUnificada(user.id, {
+          periodo: periodoConfig,
+          conta: contaFiltro,
+          cartao: cartaoFiltro,
+          metodo: metodo as any,
+          tipo: 'expense',
+          modo: entidadesNLP?.modo || modo,
+          agrupar_por: entidadesNLP?.agrupar_por || agrupar_por,
+          categoria: categoriaFiltro,
+          estabelecimento: estabelecimentoFiltro
+        });
+      }
+      
       await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',

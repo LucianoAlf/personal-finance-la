@@ -1980,6 +1980,13 @@ export async function listarComprasCartao(
   mesEspecifico?: number,
   periodo?: PeriodoFiltro
 ): Promise<string> {
+  console.log(`[LISTAR-COMPRAS] ========================================`);
+  console.log(`[LISTAR-COMPRAS] ENTRADA: userId=${userId}`);
+  console.log(`[LISTAR-COMPRAS] ENTRADA: nomeCartao=${nomeCartao}`);
+  console.log(`[LISTAR-COMPRAS] ENTRADA: mesEspecifico=${mesEspecifico}`);
+  console.log(`[LISTAR-COMPRAS] ENTRADA: periodo=${periodo}`);
+  console.log(`[LISTAR-COMPRAS] ========================================`);
+  
   const supabase = getSupabase();
   
   // Se não especificou cartão, buscar do contexto
@@ -2054,11 +2061,17 @@ export async function listarComprasCartao(
     subtituloPeriodo = obterNomeMes(dataInicio);
   }
   
-  console.log(`[CARTAO] Período recebido: ${periodo}`);
-  console.log(`[CARTAO] Buscando compras: ${dataInicio.toISOString()} até ${dataFim.toISOString()}`);
+  console.log(`[CARTAO-DEBUG] ========================================`);
+  console.log(`[CARTAO-DEBUG] Período recebido: ${periodo}`);
+  console.log(`[CARTAO-DEBUG] cartaoId: ${cartaoId}`);
+  console.log(`[CARTAO-DEBUG] cartaoNome: ${cartaoNome}`);
+  console.log(`[CARTAO-DEBUG] userId: ${userId}`);
+  console.log(`[CARTAO-DEBUG] dataInicio: ${dataInicio.toISOString().split('T')[0]}`);
+  console.log(`[CARTAO-DEBUG] dataFim: ${dataFim.toISOString().split('T')[0]}`);
+  console.log(`[CARTAO-DEBUG] ========================================`);
   
   // Buscar TODAS as transações do período
-  const { data: transacoes } = await supabase
+  const { data: transacoes, error: transacoesError } = await supabase
     .from('credit_card_transactions')
     .select(`
       amount, description, purchase_date,
@@ -2071,6 +2084,11 @@ export async function listarComprasCartao(
     .lt('purchase_date', dataFim.toISOString().split('T')[0])
     .order('purchase_date', { ascending: false });
   
+  if (transacoesError) {
+    console.error(`[CARTAO-DEBUG] ERRO na query:`, transacoesError);
+  }
+  console.log(`[CARTAO-DEBUG] Transações encontradas: ${transacoes?.length || 0}`);
+  
   const emoji = getEmojiBanco(cartaoNome || 'Cartão');
   
   // Header (estilo original)
@@ -2078,8 +2096,10 @@ export async function listarComprasCartao(
   mensagem += `📅 ${subtituloPeriodo}\n\n`;
   
   if (!transacoes || transacoes.length === 0) {
-    mensagem += `✨ _Nenhuma compra neste período_\n\n`;
-    mensagem += `💡 Compras feitas a partir de agora\n   aparecerão aqui.`;
+    // Sem transações no cartão de crédito
+    mensagem += `✨ _Nenhuma compra no cartão neste período_\n\n`;
+    mensagem += `💡 Para registrar compras no cartão:\n`;
+    mensagem += `   _"50 reais ifood no ${cartaoNome}"_`;
     return mensagem;
   }
   

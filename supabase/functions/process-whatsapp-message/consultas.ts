@@ -235,6 +235,23 @@ export function extrairPeriodoDoTexto(texto: string): PeriodoConfig {
     return { tipo: 'mes_passado' };
   }
   
+  // Dias específicos da semana (segunda, terça, quarta, quinta, sexta, sábado, domingo)
+  const diasSemana: Record<string, number> = {
+    'domingo': 0,
+    'segunda': 1, 'segunda-feira': 1, 'segundafeira': 1,
+    'terca': 2, 'terca-feira': 2, 'tercafeira': 2,
+    'quarta': 3, 'quarta-feira': 3, 'quartafeira': 3,
+    'quinta': 4, 'quinta-feira': 4, 'quintafeira': 5,
+    'sexta': 5, 'sexta-feira': 5, 'sextafeira': 5,
+    'sabado': 6
+  };
+  
+  for (const [nomeDia, numeroDia] of Object.entries(diasSemana)) {
+    if (textoLower.includes(nomeDia) || textoLower.includes(`na ${nomeDia}`) || textoLower.includes(`de ${nomeDia}`)) {
+      return { tipo: 'dia_semana', diaSemana: numeroDia };
+    }
+  }
+  
   // Esta semana / essa semana
   if (textoLower.includes('essa semana') || textoLower.includes('esta semana') || textoLower.includes('semana')) {
     return { tipo: 'semana_atual' };
@@ -615,7 +632,7 @@ export async function consultarSaldoEspecifico(userId: string, nomeConta: string
   
   const { data: accounts } = await supabase
     .from('accounts')
-    .select('name, type, current_balance, bank_name')
+    .select('id, name, type, current_balance, bank_name')
     .eq('user_id', userId)
     .eq('is_active', true);
   
@@ -641,11 +658,20 @@ export async function consultarSaldoEspecifico(userId: string, nomeConta: string
     return lista;
   }
   
-  const emojiBanco = getEmojiBanco(conta.name);
-  const saldoFormatado = formatarMoeda(conta.current_balance);
-  const indicador = conta.current_balance < 0 ? ' 🔴' : ' ✅';
-  
-  return `${emojiBanco} *${conta.name}*\n\n💰 Saldo: *${saldoFormatado}*${indicador}`;
+  // Usar insights inteligentes da Ana Clara
+  try {
+    const { gerarInsightsContaEspecifica } = await import('./insights-ana-clara.ts');
+    return await gerarInsightsContaEspecifica(userId, conta);
+  } catch (error) {
+    console.error('[CONSULTA] Erro ao gerar insights conta específica:', error);
+    
+    // Fallback simples se insights falhar
+    const emojiBanco = getEmojiBanco(conta.name);
+    const saldoFormatado = formatarMoeda(conta.current_balance);
+    const indicador = conta.current_balance < 0 ? ' 🔴' : ' ✅';
+    
+    return `${emojiBanco} *${conta.name}*\n\n💰 Saldo: *${saldoFormatado}*${indicador}`;
+  }
 }
 
 // ============================================
@@ -656,7 +682,18 @@ export async function consultarGastos(userId: string, periodo?: PeriodoConsulta)
   const supabase = getSupabase();
   const hoje = new Date();
   
-  // Calcular datas baseado no período
+  // Para período "mes" ou sem período, usar o novo relatório com insights
+  if (!periodo || periodo === 'mes') {
+    try {
+      const { gerarRelatorioGastosMes } = await import('./insights-ana-clara.ts');
+      return await gerarRelatorioGastosMes(userId);
+    } catch (error) {
+      console.error('[CONSULTA] Erro ao gerar relatório de gastos:', error);
+      // Fallback para formato simples se der erro
+    }
+  }
+  
+  // Para outros períodos (hoje, ontem, semana), manter formato simples
   let dataInicio: Date;
   let dataFim: Date = hoje;
   let labelPeriodo: string;
@@ -677,7 +714,6 @@ export async function consultarGastos(userId: string, periodo?: PeriodoConsulta)
       dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - diffDomingo);
       labelPeriodo = 'Esta Semana';
       break;
-    case 'mes':
     default:
       dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
       labelPeriodo = obterNomeMes(hoje);
@@ -720,7 +756,7 @@ export async function consultarGastos(userId: string, periodo?: PeriodoConsulta)
     porCategoria[cat] = (porCategoria[cat] || 0) + Number(t.amount);
   }
   
-  // Ordenar por valor (maior primeiro) e pegar top 5
+  // Ordenar por valor (maior primeiro)
   const categorias = Object.entries(porCategoria)
     .sort((a, b) => b[1] - a[1]);
   
@@ -749,13 +785,6 @@ export async function consultarGastos(userId: string, periodo?: PeriodoConsulta)
   
   mensagem += `\n━━━━━━━━━━━━━━━━\n`;
   mensagem += `🔴 *Total*: ${formatarMoeda(total)}`;
-  
-  // Média diária só para mês
-  if (!periodo || periodo === 'mes') {
-    const diasPassados = hoje.getDate();
-    const mediaDiaria = total / diasPassados;
-    mensagem += `\n📅 _Média diária: ${formatarMoeda(mediaDiaria)}_`;
-  }
   
   return mensagem;
 }

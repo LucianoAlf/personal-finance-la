@@ -1116,6 +1116,56 @@ export async function processarIntencaoTransacao(
     payment_method: paymentMethod
   });
   
+  // ✅ FIX: Se payment_method é 'credit', redirecionar para registrarCompraCartao
+  if (paymentMethod === 'credit') {
+    console.log('[TRANSACTION] 💳 Detectado cartão de crédito - redirecionando para registrarCompraCartao');
+    
+    const { buscarCartoesUsuario, registrarCompraCartao } = await import('./cartao-credito.ts');
+    const cartoes = await buscarCartoesUsuario(userId);
+    
+    // Tentar encontrar cartão com mesmo nome da conta
+    let cartaoId: string | null = null;
+    if (contaNome && cartoes.length > 0) {
+      const contaNomeNorm = contaNome.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const cartaoEncontrado = cartoes.find((c: any) => {
+        const cartaoNorm = c.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return cartaoNorm.includes(contaNomeNorm) || contaNomeNorm.includes(cartaoNorm);
+      });
+      if (cartaoEncontrado) {
+        cartaoId = cartaoEncontrado.id;
+        console.log('[TRANSACTION] 💳 Cartão encontrado:', cartaoEncontrado.name);
+      }
+    }
+    
+    // Se não encontrou cartão específico, usar o primeiro
+    if (!cartaoId && cartoes.length > 0) {
+      cartaoId = cartoes[0].id;
+      console.log('[TRANSACTION] 💳 Usando primeiro cartão:', cartoes[0].name);
+    }
+    
+    if (!cartaoId) {
+      console.log('[TRANSACTION] ❌ Nenhum cartão de crédito encontrado');
+      return {
+        success: false,
+        mensagem: '❌ Você não tem cartões de crédito cadastrados.\n\n💡 Cadastre no app primeiro!'
+      };
+    }
+    
+    const resultadoCartao = await registrarCompraCartao(userId, {
+      valor: entidades.valor,
+      parcelas: 1,
+      cartao_id: cartaoId,
+      descricao: descricao,
+      data_compra: new Date().toISOString().split('T')[0]
+    });
+    
+    return {
+      success: resultadoCartao.sucesso,
+      mensagem: resultadoCartao.mensagem,
+      transacao_id: resultadoCartao.transactionId
+    };
+  }
+  
   const resultado = await registrarTransacao({
     user_id: userId,
     amount: entidades.valor,
