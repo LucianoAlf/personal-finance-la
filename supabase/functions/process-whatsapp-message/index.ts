@@ -1364,12 +1364,74 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       });
     }
     
+    // ✅ RESUMO FINANCEIRO - Visão 360° (HOJE, SEMANA, MÊS, TRIMESTRE)
+    const textoLowerResumo = content.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    // Detectar tipo de resumo solicitado
+    const ehResumoHoje = textoLowerResumo.includes('resumo de hoje') || 
+                         textoLowerResumo.includes('resumo do dia') ||
+                         (textoLowerResumo.includes('como foi') && textoLowerResumo.includes('dia')) ||
+                         textoLowerResumo.includes('meu dia financeiro');
+    
+    const ehResumoSemana = textoLowerResumo.includes('resumo da semana') || 
+                           textoLowerResumo.includes('resumo semanal') ||
+                           (textoLowerResumo.includes('como foi') && textoLowerResumo.includes('semana')) ||
+                           textoLowerResumo.includes('semana financeira');
+    
+    const ehResumoMes = textoLowerResumo.includes('resumo do mes') || 
+                        textoLowerResumo.includes('resumo mensal') ||
+                        (textoLowerResumo.includes('como foi') && textoLowerResumo.includes('mes')) ||
+                        textoLowerResumo.includes('mes financeiro') ||
+                        /resumo de (janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/.test(textoLowerResumo);
+    
+    const ehResumoTrimestre = textoLowerResumo.includes('resumo do trimestre') || 
+                              textoLowerResumo.includes('resumo trimestral') ||
+                              textoLowerResumo.includes('ultimos 3 meses') ||
+                              textoLowerResumo.includes('trimestre financeiro');
+    
+    // Processar resumo se detectado
+    if (ehResumoHoje || ehResumoSemana || ehResumoMes || ehResumoTrimestre) {
+      const { gerarResumoFinanceiro } = await import('./insights-ana-clara.ts');
+      
+      let periodo: 'hoje' | 'semana' | 'mes' | 'trimestre' = 'hoje';
+      let intentLabel = 'resumo_diario';
+      
+      if (ehResumoTrimestre) {
+        periodo = 'trimestre';
+        intentLabel = 'resumo_trimestre';
+        console.log('📅 Gerando RESUMO TRIMESTRAL completo (visão 360°)');
+      } else if (ehResumoMes) {
+        periodo = 'mes';
+        intentLabel = 'resumo_mensal';
+        console.log('📅 Gerando RESUMO MENSAL completo (visão 360°)');
+      } else if (ehResumoSemana) {
+        periodo = 'semana';
+        intentLabel = 'resumo_semanal';
+        console.log('📅 Gerando RESUMO SEMANAL completo (visão 360°)');
+      } else {
+        console.log('📅 Gerando RESUMO DIÁRIO completo (visão 360°)');
+      }
+      
+      const resposta = await gerarResumoFinanceiro(user.id, periodo);
+      
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: intentLabel,
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      
+      return new Response(JSON.stringify({ success: true, type: intentLabel }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
     // ✅ CONSULTA DE GASTOS - Trata TODAS as intenções equivalentes
-    // CONSULTAR_EXTRATO, RELATORIO_DIARIO, RELATORIO_SEMANAL, RELATORIO_MENSAL, etc.
+    // CONSULTAR_EXTRATO, RELATORIO_SEMANAL, RELATORIO_MENSAL, etc.
     const INTENCOES_GASTOS = [
       'CONSULTAR_EXTRATO',
       'CONSULTAR_GASTOS', 
-      'RELATORIO_DIARIO',
+      'RELATORIO_DIARIO', // Fallback se não for "resumo de hoje"
       'RELATORIO_SEMANAL', 
       'RELATORIO_MENSAL',
       'VER_GASTOS',

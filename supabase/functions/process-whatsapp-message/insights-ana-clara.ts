@@ -1868,6 +1868,811 @@ function gerarDicaGastosCartao(analise: AnaliseGastosMes, nomeCartao: string, li
 }
 
 // ============================================
+// RESUMO FINANCEIRO - VISÃO 360° (HOJE, SEMANA, MÊS, TRIMESTRE)
+// ============================================
+
+type TipoPeriodoResumo = 'hoje' | 'semana' | 'mes' | 'trimestre';
+
+interface PeriodoCalculado {
+  inicio: Date;
+  fim: Date;
+  inicioAnterior: Date;
+  fimAnterior: Date;
+  label: string;
+  labelCurto: string;
+  diasNoPeriodo: number;
+}
+
+interface CategoriaAgrupada {
+  nome: string;
+  emoji: string;
+  total: number;
+  percentual: number;
+  quantidade: number;
+}
+
+interface ResumoFinanceiro {
+  periodo: TipoPeriodoResumo;
+  periodoInfo: PeriodoCalculado;
+  posicaoAtual: {
+    saldoContas: number;
+    limiteDisponivel: number;
+    totalDisponivel: number;
+  };
+  entradas: {
+    total: number;
+    quantidade: number;
+    mediaDiaria: number;
+    lista: { descricao: string; valor: number; categoria: string; emoji: string }[];
+    porCategoria: CategoriaAgrupada[];
+  };
+  saidas: {
+    total: number;
+    quantidade: number;
+    mediaDiaria: number;
+    lista: { descricao: string; valor: number; categoria: string; emoji: string }[];
+    porCategoria: CategoriaAgrupada[];
+  };
+  balanco: number;
+  contas: {
+    pagas: { quantidade: number; total: number; lista: string[] };
+    pendentes: { quantidade: number; total: number; lista: string[] };
+    atrasadas: { quantidade: number; total: number; lista: string[] };
+  };
+  proximosVencimentos: { descricao: string; valor: number; diasRestantes: number; urgencia: string }[];
+  cartoes: {
+    quantidade: number;
+    total: number;
+    lista: { cartao: string; emojiCartao: string; descricao: string; valor: number }[];
+    porCartao: { nome: string; emoji: string; total: number; percentual: number }[];
+  };
+  comparativo: {
+    entradasAnterior: number;
+    saidasAnterior: number;
+    variacaoEntradas: number;
+    variacaoSaidas: number;
+  };
+  evolucao?: { label: string; valor: number }[];
+  projecao?: { estimado: number; orcamento: number; variacao: number };
+}
+
+const CATEGORIA_EMOJI_RESUMO: Record<string, string> = {
+  'Alimentação': '🍽️',
+  'Restaurante': '🍽️',
+  'Mercado': '🛒',
+  'Transporte': '🚗',
+  'Combustível': '⛽',
+  'Moradia': '🏠',
+  'Contas de Consumo': '💡',
+  'Saúde': '🏥',
+  'Farmácia': '💊',
+  'Educação': '📚',
+  'Lazer': '🎬',
+  'Viagens': '✈️',
+  'Compras': '🛍️',
+  'Eletrodomésticos': '📺',
+  'Presentes': '🎁',
+  'Beleza': '💅',
+  'Assinaturas': '📱',
+  'Financiamento': '🏦',
+  'Empréstimo': '💳',
+  'Delivery': '🛵',
+  'Outros': '📦',
+  'Transferência': '🔄',
+  'Salário': '💵',
+  'Freelance': '💻',
+  'Investimentos': '📈',
+  'Rendimentos': '💰'
+};
+
+// ============================================
+// CÁLCULO DE PERÍODOS
+// ============================================
+
+function calcularPeriodo(tipo: TipoPeriodoResumo, mesEspecifico?: number, anoEspecifico?: number): PeriodoCalculado {
+  const hoje = new Date();
+  hoje.setHours(23, 59, 59, 999);
+  
+  const mesesNomes = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+  const diasSemanaAbrev = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  const diasSemanaFull = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+  
+  switch (tipo) {
+    case 'hoje': {
+      const inicio = new Date(hoje);
+      inicio.setHours(0, 0, 0, 0);
+      
+      const ontemInicio = new Date(inicio);
+      ontemInicio.setDate(ontemInicio.getDate() - 1);
+      const ontemFim = new Date(ontemInicio);
+      ontemFim.setHours(23, 59, 59, 999);
+      
+      return {
+        inicio,
+        fim: hoje,
+        inicioAnterior: ontemInicio,
+        fimAnterior: ontemFim,
+        label: `${diasSemanaFull[hoje.getDay()]}, ${hoje.getDate()} de ${mesesNomes[hoje.getMonth()]}`,
+        labelCurto: 'HOJE',
+        diasNoPeriodo: 1
+      };
+    }
+    
+    case 'semana': {
+      const diaSemana = hoje.getDay();
+      const domingo = new Date(hoje);
+      domingo.setDate(hoje.getDate() - diaSemana);
+      domingo.setHours(0, 0, 0, 0);
+      
+      const domingoAnterior = new Date(domingo);
+      domingoAnterior.setDate(domingo.getDate() - 7);
+      const sabadoAnterior = new Date(domingo);
+      sabadoAnterior.setDate(domingo.getDate() - 1);
+      sabadoAnterior.setHours(23, 59, 59, 999);
+      
+      const diaInicio = `${domingo.getDate()}/${domingo.getMonth() + 1}`;
+      const diaFim = `${hoje.getDate()}/${hoje.getMonth() + 1}`;
+      
+      return {
+        inicio: domingo,
+        fim: hoje,
+        inicioAnterior: domingoAnterior,
+        fimAnterior: sabadoAnterior,
+        label: `Semana: ${diaInicio} (${diasSemanaAbrev[domingo.getDay()]}) a ${diaFim} (${diasSemanaAbrev[hoje.getDay()]})`,
+        labelCurto: 'DA SEMANA',
+        diasNoPeriodo: diaSemana + 1
+      };
+    }
+    
+    case 'mes': {
+      const mes = mesEspecifico ?? hoje.getMonth();
+      const ano = anoEspecifico ?? hoje.getFullYear();
+      
+      const inicio = new Date(ano, mes, 1);
+      inicio.setHours(0, 0, 0, 0);
+      
+      const ehMesAtual = mes === hoje.getMonth() && ano === hoje.getFullYear();
+      const fim = ehMesAtual ? hoje : new Date(ano, mes + 1, 0, 23, 59, 59, 999);
+      
+      // Mês anterior (mesmo período proporcional)
+      const mesAnterior = mes === 0 ? 11 : mes - 1;
+      const anoAnterior = mes === 0 ? ano - 1 : ano;
+      const inicioAnterior = new Date(anoAnterior, mesAnterior, 1);
+      inicioAnterior.setHours(0, 0, 0, 0);
+      
+      const diaFimAnterior = ehMesAtual ? Math.min(hoje.getDate(), new Date(anoAnterior, mesAnterior + 1, 0).getDate()) : new Date(anoAnterior, mesAnterior + 1, 0).getDate();
+      const fimAnterior = new Date(anoAnterior, mesAnterior, diaFimAnterior, 23, 59, 59, 999);
+      
+      const labelDias = ehMesAtual ? ` (1 a ${hoje.getDate()})` : '';
+      const diasNoPeriodo = ehMesAtual ? hoje.getDate() : fim.getDate();
+      
+      return {
+        inicio,
+        fim,
+        inicioAnterior,
+        fimAnterior,
+        label: `${mesesNomes[mes]} ${ano}${labelDias}`,
+        labelCurto: 'DO MÊS',
+        diasNoPeriodo
+      };
+    }
+    
+    case 'trimestre': {
+      // Últimos 3 meses COMPLETOS (não inclui mês atual)
+      const mesAtual = hoje.getMonth();
+      const anoAtual = hoje.getFullYear();
+      
+      // Mês 1 (mais antigo) - 3 meses atrás
+      let mes1 = mesAtual - 3;
+      let ano1 = anoAtual;
+      if (mes1 < 0) { mes1 += 12; ano1--; }
+      
+      // Mês 3 (mais recente) - 1 mês atrás
+      let mes3 = mesAtual - 1;
+      let ano3 = anoAtual;
+      if (mes3 < 0) { mes3 += 12; ano3--; }
+      
+      const inicio = new Date(ano1, mes1, 1);
+      inicio.setHours(0, 0, 0, 0);
+      
+      const fim = new Date(ano3, mes3 + 1, 0, 23, 59, 59, 999);
+      
+      // Trimestre anterior
+      let mes1Ant = mes1 - 3;
+      let ano1Ant = ano1;
+      if (mes1Ant < 0) { mes1Ant += 12; ano1Ant--; }
+      
+      let mes3Ant = mes1 - 1;
+      let ano3Ant = ano1;
+      if (mes3Ant < 0) { mes3Ant += 12; ano3Ant--; }
+      
+      const inicioAnterior = new Date(ano1Ant, mes1Ant, 1);
+      inicioAnterior.setHours(0, 0, 0, 0);
+      const fimAnterior = new Date(ano3Ant, mes3Ant + 1, 0, 23, 59, 59, 999);
+      
+      const mesesAbrev = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      let mes2 = mes1 + 1;
+      if (mes2 > 11) mes2 -= 12;
+      
+      return {
+        inicio,
+        fim,
+        inicioAnterior,
+        fimAnterior,
+        label: `Trimestre: ${mesesAbrev[mes1]}, ${mesesAbrev[mes2]}, ${mesesAbrev[mes3]}/${ano3}`,
+        labelCurto: 'DO TRIMESTRE',
+        diasNoPeriodo: Math.round((fim.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24))
+      };
+    }
+  }
+}
+
+// ============================================
+// FUNÇÃO PRINCIPAL - RESUMO FINANCEIRO GENÉRICO
+// ============================================
+
+export async function gerarResumoFinanceiro(
+  userId: string, 
+  periodo: TipoPeriodoResumo = 'hoje',
+  mesEspecifico?: number,
+  anoEspecifico?: number
+): Promise<string> {
+  const supabase = getSupabase();
+  const periodoInfo = calcularPeriodo(periodo, mesEspecifico, anoEspecifico);
+  
+  const inicioStr = periodoInfo.inicio.toISOString().split('T')[0];
+  const fimStr = periodoInfo.fim.toISOString().split('T')[0];
+  const inicioAnteriorStr = periodoInfo.inicioAnterior.toISOString().split('T')[0];
+  const fimAnteriorStr = periodoInfo.fimAnterior.toISOString().split('T')[0];
+  
+  // Próximos 7 dias para vencimentos
+  const hoje = new Date();
+  const em7dias = new Date(hoje);
+  em7dias.setDate(em7dias.getDate() + 7);
+  const em7diasStr = em7dias.toISOString().split('T')[0];
+  const hojeStr = hoje.toISOString().split('T')[0];
+
+  console.log(`[RESUMO-${periodo.toUpperCase()}] Gerando resumo para userId:`, userId);
+  console.log(`[RESUMO-${periodo.toUpperCase()}] Período:`, inicioStr, 'até', fimStr);
+  console.log(`[RESUMO-${periodo.toUpperCase()}] Anterior:`, inicioAnteriorStr, 'até', fimAnteriorStr);
+
+  try {
+    // Buscar todos os dados em paralelo
+    const [
+      contasResult,
+      cartoesResult,
+      transacoesPeriodoResult,
+      transacoesAnteriorResult,
+      contasPagarResult,
+      comprasCartaoPeriodoResult
+    ] = await Promise.all([
+      // Contas (saldos)
+      supabase
+        .from('accounts')
+        .select('name, current_balance')
+        .eq('user_id', userId)
+        .eq('is_active', true),
+      
+      // Cartões (limites)
+      supabase
+        .from('credit_cards')
+        .select('name, credit_limit, available_limit')
+        .eq('user_id', userId)
+        .eq('is_active', true),
+      
+      // Transações do período
+      supabase
+        .from('transactions')
+        .select('amount, type, description, transaction_date, category:categories(name)')
+        .eq('user_id', userId)
+        .gte('transaction_date', inicioStr)
+        .lte('transaction_date', fimStr)
+        .order('transaction_date', { ascending: false }),
+      
+      // Transações do período anterior (para comparativo)
+      supabase
+        .from('transactions')
+        .select('amount, type')
+        .eq('user_id', userId)
+        .gte('transaction_date', inicioAnteriorStr)
+        .lte('transaction_date', fimAnteriorStr),
+      
+      // Contas a pagar
+      supabase
+        .from('payable_bills')
+        .select('description, amount, due_date, status, paid_at')
+        .eq('user_id', userId)
+        .or(`status.eq.pending,status.eq.paid`)
+        .gte('due_date', inicioStr)
+        .lte('due_date', em7diasStr)
+        .order('due_date', { ascending: true }),
+      
+      // Compras no cartão do período
+      supabase
+        .from('credit_card_transactions')
+        .select('amount, description, purchase_date, credit_card:credit_cards(name)')
+        .eq('user_id', userId)
+        .gte('purchase_date', inicioStr)
+        .lte('purchase_date', fimStr)
+        .order('purchase_date', { ascending: false })
+    ]);
+
+    const contas = contasResult.data || [];
+    const cartoes = cartoesResult.data || [];
+    const transacoesPeriodo = transacoesPeriodoResult.data || [];
+    const transacoesAnterior = transacoesAnteriorResult.data || [];
+    const contasPagar = contasPagarResult.data || [];
+    const comprasCartaoPeriodo = comprasCartaoPeriodoResult.data || [];
+
+    console.log(`[RESUMO-${periodo.toUpperCase()}] Transações:`, transacoesPeriodo.length);
+    console.log(`[RESUMO-${periodo.toUpperCase()}] Compras cartão:`, comprasCartaoPeriodo.length);
+
+    // Processar dados
+    const resumo = processarResumoFinanceiro(
+      periodo, periodoInfo, hojeStr, contas, cartoes, 
+      transacoesPeriodo, transacoesAnterior, contasPagar, comprasCartaoPeriodo
+    );
+
+    // Gerar dica contextual
+    const dica = gerarDicaResumo(resumo);
+
+    // Formatar output
+    return formatarResumoFinanceiro(resumo, dica);
+
+  } catch (error) {
+    console.error(`[RESUMO-${periodo.toUpperCase()}] Erro:`, error);
+    return `❌ Erro ao gerar resumo. Tente novamente.`;
+  }
+}
+
+// Manter compatibilidade com código existente
+export async function gerarResumoDiario(userId: string): Promise<string> {
+  return gerarResumoFinanceiro(userId, 'hoje');
+}
+
+// ============================================
+// PROCESSAMENTO DE DADOS - GENÉRICO
+// ============================================
+
+function processarResumoFinanceiro(
+  periodo: TipoPeriodoResumo,
+  periodoInfo: PeriodoCalculado,
+  hojeStr: string,
+  contas: any[],
+  cartoes: any[],
+  transacoesPeriodo: any[],
+  transacoesAnterior: any[],
+  contasPagar: any[],
+  comprasCartaoPeriodo: any[]
+): ResumoFinanceiro {
+  const hoje = new Date();
+  
+  // Posição atual
+  const saldoContas = contas.reduce((acc, c) => acc + Number(c.current_balance || 0), 0);
+  const limiteDisponivel = cartoes.reduce((acc, c) => acc + Number(c.available_limit || 0), 0);
+  
+  // Entradas e saídas do período
+  const entradas = transacoesPeriodo.filter(t => t.type === 'income');
+  const saidas = transacoesPeriodo.filter(t => t.type === 'expense');
+  
+  const totalEntradas = entradas.reduce((acc, t) => acc + Number(t.amount || 0), 0);
+  const totalSaidas = saidas.reduce((acc, t) => acc + Number(t.amount || 0), 0);
+  
+  // Média diária
+  const mediaDiariaEntradas = periodoInfo.diasNoPeriodo > 0 ? totalEntradas / periodoInfo.diasNoPeriodo : 0;
+  const mediaDiariaSaidas = periodoInfo.diasNoPeriodo > 0 ? totalSaidas / periodoInfo.diasNoPeriodo : 0;
+  
+  // Agrupar por categoria
+  const saidasPorCategoria = agruparPorCategoria(saidas, totalSaidas);
+  const entradasPorCategoria = agruparPorCategoria(entradas, totalEntradas);
+  
+  // Comparativo com período anterior
+  const entradasAnterior = transacoesAnterior
+    .filter(t => t.type === 'income')
+    .reduce((acc, t) => acc + Number(t.amount || 0), 0);
+  const saidasAnterior = transacoesAnterior
+    .filter(t => t.type === 'expense')
+    .reduce((acc, t) => acc + Number(t.amount || 0), 0);
+  
+  const variacaoEntradas = entradasAnterior > 0 
+    ? Math.round(((totalEntradas - entradasAnterior) / entradasAnterior) * 100) 
+    : (totalEntradas > 0 ? 100 : 0);
+  const variacaoSaidas = saidasAnterior > 0 
+    ? Math.round(((totalSaidas - saidasAnterior) / saidasAnterior) * 100) 
+    : (totalSaidas > 0 ? 100 : 0);
+  
+  // Contas do período
+  const inicioStr = periodoInfo.inicio.toISOString().split('T')[0];
+  const fimStr = periodoInfo.fim.toISOString().split('T')[0];
+  
+  const pagas = contasPagar.filter(c => 
+    c.status === 'paid' && c.paid_at?.split('T')[0] >= inicioStr && c.paid_at?.split('T')[0] <= fimStr
+  );
+  const pendentes = contasPagar.filter(c => 
+    c.status === 'pending' && c.due_date >= hojeStr
+  );
+  const atrasadas = contasPagar.filter(c => 
+    c.status === 'pending' && c.due_date < hojeStr
+  );
+  const proximos = contasPagar.filter(c => 
+    c.status === 'pending' && c.due_date > hojeStr
+  );
+  
+  // Cartões por cartão
+  const cartoesPorCartao = agruparCartoesPorCartao(comprasCartaoPeriodo);
+  
+  return {
+    periodo,
+    periodoInfo,
+    posicaoAtual: {
+      saldoContas,
+      limiteDisponivel,
+      totalDisponivel: saldoContas + limiteDisponivel
+    },
+    entradas: {
+      total: totalEntradas,
+      quantidade: entradas.length,
+      mediaDiaria: mediaDiariaEntradas,
+      lista: entradas.slice(0, 10).map(t => ({
+        descricao: t.description || 'Entrada',
+        valor: Number(t.amount),
+        categoria: t.category?.name || 'Outros',
+        emoji: CATEGORIA_EMOJI_RESUMO[t.category?.name] || '💵'
+      })),
+      porCategoria: entradasPorCategoria
+    },
+    saidas: {
+      total: totalSaidas,
+      quantidade: saidas.length,
+      mediaDiaria: mediaDiariaSaidas,
+      lista: saidas.slice(0, 10).map(t => ({
+        descricao: t.description || 'Saída',
+        valor: Number(t.amount),
+        categoria: t.category?.name || 'Outros',
+        emoji: CATEGORIA_EMOJI_RESUMO[t.category?.name] || '📦'
+      })),
+      porCategoria: saidasPorCategoria
+    },
+    balanco: totalEntradas - totalSaidas,
+    contas: {
+      pagas: {
+        quantidade: pagas.length,
+        total: pagas.reduce((acc, c) => acc + Number(c.amount || 0), 0),
+        lista: pagas.map(c => c.description)
+      },
+      pendentes: {
+        quantidade: pendentes.length,
+        total: pendentes.reduce((acc, c) => acc + Number(c.amount || 0), 0),
+        lista: pendentes.map(c => c.description)
+      },
+      atrasadas: {
+        quantidade: atrasadas.length,
+        total: atrasadas.reduce((acc, c) => acc + Number(c.amount || 0), 0),
+        lista: atrasadas.map(c => c.description)
+      }
+    },
+    proximosVencimentos: proximos.slice(0, 5).map(c => {
+      const dueDate = new Date(c.due_date + 'T12:00:00');
+      const diasRestantes = Math.ceil((dueDate.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24));
+      return {
+        descricao: c.description,
+        valor: Number(c.amount),
+        diasRestantes,
+        urgencia: diasRestantes <= 1 ? 'alta' : diasRestantes <= 3 ? 'media' : 'baixa'
+      };
+    }),
+    cartoes: {
+      quantidade: comprasCartaoPeriodo.length,
+      total: comprasCartaoPeriodo.reduce((acc, c) => acc + Number(c.amount || 0), 0),
+      lista: comprasCartaoPeriodo.slice(0, 10).map(c => ({
+        cartao: c.credit_card?.name || 'Cartão',
+        emojiCartao: getEmojiBanco(c.credit_card?.name || ''),
+        descricao: c.description || 'Compra',
+        valor: Number(c.amount)
+      })),
+      porCartao: cartoesPorCartao
+    },
+    comparativo: {
+      entradasAnterior,
+      saidasAnterior,
+      variacaoEntradas,
+      variacaoSaidas
+    }
+  };
+}
+
+function agruparPorCategoria(transacoes: any[], total: number): CategoriaAgrupada[] {
+  const grupos: Record<string, { total: number; quantidade: number }> = {};
+  
+  transacoes.forEach(t => {
+    const cat = t.category?.name || 'Outros';
+    if (!grupos[cat]) {
+      grupos[cat] = { total: 0, quantidade: 0 };
+    }
+    grupos[cat].total += Number(t.amount || 0);
+    grupos[cat].quantidade++;
+  });
+  
+  return Object.entries(grupos)
+    .map(([nome, dados]) => ({
+      nome,
+      emoji: CATEGORIA_EMOJI_RESUMO[nome] || '📦',
+      total: dados.total,
+      percentual: total > 0 ? Math.round((dados.total / total) * 100) : 0,
+      quantidade: dados.quantidade
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+}
+
+function agruparCartoesPorCartao(compras: any[]): { nome: string; emoji: string; total: number; percentual: number }[] {
+  const grupos: Record<string, number> = {};
+  const totalGeral = compras.reduce((acc, c) => acc + Number(c.amount || 0), 0);
+  
+  compras.forEach(c => {
+    const cartao = c.credit_card?.name || 'Cartão';
+    if (!grupos[cartao]) {
+      grupos[cartao] = 0;
+    }
+    grupos[cartao] += Number(c.amount || 0);
+  });
+  
+  return Object.entries(grupos)
+    .map(([nome, total]) => ({
+      nome,
+      emoji: getEmojiBanco(nome),
+      total,
+      percentual: totalGeral > 0 ? Math.round((total / totalGeral) * 100) : 0
+    }))
+    .sort((a, b) => b.total - a.total);
+}
+
+// ============================================
+// DICA CONTEXTUAL - GENÉRICA
+// ============================================
+
+function gerarDicaResumo(resumo: ResumoFinanceiro): string {
+  const { balanco, contas, proximosVencimentos, comparativo, saidas, periodo } = resumo;
+  const labelPeriodo = periodo === 'hoje' ? 'Dia' : periodo === 'semana' ? 'Semana' : periodo === 'mes' ? 'Mês' : 'Trimestre';
+  
+  // Tem contas atrasadas - PRIORIDADE MÁXIMA
+  if (contas.atrasadas.quantidade > 0) {
+    return `Atenção! Você tem ${contas.atrasadas.quantidade} conta(s) atrasada(s) ` +
+           `totalizando R$ ${contas.atrasadas.total.toLocaleString('pt-BR', {minimumFractionDigits: 0})}. ` +
+           `Priorize regularizar para evitar juros.`;
+  }
+  
+  // Vence conta amanhã
+  const venceAmanha = proximosVencimentos.find(v => v.diasRestantes === 1);
+  if (venceAmanha) {
+    return `Amanhã vence: ${venceAmanha.descricao} (R$ ${venceAmanha.valor.toLocaleString('pt-BR', {minimumFractionDigits: 0})}). ` +
+           `Não esqueça de pagar!`;
+  }
+  
+  // Período muito negativo
+  if (balanco < -1000) {
+    const pagouContas = contas.pagas.quantidade > 0;
+    if (pagouContas) {
+      return `${labelPeriodo} com saída alta de R$ ${Math.abs(balanco).toLocaleString('pt-BR', {minimumFractionDigits: 0})}, ` +
+             `mas você pagou ${contas.pagas.quantidade} conta(s). Contas em dia = paz financeira!`;
+    }
+    return `${labelPeriodo} com saída alta de R$ ${Math.abs(balanco).toLocaleString('pt-BR', {minimumFractionDigits: 0})}. ` +
+           `Verifique se todas as despesas estavam planejadas.`;
+  }
+  
+  // Gastou muito mais que período anterior
+  if (comparativo.variacaoSaidas > 30 && saidas.total > 500) {
+    return `Gastos ${comparativo.variacaoSaidas}% maiores que o período anterior. ` +
+           `Revise se eram gastos necessários.`;
+  }
+  
+  // Período positivo
+  if (balanco > 0) {
+    return `Ótimo! ${labelPeriodo} positivo em R$ ${balanco.toLocaleString('pt-BR', {minimumFractionDigits: 0})}. ` +
+           `Que tal guardar esse valor extra?`;
+  }
+  
+  // Pagou contas importantes
+  if (contas.pagas.quantidade > 0) {
+    return `Você pagou ${contas.pagas.quantidade} conta(s) ` +
+           `(R$ ${contas.pagas.total.toLocaleString('pt-BR', {minimumFractionDigits: 0})}). ` +
+           `Contas em dia = paz financeira!`;
+  }
+  
+  // Período sem movimentação
+  if (saidas.quantidade === 0 && resumo.entradas.quantidade === 0) {
+    return `${labelPeriodo} tranquilo, sem movimentações. Aproveite para revisar seu planejamento financeiro!`;
+  }
+  
+  // Genérico
+  return `Continue acompanhando suas finanças. Consistência é a chave do controle financeiro!`;
+}
+
+// ============================================
+// FORMATADOR DE OUTPUT - GENÉRICO
+// ============================================
+
+function formatarResumoFinanceiro(resumo: ResumoFinanceiro, dica: string): string {
+  const { periodo, periodoInfo } = resumo;
+  
+  let output = `💰 *Resumo Financeiro*\n\n`;
+  output += `📆 ${periodoInfo.label}\n`;
+  output += '━━━━━━━━━━━━━━━━━━━━\n\n';
+  
+  // POSIÇÃO ATUAL
+  output += '*POSIÇÃO ATUAL*\n';
+  output += '━━━━━━━━━━━━━━━━━━━━\n';
+  output += `🏦 Saldo em Contas: ${formatarMoeda(resumo.posicaoAtual.saldoContas)}\n`;
+  output += `💳 Limite Disponível: ${formatarMoeda(resumo.posicaoAtual.limiteDisponivel)}\n`;
+  output += `📊 Total Disponível: ${formatarMoeda(resumo.posicaoAtual.totalDisponivel)}\n`;
+  output += '━━━━━━━━━━━━━━━━━━━━\n\n';
+  
+  // ENTRADAS
+  output += `*ENTRADAS ${periodoInfo.labelCurto}*\n`;
+  output += '━━━━━━━━━━━━━━━━━━━━\n';
+  if (resumo.entradas.quantidade > 0) {
+    output += `💵 Total: ${formatarMoeda(resumo.entradas.total)}\n`;
+    output += `📝 ${resumo.entradas.quantidade} transação(ões)\n`;
+    if (periodo !== 'hoje') {
+      output += `📅 Média/dia: ${formatarMoeda(resumo.entradas.mediaDiaria)}\n`;
+    }
+    output += '\n';
+    
+    // Para períodos maiores, mostrar por categoria
+    if (periodo !== 'hoje' && resumo.entradas.porCategoria.length > 0) {
+      output += '🏆 *Por Categoria:*\n';
+      resumo.entradas.porCategoria.slice(0, 3).forEach(c => {
+        output += `${c.emoji} ${c.nome}: ${formatarMoeda(c.total)} (${c.percentual}%)\n`;
+      });
+    } else {
+      // Para hoje, mostrar lista
+      resumo.entradas.lista.slice(0, 5).forEach(t => {
+        const desc = t.descricao.length > 20 ? t.descricao.substring(0, 17) + '...' : t.descricao;
+        output += `${t.emoji} ${desc} ${formatarMoeda(t.valor)}\n`;
+      });
+    }
+  } else {
+    output += `💤 Nenhuma entrada ${periodo === 'hoje' ? 'hoje' : 'no período'}\n`;
+  }
+  output += '━━━━━━━━━━━━━━━━━━━━\n\n';
+  
+  // SAÍDAS
+  output += `*SAÍDAS ${periodoInfo.labelCurto}*\n`;
+  output += '━━━━━━━━━━━━━━━━━━━━\n';
+  if (resumo.saidas.quantidade > 0) {
+    output += `💸 Total: ${formatarMoeda(resumo.saidas.total)}\n`;
+    output += `📝 ${resumo.saidas.quantidade} transação(ões)\n`;
+    if (periodo !== 'hoje') {
+      output += `📅 Média/dia: ${formatarMoeda(resumo.saidas.mediaDiaria)}\n`;
+    }
+    output += '\n';
+    
+    // TOP 5 categorias
+    output += '━━━━━━━━━━━━━━━━━━━━\n';
+    if (resumo.saidas.porCategoria.length > 0) {
+      const qtdCategorias = resumo.saidas.porCategoria.length;
+      const labelTop = qtdCategorias >= 5 ? 'TOP 5' : `TOP ${qtdCategorias}`;
+      output += `🏆 *${labelTop} Categorias:*\n\n`;
+      const medalhas = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];
+      resumo.saidas.porCategoria.slice(0, 5).forEach((c, i) => {
+        const nome = c.nome.length > 14 ? c.nome.substring(0, 11) + '...' : c.nome;
+        output += `${medalhas[i]} ${nome.padEnd(14)} ${formatarMoeda(c.total)} (${c.percentual}%)\n`;
+      });
+    }
+  } else {
+    output += `✨ Nenhuma saída ${periodo === 'hoje' ? 'hoje' : 'no período'}\n`;
+  }
+  output += '━━━━━━━━━━━━━━━━━━━━\n\n';
+  
+  // BALANÇO
+  const labelBalanco = periodo === 'hoje' ? 'DO DIA' : periodoInfo.labelCurto;
+  output += `*BALANÇO ${labelBalanco}*\n`;
+  output += '━━━━━━━━━━━━━━━━━━━━\n';
+  output += `📥 Entradas:  ${formatarMoeda(resumo.entradas.total)}\n`;
+  output += `📤 Saídas:    ${formatarMoeda(resumo.saidas.total)}\n`;
+  output += '━━━━━━━━━━━━━━━━━━━━\n';
+  const emojiBalanco = resumo.balanco >= 0 ? '🟢' : '🔴';
+  const sinalBalanco = resumo.balanco >= 0 ? '+' : '';
+  output += `📊 Resultado: ${sinalBalanco}${formatarMoeda(resumo.balanco)} ${emojiBalanco}\n`;
+  output += '━━━━━━━━━━━━━━━━━━━━\n\n';
+  
+  // CONTAS
+  const labelContas = periodo === 'hoje' ? 'DO DIA' : periodoInfo.labelCurto;
+  output += `*CONTAS ${labelContas}*\n`;
+  output += '━━━━━━━━━━━━━━━━━━━━\n';
+  
+  if (resumo.contas.pagas.quantidade > 0) {
+    output += `✅ Pagas: ${resumo.contas.pagas.quantidade} (${formatarMoeda(resumo.contas.pagas.total)})\n`;
+  }
+  
+  output += `⏳ Pendentes: ${resumo.contas.pendentes.quantidade}`;
+  if (resumo.contas.pendentes.quantidade > 0) {
+    output += ` (${formatarMoeda(resumo.contas.pendentes.total)})`;
+  }
+  output += '\n';
+  
+  if (resumo.contas.atrasadas.quantidade > 0) {
+    output += `🔴 Atrasadas: ${resumo.contas.atrasadas.quantidade} (${formatarMoeda(resumo.contas.atrasadas.total)})\n`;
+  } else {
+    output += `🔴 Atrasadas: 0\n`;
+  }
+  output += '━━━━━━━━━━━━━━━━━━━━\n\n';
+  
+  // PRÓXIMOS VENCIMENTOS
+  if (resumo.proximosVencimentos.length > 0) {
+    output += '*PRÓXIMOS 7 DIAS*\n';
+    output += '━━━━━━━━━━━━━━━━━━━━\n';
+    
+    resumo.proximosVencimentos.forEach(v => {
+      const emoji = v.urgencia === 'alta' ? '🔴' : v.urgencia === 'media' ? '🟡' : '🟢';
+      const dias = v.diasRestantes === 1 ? 'amanhã' : `${v.diasRestantes} dias`;
+      const desc = v.descricao.length > 15 ? v.descricao.substring(0, 12) + '...' : v.descricao;
+      output += `${emoji} ${desc} - ${formatarMoeda(v.valor)} (${dias})\n`;
+    });
+    
+    const totalProximos = resumo.proximosVencimentos.reduce((acc, v) => acc + v.valor, 0);
+    output += `\n💰 Total a pagar: ${formatarMoeda(totalProximos)}\n`;
+    output += '━━━━━━━━━━━━━━━━━━━━\n\n';
+  }
+  
+  // CARTÕES
+  if (resumo.cartoes.quantidade > 0) {
+    const labelCartoes = periodo === 'hoje' ? 'HOJE' : periodo === 'semana' ? 'NA SEMANA' : periodo === 'mes' ? 'NO MÊS' : 'NO TRIMESTRE';
+    output += `*CARTÕES ${labelCartoes}*\n`;
+    output += '━━━━━━━━━━━━━━━━━━━━\n';
+    output += `💳 Compras: ${resumo.cartoes.quantidade} (${formatarMoeda(resumo.cartoes.total)})\n\n`;
+    
+    // Por cartão
+    if (resumo.cartoes.porCartao.length > 0) {
+      output += 'Por cartão:\n';
+      resumo.cartoes.porCartao.forEach(c => {
+        output += `${c.emoji} ${c.nome}: ${formatarMoeda(c.total)} (${c.percentual}%)\n`;
+      });
+    }
+    output += '━━━━━━━━━━━━━━━━━━━━\n\n';
+  }
+  
+  // COMPARATIVO
+  const labelComparativo = periodo === 'hoje' ? 'Ontem' : periodo === 'semana' ? 'Semana Anterior' : periodo === 'mes' ? 'Mês Anterior' : 'Trimestre Anterior';
+  output += '*COMPARATIVO*\n';
+  output += '━━━━━━━━━━━━━━━━━━━━\n';
+  output += `📈 Atual *vs ${labelComparativo}:*\n\n`;
+  
+  const emojiEntradas = resumo.comparativo.variacaoEntradas >= 0 ? '⬆️' : '⬇️';
+  const emojiSaidas = resumo.comparativo.variacaoSaidas >= 0 ? '⬆️' : '⬇️';
+  output += `• Entradas: ${emojiEntradas} ${resumo.comparativo.variacaoEntradas >= 0 ? '+' : ''}${resumo.comparativo.variacaoEntradas}%\n`;
+  output += `• Saídas: ${emojiSaidas} ${resumo.comparativo.variacaoSaidas >= 0 ? '+' : ''}${resumo.comparativo.variacaoSaidas}%\n`;
+  output += '━━━━━━━━━━━━━━━━━━━━\n\n';
+  
+  // DICA DA ANA CLARA
+  output += '💡 *DICA DA ANA CLARA*\n';
+  output += '━━━━━━━━━━━━━━━━━━━━\n';
+  output += `"${dica}"\n\n`;
+  
+  // AÇÕES RÁPIDAS
+  output += '━━━━━━━━━━━━━━━━━━━━\n';
+  output += '⚡ *AÇÕES RÁPIDAS*\n';
+  output += '━━━━━━━━━━━━━━━━━━━━\n';
+  
+  if (periodo === 'hoje') {
+    output += '• _"resumo da semana"_ - Ver semana\n';
+    output += '• _"resumo do mês"_ - Ver mês\n';
+  } else if (periodo === 'semana') {
+    output += '• _"resumo de hoje"_ - Ver dia atual\n';
+    output += '• _"resumo do mês"_ - Ver mês completo\n';
+  } else if (periodo === 'mes') {
+    output += '• _"resumo de hoje"_ - Ver dia atual\n';
+    output += '• _"resumo da semana"_ - Ver semana\n';
+  } else {
+    output += '• _"resumo do mês"_ - Ver mês atual\n';
+    output += '• _"resumo da semana"_ - Ver semana\n';
+  }
+  output += '• _"extrato"_ - Movimentações completas\n';
+  
+  return output;
+}
+
+// ============================================
 // EXPORTS
 // ============================================
 
