@@ -3964,8 +3964,11 @@ async function processarSelecaoContaPagamento(
       type: 'expense',
       amount: valorFinal,
       description: `Pagamento: ${conta.description}`,
+      category_id: conta.category_id,
       transaction_date: agora.split('T')[0],
-      is_recurring: false
+      is_recurring: false,
+      is_paid: true,
+      source: 'whatsapp'
     });
   
   // 4. Atualizar saldo da conta (decrementa)
