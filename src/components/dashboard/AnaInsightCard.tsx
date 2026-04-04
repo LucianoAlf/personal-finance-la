@@ -75,20 +75,23 @@ export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardP
       <Card className={`h-full ${colors.bg} border-2 ${colors.border} overflow-hidden`}>
         <CardContent className={isLarge ? 'p-4 space-y-3' : 'p-4 space-y-2'}>
           {/* Header com ícone, headline e tipo */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className={isLarge ? 'flex items-start justify-between gap-3' : 'space-y-3'}>
+            <div className="flex items-start gap-2 min-w-0">
               <motion.div
-                className={`${colors.text} ${isLarge ? 'p-3' : 'p-2'} bg-white/50 rounded-full`}
+                className={`${colors.text} ${isLarge ? 'p-3' : 'p-2'} bg-white/50 rounded-full shrink-0`}
                 animate={{ scale: [1, 1.05, 1] }}
                 transition={{ duration: 0.5, repeat: 0 }}
               >
                 <Icon className={isLarge ? 'h-6 w-6' : 'h-5 w-5'} />
               </motion.div>
-              <h3 className={`font-semibold ${colors.text} ${isLarge ? 'text-lg' : 'text-sm'}`}>
+              <h3 className={`min-w-0 font-semibold leading-snug break-words ${colors.text} ${isLarge ? 'text-lg' : 'text-sm'}`}>
                 {insight.headline}
               </h3>
             </div>
-            <Badge variant="outline" className={`${colors.text} text-xs`}>
+            <Badge
+              variant="outline"
+              className={`${colors.text} text-xs shrink-0 self-start whitespace-normal text-left`}
+            >
               {INSIGHT_TYPE_LABELS[insight.type]}
             </Badge>
           </div>

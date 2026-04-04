@@ -4,9 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/utils/formatters';
 import { useTopSpending } from '@/hooks/useTopSpending';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AnalyticsScope } from '@/hooks/analyticsScope';
 
-export function TopCategoriesCard() {
-  const { topCategories, totalSpent, loading } = useTopSpending();
+interface TopCategoriesCardProps {
+  scope?: AnalyticsScope;
+}
+
+export function TopCategoriesCard({ scope }: TopCategoriesCardProps) {
+  const { topCategories, totalSpent, loading } = useTopSpending(scope);
 
   if (loading) {
     return (

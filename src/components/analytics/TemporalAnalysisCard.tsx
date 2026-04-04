@@ -2,13 +2,14 @@ import { BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSpendingPatterns } from '@/hooks/useSpendingPatterns';
+import { AnalyticsScope } from '@/hooks/analyticsScope';
 
 interface TemporalAnalysisCardProps {
-  cardId?: string;
+  scope?: AnalyticsScope;
 }
 
-export function TemporalAnalysisCard({ cardId }: TemporalAnalysisCardProps) {
-  const { temporalData, daysShort, loading, transactionCount } = useSpendingPatterns(cardId);
+export function TemporalAnalysisCard({ scope }: TemporalAnalysisCardProps) {
+  const { temporalData, daysShort, loading, transactionCount } = useSpendingPatterns(scope);
   
   const hours = ['Manhã', 'Tarde', 'Noite'];
 

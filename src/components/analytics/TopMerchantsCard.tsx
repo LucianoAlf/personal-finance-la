@@ -5,9 +5,15 @@ import { useTopSpending } from '@/hooks/useTopSpending';
 import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { parseDateOnlyAsLocal } from '@/utils/dateOnly';
+import { AnalyticsScope } from '@/hooks/analyticsScope';
 
-export function TopMerchantsCard() {
-  const { topMerchants, loading } = useTopSpending();
+interface TopMerchantsCardProps {
+  scope?: AnalyticsScope;
+}
+
+export function TopMerchantsCard({ scope }: TopMerchantsCardProps) {
+  const { topMerchants, loading } = useTopSpending(scope);
 
   if (loading) {
     return (
@@ -103,7 +109,7 @@ export function TopMerchantsCard() {
                     Última
                   </p>
                   <p className="font-semibold text-gray-900">
-                    {format(new Date(merchant.lastPurchaseDate), 'dd/MM', { locale: ptBR })}
+                    {format(parseDateOnlyAsLocal(merchant.lastPurchaseDate), 'dd/MM', { locale: ptBR })}
                   </p>
                 </div>
               </div>

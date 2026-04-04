@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { startOfMonth, endOfMonth, subMonths, format } from 'date-fns';
+import { startOfMonth, endOfMonth, subMonths, format, differenceInCalendarDays, subDays } from 'date-fns';
+import { parseDateOnlyAsLocal, toYearMonthKey } from '@/utils/dateOnly';
+import { AnalyticsScope } from './analyticsScope';
 
 export interface AnalyticsData {
   currentMonth: {
     totalSpent: number;
     transactionCount: number;
     averageTicket: number;
+    transactions: Array<{ purchaseDate: string; amount: number }>;
     categoryBreakdown: Array<{ category: string; amount: number; color: string }>;
     merchantBreakdown: Array<{ merchant: string; amount: number; count: number }>;
   };
@@ -31,14 +34,14 @@ export interface AnalyticsData {
   };
 }
 
-export function useAnalytics() {
+export function useAnalytics(scope?: AnalyticsScope) {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+  }, [scope?.cardId, scope?.startDate?.getTime(), scope?.endDate?.getTime()]);
 
   async function fetchAnalytics() {
     try {
@@ -46,43 +49,62 @@ export function useAnalytics() {
       setError(null);
 
       const now = new Date();
-      const currentMonthStart = startOfMonth(now);
-      const currentMonthEnd = endOfMonth(now);
-      const previousMonthStart = startOfMonth(subMonths(now, 1));
-      const previousMonthEnd = endOfMonth(subMonths(now, 1));
+      const hasExplicitAll = scope !== undefined && scope?.startDate === null;
+      const currentMonthStart = !hasExplicitAll ? scope?.startDate ?? startOfMonth(now) : startOfMonth(now);
+      const currentMonthEnd = !hasExplicitAll ? scope?.endDate ?? endOfMonth(now) : endOfMonth(now);
+      const periodLength = differenceInCalendarDays(currentMonthEnd, currentMonthStart) + 1;
+      const previousMonthEnd = subDays(currentMonthStart, 1);
+      const previousMonthStart = subDays(currentMonthStart, periodLength);
       const sixMonthsAgo = subMonths(now, 6);
+      const previousMonthKey = toYearMonthKey(previousMonthStart);
+      const hasBoundedRange = Boolean(scope?.startDate);
 
       // Buscar transações do mês atual
-      const { data: currentTransactions, error: currentError } = await supabase
+      let currentTransactionsQuery = supabase
         .from('credit_card_transactions')
         .select(`
           *,
-          credit_card_invoices!inner(
-            reference_month,
-            credit_card_id,
-            credit_cards(name, credit_limit)
-          ),
           categories(name, color, icon)
-        `)
-        .gte('credit_card_invoices.reference_month', currentMonthStart.toISOString())
-        .lte('credit_card_invoices.reference_month', currentMonthEnd.toISOString());
+        `);
+
+      if (!hasExplicitAll) {
+        currentTransactionsQuery = currentTransactionsQuery
+          .gte('purchase_date', format(currentMonthStart, 'yyyy-MM-dd'))
+          .lte('purchase_date', format(currentMonthEnd, 'yyyy-MM-dd'));
+      }
+
+      if (scope?.cardId) {
+        currentTransactionsQuery = currentTransactionsQuery.eq('credit_card_id', scope.cardId);
+      }
+
+      const { data: currentTransactions, error: currentError } = await currentTransactionsQuery;
 
       if (currentError) throw currentError;
 
       // Buscar transações do mês anterior
-      const { data: previousTransactions, error: previousError } = await supabase
-        .from('credit_card_transactions')
-        .select(`
-          amount,
-          credit_card_invoices!inner(reference_month)
-        `)
-        .gte('credit_card_invoices.reference_month', previousMonthStart.toISOString())
-        .lte('credit_card_invoices.reference_month', previousMonthEnd.toISOString());
+      let previousTransactions: Array<{ amount: number; purchase_date: string }> | null = [];
+      if (!hasExplicitAll) {
+        let previousTransactionsQuery = supabase
+          .from('credit_card_transactions')
+          .select(`
+            amount,
+            purchase_date
+          `)
+          .gte('purchase_date', format(previousMonthStart, 'yyyy-MM-dd'))
+          .lte('purchase_date', format(previousMonthEnd, 'yyyy-MM-dd'));
 
-      if (previousError) throw previousError;
+        if (scope?.cardId) {
+          previousTransactionsQuery = previousTransactionsQuery.eq('credit_card_id', scope.cardId);
+        }
+
+        const { data, error: previousError } = await previousTransactionsQuery;
+
+        if (previousError) throw previousError;
+        previousTransactions = data;
+      }
 
       // Buscar faturas dos últimos 6 meses
-      const { data: last6MonthsInvoices, error: sixMonthsError } = await supabase
+      let last6MonthsQuery = supabase
         .from('credit_card_invoices')
         .select(`
           reference_month,
@@ -90,24 +112,60 @@ export function useAnalytics() {
           credit_card_id,
           credit_cards!inner(name)
         `)
-        .gte('reference_month', sixMonthsAgo.toISOString())
         .order('reference_month', { ascending: true });
+
+      if (scope?.cardId) {
+        last6MonthsQuery = last6MonthsQuery.eq('credit_card_id', scope.cardId);
+      }
+
+      if (hasExplicitAll) {
+        // No date filter for all-time view.
+      } else if (hasBoundedRange) {
+        last6MonthsQuery = last6MonthsQuery
+          .gte('reference_month', format(startOfMonth(currentMonthStart), 'yyyy-MM-dd'))
+          .lte('reference_month', format(currentMonthEnd, 'yyyy-MM-dd'));
+      } else {
+        last6MonthsQuery = last6MonthsQuery.gte('reference_month', format(startOfMonth(sixMonthsAgo), 'yyyy-MM-dd'));
+      }
+
+      const { data: last6MonthsInvoices, error: sixMonthsError } = await last6MonthsQuery;
 
       if (sixMonthsError) throw sixMonthsError;
 
       // Buscar limites dos cartões
-      const { data: cards, error: cardsError } = await supabase
+      let cardsQuery = supabase
         .from('credit_cards')
         .select('id, credit_limit, available_limit')
         .eq('is_archived', false);
 
+      if (scope?.cardId) {
+        cardsQuery = cardsQuery.eq('id', scope.cardId);
+      }
+
+      const { data: cards, error: cardsError } = await cardsQuery;
+
       if (cardsError) throw cardsError;
 
       // Buscar estatísticas de faturas
-      const { data: allInvoices, error: invoicesError } = await supabase
+      let allInvoicesQuery = supabase
         .from('credit_card_invoices')
-        .select('status, due_date')
-        .gte('reference_month', sixMonthsAgo.toISOString());
+        .select('status, due_date, reference_month');
+
+      if (scope?.cardId) {
+        allInvoicesQuery = allInvoicesQuery.eq('credit_card_id', scope.cardId);
+      }
+
+      if (hasExplicitAll) {
+        // No date filter for all-time view.
+      } else if (hasBoundedRange) {
+        allInvoicesQuery = allInvoicesQuery
+          .gte('reference_month', format(startOfMonth(currentMonthStart), 'yyyy-MM-dd'))
+          .lte('reference_month', format(currentMonthEnd, 'yyyy-MM-dd'));
+      } else {
+        allInvoicesQuery = allInvoicesQuery.gte('reference_month', format(startOfMonth(sixMonthsAgo), 'yyyy-MM-dd'));
+      }
+
+      const { data: allInvoices, error: invoicesError } = await allInvoicesQuery;
 
       if (invoicesError) throw invoicesError;
 
@@ -161,13 +219,21 @@ export function useAnalytics() {
         .slice(0, 10);
 
       // Processar mês anterior
-      const previousMonthTotal = previousTransactions?.reduce((sum, t) => sum + t.amount, 0) || 0;
-      const previousMonthCount = previousTransactions?.length || 0;
+      const previousMonthFiltered = previousTransactions?.filter((transaction: any) => {
+        if (!transaction.purchase_date) {
+          return false;
+        }
+
+        return toYearMonthKey(transaction.purchase_date) === previousMonthKey;
+      }) || [];
+
+      const previousMonthTotal = previousMonthFiltered.reduce((sum, t: any) => sum + t.amount, 0);
+      const previousMonthCount = previousMonthFiltered.length;
 
       // Processar últimos 6 meses
       const monthsMap = new Map<string, { totalSpent: number; cardBreakdown: Map<string, number> }>();
       last6MonthsInvoices?.forEach((invoice: any) => {
-        const monthKey = format(new Date(invoice.reference_month), 'MMM/yy');
+        const monthKey = format(parseDateOnlyAsLocal(invoice.reference_month), 'MMM/yy');
         const existing = monthsMap.get(monthKey) || { totalSpent: 0, cardBreakdown: new Map() };
         existing.totalSpent += invoice.total_amount;
         
@@ -195,10 +261,10 @@ export function useAnalytics() {
       // Estatísticas de faturas
       const now2 = new Date();
       const paidOnTime = allInvoices?.filter(inv => 
-        inv.status === 'paid' && new Date(inv.due_date) >= now2
+        inv.status === 'paid' && parseDateOnlyAsLocal(inv.due_date) >= now2
       ).length || 0;
       const overdue = allInvoices?.filter(inv => 
-        inv.status === 'open' && new Date(inv.due_date) < now2
+        inv.status === 'open' && parseDateOnlyAsLocal(inv.due_date) < now2
       ).length || 0;
 
       setData({
@@ -206,6 +272,10 @@ export function useAnalytics() {
           totalSpent: currentMonthTotal,
           transactionCount: currentMonthCount,
           averageTicket,
+          transactions: (currentTransactions || []).map((transaction: any) => ({
+            purchaseDate: transaction.purchase_date,
+            amount: transaction.amount,
+          })),
           categoryBreakdown,
           merchantBreakdown,
         },

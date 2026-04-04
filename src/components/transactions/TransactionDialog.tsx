@@ -9,6 +9,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Form,
   FormControl,
   FormField,
@@ -39,20 +49,50 @@ import { X, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 
-const transactionSchema = z.object({
-  type: z.enum(['income', 'expense', 'transfer']),
-  account_id: z.string().min(1, 'Selecione uma conta'),
-  category_id: z.string().min(1, 'Selecione uma categoria'),
-  amount: z.string().min(1, 'Informe o valor').refine(
-    (val) => !isNaN(Number(val)) && Number(val) > 0,
-    'Valor deve ser maior que zero'
-  ),
-  description: z.string().min(1, 'Informe uma descrição'),
-  transaction_date: z.string().min(1, 'Selecione uma data'),
-  is_paid: z.boolean().default(true),
-  notes: z.string().optional(),
-  transfer_to_account_id: z.string().optional(),
-});
+const transactionSchema = z
+  .object({
+    type: z.enum(['income', 'expense', 'transfer']),
+    account_id: z.string().min(1, 'Selecione uma conta'),
+    category_id: z.string().optional(),
+    amount: z.string().min(1, 'Informe o valor').refine(
+      (val) => !isNaN(Number(val)) && Number(val) > 0,
+      'Valor deve ser maior que zero'
+    ),
+    description: z.string().min(1, 'Informe uma descrição'),
+    transaction_date: z.string().min(1, 'Selecione uma data'),
+    is_paid: z.boolean().default(true),
+    notes: z.string().optional(),
+    transfer_to_account_id: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === 'transfer') {
+      if (!data.transfer_to_account_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['transfer_to_account_id'],
+          message: 'Selecione a conta destino',
+        });
+      }
+
+      if (data.transfer_to_account_id && data.transfer_to_account_id === data.account_id) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['transfer_to_account_id'],
+          message: 'A conta destino deve ser diferente da conta origem',
+        });
+      }
+
+      return;
+    }
+
+    if (!data.category_id) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['category_id'],
+        message: 'Selecione uma categoria',
+      });
+    }
+  });
 
 type TransactionFormData = z.infer<typeof transactionSchema>;
 
@@ -61,6 +101,7 @@ interface TransactionDialogProps {
   onOpenChange: (open: boolean) => void;
   transaction?: Transaction;
   onSave: (data: any) => Promise<void>;
+  onDelete?: (id: string) => Promise<void>;
   defaultType?: 'income' | 'expense' | 'transfer';
 }
 
@@ -69,6 +110,7 @@ export const TransactionDialog = ({
   onOpenChange,
   transaction,
   onSave,
+  onDelete,
   defaultType,
 }: TransactionDialogProps) => {
   const { accounts } = useAccounts();
@@ -80,6 +122,7 @@ export const TransactionDialog = ({
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showTagInput, setShowTagInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
   // Renderizar ícone Lucide dinamicamente
   const renderCategoryIcon = (iconName: string, color: string) => {
@@ -159,7 +202,7 @@ export const TransactionDialog = ({
       const payload = {
         type: data.type,
         account_id: data.account_id,
-        category_id: data.category_id,
+        category_id: data.type === 'transfer' ? undefined : data.category_id,
         amount: Number(data.amount),
         description: data.description,
         transaction_date: data.transaction_date,
@@ -217,14 +260,30 @@ export const TransactionDialog = ({
     }
   };
 
+  const handleDelete = async () => {
+    if (!transaction || !onDelete) return;
+
+    try {
+      setLoading(true);
+      await onDelete(transaction.id);
+      setDeleteDialogOpen(false);
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>
-            {transaction ? 'Editar Transação' : 'Nova Transação'}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>
+              {transaction ? 'Editar Transação' : 'Nova Transação'}
+            </DialogTitle>
+          </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -523,26 +582,65 @@ export const TransactionDialog = ({
             </div>
 
             {/* Botões */}
-            <div className="flex justify-end gap-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={loading}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                disabled={loading}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                {loading ? 'Salvando...' : transaction ? 'Atualizar' : 'Criar'}
-              </Button>
+            <div className="flex items-center justify-between gap-3 pt-4">
+              <div>
+                {transaction && onDelete && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    disabled={loading}
+                  >
+                    Excluir
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={loading}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={loading}
+                  className="bg-purple-600 hover:bg-purple-700"
+                >
+                  {loading ? 'Salvando...' : transaction ? 'Atualizar' : 'Criar'}
+                </Button>
+              </div>
             </div>
           </form>
         </Form>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir transação?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação removerá a transação permanentemente. O saldo será ajustado automaticamente pelo sistema.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void handleDelete();
+              }}
+              disabled={loading}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {loading ? 'Excluindo...' : 'Excluir'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };

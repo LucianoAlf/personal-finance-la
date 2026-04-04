@@ -7,7 +7,7 @@ import { calculateUsagePercentage } from '@/utils/creditCardUtils';
 import { CARD_BRANDS, INVOICE_STATUS_LABELS } from '@/constants/creditCards';
 import { CreditCardMenu } from './CreditCardMenu';
 import { useAuth } from '@/hooks/useAuth';
-import { getBankLogoPath, getBankLogoSizeForCard } from '@/constants/banks';
+import { getBankLogoClassForCard, getBankLogoPath } from '@/constants/banks';
 
 // Mapa de logos de bandeiras
 const BRAND_LOGOS: Record<string, string> = {
@@ -70,7 +70,7 @@ export function CreditCardCard({ card, onClick, onEdit, onArchive, onDelete, onV
   };
 
   const bankLogo = getBankLogoPath(card.name);
-  const bankLogoSize = getBankLogoSizeForCard(card.name);
+  const bankLogoClass = getBankLogoClassForCard(card.name);
   const brandLogo = BRAND_LOGOS[card.brand];
 
   return (
@@ -91,7 +91,7 @@ export function CreditCardCard({ card, onClick, onEdit, onArchive, onDelete, onV
             <img 
               src={bankLogo} 
               alt="Logo do banco"
-              className={`${bankLogoSize} w-auto`}
+              className={bankLogoClass}
             />
           ) : (
             <div className="text-2xl font-bold">{card.name}</div>

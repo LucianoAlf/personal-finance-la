@@ -52,6 +52,7 @@ interface PurchaseFormProps {
 
 export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: PurchaseFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<'single' | 'installment'>('single');
   const { cardsSummary } = useCreditCards();
   const { categories, getCategoriesByType } = useCategories();
   const { tags, createTag, updateCreditCardTransactionTags } = useCreditCardTags();
@@ -101,6 +102,17 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
   // Validação de limite
   const hasInsufficientLimit = selectedCard && amount > selectedCard.available_limit;
 
+  const isInstallmentPurchase = paymentMode === 'installment';
+
+  const effectiveInstallments = isInstallmentPurchase ? installments : 1;
+
+  const handlePaymentModeChange = (value: 'single' | 'installment') => {
+    setPaymentMode(value);
+    form.setValue('installments', value === 'installment' ? Math.max(form.getValues('installments') || 2, 2) : 1, {
+      shouldValidate: true,
+    });
+  };
+
   const handleSubmit = async (data: PurchaseFormData) => {
     if (hasInsufficientLimit) {
       form.setError('amount', {
@@ -111,7 +123,7 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
 
     // Validação de parcela mínima
     const minInstallmentValue = 5.0;
-    if (data.amount / data.installments < minInstallmentValue) {
+    if (paymentMode === 'installment' && data.amount / data.installments < minInstallmentValue) {
       form.setError('installments', {
         message: `Valor da parcela não pode ser menor que ${formatCurrency(minInstallmentValue)}`,
       });
@@ -238,25 +250,55 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
           )}
         />
 
-        {/* Parcelamento */}
+        {/* Forma de pagamento */}
         {amount > 0 && (
-          <FormField
-            control={form.control}
-            name="installments"
-            render={({ field }) => (
-              <FormItem>
-                <FormControl>
-                  <InstallmentSelector
-                    totalAmount={amount}
-                    maxInstallments={12}
-                    selectedInstallments={field.value}
-                    onSelect={field.onChange}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+          <div className="space-y-3">
+            <label className="text-sm font-medium text-gray-700 block">Forma de pagamento</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handlePaymentModeChange('single')}
+                className={`flex items-center justify-center rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all ${
+                  paymentMode === 'single'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                A vista
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePaymentModeChange('installment')}
+                className={`flex items-center justify-center rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all ${
+                  paymentMode === 'installment'
+                    ? 'border-blue-500 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Parcelado
+              </button>
+            </div>
+
+            {paymentMode === 'installment' && (
+              <FormField
+                control={form.control}
+                name="installments"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <InstallmentSelector
+                        totalAmount={amount}
+                        maxInstallments={12}
+                        selectedInstallments={Math.max(field.value, 2)}
+                        onSelect={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             )}
-          />
+          </div>
         )}
 
         {/* Estabelecimento */}
@@ -425,7 +467,9 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Parcelamento</span>
                   <span className="font-medium text-gray-900">
-                    {installments}x de {formatCurrency(amount / installments)}
+                    {effectiveInstallments === 1
+                      ? 'A vista'
+                      : `${effectiveInstallments}x de ${formatCurrency(amount / effectiveInstallments)}`}
                   </span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-blue-200">

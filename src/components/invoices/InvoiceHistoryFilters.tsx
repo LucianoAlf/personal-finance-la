@@ -26,10 +26,19 @@ interface Props {
   filters: Filters;
   cards: any[];
   onFiltersChange: (filters: Partial<Filters>) => void;
+  onResetFilters: () => void;
+  hasActiveFilters: boolean;
   invoices: any[];
 }
 
-export function InvoiceHistoryFilters({ filters, cards, onFiltersChange, invoices }: Props) {
+export function InvoiceHistoryFilters({
+  filters,
+  cards,
+  onFiltersChange,
+  onResetFilters,
+  hasActiveFilters,
+  invoices,
+}: Props) {
   const [debouncedSearch, setSearch] = useDebouncedSearch(500);
   const { exportToCSV, exporting } = useExportInvoices();
   const [dateOpen, setDateOpen] = useState(false);
@@ -52,6 +61,10 @@ export function InvoiceHistoryFilters({ filters, cards, onFiltersChange, invoice
     onFiltersChange({ searchQuery: debouncedSearch });
   }, [debouncedSearch]);
 
+  useEffect(() => {
+    setSearchText(filters.searchQuery || '');
+  }, [filters.searchQuery]);
+
   // Aplicar debounce para faixa de valores (300ms)
   useEffect(() => {
     const t = setTimeout(() => {
@@ -60,21 +73,17 @@ export function InvoiceHistoryFilters({ filters, cards, onFiltersChange, invoice
     return () => clearTimeout(t);
   }, [minVal, maxVal]);
 
+  useEffect(() => {
+    setMinVal(filters.valueRange.min);
+    setMaxVal(filters.valueRange.max);
+  }, [filters.valueRange.min, filters.valueRange.max]);
+
   const handleClearFilters = () => {
     setSearch('');
     setSearchText('');
     setMinVal(0);
     setMaxVal(10000);
-    onFiltersChange({
-      dateRange: {
-        start: subMonths(new Date(), 6),
-        end: new Date(),
-      },
-      cardIds: [],
-      valueRange: { min: 0, max: 10000 },
-      searchQuery: '',
-      status: [],
-    });
+    onResetFilters();
   };
 
   const handleExport = async () => {
@@ -240,14 +249,16 @@ export function InvoiceHistoryFilters({ filters, cards, onFiltersChange, invoice
 
       {/* Botões de Ação */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-4">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleClearFilters}
-        >
-          <X className="h-4 w-4 mr-2" />
-          Limpar Filtros
-        </Button>
+        {hasActiveFilters && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleClearFilters}
+          >
+            <X className="h-4 w-4 mr-2" />
+            Limpar Filtros
+          </Button>
+        )}
 
         <Button
           variant="default"

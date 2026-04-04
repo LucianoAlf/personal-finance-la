@@ -1,52 +1,41 @@
 # personal-finance-la
 
-Aplicativo Financeiro Pessoal da LA Music
+Aplicativo financeiro pessoal da LA Music.
 
-## 🚀 Tecnologias
+## Stack
 
-- **Frontend:** React 18+ com TypeScript
-- **Build Tool:** Vite
-- **Styling:** Tailwind CSS v3.4+
-- **UI Components:** shadcn/ui
-- **Icons:** Lucide React
-- **Charts:** Recharts
-- **Forms:** React Hook Form + Zod
-- **State:** Zustand
-- **Routing:** React Router v6
+- React 18 + TypeScript
+- Vite
+- Tailwind CSS
+- shadcn/ui
+- Supabase
 
-## 📦 Instalação
+## Desenvolvimento
 
 ```bash
-# Instalar dependências
 pnpm install
-
-# Executar em desenvolvimento
 pnpm dev
+```
 
-# Build para produção
+## Build
+
+```bash
 pnpm build
 ```
 
-## 🎯 Funcionalidades
+## Conexao com Supabase
 
-- ✅ Dashboard financeiro completo
-- ✅ Sistema de transações
-- ✅ Componentes UI responsivos
-- ✅ Integração com ícones Lucide React
-- ✅ Layout moderno e acessível
+O projeto remoto usado por este repositorio e:
 
-## 🏗️ Estrutura do Projeto
+- Project name: `Personal Finance LA`
+- Project ref: `sbnpmhmvcspwcyjhftlw`
+- Project URL: `https://sbnpmhmvcspwcyjhftlw.supabase.co`
 
-```
-src/
-├── components/     # Componentes reutilizáveis
-├── pages/         # Páginas da aplicação
-├── hooks/         # Custom hooks
-├── store/         # Gerenciamento de estado
-├── utils/         # Utilitários e helpers
-└── types/         # Definições de tipos TypeScript
-```
+O setup foi consolidado em [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md).
 
-## 📝 Licença
+Resumo rapido:
 
-Este projeto está sob a licença MIT.
+1. Copie [.env.local.example](/d:/2026/personal-finance/personal-finance-la/.env.local.example) para `.env.local`.
+2. Preencha `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`.
+3. Para CLI, use `SUPABASE_ACCESS_TOKEN` e o `project ref`.
+4. Para Edge Functions, configure os secrets no projeto remoto.

@@ -31,6 +31,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
     user?.id || '',
     autoRefresh
   );
+  const hasSufficientData = meta?.hasSufficientData !== false;
   const [openHistory, setOpenHistory] = useState(false);
   const [openPrefs, setOpenPrefs] = useState(false);
 
@@ -135,7 +136,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
 
           {/* Secondary Insights Grid */}
           {insights.secondary.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {insights.secondary.map((insight, index) => (
                 <AnaInsightCard key={index} insight={insight} size="small" />
               ))}
@@ -154,6 +155,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
             showBreakdown={true}
             label="Saúde Financeira"
             defaultExpanded={false}
+            hasSufficientData={hasSufficientData}
           />
 
           {/* Motivational Quote */}

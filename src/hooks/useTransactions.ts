@@ -97,6 +97,7 @@ export const useTransactions = () => {
           created_at,
           credit_card_id,
           is_installment,
+          is_parent_installment,
           installment_number,
           total_installments,
           installment_group_id,
@@ -152,6 +153,7 @@ export const useTransactions = () => {
         credit_card_name: cc.credit_card?.name,
         // Campos de parcelamento
         is_installment: cc.is_installment || false,
+        is_parent_installment: cc.is_parent_installment || false,
         installment_number: cc.installment_number,
         total_installments: cc.total_installments,
         installment_group_id: cc.installment_group_id,
@@ -222,15 +224,39 @@ export const useTransactions = () => {
       if (isCartao) {
         // Atualizar na tabela credit_card_transactions
         const ccUpdates: Record<string, any> = {};
-        if (updates.amount !== undefined) ccUpdates.amount = updates.amount;
         if (updates.description !== undefined) ccUpdates.description = updates.description;
         if (updates.category_id !== undefined) ccUpdates.category_id = updates.category_id;
         if (updates.transaction_date !== undefined) ccUpdates.purchase_date = updates.transaction_date;
-        
-        const { error: updateError } = await supabase
+
+        const isInstallmentGroup = Boolean(
+          transacao?.installment_group_id &&
+          transacao?.total_installments &&
+          transacao.total_installments > 1
+        );
+
+        if (updates.amount !== undefined) {
+          if (isInstallmentGroup) {
+            const totalInstallments = transacao?.total_installments || 1;
+            const totalAmount = Number(updates.amount);
+            ccUpdates.total_amount = totalAmount;
+            ccUpdates.amount = Math.round((totalAmount / totalInstallments) * 100) / 100;
+          } else {
+            ccUpdates.amount = updates.amount;
+            ccUpdates.total_amount = updates.amount;
+          }
+        }
+
+        let updateQuery = supabase
           .from('credit_card_transactions')
-          .update(ccUpdates)
-          .eq('id', id);
+          .update(ccUpdates);
+
+        if (isInstallmentGroup) {
+          updateQuery = updateQuery.eq('installment_group_id', transacao!.installment_group_id);
+        } else {
+          updateQuery = updateQuery.eq('id', id);
+        }
+
+        const { error: updateError } = await updateQuery;
 
         if (updateError) {
           console.error('❌ Erro ao atualizar transação de cartão:', updateError);
@@ -267,10 +293,31 @@ export const useTransactions = () => {
     try {
       setError(null);
 
-      const { error: deleteError } = await supabase
-        .from('transactions')
-        .delete()
-        .eq('id', id);
+      const transacao = transactions.find(t => t.id === id);
+      const isCartao = transacao?.credit_card_id || (transacao as any)?.payment_method === 'credit';
+
+      let deleteError = null;
+
+      if (isCartao) {
+        let deleteQuery = supabase
+          .from('credit_card_transactions')
+          .delete();
+
+        if (transacao?.installment_group_id && transacao.total_installments && transacao.total_installments > 1) {
+          deleteQuery = deleteQuery.eq('installment_group_id', transacao.installment_group_id);
+        } else {
+          deleteQuery = deleteQuery.eq('id', id);
+        }
+
+        const { error } = await deleteQuery;
+        deleteError = error;
+      } else {
+        const { error } = await supabase
+          .from('transactions')
+          .delete()
+          .eq('id', id);
+        deleteError = error;
+      }
 
       if (deleteError) {
         throw deleteError;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Plus, Wallet, ArrowLeftRight, DollarSign } from 'lucide-react';
@@ -9,25 +9,67 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AccountCard } from '@/components/accounts/AccountCard';
 import { AccountDialog, type AccountFormData } from '@/components/accounts/AccountDialog';
 import { DeleteAccountDialog } from '@/components/accounts/DeleteAccountDialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { DatePickerInput } from '@/components/ui/date-picker-input';
 
 import { useAccounts } from '@/hooks/useAccounts';
+import { useTransactions } from '@/hooks/useTransactions';
+import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/utils/formatters';
 import type { Account } from '@/types/accounts';
 
 export const Contas: React.FC = () => {
   const navigate = useNavigate();
-  const { accounts, loading, error, getTotalBalance, getBalanceByType, addAccount, updateAccount, deleteAccount } = useAccounts();
+  const { accounts, loading, error, fetchAccounts, getTotalBalance, getBalanceByType, addAccount, updateAccount, deleteAccount } = useAccounts();
+  const { addTransaction } = useTransactions();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [adjustBalanceDialogOpen, setAdjustBalanceDialogOpen] = useState(false);
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
-  const [accountToAdjust, setAccountToAdjust] = useState<Account | null>(null);
-  const [newBalance, setNewBalance] = useState<number>(0);
+  const [accountToAdjustId, setAccountToAdjustId] = useState<string>('');
+  const [newBalance, setNewBalance] = useState<string>('');
+  const [adjustmentNote, setAdjustmentNote] = useState('');
+  const [isAdjustingBalance, setIsAdjustingBalance] = useState(false);
+  const [transferFromAccountId, setTransferFromAccountId] = useState('');
+  const [transferToAccountId, setTransferToAccountId] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0]);
+  const [transferDescription, setTransferDescription] = useState('');
+  const [isSubmittingTransfer, setIsSubmittingTransfer] = useState(false);
 
   const totalBalance = getTotalBalance();
   const bankBalance = getBalanceByType(['checking', 'savings']);
   const walletBalance = getBalanceByType(['cash']);
+  const accountToAdjust = useMemo(
+    () => accounts.find((account) => account.id === accountToAdjustId) || null,
+    [accountToAdjustId, accounts]
+  );
+  const transferFromAccount = useMemo(
+    () => accounts.find((account) => account.id === transferFromAccountId) || null,
+    [transferFromAccountId, accounts]
+  );
+  const transferToOptions = useMemo(
+    () => accounts.filter((account) => account.id !== transferFromAccountId),
+    [accounts, transferFromAccountId]
+  );
 
   // Handlers para o AccountCard
   const handleEdit = (account: Account) => {
@@ -77,24 +119,175 @@ export const Contas: React.FC = () => {
   };
 
   const handleAdjustBalance = (account: Account) => {
-    setAccountToAdjust(account);
-    setNewBalance(account.current_balance);
+    setAccountToAdjustId(account.id);
+    setNewBalance(String(account.current_balance));
+    setAdjustmentNote('');
     setAdjustBalanceDialogOpen(true);
   };
 
   const confirmAdjustBalance = async () => {
-    if (!accountToAdjust) return;
-    
+    if (!accountToAdjust) {
+      toast.error('Selecione uma conta para ajustar o saldo.');
+      return;
+    }
+
+    const parsedBalance = Number(newBalance);
+    if (!Number.isFinite(parsedBalance) || parsedBalance < 0) {
+      toast.error('Informe um saldo valido para a conta.');
+      return;
+    }
+
     try {
+      setIsAdjustingBalance(true);
       await updateAccount(accountToAdjust.id, { 
-        current_balance: newBalance,
-        initial_balance: newBalance 
+        current_balance: parsedBalance,
       });
+      await fetchAccounts();
       toast.success('Saldo ajustado com sucesso!');
       setAdjustBalanceDialogOpen(false);
-      setAccountToAdjust(null);
+      setAccountToAdjustId('');
+      setNewBalance('');
+      setAdjustmentNote('');
     } catch (error) {
       toast.error('Erro ao ajustar saldo. Tente novamente.');
+    } finally {
+      setIsAdjustingBalance(false);
+    }
+  };
+
+  const handleOpenAdjustBalanceDialog = () => {
+    if (accounts.length === 0) {
+      toast.error('Cadastre uma conta primeiro para ajustar saldo.');
+      return;
+    }
+
+    const firstAccount = accounts[0];
+    setAccountToAdjustId(firstAccount.id);
+    setNewBalance(String(firstAccount.current_balance));
+    setAdjustmentNote('');
+    setAdjustBalanceDialogOpen(true);
+  };
+
+  const handleOpenTransferDialog = () => {
+    if (accounts.length < 2) {
+      toast.error('Cadastre pelo menos duas contas para realizar uma transferencia.');
+      return;
+    }
+
+    setTransferFromAccountId(accounts[0]?.id || '');
+    setTransferToAccountId(accounts[1]?.id || '');
+    setTransferAmount('');
+    setTransferDate(new Date().toISOString().split('T')[0]);
+    setTransferDescription('');
+    setTransferDialogOpen(true);
+  };
+
+  const handleTransfer = async () => {
+    if (!transferFromAccountId || !transferToAccountId) {
+      toast.error('Selecione a conta de origem e a conta de destino.');
+      return;
+    }
+
+    if (transferFromAccountId === transferToAccountId) {
+      toast.error('A conta de destino deve ser diferente da conta de origem.');
+      return;
+    }
+
+    const parsedAmount = Number(transferAmount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      toast.error('Informe um valor valido para a transferencia.');
+      return;
+    }
+
+    const sourceAccount = accounts.find((account) => account.id === transferFromAccountId);
+    const destinationAccount = accounts.find((account) => account.id === transferToAccountId);
+
+    if (!sourceAccount || !destinationAccount) {
+      toast.error('Nao foi possivel localizar as contas selecionadas.');
+      return;
+    }
+
+    if (Number(sourceAccount.current_balance) < parsedAmount) {
+      toast.error('Saldo insuficiente na conta de origem.');
+      return;
+    }
+
+    const description = transferDescription.trim() || `Transferencia para ${destinationAccount.name}`;
+    const expectedSourceBalance = Number(sourceAccount.current_balance) - parsedAmount;
+    const expectedDestinationBalance = Number(destinationAccount.current_balance) + parsedAmount;
+
+    try {
+      setIsSubmittingTransfer(true);
+      await addTransaction({
+        type: 'transfer',
+        account_id: transferFromAccountId,
+        amount: parsedAmount,
+        description,
+        transaction_date: transferDate,
+        is_paid: true,
+        notes: undefined,
+        source: 'manual',
+        transfer_to_account_id: transferToAccountId,
+        is_recurring: false,
+      });
+
+      const { data: refreshedAccounts, error: refreshedAccountsError } = await supabase
+        .from('accounts')
+        .select('id, current_balance')
+        .in('id', [transferFromAccountId, transferToAccountId]);
+
+      if (refreshedAccountsError) {
+        throw refreshedAccountsError;
+      }
+
+      const refreshedSource = refreshedAccounts?.find((account) => account.id === transferFromAccountId);
+      const refreshedDestination = refreshedAccounts?.find((account) => account.id === transferToAccountId);
+      const triggerApplied =
+        refreshedSource &&
+        refreshedDestination &&
+        Math.abs(Number(refreshedSource.current_balance) - expectedSourceBalance) < 0.01 &&
+        Math.abs(Number(refreshedDestination.current_balance) - expectedDestinationBalance) < 0.01;
+
+      if (!triggerApplied) {
+        const { error: sourceUpdateError } = await supabase
+          .from('accounts')
+          .update({
+            current_balance: expectedSourceBalance,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', transferFromAccountId);
+
+        if (sourceUpdateError) {
+          throw sourceUpdateError;
+        }
+
+        const { error: destinationUpdateError } = await supabase
+          .from('accounts')
+          .update({
+            current_balance: expectedDestinationBalance,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', transferToAccountId);
+
+        if (destinationUpdateError) {
+          throw destinationUpdateError;
+        }
+      }
+
+      await fetchAccounts();
+
+      toast.success('Transferencia realizada com sucesso!');
+      setTransferDialogOpen(false);
+      setTransferFromAccountId('');
+      setTransferToAccountId('');
+      setTransferAmount('');
+      setTransferDescription('');
+      setTransferDate(new Date().toISOString().split('T')[0]);
+    } catch (error) {
+      console.error('Erro ao transferir saldo:', error);
+      toast.error('Erro ao realizar transferencia. Tente novamente.');
+    } finally {
+      setIsSubmittingTransfer(false);
     }
   };
 
@@ -156,11 +349,11 @@ export const Contas: React.FC = () => {
         icon={<Wallet size={24} />}
         actions={
           <>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleOpenTransferDialog}>
               <ArrowLeftRight className="mr-2" size={16} />
               Transferência
             </Button>
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" onClick={handleOpenAdjustBalanceDialog}>
               <DollarSign className="mr-2" size={16} />
               Ajustar Saldo
             </Button>
@@ -266,52 +459,210 @@ export const Contas: React.FC = () => {
           accountName={accountToDelete?.name || ''}
         />
 
-        {/* Dialog de Reajuste de Saldo */}
-        {adjustBalanceDialogOpen && accountToAdjust && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h2 className="text-xl font-semibold mb-4">Reajuste de Saldo</h2>
-              <p className="text-sm text-gray-600 mb-4">
-                Conta: <strong>{accountToAdjust.name}</strong>
-              </p>
-              <p className="text-sm text-gray-600 mb-4">
-                Saldo Atual: <strong>{formatCurrency(accountToAdjust.current_balance)}</strong>
-              </p>
-              
-              <div className="mb-6">
-                <label className="block text-sm font-medium mb-2">Novo Saldo</label>
-                <div className="relative">
-                  <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">R$</span>
-                  <input
+        <Dialog
+          open={adjustBalanceDialogOpen}
+          onOpenChange={(open) => {
+            setAdjustBalanceDialogOpen(open);
+            if (!open) {
+              setAccountToAdjustId('');
+              setNewBalance('');
+              setAdjustmentNote('');
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Ajustar Saldo</DialogTitle>
+              <DialogDescription>
+                Atualize manualmente o saldo atual de uma conta existente.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Conta</label>
+                <Select
+                  value={accountToAdjustId}
+                  onValueChange={(value) => {
+                    const selected = accounts.find((account) => account.id === value);
+                    setAccountToAdjustId(value);
+                    setNewBalance(selected ? String(selected.current_balance) : '');
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma conta" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {accountToAdjust && (
+                <p className="text-sm text-muted-foreground">
+                  Saldo atual: <strong>{formatCurrency(accountToAdjust.current_balance)}</strong>
+                </p>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Novo saldo</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newBalance}
+                  onChange={(event) => setNewBalance(event.target.value)}
+                  placeholder="0,00"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Observacao opcional</label>
+                <Textarea
+                  value={adjustmentNote}
+                  onChange={(event) => setAdjustmentNote(event.target.value)}
+                  placeholder="Ex: saldo conciliado com extrato bancario"
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAdjustBalanceDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={confirmAdjustBalance}
+                className="bg-purple-600 hover:bg-purple-700"
+                disabled={isAdjustingBalance}
+              >
+                {isAdjustingBalance ? 'Salvando...' : 'Confirmar ajuste'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={transferDialogOpen}
+          onOpenChange={(open) => {
+            setTransferDialogOpen(open);
+            if (!open) {
+              setTransferFromAccountId('');
+              setTransferToAccountId('');
+              setTransferAmount('');
+              setTransferDescription('');
+              setTransferDate(new Date().toISOString().split('T')[0]);
+            }
+          }}
+        >
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Transferência</DialogTitle>
+              <DialogDescription>
+                Mova saldo entre contas sem sair desta tela.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Conta origem</label>
+                  <Select
+                    value={transferFromAccountId}
+                    onValueChange={(value) => {
+                      setTransferFromAccountId(value);
+                      if (value === transferToAccountId) {
+                        const nextDestination = accounts.find((account) => account.id !== value);
+                        setTransferToAccountId(nextDestination?.id || '');
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {transferFromAccount && (
+                    <p className="text-xs text-muted-foreground">
+                      Saldo disponivel: {formatCurrency(transferFromAccount.current_balance)}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Conta destino</label>
+                  <Select value={transferToAccountId} onValueChange={setTransferToAccountId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {transferToOptions.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Valor</label>
+                  <Input
                     type="number"
                     step="0.01"
-                    value={newBalance}
-                    onChange={(e) => setNewBalance(parseFloat(e.target.value) || 0)}
-                    className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    min="0.01"
+                    value={transferAmount}
+                    onChange={(event) => setTransferAmount(event.target.value)}
+                    placeholder="0,00"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Data</label>
+                  <DatePickerInput
+                    value={transferDate}
+                    onChange={(value) => setTransferDate(value)}
+                    placeholder="Selecione a data da transferencia"
+                    disableFuture={true}
                   />
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setAdjustBalanceDialogOpen(false);
-                    setAccountToAdjust(null);
-                  }}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={confirmAdjustBalance}
-                  className="bg-purple-600 hover:bg-purple-700"
-                >
-                  Confirmar Ajuste
-                </Button>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Descricao opcional</label>
+                <Textarea
+                  value={transferDescription}
+                  onChange={(event) => setTransferDescription(event.target.value)}
+                  placeholder="Ex: transferencia para reserva de emergencia"
+                />
               </div>
             </div>
-          </div>
-        )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleTransfer}
+                className="bg-purple-600 hover:bg-purple-700"
+                disabled={isSubmittingTransfer}
+              >
+                {isSubmittingTransfer ? 'Transferindo...' : 'Confirmar transferencia'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

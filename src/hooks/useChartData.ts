@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { AnalyticsData } from './useAnalytics';
+import { parseDateOnlyAsLocal } from '@/utils/dateOnly';
 
 export interface PieChartData {
   name: string;
@@ -55,25 +56,15 @@ export function useChartData(analyticsData: AnalyticsData | null) {
   }, [analyticsData]);
 
   const timelineData = useMemo((): TimelineData[] => {
-    if (!analyticsData?.currentMonth?.categoryBreakdown) return [];
+    const transactions = analyticsData?.currentMonth?.transactions;
+    if (!transactions || transactions.length === 0) return [];
 
-    const categories = analyticsData.currentMonth.categoryBreakdown;
-    if (!categories || categories.length === 0) return [];
-
-    // Agrupar transações por dia
     const dailyMap = new Map<string, number>();
-    
-    categories.forEach(cat => {
-      // Como não temos data individual das transações, vamos simular distribuição ao longo do mês
-      // Em produção, você buscaria as transações com suas datas
-      const daysInMonth = 30;
-      const dailyAvg = cat.amount / daysInMonth;
-      
-      for (let day = 1; day <= daysInMonth; day++) {
-        const dateKey = `2025-11-${String(day).padStart(2, '0')}`;
-        const existing = dailyMap.get(dateKey) || 0;
-        dailyMap.set(dateKey, existing + dailyAvg);
-      }
+
+    transactions.forEach((transaction) => {
+      const dateKey = parseDateOnlyAsLocal(transaction.purchaseDate).toISOString().slice(0, 10);
+      const existing = dailyMap.get(dateKey) || 0;
+      dailyMap.set(dateKey, existing + transaction.amount);
     });
 
     // Converter para array e calcular acumulado

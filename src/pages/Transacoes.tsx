@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, TrendingUp, TrendingDown, Wallet, X, List, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Wallet, X, List, Search, Filter, ChevronLeft, ChevronRight, ArrowLeftRight } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,6 +20,32 @@ import type { Transaction, TransactionType } from '@/types/transactions';
 import { TYPE_COLORS } from '@/constants/categories';
 import * as LucideIcons from 'lucide-react';
 import { getBankLogo, detectBankFromName, getBankColor } from '@/constants/bankLogos';
+
+interface TransactionListItem extends Transaction {
+  displayAmount?: number;
+  displayDate?: string;
+  displayDescription?: string;
+  groupedInstallments?: Transaction[];
+  groupedInstallmentCount?: number;
+}
+
+const normalizeInstallmentDescription = (description: string) =>
+  description.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
+
+const buildInstallmentGroupKey = (transaction: Transaction) => {
+  if (transaction.installment_group_id) {
+    return transaction.installment_group_id;
+  }
+
+  return [
+    transaction.credit_card_id || 'no-card',
+    normalizeInstallmentDescription(transaction.description),
+    transaction.transaction_date,
+    transaction.category_id || 'no-category',
+    transaction.total_installments || 1,
+    transaction.total_amount || transaction.amount * (transaction.total_installments || 1),
+  ].join('::');
+};
 
 export const Transacoes = () => {
   // HOOKS E NAVEGAÇÃO
@@ -78,48 +104,8 @@ export const Transacoes = () => {
       .replace(/[\u0300-\u036f]/g, '');
   };
 
-  // DEBUG: Verificar transações com parcelamento
-  const installmentTransactions = transactions.filter(t => t.is_installment);
-  console.log('🔍 Transações com parcelamento:', installmentTransactions.length, installmentTransactions);
-
-  // EXPANDIR PARCELAMENTOS: Gerar parcelas virtuais para cada mês
-  const expandedTransactions = transactions.flatMap(t => {
-    // Se NÃO é parcelamento, retorna a transação normal
-    if (!t.is_installment || !t.total_installments || t.total_installments <= 1) {
-      return [t];
-    }
-    
-    console.log('📦 Expandindo parcelamento:', t.description, 'total_installments:', t.total_installments);
-
-    // Para parcelamentos: gerar uma "parcela virtual" para cada mês
-    const installments = [];
-    const purchaseDate = new Date(t.transaction_date + 'T00:00:00');
-    
-    // Remover sufixo de parcela existente da descrição (ex: "(2/5)")
-    const baseDescription = t.description.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
-    
-    for (let i = 0; i < t.total_installments; i++) {
-      const installmentDate = new Date(purchaseDate);
-      installmentDate.setMonth(installmentDate.getMonth() + i);
-      
-      const installmentYearMonth = `${installmentDate.getFullYear()}-${String(installmentDate.getMonth() + 1).padStart(2, '0')}`;
-      const installmentDay = String(purchaseDate.getDate()).padStart(2, '0');
-      
-      installments.push({
-        ...t,
-        id: `${t.id}-installment-${i + 1}`, // ID único para cada parcela virtual
-        transaction_date: `${installmentYearMonth}-${installmentDay}`,
-        description: `${baseDescription} (${i + 1}/${t.total_installments})`,
-        installment_number: i + 1,
-        // Manter o valor da parcela (já está correto no registro pai)
-      });
-    }
-    
-    return installments;
-  });
-
   // FILTRAR TRANSAÇÕES POR MÊS SELECIONADO
-  let filteredTransactions = expandedTransactions.filter(t => {
+  let filteredTransactions = transactions.filter(t => {
     const selectedYear = selectedDate.getFullYear();
     const selectedMonth = String(selectedDate.getMonth() + 1).padStart(2, '0');
     const selectedYearMonth = `${selectedYear}-${selectedMonth}`;
@@ -230,6 +216,44 @@ export const Transacoes = () => {
       return true;
     });
   }
+
+  const groupedTransactions: TransactionListItem[] = [];
+  const installmentGroups = new Map<string, Transaction[]>();
+
+  filteredTransactions.forEach((transaction) => {
+    if (
+      transaction.credit_card_id &&
+      transaction.total_installments &&
+      transaction.total_installments > 1
+    ) {
+      const installmentKey = buildInstallmentGroupKey(transaction);
+      const existing = installmentGroups.get(installmentKey) || [];
+      existing.push(transaction);
+      installmentGroups.set(installmentKey, existing);
+      return;
+    }
+
+    groupedTransactions.push(transaction);
+  });
+
+  installmentGroups.forEach((groupTransactions) => {
+    const sortedInstallments = [...groupTransactions].sort(
+      (a, b) => (a.installment_number || 0) - (b.installment_number || 0)
+    );
+    const firstInstallment = sortedInstallments[0];
+    const baseDescription = normalizeInstallmentDescription(firstInstallment.description);
+
+    groupedTransactions.push({
+      ...firstInstallment,
+      description: baseDescription,
+      displayDescription: `${baseDescription} (${firstInstallment.total_installments}x de ${formatCurrency(firstInstallment.amount)})`,
+      displayAmount: firstInstallment.total_amount || firstInstallment.amount * (firstInstallment.total_installments || 1),
+      groupedInstallments: sortedInstallments,
+      groupedInstallmentCount: sortedInstallments.length,
+    });
+  });
+
+  groupedTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
   // FORMATAÇÃO DE DATA
   const formatMonthYear = (date: Date) => {
@@ -347,10 +371,17 @@ export const Transacoes = () => {
     setDialogOpen(true);
   };
 
-  // Renderizar ícone da categoria dinamicamente
-  const renderCategoryIcon = (iconName: string, color: string) => {
-    const IconComponent = (LucideIcons as any)[iconName] || LucideIcons.DollarSign;
-    return <IconComponent size={20} style={{ color }} />;
+  // Transferências não possuem categoria; precisam de ícone próprio.
+  const renderTransactionIcon = (type: TransactionType, category?: { icon?: string; color?: string } | null) => {
+    if (type === 'transfer') {
+      return <ArrowLeftRight size={20} className="text-blue-600" />;
+    }
+
+    const IconComponent = category?.icon
+      ? (LucideIcons as any)[category.icon] || LucideIcons.DollarSign
+      : LucideIcons.DollarSign;
+
+    return <IconComponent size={20} style={{ color: category?.color || '#6B7280' }} />;
   };
 
   // LOADING STATE
@@ -499,7 +530,7 @@ export const Transacoes = () => {
             <div className="mb-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Todas as Transações ({filteredTransactions.length})
+                  Todas as Transações ({groupedTransactions.length})
                 </h2>
                 
                 {/* Botão Limpar Filtros */}
@@ -600,7 +631,7 @@ export const Transacoes = () => {
               )}
             </div>
 
-            {filteredTransactions.length === 0 ? (
+            {groupedTransactions.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <Wallet size={48} className="mx-auto mb-4 opacity-50" />
                 <p className="text-lg font-medium mb-2">Nenhuma transação encontrada</p>
@@ -608,10 +639,14 @@ export const Transacoes = () => {
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredTransactions.map((transaction) => {
+                {groupedTransactions.map((transaction) => {
                   const category = transaction.category || getCategoryById(transaction.category_id);
                   const account = transaction.account || accounts.find(a => a.id === transaction.account_id);
                   const typeColors = TYPE_COLORS[transaction.type];
+                  const isGroupedInstallment = Boolean(transaction.groupedInstallments?.length);
+                  const installmentAmount = transaction.amount;
+                  const totalInstallments = transaction.total_installments || transaction.groupedInstallmentCount || 0;
+                  const amountToDisplay = transaction.displayAmount ?? transaction.amount;
 
                   return (
                     <Card
@@ -628,7 +663,7 @@ export const Transacoes = () => {
                               <div
                                 className={`w-12 h-12 rounded-xl flex items-center justify-center ${typeColors.bg}`}
                               >
-                                {category && renderCategoryIcon(category.icon, category.color)}
+                                {renderTransactionIcon(transaction.type, category)}
                               </div>
                               {/* Logo do Banco (pequeno, no canto) */}
                               {account && (() => {
@@ -653,11 +688,16 @@ export const Transacoes = () => {
                             <div>
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-gray-900">
-                                  {transaction.description}
+                                  {transaction.displayDescription || transaction.description}
                                 </h3>
                                 {!transaction.is_paid && (
                                   <span className="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded">
                                     Pendente
+                                  </span>
+                                )}
+                                {isGroupedInstallment && (
+                                  <span className="px-2 py-0.5 text-xs font-medium bg-purple-100 text-purple-700 rounded">
+                                    Parcelado {totalInstallments}x
                                   </span>
                                 )}
                               </div>
@@ -667,6 +707,12 @@ export const Transacoes = () => {
                                 <span>{account?.name || 'Sem conta'}</span>
                                 <span>•</span>
                                 <span>{formatRelativeDate(transaction.transaction_date)}</span>
+                                {isGroupedInstallment && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{totalInstallments} parcelas de {formatCurrency(installmentAmount)}</span>
+                                  </>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -675,7 +721,7 @@ export const Transacoes = () => {
                           <div className="text-right">
                             <p className={`text-xl font-bold ${typeColors.text}`}>
                               {transaction.type === 'expense' ? '- ' : '+ '}
-                              {formatCurrency(transaction.amount)}
+                              {formatCurrency(amountToDisplay)}
                             </p>
                           </div>
                         </div>
@@ -695,6 +741,7 @@ export const Transacoes = () => {
         onOpenChange={setDialogOpen}
         transaction={selectedTransaction}
         onSave={handleSave}
+        onDelete={handleDelete}
         defaultType={preSelectedType}
       />
 

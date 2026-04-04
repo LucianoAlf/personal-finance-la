@@ -192,7 +192,17 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
                         placeholder="0.00"
                         className="pl-8"
                         {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                        value={field.value ?? ''}
+                        onChange={(e) => {
+                          const rawValue = e.target.value;
+
+                          if (rawValue === '') {
+                            field.onChange(undefined);
+                            return;
+                          }
+
+                          field.onChange(parseFloat(rawValue));
+                        }}
                       />
                     </div>
                   </FormControl>

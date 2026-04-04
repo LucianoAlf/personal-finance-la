@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { parseDateOnlyAsLocal } from '@/utils/dateOnly';
 
 interface Props {
   invoices: any[];
@@ -221,7 +222,7 @@ export function InvoiceHistoryTable({
                       </Button>
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900">
-                      {format(new Date(invoice.reference_month), 'MMM/yyyy', { locale: ptBR })}
+                      {format(parseDateOnlyAsLocal(invoice.reference_month), 'MMM/yyyy', { locale: ptBR })}
                     </td>
                     <td className="px-4 py-3">
                       <div>
@@ -296,7 +297,7 @@ export function InvoiceHistoryTable({
                       <td colSpan={8} className="px-4 py-4 bg-gray-50">
                         <div className="space-y-2">
                           <h4 className="font-semibold text-gray-900 mb-3">
-                            Transações de {format(new Date(invoice.reference_month), 'MMMM/yyyy', { locale: ptBR })}
+                            Transações de {format(parseDateOnlyAsLocal(invoice.reference_month), 'MMMM/yyyy', { locale: ptBR })}
                           </h4>
 
                           {loadingTransactions.has(invoice.id) ? (
@@ -320,7 +321,7 @@ export function InvoiceHistoryTable({
                                   {transactions[invoice.id].map((tx, idx) => (
                                     <tr key={idx} className="bg-white">
                                       <td className="px-3 py-2 text-gray-900">
-                                        {tx.purchase_date ? format(new Date(tx.purchase_date), 'dd/MM/yyyy') : ''}
+                                        {tx.purchase_date ? format(parseDateOnlyAsLocal(tx.purchase_date), 'dd/MM/yyyy') : ''}
                                       </td>
                                       <td className="px-3 py-2 text-gray-900">{tx.description}</td>
                                       <td className="px-3 py-2">

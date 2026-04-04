@@ -36,6 +36,9 @@ import { cn } from '@/lib/utils';
 
 interface BillCalendarProps {
   bills: PayableBill[];
+  currentMonth?: Date;
+  onMonthChange?: (date: Date) => void;
+  showEmbeddedHeader?: boolean;
   onPay: (bill: PayableBill) => void;
   onEdit: (bill: PayableBill) => void;
   onDelete: (bill: PayableBill) => void;
@@ -43,10 +46,28 @@ interface BillCalendarProps {
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-export function BillCalendar({ bills, onPay, onEdit, onDelete }: BillCalendarProps) {
-  const [currentMonth, setCurrentMonth] = useState(new Date());
+export function BillCalendar({
+  bills,
+  currentMonth: controlledCurrentMonth,
+  onMonthChange,
+  showEmbeddedHeader = true,
+  onPay,
+  onEdit,
+  onDelete,
+}: BillCalendarProps) {
+  const [internalCurrentMonth, setInternalCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const currentMonth = controlledCurrentMonth ?? internalCurrentMonth;
+
+  const updateCurrentMonth = (date: Date) => {
+    if (onMonthChange) {
+      onMonthChange(date);
+      return;
+    }
+
+    setInternalCurrentMonth(date);
+  };
 
   // Agrupar contas por data de vencimento
   const billsByDate = useMemo(() => {
@@ -135,27 +156,29 @@ export function BillCalendar({ bills, onPay, onEdit, onDelete }: BillCalendarPro
     <div className="space-y-4">
       {/* Header do Calendário */}
       <Card className="p-4">
-        <div className="flex items-center justify-between mb-4">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          
-          <h2 className="text-xl font-bold capitalize">
-            {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
-          </h2>
-          
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-        </div>
+        {showEmbeddedHeader && (
+          <div className="flex items-center justify-between mb-4">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => updateCurrentMonth(subMonths(currentMonth, 1))}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            
+            <h2 className="text-xl font-bold capitalize">
+              {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+            </h2>
+            
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => updateCurrentMonth(addMonths(currentMonth, 1))}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
 
         {/* Resumo do Mês */}
         <div className="grid grid-cols-4 gap-2 mb-4 text-center text-sm">

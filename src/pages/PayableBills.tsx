@@ -1,7 +1,10 @@
-import { useState, useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,7 +15,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Receipt, BarChart3, History, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Receipt, BarChart3, History, Trash2, AlertTriangle, ChevronLeft, ChevronRight, CalendarDays, Search } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { usePayableBills } from '@/hooks/usePayableBills';
 import { useCategories } from '@/hooks/useCategories';
@@ -20,7 +23,6 @@ import { BillSummaryCards } from '@/components/payable-bills/BillSummaryCards';
 import { BillList } from '@/components/payable-bills/BillList';
 import { BillDialog } from '@/components/payable-bills/BillDialog';
 import { BillPaymentDialog } from '@/components/payable-bills/BillPaymentDialog';
-import { BillFilters } from '@/components/payable-bills/BillFilters';
 import { BillHistoryTable } from '@/components/payable-bills/BillHistoryTable';
 import { BillReportsDashboard } from '@/components/payable-bills/reports';
 import { ReminderConfigDialog } from '@/components/payable-bills/ReminderConfigDialog';
@@ -37,18 +39,14 @@ import { BillCalendar } from '@/components/payable-bills/BillCalendar';
 import { PayableBill, CreateBillInput, MarkBillAsPaidInput } from '@/types/payable-bills.types';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { toast } from 'sonner';
-import { parseISO, isAfter, isBefore, addDays, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
+import { parseISO, format, isAfter, isBefore, addDays, addMonths, subMonths, isSameMonth } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { isBillOverdue } from '@/utils/billCalculations';
 
 export default function PayableBills() {
   const {
     bills,
-    pendingBills,
-    overdueBills,
     paidBills,
-    upcomingBills,
-    recurringBills,
-    summary,
     loading,
     filters,
     setFilters,
@@ -84,12 +82,69 @@ export default function PayableBills() {
   const [sortOption, setSortOption] = useState<SortOption>('due_soon');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
-  const [periodFilter, setPeriodFilter] = useState<PeriodOption>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodOption>('this_month');
   const [recurrenceTypeFilter, setRecurrenceTypeFilter] = useState<RecurrenceTypeOption>('all');
+  const [selectedMonthDate, setSelectedMonthDate] = useState(new Date());
+  const [monthModalOpen, setMonthModalOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+
+  const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+  const isAllAccountsMode = periodFilter === 'all';
+
+  const formatMonthYear = (date: Date) =>
+    date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, (c) => c.toUpperCase());
+
+  const handlePreviousMonth = () => {
+    setSelectedMonthDate((current) => subMonths(current, 1));
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonthDate((current) => addMonths(current, 1));
+  };
+
+  const handlePreviousYear = () => {
+    setSelectedMonthDate((current) => {
+      const newDate = new Date(current);
+      newDate.setFullYear(newDate.getFullYear() - 1);
+      return newDate;
+    });
+  };
+
+  const handleNextYear = () => {
+    setSelectedMonthDate((current) => {
+      const newDate = new Date(current);
+      newDate.setFullYear(newDate.getFullYear() + 1);
+      return newDate;
+    });
+  };
+
+  const handleMonthSelect = (monthIndex: number) => {
+    setSelectedMonthDate((current) => {
+      const newDate = new Date(current);
+      newDate.setMonth(monthIndex);
+      return newDate;
+    });
+    setMonthModalOpen(false);
+  };
+
+  const handleCurrentMonth = () => {
+    setSelectedMonthDate(new Date());
+    setMonthModalOpen(false);
+  };
+
+  const monthFilteredBills = useMemo(
+    () => bills.filter((bill) => isSameMonth(parseISO(bill.due_date), selectedMonthDate)),
+    [bills, selectedMonthDate]
+  );
+
+  const scopeBills = useMemo(
+    () => (isAllAccountsMode ? bills : monthFilteredBills),
+    [bills, isAllAccountsMode, monthFilteredBills]
+  );
 
   // Ordenar e filtrar contas baseado na opção selecionada
   const sortedBills = useMemo(() => {
-    let sorted = [...bills];
+    let sorted = [...scopeBills];
     
     // Primeiro: aplicar filtros de status (se selecionado)
     switch (sortOption) {
@@ -152,28 +207,27 @@ export default function PayableBills() {
       default:
         return sorted;
     }
-  }, [bills, sortOption]);
+  }, [scopeBills, sortOption]);
 
   // Filtrar por período, categoria e tipo de recorrência
   const filteredBills = useMemo(() => {
     let filtered = sortedBills;
     const today = new Date();
+    const normalizedSearch = searchInput.trim().toLowerCase();
     
     // Filtrar por período
     switch (periodFilter) {
-      case 'next_7_days':
+      case 'all':
+      case 'this_month':
+        break;
+      case 'next_7_days': {
         const in7Days = addDays(today, 7);
         filtered = filtered.filter((bill) => {
           const dueDate = parseISO(bill.due_date);
           return bill.status !== 'paid' && isBefore(dueDate, in7Days) && isAfter(dueDate, addDays(today, -1));
         });
         break;
-      case 'this_month':
-        filtered = filtered.filter((bill) => {
-          const dueDate = parseISO(bill.due_date);
-          return isSameMonth(dueDate, today);
-        });
-        break;
+      }
       case 'recurring':
         filtered = filtered.filter((bill) => bill.is_recurring);
         break;
@@ -239,9 +293,49 @@ export default function PayableBills() {
         }
       });
     }
+
+    if (normalizedSearch) {
+      filtered = filtered.filter((bill) =>
+        bill.description.toLowerCase().includes(normalizedSearch) ||
+        bill.provider_name?.toLowerCase().includes(normalizedSearch)
+      );
+    }
     
     return filtered;
-  }, [sortedBills, periodFilter, categoryFilter, recurrenceTypeFilter, categories]);
+  }, [sortedBills, periodFilter, categoryFilter, recurrenceTypeFilter, categories, searchInput]);
+
+  const displaySummary = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const summaryPendingBills = filteredBills.filter((bill) => {
+      if (bill.status !== 'pending' && bill.status !== 'scheduled') return false;
+      const dueDate = parseISO(bill.due_date);
+      return dueDate >= today;
+    });
+
+    const summaryOverdueBills = filteredBills.filter((bill) => {
+      if (bill.status === 'paid') return false;
+      const dueDate = parseISO(bill.due_date);
+      return dueDate < today;
+    });
+
+    const summaryPaidBills = filteredBills.filter((bill) => bill.status === 'paid');
+
+    return {
+      pendingAmount: summaryPendingBills.reduce((sum, bill) => sum + bill.amount, 0),
+      pendingCount: summaryPendingBills.length,
+      overdueAmount: summaryOverdueBills.reduce((sum, bill) => sum + bill.amount, 0),
+      overdueCount: summaryOverdueBills.length,
+      paidAmount: summaryPaidBills.reduce((sum, bill) => sum + bill.amount, 0),
+      paidCount: summaryPaidBills.length,
+    };
+  }, [filteredBills]);
+
+  const monthAwarePaidBills = useMemo(
+    () => (isAllAccountsMode ? paidBills : paidBills.filter((bill) => isSameMonth(parseISO(bill.due_date), selectedMonthDate))),
+    [isAllAccountsMode, paidBills, selectedMonthDate]
+  );
 
   // Handler para copiar/duplicar conta
   const handleCopy = async (bill: PayableBill) => {
@@ -265,10 +359,18 @@ export default function PayableBills() {
   // Handlers
   const handleCreate = async (data: CreateBillInput) => {
     if (data.is_installment && data.installment_total && data.installment_total > 1) {
-      await createInstallmentBills({ ...data, installment_total: data.installment_total });
-    } else {
-      await createBill(data);
+      return await createInstallmentBills({ ...data, installment_total: data.installment_total });
     }
+
+    return await createBill(data);
+  };
+
+  const handleCreateDialogChange = (open: boolean) => {
+    if (open) {
+      setSelectedBill(null);
+    }
+
+    setCreateDialogOpen(open);
   };
 
   const handleEdit = (bill: PayableBill) => {
@@ -278,8 +380,9 @@ export default function PayableBills() {
 
   const handleUpdate = async (data: CreateBillInput) => {
     if (!selectedBill) return;
-    await updateBill(selectedBill.id, data);
+    const updatedBill = await updateBill(selectedBill.id, data);
     setSelectedBill(null);
+    return updatedBill;
   };
 
   const handleDelete = (bill: PayableBill) => {
@@ -343,25 +446,55 @@ export default function PayableBills() {
         subtitle="Gerencie suas contas e vencimentos"
         icon={<Receipt size={24} />}
         actions={
-          <>
-            <BillFilters filters={filters} onFiltersChange={setFilters} />
-            <Button onClick={() => setCreateDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova Conta
-            </Button>
-          </>
+          <Button onClick={() => handleCreateDialogChange(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nova Conta
+          </Button>
         }
       />
 
       <div className="p-6 space-y-6">
+        <Card>
+          <div className="p-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Competência</p>
+              <div className="flex items-center gap-2 mt-2">
+                <Button variant="ghost" size="icon" onClick={handlePreviousMonth} className="h-8 w-8">
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setMonthModalOpen(true)}
+                  className="min-w-[180px] justify-center font-medium"
+                >
+                  <CalendarDays className="h-4 w-4 mr-2" />
+                  {formatMonthYear(selectedMonthDate)}
+                </Button>
+                <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8">
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button variant="outline" onClick={handleCurrentMonth}>
+                  Hoje
+                </Button>
+              </div>
+            </div>
+
+            <div className="text-sm text-muted-foreground">
+              {isAllAccountsMode
+                ? 'Modo expandido ativo: exibindo contas de todos os meses.'
+                : `As visões Cards, Tabela e Calendário estão sincronizadas em ${formatMonthYear(selectedMonthDate)}.`}
+            </div>
+          </div>
+        </Card>
+
         {/* Cards de Resumo */}
         <BillSummaryCards
-          pendingAmount={summary.pending_amount}
-          pendingCount={summary.pending_count}
-          overdueAmount={summary.overdue_amount}
-          overdueCount={summary.overdue_count}
-          paidAmount={summary.paid_amount}
-          paidCount={summary.paid_count}
+          pendingAmount={displaySummary.pendingAmount}
+          pendingCount={displaySummary.pendingCount}
+          overdueAmount={displaySummary.overdueAmount}
+          overdueCount={displaySummary.overdueCount}
+          paidAmount={displaySummary.paidAmount}
+          paidCount={displaySummary.paidCount}
         />
 
         {/* Tabs */}
@@ -396,7 +529,7 @@ export default function PayableBills() {
             {/* Seção de Atenção Necessária */}
             {!loading && viewMode !== 'calendar' && (
               <AttentionSection
-                bills={bills}
+                bills={filteredBills}
                 onPay={handlePay}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
@@ -407,10 +540,16 @@ export default function PayableBills() {
 
             {/* Barra de Controles */}
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-              <h3 className="text-lg font-semibold text-muted-foreground">
-                📋 Contas a Pagar ({filteredBills.length})
-              </h3>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-full lg:max-w-sm">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Buscar por descricao ou fornecedor"
+                  className="pl-9"
+                />
+              </div>
+              <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
                 <PeriodFilter value={periodFilter} onChange={setPeriodFilter} />
                 <BillCategoryFilter value={categoryFilter} onChange={setCategoryFilter} />
                 {periodFilter === 'recurring' && (
@@ -444,13 +583,13 @@ export default function PayableBills() {
                     Nenhuma conta encontrada
                   </h3>
                   <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                    {periodFilter !== 'all' 
-                      ? 'Tente alterar os filtros para ver mais contas.'
-                      : 'Clique em "Nova Conta" para começar a cadastrar suas contas.'}
+                    {isAllAccountsMode
+                      ? 'Clique em "Nova Conta" para começar a cadastrar suas contas.'
+                      : `Nenhuma conta encontrada em ${formatMonthYear(selectedMonthDate)}. Tente alterar os filtros ou navegar para outro mês.`}
                   </p>
-                  {periodFilter === 'all' && (
+                  {isAllAccountsMode && (
                     <Button
-                      onClick={() => setCreateDialogOpen(true)}
+                      onClick={() => handleCreateDialogChange(true)}
                       className="mt-4"
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -461,6 +600,9 @@ export default function PayableBills() {
               ) : viewMode === 'calendar' ? (
                 <BillCalendar
                   bills={filteredBills}
+                  currentMonth={selectedMonthDate}
+                  onMonthChange={setSelectedMonthDate}
+                  showEmbeddedHeader={false}
                   onPay={handlePay}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
@@ -501,7 +643,7 @@ export default function PayableBills() {
               {loading ? (
                 <div className="h-96 bg-muted animate-pulse rounded-lg"></div>
               ) : (
-                <BillHistoryTable bills={paidBills} onDelete={handleDelete} />
+                <BillHistoryTable bills={monthAwarePaidBills} onDelete={handleDelete} />
               )}
             </motion.div>
           </TabsContent>
@@ -515,8 +657,9 @@ export default function PayableBills() {
 
       {/* Dialogs */}
       <BillDialog
+        key="create-bill-dialog"
         open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
+        onOpenChange={handleCreateDialogChange}
         onSubmit={handleCreate}
       />
 
@@ -599,6 +742,57 @@ export default function PayableBills() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={monthModalOpen} onOpenChange={setMonthModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">Selecionar Competência</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-6">
+            <div className="flex items-center justify-center gap-4">
+              <Button variant="ghost" size="icon" onClick={handlePreviousYear} className="h-8 w-8">
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              <h2 className="text-xl font-bold min-w-[80px] text-center">
+                {selectedMonthDate.getFullYear()}
+              </h2>
+
+              <Button variant="ghost" size="icon" onClick={handleNextYear} className="h-8 w-8">
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-4 gap-3">
+              {months.map((month, index) => {
+                const isCurrentMonth = selectedMonthDate.getMonth() === index;
+                const isTodayMonth = new Date().getMonth() === index && new Date().getFullYear() === selectedMonthDate.getFullYear();
+
+                return (
+                  <Button
+                    key={month}
+                    variant={isCurrentMonth ? 'default' : 'outline'}
+                    onClick={() => handleMonthSelect(index)}
+                    className={isCurrentMonth ? '' : isTodayMonth ? 'border-primary/40 text-primary' : ''}
+                  >
+                    {month}
+                  </Button>
+                );
+              })}
+            </div>
+
+            <div className="flex justify-between pt-2">
+              <Button variant="outline" onClick={() => setMonthModalOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleCurrentMonth}>
+                Mês Atual
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog de Confirmação - Deletar Parcelamento */}
       <AlertDialog open={deleteGroupDialogOpen} onOpenChange={setDeleteGroupDialogOpen}>

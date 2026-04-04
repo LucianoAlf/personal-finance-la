@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -42,30 +42,12 @@ import { ACCOUNT_ICONS } from '@/constants/accounts';
 import { TagSelector } from './TagSelector';
 import { 
   Plus, X, MessageCircle, Mail, Bell, Calendar, Send, ClipboardList,
-  Tv, Lightbulb, Home, Smartphone, Heart, CreditCard as CreditCardIcon,
-  Package, GraduationCap, Receipt, Shield, Banknote, UtensilsCrossed, ShoppingBag
 } from 'lucide-react';
-import * as LucideIcons from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
-
-// Categorias com ícones - mesma ordem do BillCategoryFilter
-const CATEGORY_OPTIONS = [
-  { value: 'subscription', label: 'Assinaturas', icon: <Tv className="h-4 w-4" /> },
-  { value: 'service', label: 'Serviços (Água, Luz, Gás)', icon: <Lightbulb className="h-4 w-4" /> },
-  { value: 'housing', label: 'Moradia', icon: <Home className="h-4 w-4" /> },
-  { value: 'telecom', label: 'Telecomunicações', icon: <Smartphone className="h-4 w-4" /> },
-  { value: 'healthcare', label: 'Saúde', icon: <Heart className="h-4 w-4" /> },
-  { value: 'education', label: 'Educação', icon: <GraduationCap className="h-4 w-4" /> },
-  { value: 'food', label: 'Alimentação', icon: <UtensilsCrossed className="h-4 w-4" /> },
-  { value: 'tax', label: 'Impostos e Taxas', icon: <Receipt className="h-4 w-4" /> },
-  { value: 'insurance', label: 'Seguros', icon: <Shield className="h-4 w-4" /> },
-  { value: 'loan', label: 'Empréstimos', icon: <Banknote className="h-4 w-4" /> },
-  { value: 'installment', label: 'Parcelamentos', icon: <ShoppingBag className="h-4 w-4" /> },
-  { value: 'credit_card', label: 'Cartão de Crédito', icon: <CreditCardIcon className="h-4 w-4" /> },
-  { value: 'other', label: 'Outros', icon: <Package className="h-4 w-4" /> },
-];
+import { CategorySelect } from '@/components/ui/category-select';
+import { BILL_TYPE_TO_CATEGORY } from '@/utils/billCalculations';
 
 const billSchema = z.object({
   description: z.string().min(3, 'Mínimo 3 caracteres'),
@@ -73,7 +55,7 @@ const billSchema = z.object({
   due_date: z.string().min(1, 'Data de vencimento obrigatória'),
   bill_type: z.string().min(1, 'Tipo obrigatório'),
   provider_name: z.string().optional(),
-  category_id: z.string().optional(),
+  category_id: z.string().min(1, 'Categoria obrigatória'),
   tags: z.array(z.string()).optional(),
   payment_account_id: z.string().optional(),
   payment_method: z.string().optional(),
@@ -104,15 +86,82 @@ type BillFormData = z.infer<typeof billSchema>;
 interface BillDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: CreateBillInput) => Promise<void>;
+  onSubmit: (data: CreateBillInput) => Promise<PayableBill | PayableBill[] | void | null>;
   bill?: PayableBill;
 }
+
+const CATEGORY_NAME_TO_BILL_TYPE: Record<string, BillType> = {
+  'Contas de Consumo': 'service',
+  'Assinaturas': 'subscription',
+  'Moradia': 'housing',
+  'Educação': 'education',
+  'Saúde': 'healthcare',
+  'Seguros': 'insurance',
+  'Empréstimo': 'loan',
+  'Financiamento': 'installment',
+  'Cartão de Crédito': 'credit_card',
+  'Impostos': 'tax',
+  'Alimentação': 'food',
+  'Outros': 'other',
+  'Compras': 'other',
+  'Mercado': 'food',
+  'Restaurante': 'food',
+  'Delivery': 'food',
+  'Farmácia': 'healthcare',
+  'Transporte': 'service',
+  'Combustível': 'service',
+  'Reparos e Manutenções': 'service',
+  'Viagem': 'other',
+  'Lazer': 'other',
+  'Beleza': 'other',
+  'Pet': 'other',
+  'Filhos': 'other',
+  'Presentes': 'other',
+  'Estacionamento': 'service',
+  'Transferência entre Contas': 'other',
+  'Vestuário': 'other',
+};
+
+function mapCategoryNameToBillType(categoryName?: string): BillType {
+  if (!categoryName) return 'other';
+  return CATEGORY_NAME_TO_BILL_TYPE[categoryName] ?? 'other';
+}
+
+function buildReminderPayload(
+  reminders: { days_before: number; time: string }[],
+  channels: ('whatsapp' | 'email' | 'push')[]
+) {
+  return reminders.flatMap((reminder) =>
+    channels.map((channel) => ({
+      days_before: reminder.days_before,
+      time: `${reminder.time}:00`,
+      channel,
+    }))
+  );
+}
+
+const REMINDER_HOUR_OPTIONS = Array.from({ length: 24 }, (_, index) =>
+  index.toString().padStart(2, '0')
+);
+
+const REMINDER_MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) =>
+  (index * 5).toString().padStart(2, '0')
+);
+
+const PAYABLE_BILL_PAYMENT_METHOD_OPTIONS = Object.entries(PAYMENT_METHOD_LABELS).filter(
+  ([key]) => key !== 'credit_card'
+);
 
 export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogProps) {
   const { user } = useAuth();
   const { categories } = useCategories();
   const { accounts } = useAccounts();
   const isEditing = !!bill;
+  const [activeTab, setActiveTab] = useState('basic');
+  const expenseCategories = useMemo(
+    () => categories.filter((category) => category.type === 'expense'),
+    [categories]
+  );
 
   const normalizeTime = (time?: string) => {
     if (!time) return '09:00';
@@ -135,6 +184,9 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
       amount: 0,
       due_date: new Date().toISOString().split('T')[0],
       bill_type: 'other',
+      category_id: '',
+      payment_account_id: '',
+      payment_method: '',
       priority: 'medium',
       is_recurring: false,
       is_installment: false,
@@ -146,16 +198,40 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
 
   const isRecurring = form.watch('is_recurring');
   const isInstallment = form.watch('is_installment');
+  const selectedCategoryId = form.watch('category_id');
+  const selectedDueDate = form.watch('due_date');
+
+  useEffect(() => {
+    const selectedCategory = expenseCategories.find((category) => category.id === selectedCategoryId);
+    if (!selectedCategory) return;
+
+    const nextBillType = mapCategoryNameToBillType(selectedCategory.name);
+    if (form.getValues('bill_type') !== nextBillType) {
+      form.setValue('bill_type', nextBillType, { shouldDirty: true });
+    }
+  }, [expenseCategories, form, selectedCategoryId]);
+
+  useEffect(() => {
+    if (!isRecurring || !selectedDueDate) return;
+
+    const dueDay = Number.parseInt(selectedDueDate.slice(8, 10), 10);
+    if (!Number.isNaN(dueDay) && form.getValues('recurrence_day') !== dueDay) {
+      form.setValue('recurrence_day', dueDay, { shouldDirty: true });
+    }
+  }, [form, isRecurring, selectedDueDate]);
 
   useEffect(() => {
     if (bill) {
+      const fallbackCategory = expenseCategories.find(
+        (category) => category.name === BILL_TYPE_TO_CATEGORY[bill.bill_type]
+      );
       form.reset({
         description: bill.description,
         amount: bill.amount,
         due_date: bill.due_date,
         bill_type: bill.bill_type,
         provider_name: bill.provider_name || '',
-        category_id: bill.category_id || '',
+        category_id: bill.category_id || fallbackCategory?.id || '',
         tags: bill.tags || [],
         payment_account_id: bill.payment_account_id || '',
         payment_method: bill.payment_method || '',
@@ -166,7 +242,7 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
         notes: bill.notes || '',
         is_recurring: bill.is_recurring,
         recurrence_frequency: bill.recurrence_config?.frequency || '',
-        recurrence_day: bill.recurrence_config?.day,
+        recurrence_day: bill.recurrence_config?.day || Number.parseInt(bill.due_date.slice(8, 10), 10),
         recurrence_end_date: bill.recurrence_config?.end_date || '',
         is_installment: bill.is_installment,
         installment_total: bill.installment_total ?? undefined,
@@ -182,15 +258,24 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
         amount: 0,
         due_date: new Date().toISOString().split('T')[0],
         bill_type: 'other',
+        category_id: '',
+        payment_account_id: '',
+        payment_method: '',
         priority: 'medium',
         is_recurring: false,
+        recurrence_frequency: 'monthly',
         is_installment: false,
         enable_reminders: false,
         reminders: [{ days_before: 1, time: '09:00' }],
         reminder_channels: ['whatsapp'],
       });
     }
-  }, [bill, form]);
+  }, [bill, expenseCategories, form, open]);
+
+  useEffect(() => {
+    if (!open) return;
+    setActiveTab('basic');
+  }, [open]);
 
   const handleInvalidSubmit = (errors: unknown) => {
     console.error('Erros de validação ao salvar conta:', errors);
@@ -204,13 +289,16 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
     }
 
     try {
+      const selectedCategory = expenseCategories.find((category) => category.id === data.category_id);
+      const derivedBillType = mapCategoryNameToBillType(selectedCategory?.name);
+
       const input: CreateBillInput = {
         description: data.description,
         amount: data.amount,
         due_date: data.due_date,
-        bill_type: data.bill_type as BillType,
+        bill_type: derivedBillType,
         provider_name: data.provider_name || undefined,
-        category_id: data.category_id || undefined,
+        category_id: data.category_id,
         payment_account_id: data.payment_account_id || undefined,
         payment_method: (data.payment_method || undefined) as PaymentMethod | undefined,
         barcode: data.barcode || undefined,
@@ -222,34 +310,38 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
         recurrence_config: data.is_recurring && data.recurrence_frequency
           ? {
               frequency: data.recurrence_frequency as any,
-              day: data.recurrence_day || 1,
+              day: data.recurrence_day || Number.parseInt(data.due_date.slice(8, 10), 10) || 1,
               end_date: data.recurrence_end_date || undefined,
             }
           : undefined,
         is_installment: data.is_installment,
         installment_total: data.installment_total,
+        reminder_enabled: data.enable_reminders,
+        reminder_days_before: data.reminders?.[0]?.days_before ?? 1,
+        reminder_channels: data.reminder_channels,
         tags: data.tags,
       };
 
       // Salvar a conta
-      await onSubmit(input);
+      const result = await onSubmit(input);
 
-      // Se lembretes estão habilitados e temos bill.id (edição ou após criar)
-      // Precisamos pegar o bill_id retornado pelo onSubmit
-      // Por enquanto, vamos assumir que onSubmit vai retornar o ID ou que bill já tem
+      const savedBill = Array.isArray(result) ? result[0] : result;
+      const billId = savedBill?.id || bill?.id;
+
+      let reminderToastShown = false;
       if (data.enable_reminders && data.reminders && data.reminders.length > 0) {
-        const billId = bill?.id; // Se estamos editando
-        
         if (billId) {
-          // Chamar SQL function schedule_bill_reminders
-          const { data: reminderCount, error: reminderError } = await supabase.rpc(
+          const reminderPayload = buildReminderPayload(
+            data.reminders,
+            data.reminder_channels || ['whatsapp']
+          );
+
+          const { error: reminderError } = await supabase.rpc(
             'schedule_bill_reminders',
             {
               p_bill_id: billId,
               p_user_id: user.id,
-              p_days_before: data.reminders.map(r => r.days_before),
-              p_times: data.reminders.map(r => `${normalizeTime(r.time)}:00`),
-              p_channels: data.reminder_channels || ['whatsapp']
+              p_reminders: reminderPayload,
             }
           );
 
@@ -257,19 +349,20 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
             console.error('Erro ao agendar lembretes:', reminderError);
             toast.error('Conta salva, mas erro ao agendar lembretes: ' + reminderError.message);
           } else {
-            const totalReminders = reminderCount || 0;
+            const totalReminders = reminderPayload.length;
             toast.success(
               `Conta salva com sucesso! ${totalReminders} lembrete${totalReminders !== 1 ? 's' : ''} agendado${totalReminders !== 1 ? 's' : ''}.`,
               {
                 description: `Via ${data.reminder_channels?.join(', ') || 'WhatsApp'}`
               }
             );
+            reminderToastShown = true;
           }
-        } else {
-          // Nova conta - precisamos do ID retornado
-          // Nota: Isso requer que onSubmit retorne o ID criado
-          toast.success('Conta criada! Para agendar lembretes, edite a conta novamente.');
         }
+      }
+
+      if (!reminderToastShown) {
+        toast.success(isEditing ? 'Conta atualizada com sucesso!' : 'Conta criada com sucesso!');
       }
 
       onOpenChange(false);
@@ -281,7 +374,7 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh]">
+      <DialogContent className="max-w-2xl h-[90vh] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {isEditing ? 'Editar Conta' : 'Nova Conta a Pagar'}
@@ -289,9 +382,9 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit, handleInvalidSubmit)} className="space-y-6">
-            <div className="max-h-[calc(90vh-140px)] overflow-y-auto px-1">
-            <Tabs defaultValue="basic" className="w-full">
+          <form onSubmit={form.handleSubmit(handleSubmit, handleInvalidSubmit)} className="flex min-h-0 flex-1 flex-col gap-6">
+            <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-4">
                 <TabsTrigger value="basic">Básico</TabsTrigger>
                 <TabsTrigger value="payment">Pagamento</TabsTrigger>
@@ -341,7 +434,11 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                       <FormItem>
                         <FormLabel>Vencimento*</FormLabel>
                         <FormControl>
-                          <DatePicker value={field.value} onChange={field.onChange} />
+                          <DatePicker
+                            value={field.value}
+                            onChange={field.onChange}
+                            disableFuture={false}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -352,27 +449,18 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                 <div className="grid grid-cols-2 gap-4">
                   <FormField
                     control={form.control}
-                    name="bill_type"
+                    name="category_id"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>Categoria*</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Selecione" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {CATEGORY_OPTIONS.map((option) => (
-                              <SelectItem key={option.value} value={option.value}>
-                                <span className="inline-flex items-center gap-2">
-                                  {option.icon}
-                                  {option.label}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <FormControl>
+                          <CategorySelect
+                            type="expense"
+                            value={field.value}
+                            onChange={(value) => field.onChange(typeof value === 'string' ? value : '')}
+                            placeholder="Selecione uma categoria"
+                          />
+                        </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -467,13 +555,16 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {Object.entries(PAYMENT_METHOD_LABELS).map(([key, label]) => (
+                            {PAYABLE_BILL_PAYMENT_METHOD_OPTIONS.map(([key, label]) => (
                               <SelectItem key={key} value={key}>
                                 {label}
                               </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
+                        <FormDescription>
+                          Compras no cartão devem ser registradas no módulo `Cartões - Nova Compra`.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -566,6 +657,9 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                                 <SelectItem value="yearly">Anual</SelectItem>
                               </SelectContent>
                             </Select>
+                            <FormDescription>
+                              O dia da recorrência segue o vencimento escolhido na aba Básico.
+                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -576,7 +670,7 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                         name="recurrence_day"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Dia do Mês</FormLabel>
+                            <FormLabel>Dia do Vencimento</FormLabel>
                             <FormControl>
                               <Input
                                 type="number"
@@ -585,8 +679,12 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                                 placeholder="1-31"
                                 {...field}
                                 onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                disabled
                               />
                             </FormControl>
+                            <FormDescription>
+                              Ajuste a data de vencimento para mudar este dia.
+                            </FormDescription>
                             <FormMessage />
                           </FormItem>
                         )}
@@ -653,7 +751,7 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                             />
                           </FormControl>
                           <FormDescription>
-                            Cada parcela terá o valor informado acima
+                            Use para financiamentos, carnês e outras obrigações parceladas. O valor acima representa o valor de cada parcela.
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -774,12 +872,47 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
 
                                     <div className="flex items-center gap-2">
                                       <span className="text-sm text-muted-foreground">às</span>
-                                      <Input
-                                        type="time"
-                                        value={reminder.time}
-                                        onChange={(e) => updateReminder(index, 'time', e.target.value)}
-                                        className="w-28"
-                                      />
+                                      <div className="flex items-center gap-2">
+                                        <Select
+                                          value={reminder.time.split(':')[0] || '09'}
+                                          onValueChange={(hour) => {
+                                            const minute = reminder.time.split(':')[1] || '00';
+                                            updateReminder(index, 'time', `${hour}:${minute}`);
+                                          }}
+                                        >
+                                          <SelectTrigger className="w-20">
+                                            <SelectValue placeholder="Hora" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {REMINDER_HOUR_OPTIONS.map((hour) => (
+                                              <SelectItem key={hour} value={hour}>
+                                                {hour}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+
+                                        <span className="text-sm text-muted-foreground">:</span>
+
+                                        <Select
+                                          value={reminder.time.split(':')[1] || '00'}
+                                          onValueChange={(minute) => {
+                                            const hour = reminder.time.split(':')[0] || '09';
+                                            updateReminder(index, 'time', `${hour}:${minute}`);
+                                          }}
+                                        >
+                                          <SelectTrigger className="w-20">
+                                            <SelectValue placeholder="Min" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            {REMINDER_MINUTE_OPTIONS.map((minute) => (
+                                              <SelectItem key={minute} value={minute}>
+                                                {minute}
+                                              </SelectItem>
+                                            ))}
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
                                     </div>
 
                                     <Button

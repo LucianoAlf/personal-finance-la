@@ -1,5 +1,12 @@
 import { create } from 'zustand';
 
+export type QuickCreateAction =
+  | 'expense'
+  | 'income'
+  | 'transfer'
+  | 'card-expense'
+  | 'payable-bill';
+
 interface UIState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
@@ -8,6 +15,9 @@ interface UIState {
   setTheme: (theme: 'light' | 'dark') => void;
   anaCoachOpen: boolean;
   setAnaCoachOpen: (open: boolean) => void;
+  activeQuickCreate: QuickCreateAction | null;
+  openQuickCreate: (action: QuickCreateAction) => void;
+  closeQuickCreate: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -18,4 +28,7 @@ export const useUIStore = create<UIState>((set) => ({
   setTheme: (theme) => set({ theme }),
   anaCoachOpen: false,
   setAnaCoachOpen: (open) => set({ anaCoachOpen: open }),
+  activeQuickCreate: null,
+  openQuickCreate: (action) => set({ activeQuickCreate: action }),
+  closeQuickCreate: () => set({ activeQuickCreate: null }),
 }));

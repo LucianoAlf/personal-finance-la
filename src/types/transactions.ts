@@ -20,6 +20,7 @@ export interface Transaction {
   updated_at: string;
   // Campos de parcelamento (transações de cartão)
   is_installment?: boolean;
+  is_parent_installment?: boolean;
   installment_number?: number;
   total_installments?: number;
   installment_group_id?: string;

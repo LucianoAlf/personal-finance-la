@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useSpendingPatterns } from '@/hooks/useSpendingPatterns';
 import { formatCurrency } from '@/utils/formatters';
+import { AnalyticsScope } from '@/hooks/analyticsScope';
 
 interface SpendingPatternsCardProps {
-  cardId?: string;
+  scope?: AnalyticsScope;
 }
 
-export function SpendingPatternsCard({ cardId }: SpendingPatternsCardProps) {
-  const { patterns, insight, loading, transactionCount } = useSpendingPatterns(cardId);
+export function SpendingPatternsCard({ scope }: SpendingPatternsCardProps) {
+  const { patterns, insight, loading, transactionCount } = useSpendingPatterns(scope);
 
   if (loading) {
     return (

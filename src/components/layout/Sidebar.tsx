@@ -13,9 +13,9 @@ import {
   List,
   CreditCard,
   Receipt,
-  Calendar,
   Target,
   TrendingUp,
+  TrendingDown,
   BarChart3,
   GraduationCap,
   Settings,
@@ -28,8 +28,25 @@ import {
   Tag,
   FolderTree,
   ChevronDown,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+const quickCreateItems = [
+  { icon: TrendingDown, label: 'Despesa', action: 'expense' as const },
+  { icon: TrendingUp, label: 'Receita', action: 'income' as const },
+  { icon: CreditCard, label: 'Despesa cartao', action: 'card-expense' as const },
+  { icon: ArrowRightLeft, label: 'Transferencia', action: 'transfer' as const },
+  { icon: Receipt, label: 'Conta a pagar', action: 'payable-bill' as const },
+];
 
 const menuItems = [
   { icon: Home, label: 'Dashboard', path: '/' },
@@ -51,7 +68,7 @@ const moreOptionsItems = [
 
 export function Sidebar() {
   const location = useLocation();
-  const { sidebarOpen, toggleSidebar, setAnaCoachOpen } = useUIStore();
+  const { sidebarOpen, toggleSidebar, setSidebarOpen, setAnaCoachOpen, openQuickCreate } = useUIStore();
   const { profile, user } = useAuth();
   const { userSettings } = useSettings();
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
@@ -67,6 +84,14 @@ export function Sidebar() {
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const handleQuickCreate = (action: (typeof quickCreateItems)[number]['action']) => {
+    openQuickCreate(action);
+
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
   };
 
   return (
@@ -102,10 +127,32 @@ export function Sidebar() {
 
         {/* New Button */}
         <div className="p-4">
-          <Button className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-md">
-            <Plus size={20} className="mr-2" />
-            Novo
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-md">
+                <Plus size={20} className="mr-2" />
+                Novo
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="bottom" className="w-60">
+              <DropdownMenuLabel>Acoes rapidas</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {quickCreateItems.map((item) => {
+                const Icon = item.icon;
+
+                return (
+                  <DropdownMenuItem
+                    key={item.action}
+                    onSelect={() => handleQuickCreate(item.action)}
+                    className="gap-3 py-2.5"
+                  >
+                    <Icon size={16} />
+                    <span>{item.label}</span>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         {/* Navigation */}

@@ -19,9 +19,9 @@ interface PeriodFilterProps {
 
 // Mapeamento para exibir o label selecionado
 const OPTION_LABELS: Record<PeriodOption, { label: string; icon: React.ReactNode }> = {
-  all: { label: 'Todas as contas', icon: <CalendarDays className="h-4 w-4" /> },
+  all: { label: 'Todos os meses', icon: <CalendarDays className="h-4 w-4" /> },
   next_7_days: { label: 'Próximos 7 dias', icon: <Clock className="h-4 w-4 text-blue-500" /> },
-  this_month: { label: 'Este mês', icon: <Calendar className="h-4 w-4 text-green-500" /> },
+  this_month: { label: 'Mês selecionado', icon: <Calendar className="h-4 w-4 text-green-500" /> },
   recurring: { label: 'Recorrentes', icon: <Repeat className="h-4 w-4 text-purple-500" /> },
   installments: { label: 'Parceladas', icon: <Hash className="h-4 w-4 text-orange-500" /> },
   one_time: { label: 'Avulsas', icon: <Pin className="h-4 w-4 text-slate-500" /> },
@@ -45,7 +45,7 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
         <SelectItem value="all">
           <div className="flex items-center gap-2">
             <CalendarDays className="h-4 w-4" />
-            <span>Todas as contas</span>
+            <span>Todos os meses</span>
           </div>
         </SelectItem>
         
@@ -65,7 +65,7 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
           <SelectItem value="this_month">
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-green-500" />
-              <span>Este mês</span>
+              <span>Mês selecionado</span>
             </div>
           </SelectItem>
         </SelectGroup>

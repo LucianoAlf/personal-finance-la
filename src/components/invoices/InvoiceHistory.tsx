@@ -29,18 +29,38 @@ interface InvoiceHistoryProps {
   onDeleteInvoice?: (invoiceId: string) => void;
 }
 
-export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistoryProps = {}) {
-  const { user } = useAuth();
-  const [filters, setFilters] = useState<Filters>({
+const DEFAULT_MAX_VALUE = 10000;
+
+function getDefaultFilters(): Filters {
+  return {
     dateRange: {
       start: startOfMonth(subMonths(new Date(), 6)),
       end: endOfMonth(new Date()),
     },
     cardIds: [],
-    valueRange: { min: 0, max: 10000 },
+    valueRange: { min: 0, max: DEFAULT_MAX_VALUE },
     searchQuery: '',
     status: [],
-  });
+  };
+}
+
+function hasFiltersApplied(filters: Filters): boolean {
+  const defaults = getDefaultFilters();
+
+  return (
+    format(filters.dateRange.start, 'yyyy-MM-dd') !== format(defaults.dateRange.start, 'yyyy-MM-dd') ||
+    format(filters.dateRange.end, 'yyyy-MM-dd') !== format(defaults.dateRange.end, 'yyyy-MM-dd') ||
+    filters.cardIds.length > 0 ||
+    filters.valueRange.min !== defaults.valueRange.min ||
+    filters.valueRange.max !== defaults.valueRange.max ||
+    filters.searchQuery.trim() !== '' ||
+    filters.status.length > 0
+  );
+}
+
+export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistoryProps = {}) {
+  const { user } = useAuth();
+  const [filters, setFilters] = useState<Filters>(() => getDefaultFilters());
 
   const [pagination, setPagination] = useState<Pagination>({
     page: 1,
@@ -178,6 +198,11 @@ export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistor
     setPagination(prev => ({ ...prev, page: 1 })); // Reset para página 1
   };
 
+  const handleResetFilters = () => {
+    setFilters(getDefaultFilters());
+    setPagination(prev => ({ ...prev, page: 1 }));
+  };
+
   const handlePageChange = (page: number) => {
     setPagination(prev => ({ ...prev, page }));
   };
@@ -208,6 +233,8 @@ export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistor
         filters={filters}
         cards={cards}
         onFiltersChange={handleFiltersChange}
+        onResetFilters={handleResetFilters}
+        hasActiveFilters={hasFiltersApplied(filters)}
         invoices={invoices}
       />
 

@@ -119,8 +119,8 @@ export const BANKS: Record<BankCode, BankInfo> = {
     name: 'Mercado Pago',
     shortName: 'MP',
     color: '#00B1EA',
-    hasLogo: false,
-    logoFile: 'mercadopago.svg',
+    hasLogo: true,
+    logoFile: 'mercado-pago-oficial.svg',
   },
   other: {
     code: 'other',
@@ -183,8 +183,24 @@ const BANK_LOGO_SIZES: Record<BankCode, { card: string; details: string }> = {
   'btg': { card: 'h-10', details: 'h-12' },
   'xp': { card: 'h-10', details: 'h-12' },
   'picpay': { card: 'h-10', details: 'h-12' },
-  'mercadopago': { card: 'h-10', details: 'h-12' },
+  'mercadopago': { card: 'h-20', details: 'h-24' },
   'other': { card: 'h-10', details: 'h-12' },
+};
+
+const BANK_LOGO_POSITION_CLASSES: Record<BankCode, { card: string; details: string }> = {
+  'nubank': { card: '', details: '' },
+  'itau': { card: '', details: '' },
+  'santander': { card: '', details: '' },
+  'c6': { card: '', details: '' },
+  'bradesco': { card: '', details: '' },
+  'bb': { card: '', details: '' },
+  'caixa': { card: '', details: '' },
+  'inter': { card: '', details: '' },
+  'btg': { card: '', details: '' },
+  'xp': { card: '', details: '' },
+  'picpay': { card: '', details: '' },
+  'mercadopago': { card: '-ml-3 -mt-3 h-24', details: '-ml-3 -mt-3 h-28' },
+  'other': { card: '', details: '' },
 };
 
 // Detecta o banco pelo nome do cartão
@@ -212,7 +228,11 @@ export function getBankLogoPath(cardName: string): string | null {
   
   const bank = BANKS[bankCode];
   if (!bank.hasLogo || !bank.logoFile) return null;
-  
+
+  if (bankCode === 'mercadopago') {
+    return `/logos/${bank.logoFile}`;
+  }
+
   return `/logos/banks/${bank.logoFile}`;
 }
 
@@ -226,4 +246,18 @@ export function getBankLogoSizeForCard(cardName: string): string {
 export function getBankLogoSizeForDetails(cardName: string): string {
   const bankCode = detectBankFromCardName(cardName);
   return bankCode ? BANK_LOGO_SIZES[bankCode].details : 'h-12';
+}
+
+export function getBankLogoClassForCard(cardName: string): string {
+  const bankCode = detectBankFromCardName(cardName);
+  const size = bankCode ? BANK_LOGO_SIZES[bankCode].card : 'h-10';
+  const position = bankCode ? BANK_LOGO_POSITION_CLASSES[bankCode].card : '';
+  return `${size} w-auto ${position}`.trim();
+}
+
+export function getBankLogoClassForDetails(cardName: string): string {
+  const bankCode = detectBankFromCardName(cardName);
+  const size = bankCode ? BANK_LOGO_SIZES[bankCode].details : 'h-12';
+  const position = bankCode ? BANK_LOGO_POSITION_CLASSES[bankCode].details : '';
+  return `${size} w-auto ${position}`.trim();
 }

@@ -13,13 +13,38 @@ type Props = {
   onChange?: (value: string) => void;
   disabled?: boolean;
   className?: string;
+  disableFuture?: boolean;
+  disablePast?: boolean;
+  minDate?: Date;
+  maxDate?: Date;
 };
 
-export function DatePicker({ value, onChange, disabled, className }: Props) {
+export function DatePicker({
+  value,
+  onChange,
+  disabled,
+  className,
+  disableFuture = true,
+  disablePast = false,
+  minDate,
+  maxDate,
+}: Props) {
   const [open, setOpen] = React.useState(false);
   const selectedDate = value ? new Date(value + 'T00:00:00') : undefined;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+
+  const isDateDisabled = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+
+    if (disableFuture && d > today) return true;
+    if (disablePast && d < today) return true;
+    if (minDate && d < minDate) return true;
+    if (maxDate && d > maxDate) return true;
+
+    return false;
+  };
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -40,18 +65,14 @@ export function DatePicker({ value, onChange, disabled, className }: Props) {
           onSelect={(date) => {
             if (!date) return;
             date.setHours(0, 0, 0, 0);
-            if (date > today) return;
+            if (isDateDisabled(date)) return;
             const y = date.getFullYear();
             const m = String(date.getMonth() + 1).padStart(2, '0');
             const d = String(date.getDate()).padStart(2, '0');
             onChange?.(`${y}-${m}-${d}`);
             setOpen(false);
           }}
-          disabled={(date) => {
-            const d = new Date(date);
-            d.setHours(0, 0, 0, 0);
-            return d > today;
-          }}
+          disabled={isDateDisabled}
           initialFocus
         />
       </PopoverContent>

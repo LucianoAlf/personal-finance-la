@@ -18,6 +18,18 @@ export function usePayableBills(initialFilters?: BillFilters) {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<BillFilters>(initialFilters || {});
 
+  const syncRecurringBillsHorizon = useCallback(async () => {
+    if (!user?.id) return;
+
+    const { error } = await supabase.rpc('generate_recurring_bills', {
+      p_horizon_days: 120,
+    });
+
+    if (error) {
+      throw error;
+    }
+  }, [user?.id]);
+
   // ============================================
   // FETCH: Buscar contas
   // ============================================
@@ -164,7 +176,8 @@ export function usePayableBills(initialFilters?: BillFilters) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id]); // Removido fetchBills das dependências para evitar re-criação do canal
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]); // Mantém o canal estável por usuário sem recriar a subscription a cada refetch
 
   // ============================================
   // CREATE: Criar conta
@@ -186,6 +199,10 @@ export function usePayableBills(initialFilters?: BillFilters) {
         .single();
 
       if (error) throw error;
+
+      if (input.is_recurring) {
+        await syncRecurringBillsHorizon();
+      }
 
       toast.success('Conta criada com sucesso!');
       await fetchBills();
@@ -267,7 +284,7 @@ export function usePayableBills(initialFilters?: BillFilters) {
       // 1. Buscar conta atual para verificar status e valores
       const { data: currentBill, error: fetchError } = await supabase
         .from('payable_bills')
-        .select('status, amount, paid_amount, paid_at, is_recurring, recurrence_config')
+        .select('status, amount, paid_amount, paid_at, is_recurring, recurrence_config, due_date, parent_bill_id')
         .eq('id', id)
         .single();
 
@@ -313,6 +330,31 @@ export function usePayableBills(initialFilters?: BillFilters) {
         .single();
 
       if (error) throw error;
+
+      const willRemainRecurringTemplate =
+        !currentBill.parent_bill_id &&
+        (cleanInput.is_recurring === true || (cleanInput.is_recurring === undefined && currentBill.is_recurring));
+
+      if (willRemainRecurringTemplate) {
+        const effectiveDueDate = String(cleanInput.due_date ?? currentBill.due_date);
+
+        await supabase
+          .from('payable_bills')
+          .delete()
+          .eq('parent_bill_id', id)
+          .in('status', ['pending', 'scheduled'])
+          .gt('due_date', effectiveDueDate);
+
+        await supabase
+          .from('payable_bills')
+          .update({
+            next_occurrence_date: effectiveDueDate,
+          })
+          .eq('id', id)
+          .eq('user_id', user.id);
+
+        await syncRecurringBillsHorizon();
+      }
 
       toast.success('Conta atualizada com sucesso!');
       await fetchBills();

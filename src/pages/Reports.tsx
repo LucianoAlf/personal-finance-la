@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Download, BarChart3 } from 'lucide-react';
 
 export function Reports() {
+  const hasData = false;
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
@@ -19,36 +21,46 @@ export function Reports() {
       />
 
       <div className="p-6 space-y-6">
+        {!hasData && (
+          <Card className="border-dashed">
+            <CardContent className="p-6">
+              <p className="text-sm text-gray-600">
+                Dados insuficientes para gerar relatorio. Comece registrando suas transacoes.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="border-l-4 border-blue-500">
             <CardContent className="p-6">
               <h3 className="font-semibold text-gray-900 mb-2">Score Financeiro</h3>
-              <h2 className="text-4xl font-bold text-blue-600">78</h2>
-              <p className="text-sm text-gray-600 mt-1">Muito bom!</p>
+              <h2 className="text-4xl font-bold text-blue-600">0</h2>
+              <p className="text-sm text-gray-600 mt-1">Dados insuficientes</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-6">
               <h3 className="text-sm text-gray-600 mb-1">Taxa de Economia</h3>
-              <h2 className="text-2xl font-bold text-green-600">18.5%</h2>
-              <p className="text-sm text-gray-600 mt-1">Meta: 20%</p>
+              <h2 className="text-2xl font-bold text-green-600">0%</h2>
+              <p className="text-sm text-gray-600 mt-1">Sem dados para calcular</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-6">
               <h3 className="text-sm text-gray-600 mb-1">Patrimônio Líquido</h3>
-              <h2 className="text-2xl font-bold text-gray-900">R$ 32.890,50</h2>
-              <p className="text-sm text-green-600 mt-1">+8.2% este mês</p>
+              <h2 className="text-2xl font-bold text-gray-900">R$ 0,00</h2>
+              <p className="text-sm text-gray-600 mt-1">Sem movimentacoes registradas</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-6">
               <h3 className="text-sm text-gray-600 mb-1">Metas Alcançadas</h3>
-              <h2 className="text-2xl font-bold text-purple-600">5</h2>
-              <p className="text-sm text-gray-600 mt-1">3 em andamento</p>
+              <h2 className="text-2xl font-bold text-purple-600">0</h2>
+              <p className="text-sm text-gray-600 mt-1">0 metas em andamento</p>
             </CardContent>
           </Card>
         </div>

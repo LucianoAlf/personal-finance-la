@@ -212,6 +212,7 @@ serve(async (req)=>{
           dueDate: i.due_date
         }))
     };
+    const hasSufficientData = totalBills > 0 || (investments?.length || 0) > 0 || (transactions?.length || 0) > 0 || goalsActive.length > 0 || (creditCards?.length || 0) > 0 || (invoices?.length || 0) > 0;
     // CONSTRUIR CONTEXTO COMPLETO
     const context = {
       bills: billsContext,
@@ -229,6 +230,41 @@ serve(async (req)=>{
       })
     };
     console.log('[ana-dashboard] Contexto consolidado:', JSON.stringify(context, null, 2).substring(0, 500));
+    if (!hasSufficientData) {
+      const payload = {
+        primary: {
+          priority: 'info',
+          type: 'savings_tip',
+          headline: 'Dados insuficientes para gerar insights',
+          description: 'Comece registrando transações, contas, metas ou investimentos para a Ana Clara analisar sua vida financeira.',
+          action: {
+            label: 'Ver transações',
+            route: '/transacoes'
+          }
+        },
+        secondary: [],
+        healthScore: 0,
+        motivationalQuote: 'Cada novo registro deixa sua analise financeira mais inteligente.',
+        meta: {
+          hasSufficientData: false,
+          counts: {
+            bills: totalBills,
+            investments: investments?.length || 0,
+            transactions: transactions?.length || 0,
+            goals: goalsActive.length,
+            creditCards: creditCards?.length || 0,
+            invoices: invoices?.length || 0
+          }
+        }
+      };
+      return new Response(JSON.stringify(payload), {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+          'X-Cache-Hit': 'false'
+        }
+      });
+    }
     // CHAMAR GPT-4
     const systemPrompt = `Você é Ana Clara, uma coach financeira IA empática e motivadora, especializada em finanças pessoais brasileiras.
 
@@ -408,7 +444,7 @@ IMPORTANTE:
       console.warn('[ana-dashboard] Falha ao gerar visualization de fallback:', e);
     }
     // Validar estrutura
-    if (!insights.primary || !insights.healthScore || !Array.isArray(insights.secondary)) {
+    if (!insights.primary || typeof insights.healthScore !== 'number' || !Array.isArray(insights.secondary)) {
       console.error('[ana-dashboard] Estrutura inválida:', insights);
       throw new Error('Estrutura de resposta inválida');
     }
@@ -448,6 +484,7 @@ IMPORTANTE:
       dailyOverdue[dayIdx]++;
     });
     const meta = {
+      hasSufficientData: true,
       bills: {
         onTimeRate: billsContext.onTimeRate,
         overdueCount: overdueBills.length

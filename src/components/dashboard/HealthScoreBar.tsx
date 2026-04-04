@@ -27,6 +27,7 @@ interface HealthScoreBarProps {
   label?: string;
   showBreakdown?: boolean;
   defaultExpanded?: boolean;
+  hasSufficientData?: boolean;
 }
 
 export function HealthScoreBar({ 
@@ -35,11 +36,13 @@ export function HealthScoreBar({
   label = 'Saúde Financeira',
   showBreakdown = true,
   defaultExpanded = false,
+  hasSufficientData = true,
 }: HealthScoreBarProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   // Determinar cor e gradiente baseado no score
   const getScoreColor = (value: number): string => {
+    if (!hasSufficientData) return 'text-gray-500';
     if (value >= 80) return 'text-green-600';
     if (value >= 60) return 'text-blue-600';
     if (value >= 40) return 'text-amber-600';
@@ -47,6 +50,7 @@ export function HealthScoreBar({
   };
 
   const getScoreGradient = (value: number): string => {
+    if (!hasSufficientData) return 'from-gray-300 to-gray-400';
     if (value >= 80) return 'from-green-500 to-green-600';
     if (value >= 60) return 'from-blue-500 to-blue-600';
     if (value >= 40) return 'from-amber-500 to-amber-600';
@@ -54,6 +58,7 @@ export function HealthScoreBar({
   };
 
   const getScoreLabel = (value: number): string => {
+    if (!hasSufficientData) return 'Dados insuficientes';
     if (value >= 80) return 'Excelente';
     if (value >= 60) return 'Bom';
     if (value >= 40) return 'Regular';
@@ -61,6 +66,7 @@ export function HealthScoreBar({
   };
 
   const getBgColor = (value: number): string => {
+    if (!hasSufficientData) return 'bg-gray-50';
     if (value >= 80) return 'bg-green-50';
     if (value >= 60) return 'bg-blue-50';
     if (value >= 40) return 'bg-amber-50';

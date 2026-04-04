@@ -1,6 +1,6 @@
 import { Bell, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAnalytics } from '@/hooks/useAnalytics';
+import { AnalyticsData } from '@/hooks/useAnalytics';
 import { useInsights, Insight } from '@/hooks/useInsights';
 import { useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -76,8 +76,12 @@ function InsightCard({ insight, onDismiss }: { insight: Insight; onDismiss: () =
   );
 }
 
-export function InsightsPanel() {
-  const { data: analyticsData, loading } = useAnalytics();
+interface InsightsPanelProps {
+  analyticsData: AnalyticsData | null;
+  loading: boolean;
+}
+
+export function InsightsPanel({ analyticsData, loading }: InsightsPanelProps) {
   const allInsights = useInsights(analyticsData);
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 

@@ -3,9 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/utils/formatters';
 import { useCardComparison } from '@/hooks/useCardComparison';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AnalyticsScope } from '@/hooks/analyticsScope';
 
-export function CardComparisonCard() {
-  const { cards, loading, recommendation } = useCardComparison();
+interface CardComparisonCardProps {
+  scope?: AnalyticsScope;
+}
+
+export function CardComparisonCard({ scope }: CardComparisonCardProps) {
+  const { cards, loading, recommendation } = useCardComparison(scope);
 
   if (loading) {
     return (

@@ -137,7 +137,6 @@ export function Dashboard() {
             icon={Wallet}
             gradient="blue"
             loading={accountsLoading && accounts.length === 0}
-            trend={{ value: '+12.5%', direction: 'up' }}
             onClick={() => navigate('/contas')}
           />
           <StatCard

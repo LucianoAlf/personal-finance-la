@@ -1,5 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { useAnalytics } from '@/hooks/useAnalytics';
+import { AnalyticsData } from '@/hooks/useAnalytics';
 import { useChartData } from '@/hooks/useChartData';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/utils/formatters';
@@ -7,8 +7,12 @@ import { BarChart3 } from 'lucide-react';
 
 const CARD_COLORS = ['#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6'];
 
-export function MonthlyComparison() {
-  const { data: analyticsData, loading } = useAnalytics();
+interface MonthlyComparisonProps {
+  analyticsData: AnalyticsData | null;
+  loading: boolean;
+}
+
+export function MonthlyComparison({ analyticsData, loading }: MonthlyComparisonProps) {
   const { comparisonData } = useChartData(analyticsData);
 
   if (loading) {

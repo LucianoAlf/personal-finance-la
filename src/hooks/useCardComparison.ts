@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
+import { AnalyticsScope } from './analyticsScope';
 
 interface CardMetrics {
   cardId: string;
@@ -16,7 +17,7 @@ interface CardMetrics {
   efficiencyScore: number;
 }
 
-export function useCardComparison(month?: Date) {
+export function useCardComparison(scope?: AnalyticsScope) {
   const { user } = useAuth();
   const [cards, setCards] = useState<CardMetrics[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,25 +26,42 @@ export function useCardComparison(month?: Date) {
   useEffect(() => {
     if (!user) return;
     fetchCardComparison();
-  }, [user, month]);
+  }, [user, scope?.cardId, scope?.startDate?.getTime(), scope?.endDate?.getTime()]);
 
   const fetchCardComparison = async () => {
     try {
       setLoading(true);
+      const hasExplicitAll = scope !== undefined && scope?.startDate === null;
 
-      const { data: cardsData, error } = await supabase
+      let cardsQuery = supabase
         .from('credit_cards')
         .select('*')
         .eq('user_id', user.id);
+
+      if (scope?.cardId) {
+        cardsQuery = cardsQuery.eq('id', scope.cardId);
+      }
+
+      const { data: cardsData, error } = await cardsQuery;
 
       if (error) throw error;
 
       const metricsPromises = cardsData?.map(async (card) => {
         // Buscar transações do cartão
-        const { data: transactions } = await supabase
+        let transactionsQuery = supabase
           .from('credit_card_transactions')
           .select('amount, category_id, categories(name, color)')
-          .eq('card_id', card.id);
+          .eq('credit_card_id', card.id);
+
+        if (!hasExplicitAll && scope?.startDate) {
+          transactionsQuery = transactionsQuery.gte('purchase_date', scope.startDate.toISOString().split('T')[0]);
+        }
+
+        if (!hasExplicitAll && scope?.endDate) {
+          transactionsQuery = transactionsQuery.lte('purchase_date', scope.endDate.toISOString().split('T')[0]);
+        }
+
+        const { data: transactions } = await transactionsQuery;
 
         const totalSpent = transactions?.reduce((sum, tx) => sum + tx.amount, 0) || 0;
         const limitPercentage = card.credit_limit > 0 ? (totalSpent / card.credit_limit) * 100 : 0;

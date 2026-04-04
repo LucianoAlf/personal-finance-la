@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
+import { parseDateOnlyAsLocal } from '@/utils/dateOnly';
+import { AnalyticsScope } from './analyticsScope';
 
 interface SpendingPatterns {
   dayOfWeek: string;
@@ -42,7 +44,27 @@ function getTimeSlotLabel(slot: number): string {
   }
 }
 
-export function useSpendingPatterns(cardId?: string) {
+function getTransactionDateTime(tx: { purchase_date?: string; created_at?: string }): Date {
+  const localPurchaseDate = tx.purchase_date ? parseDateOnlyAsLocal(tx.purchase_date) : new Date();
+
+  if (!tx.created_at) {
+    return localPurchaseDate;
+  }
+
+  const createdAt = new Date(tx.created_at);
+
+  return new Date(
+    localPurchaseDate.getFullYear(),
+    localPurchaseDate.getMonth(),
+    localPurchaseDate.getDate(),
+    createdAt.getHours(),
+    createdAt.getMinutes(),
+    createdAt.getSeconds(),
+    createdAt.getMilliseconds()
+  );
+}
+
+export function useSpendingPatterns(scope?: AnalyticsScope) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,19 +78,28 @@ export function useSpendingPatterns(cardId?: string) {
         setLoading(true);
         setError(null);
 
-        // Buscar transações dos últimos 90 dias
-        const ninetyDaysAgo = new Date();
-        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const hasExplicitAll = scope !== undefined && scope?.startDate === null;
+        const rangeStart = scope?.startDate ? new Date(scope.startDate) : new Date();
+        if (!scope?.startDate && !hasExplicitAll) {
+          rangeStart.setDate(rangeStart.getDate() - 90);
+        }
+
+        const rangeEnd = scope?.endDate ? new Date(scope.endDate) : new Date();
 
         let query = supabase
           .from('credit_card_transactions')
-          .select('id, purchase_date, amount, is_installment, created_at')
+          .select('id, purchase_date, amount, is_installment, total_installments, installment_group_id, created_at')
           .eq('user_id', user.id)
-          .gte('purchase_date', ninetyDaysAgo.toISOString().split('T')[0])
           .order('purchase_date', { ascending: false });
 
-        if (cardId) {
-          query = query.eq('credit_card_id', cardId);
+        if (!hasExplicitAll) {
+          query = query
+            .gte('purchase_date', rangeStart.toISOString().split('T')[0])
+            .lte('purchase_date', rangeEnd.toISOString().split('T')[0]);
+        }
+
+        if (scope?.cardId) {
+          query = query.eq('credit_card_id', scope.cardId);
         }
 
         const { data, error: fetchError } = await query;
@@ -84,7 +115,7 @@ export function useSpendingPatterns(cardId?: string) {
     };
 
     fetchTransactions();
-  }, [user?.id, cardId]);
+  }, [user?.id, scope?.cardId, scope?.startDate?.getTime(), scope?.endDate?.getTime()]);
 
   // Calcular padrões de gasto
   const patterns = useMemo<SpendingPatterns>(() => {
@@ -106,7 +137,7 @@ export function useSpendingPatterns(cardId?: string) {
     let totalAmount = 0;
 
     transactions.forEach((tx) => {
-      const date = new Date(tx.purchase_date);
+      const date = getTransactionDateTime(tx);
       const day = date.getDay();
       const hour = date.getHours();
       const slot = getTimeSlot(hour);
@@ -114,7 +145,9 @@ export function useSpendingPatterns(cardId?: string) {
       dayCount[day] = (dayCount[day] || 0) + 1;
       timeSlotCount[slot] = (timeSlotCount[slot] || 0) + 1;
 
-      if (tx.is_installment) installmentCount++;
+      if (tx.is_installment || (tx.total_installments && tx.total_installments > 1) || tx.installment_group_id) {
+        installmentCount++;
+      }
       totalAmount += tx.amount;
     });
 
@@ -155,7 +188,7 @@ export function useSpendingPatterns(cardId?: string) {
     let maxValue = 0;
 
     transactions.forEach((tx) => {
-      const date = new Date(tx.purchase_date);
+      const date = getTransactionDateTime(tx);
       const day = date.getDay();
       const hour = date.getHours();
       const slot = getTimeSlot(hour);

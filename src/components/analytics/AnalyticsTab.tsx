@@ -1,16 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { PeriodMetrics } from './PeriodMetrics';
 import { InsightsPanel } from './InsightsPanel';
 import { ChartsSection } from './ChartsSection';
 import { AdvancedAnalytics } from './AdvancedAnalytics';
-import { AnalyticsFilters, PeriodOption } from './AnalyticsFilters';
+import { AnalyticsFilters, PeriodOption, getPeriodDates } from './AnalyticsFilters';
 import { useAnalytics } from '@/hooks/useAnalytics';
 
 export function AnalyticsTab() {
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodOption>('3m');
-  
-  const { data, loading, error } = useAnalytics();
+  const dateRange = useMemo(() => getPeriodDates(selectedPeriod), [selectedPeriod]);
+  const analyticsScope = useMemo(
+    () => ({
+      cardId: selectedCardId,
+      startDate: dateRange.start,
+      endDate: dateRange.end,
+    }),
+    [selectedCardId, dateRange]
+  );
+
+  const { data, loading, error } = useAnalytics(analyticsScope);
 
   useEffect(() => {
     console.log('🔍 AnalyticsTab - Debug:', { data, loading, error, selectedCardId, selectedPeriod });
@@ -48,16 +57,16 @@ export function AnalyticsTab() {
         />
 
         {/* Seção 1: Métricas do Período */}
-        <PeriodMetrics />
+        <PeriodMetrics analyticsData={data} loading={loading} selectedPeriod={selectedPeriod} />
 
         {/* Seção 2: Insights Inteligentes */}
-        <InsightsPanel />
+        <InsightsPanel analyticsData={data} loading={loading} />
 
         {/* Seção 3: Gráficos Interativos */}
-        <ChartsSection />
+        <ChartsSection analyticsData={data} loading={loading} />
 
         {/* Seção 4: Análises Avançadas */}
-        <AdvancedAnalytics />
+        <AdvancedAnalytics scope={analyticsScope} />
       </div>
     );
   } catch (err) {

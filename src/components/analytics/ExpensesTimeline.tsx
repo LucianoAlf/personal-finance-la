@@ -1,5 +1,5 @@
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { useAnalytics } from '@/hooks/useAnalytics';
+import { AnalyticsData } from '@/hooks/useAnalytics';
 import { useChartData } from '@/hooks/useChartData';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/utils/formatters';
@@ -7,8 +7,12 @@ import { TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
-export function ExpensesTimeline() {
-  const { data: analyticsData, loading } = useAnalytics();
+interface ExpensesTimelineProps {
+  analyticsData: AnalyticsData | null;
+  loading: boolean;
+}
+
+export function ExpensesTimeline({ analyticsData, loading }: ExpensesTimelineProps) {
   const { timelineData } = useChartData(analyticsData);
   const [viewMode, setViewMode] = useState<'daily' | 'accumulated'>('accumulated');
 

@@ -14,6 +14,27 @@ interface UseAnaDashboardInsightsReturn {
   meta?: any;
 }
 
+function buildEmptyInsights() {
+  return {
+    primary: {
+      priority: 'info' as const,
+      type: 'savings_tip' as const,
+      headline: 'Dados insuficientes para gerar insights',
+      description: 'Comece registrando transações, contas, metas ou investimentos para a Ana Clara analisar seu momento financeiro.',
+      action: {
+        label: 'Ver transações',
+        route: '/transacoes',
+      },
+    },
+    secondary: [],
+    healthScore: 0,
+    motivationalQuote: 'Cada registro de hoje ajuda a construir clareza para as próximas decisões.',
+    meta: {
+      hasSufficientData: false,
+    },
+  };
+}
+
 export function useAnaDashboardInsights(
   userId: string,
   autoRefresh: boolean = true
@@ -25,7 +46,7 @@ export function useAnaDashboardInsights(
   const [meta, setMeta] = useState<any>(null);
 
   // ✅ Cache local no navegador (para render instantânea)
-  const CACHE_KEY = 'ana_dashboard_insights_v1';
+  const CACHE_KEY = `ana_dashboard_insights_v2_${userId || 'anonymous'}`;
   const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
   const fetchInsights = useCallback(async (showSpinner: boolean = true) => {
@@ -46,7 +67,7 @@ export function useAnaDashboardInsights(
         headers: {
           Authorization: `Bearer ${session.session.access_token}`,
         },
-        body: { preferences: getPreferences() },
+        body: { preferences: getPreferences(), forceRefresh: true },
       });
 
       if (fnError) {
@@ -101,20 +122,11 @@ export function useAnaDashboardInsights(
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido';
       console.error('[useAnaDashboardInsights] Erro:', errorMessage);
       setError(errorMessage);
-      
-      // Fallback com dados mock em caso de erro
-      setInsights({
-        primary: {
-          priority: 'info',
-          type: 'savings_tip',
-          headline: 'Bem-vindo ao seu Dashboard Financeiro',
-          description: 'Estamos analisando seus dados para trazer insights personalizados. Volte em alguns instantes.',
-        },
-        secondary: [],
-        healthScore: 50,
-        motivationalQuote: 'O primeiro passo para o sucesso financeiro é começar.',
-      });
-      setHealthScore(50);
+
+      const emptyInsights = buildEmptyInsights();
+      setInsights(emptyInsights);
+      setHealthScore(emptyInsights.healthScore);
+      setMeta(emptyInsights.meta);
     } finally {
       if (showSpinner) {
         setIsLoading(false);
@@ -124,7 +136,16 @@ export function useAnaDashboardInsights(
 
   // Auto-refresh a cada 5 minutos
   useEffect(() => {
-    // ✅ Reidratar do cache local imediatamente
+    if (!userId) {
+      const emptyInsights = buildEmptyInsights();
+      setInsights(emptyInsights);
+      setHealthScore(emptyInsights.healthScore);
+      setMeta(emptyInsights.meta);
+      setIsLoading(false);
+      return;
+    }
+
+    // Reidratar cache apenas como fallback curto; a busca forcada prevalece
     try {
       const raw = localStorage.getItem(CACHE_KEY);
       if (raw) {
@@ -139,7 +160,7 @@ export function useAnaDashboardInsights(
       }
     } catch {}
 
-    // Buscar em background (sem spinner) para garantir atualização
+    // Buscar em background para garantir dados atuais apos limpezas/mudancas no banco
     fetchInsights(false);
 
     if (autoRefresh) {

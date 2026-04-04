@@ -6,6 +6,7 @@ import { useInvoices } from '@/hooks/useInvoices';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FileText, Clock, CheckCircle2, CreditCard, Package, AlertTriangle } from 'lucide-react';
+import { parseDateOnlyAsLocal } from '@/utils/dateOnly';
 
 interface InvoiceListProps {
   cardId?: string;
@@ -37,12 +38,18 @@ export function InvoiceList({ cardId, loading: externalLoading, highlightedInvoi
 
   // Selecionar faturas baseado na aba ativa
   const getDisplayInvoices = () => {
+    const sortByClosestDueDate = (a: typeof invoices[number], b: typeof invoices[number]) =>
+      parseDateOnlyAsLocal(a.due_date).getTime() - parseDateOnlyAsLocal(b.due_date).getTime();
+
+    const sortByMostRecentFirst = (a: typeof invoices[number], b: typeof invoices[number]) =>
+      parseDateOnlyAsLocal(b.reference_month).getTime() - parseDateOnlyAsLocal(a.reference_month).getTime();
+
     switch (activeTab) {
-      case 'open': return openInvoices;
-      case 'closed': return closedInvoices;
-      case 'overdue': return overdueInvoices;
-      case 'paid': return paidInvoices;
-      default: return openInvoices;
+      case 'open': return [...openInvoices].sort(sortByClosestDueDate);
+      case 'closed': return [...closedInvoices].sort(sortByClosestDueDate);
+      case 'overdue': return [...overdueInvoices].sort(sortByClosestDueDate);
+      case 'paid': return [...paidInvoices].sort(sortByMostRecentFirst);
+      default: return [...openInvoices].sort(sortByClosestDueDate);
     }
   };
   const displayInvoices = getDisplayInvoices();

@@ -1,12 +1,16 @@
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
-import { useAnalytics } from '@/hooks/useAnalytics';
+import { AnalyticsData } from '@/hooks/useAnalytics';
 import { useChartData } from '@/hooks/useChartData';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/utils/formatters';
 import { TrendingUp } from 'lucide-react';
 
-export function ExpensesPieChart() {
-  const { data: analyticsData, loading } = useAnalytics();
+interface ExpensesPieChartProps {
+  analyticsData: AnalyticsData | null;
+  loading: boolean;
+}
+
+export function ExpensesPieChart({ analyticsData, loading }: ExpensesPieChartProps) {
   const { pieData } = useChartData(analyticsData);
 
   if (loading) {

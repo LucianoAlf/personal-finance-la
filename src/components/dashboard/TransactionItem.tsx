@@ -4,6 +4,7 @@ import { cn } from '@/lib/cn';
 import { Badge } from '@/components/ui/badge';
 import { useCategories } from '@/hooks/useCategories';
 import * as LucideIcons from 'lucide-react';
+import { TYPE_COLORS } from '@/constants/categories';
 
 interface TransactionItemProps {
   type: 'income' | 'expense' | 'transfer';
@@ -28,11 +29,14 @@ export function TransactionItem({
 }: TransactionItemProps) {
   const { getCategoryById } = useCategories();
   const category = getCategoryById(category_id);
+  const typeColors = TYPE_COLORS[type];
   
-  // Renderizar ícone dinamicamente (igual à página Transacoes)
-  const IconComponent = category?.icon 
-    ? (LucideIcons as any)[category.icon] || LucideIcons.Wallet
-    : LucideIcons.Wallet;
+  const IconComponent =
+    type === 'transfer'
+      ? LucideIcons.ArrowLeftRight
+      : category?.icon
+        ? (LucideIcons as any)[category.icon] || LucideIcons.Wallet
+        : LucideIcons.Wallet;
 
   const transactionDate = useMemo(() => {
     if (date instanceof Date) {
@@ -49,7 +53,11 @@ export function TransactionItem({
     <div
       className={cn(
         'flex items-center justify-between p-4 rounded-lg border-l-4 hover:translate-x-1 transition-all duration-200 cursor-pointer bg-white dark:bg-gray-800 hover:shadow-md',
-        type === 'income' ? 'border-green-500' : 'border-red-500'
+        type === 'income'
+          ? 'border-green-500'
+          : type === 'transfer'
+            ? 'border-blue-500'
+            : 'border-red-500'
       )}
       onClick={onClick}
     >
@@ -57,14 +65,24 @@ export function TransactionItem({
         <div
           className={cn(
             'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
-            type === 'income' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
+            typeColors.bg,
+            type === 'income'
+              ? 'dark:bg-green-900/30'
+              : type === 'transfer'
+                ? 'dark:bg-blue-900/30'
+                : 'dark:bg-red-900/30'
           )}
         >
           {IconComponent ? (
             <IconComponent
               size={20}
               className={cn(
-                type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                typeColors.icon,
+                type === 'income'
+                  ? 'dark:text-green-400'
+                  : type === 'transfer'
+                    ? 'dark:text-blue-400'
+                    : 'dark:text-red-400'
               )}
             />
           ) : (
@@ -93,10 +111,14 @@ export function TransactionItem({
         <p
           className={cn(
             'font-bold text-lg',
-            type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+            type === 'income'
+              ? 'text-green-600 dark:text-green-400'
+              : type === 'transfer'
+                ? 'text-blue-600 dark:text-blue-400'
+                : 'text-red-600 dark:text-red-400'
           )}
         >
-          {type === 'income' ? '+' : '-'} {formatCurrency(amount)}
+          {type === 'income' ? '+' : type === 'transfer' ? '+' : '-'} {formatCurrency(amount)}
         </p>
         <p className="text-sm text-gray-500 dark:text-gray-400">{displayDate}</p>
       </div>

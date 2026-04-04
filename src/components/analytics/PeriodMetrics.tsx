@@ -1,7 +1,8 @@
 import { TrendingUp, TrendingDown, DollarSign, ShoppingBag, Heart } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
-import { useAnalytics } from '@/hooks/useAnalytics';
+import { AnalyticsData } from '@/hooks/useAnalytics';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PeriodOption } from './AnalyticsFilters';
 
 interface MetricCardProps {
   title: string;
@@ -38,15 +39,28 @@ function MetricCard({ title, value, change, icon: Icon, color }: MetricCardProps
   );
 }
 
-export function PeriodMetrics() {
-  const { data: analyticsData, loading } = useAnalytics();
+interface PeriodMetricsProps {
+  analyticsData: AnalyticsData | null;
+  loading: boolean;
+  selectedPeriod: PeriodOption;
+}
+
+const PERIOD_LABELS: Record<PeriodOption, string> = {
+  '1m': 'Último mês',
+  '3m': 'Últimos 3 meses',
+  '6m': 'Últimos 6 meses',
+  '12m': 'Último ano',
+  all: 'Todo o período',
+};
+
+export function PeriodMetrics({ analyticsData, loading, selectedPeriod }: PeriodMetricsProps) {
 
   if (loading) {
     return (
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold text-gray-900">Métricas do Período</h2>
-          <Skeleton className="h-10 w-40" />
+          <Skeleton className="h-6 w-32" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[1, 2, 3, 4].map(i => (
@@ -80,12 +94,7 @@ export function PeriodMetrics() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-900">Métricas do Período</h2>
-        <select className="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-          <option>Mês Atual</option>
-          <option>Últimos 3 meses</option>
-          <option>Últimos 6 meses</option>
-          <option>Ano Atual</option>
-        </select>
+        <span className="text-sm text-gray-500">{PERIOD_LABELS[selectedPeriod]}</span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

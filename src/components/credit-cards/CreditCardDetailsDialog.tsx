@@ -7,7 +7,7 @@ import { ptBR } from 'date-fns/locale';
 import { CreditCard as CreditCardIcon, Calendar, TrendingUp, Wallet, AlertCircle } from 'lucide-react';
 import { CARD_BRANDS } from '@/constants/creditCards';
 import { calculateUsagePercentage, getUsageColor } from '@/utils/creditCardUtils';
-import { getBankLogoPath, getBankLogoSizeForDetails } from '@/constants/banks';
+import { getBankLogoClassForDetails, getBankLogoPath } from '@/constants/banks';
 
 // Mapa de logos de bandeiras
 const BRAND_LOGOS: Record<string, string> = {
@@ -85,7 +85,7 @@ export function CreditCardDetailsDialog({ open, onOpenChange, card }: CreditCard
                 <img 
                   src={getBankLogoPath(card.name)!} 
                   alt="Logo do banco"
-                  className={`${getBankLogoSizeForDetails(card.name)} w-auto`}
+                  className={getBankLogoClassForDetails(card.name)}
                 />
               ) : (
                 <div className="h-12" />

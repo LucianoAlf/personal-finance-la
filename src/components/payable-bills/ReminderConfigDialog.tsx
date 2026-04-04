@@ -69,17 +69,24 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
     try {
       setLoading(true);
 
+      const reminderPayload = selectedDays.flatMap((daysBefore) =>
+        selectedChannels.map((channel) => ({
+          days_before: daysBefore,
+          time: '09:00:00',
+          channel,
+        }))
+      );
+
       // Chamar function SQL para agendar lembretes
       const { data, error } = await supabase.rpc('schedule_bill_reminders', {
         p_bill_id: bill.id,
         p_user_id: user.id,
-        p_days_before: selectedDays,
-        p_channels: selectedChannels
+        p_reminders: reminderPayload,
       });
 
       if (error) throw error;
 
-      const reminderCount = data || 0;
+      const reminderCount = reminderPayload.length;
       
       toast.success(`${reminderCount} lembrete${reminderCount !== 1 ? 's' : ''} agendado${reminderCount !== 1 ? 's' : ''} com sucesso!`, {
         description: `Você receberá notificações via ${selectedChannels.join(', ')}`,

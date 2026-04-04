@@ -218,8 +218,7 @@ export function useInvoices(cardId?: string) {
   // Calcular total de faturas do mês atual (consolidado)
   const getCurrentMonthInvoicesTotal = (): { total: number; count: number; monthName: string } => {
     const now = new Date();
-    const currentMonth = now.getMonth();
-    const currentYear = now.getFullYear();
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     
     // Nomes dos meses em português
     const monthNames = [
@@ -229,10 +228,12 @@ export function useInvoices(cardId?: string) {
     
     // Filtrar faturas do mês atual que não estão pagas
     const currentMonthInvoices = invoices.filter(inv => {
-      const invDate = new Date(inv.reference_month);
-      return invDate.getMonth() === currentMonth && 
-             invDate.getFullYear() === currentYear &&
-             inv.status !== 'paid';
+      const referenceMonth =
+        typeof inv.reference_month === 'string'
+          ? inv.reference_month.slice(0, 7)
+          : `${new Date(inv.reference_month).getFullYear()}-${String(new Date(inv.reference_month).getMonth() + 1).padStart(2, '0')}`;
+
+      return referenceMonth === currentMonthKey && inv.status !== 'paid';
     });
     
     const total = currentMonthInvoices.reduce((sum, inv) => sum + (inv.remaining_amount || inv.total_amount), 0);
@@ -240,7 +241,7 @@ export function useInvoices(cardId?: string) {
     return {
       total,
       count: currentMonthInvoices.length,
-      monthName: monthNames[currentMonth],
+      monthName: monthNames[now.getMonth()],
     };
   };
 

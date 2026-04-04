@@ -40,8 +40,10 @@ export const AccountCard: React.FC<AccountCardProps> = ({
 }) => {
   const accountType = ACCOUNT_TYPES[account.type];
   
-  // Detectar banco pelo nome da conta
-  const bankCode = detectBankFromName(account.name);
+  const shouldUseBankBranding = account.type === 'checking' || account.type === 'savings' || account.type === 'credit_card';
+
+  // Detectar banco pelo nome da conta apenas para tipos bancarios/cartao
+  const bankCode = shouldUseBankBranding ? detectBankFromName(account.name) : null;
   
   // Usar cor do banco se detectado, senão usar cor da conta
   const accountColor = bankCode 

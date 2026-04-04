@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -9,13 +9,9 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import {
-  EXPENSE_CATEGORIES,
-  INCOME_CATEGORIES,
-  getCategoryIcon,
-  type MasterCategory,
-  type CategoryType,
-} from '@/constants/master-categories';
+import { getCategoryIcon } from '@/constants/master-categories';
+import { useCategories } from '@/hooks/useCategories';
+import type { Category, CategoryType } from '@/types/categories';
 
 export interface CategorySelectProps {
   /** Tipo de categorias a exibir: 'expense', 'income' ou 'all' */
@@ -44,6 +40,8 @@ export function CategorySelect({
   className,
 }: CategorySelectProps) {
   const [open, setOpen] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+  const { categories } = useCategories();
 
   // Normaliza o valor para array
   const selectedIds = useMemo(() => {
@@ -54,13 +52,13 @@ export function CategorySelect({
   // Filtra categorias por tipo
   const expenseCategories = useMemo(() => {
     if (type === 'income') return [];
-    return EXPENSE_CATEGORIES;
-  }, [type]);
+    return categories.filter((category) => category.type === 'expense');
+  }, [categories, type]);
 
   const incomeCategories = useMemo(() => {
     if (type === 'expense') return [];
-    return INCOME_CATEGORIES;
-  }, [type]);
+    return categories.filter((category) => category.type === 'income');
+  }, [categories, type]);
 
   // Todas as categorias para busca
   const allCategories = useMemo(() => {
@@ -96,7 +94,7 @@ export function CategorySelect({
   };
 
   // Renderiza uma categoria
-  const renderCategory = (category: MasterCategory) => {
+  const renderCategory = (category: Category) => {
     const Icon = getCategoryIcon(category.icon);
     const isSelected = selectedIds.includes(category.id);
 
@@ -147,7 +145,7 @@ export function CategorySelect({
   const renderSection = (
     title: string,
     emoji: string,
-    categories: MasterCategory[],
+    categories: Category[],
     color: string
   ) => {
     if (categories.length === 0) return null;
@@ -194,7 +192,17 @@ export function CategorySelect({
       </PopoverTrigger>
 
       <PopoverContent className="w-[320px] p-0" align="start">
-        <div className="max-h-[350px] overflow-y-auto p-2">
+        <div
+          ref={scrollContainerRef}
+          className="max-h-[350px] overflow-y-auto overscroll-contain p-2"
+          onWheelCapture={(event) => {
+            const container = scrollContainerRef.current;
+            if (!container) return;
+
+            container.scrollTop += event.deltaY;
+            event.stopPropagation();
+          }}
+        >
           {/* Seção de Despesas */}
           {renderSection(
             'DESPESAS',

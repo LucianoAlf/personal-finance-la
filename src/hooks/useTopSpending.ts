@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
+import { AnalyticsScope } from './analyticsScope';
 
 interface TopCategory {
   categoryId: string;
@@ -29,7 +30,7 @@ interface TopSpendingData {
   totalSpent: number;
 }
 
-export function useTopSpending(month?: Date) {
+export function useTopSpending(scope?: AnalyticsScope) {
   const { user } = useAuth();
   const [data, setData] = useState<TopSpendingData>({
     topCategories: [],
@@ -43,25 +44,26 @@ export function useTopSpending(month?: Date) {
     if (!user) return;
 
     fetchTopSpending();
-  }, [user, month]);
+  }, [user, scope?.cardId, scope?.startDate?.getTime(), scope?.endDate?.getTime()]);
 
   const fetchTopSpending = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const targetMonth = month || new Date();
-      const startOfMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1);
-      const endOfMonth = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0, 23, 59, 59);
+      const hasExplicitAll = scope !== undefined && scope?.startDate === null;
+      const now = new Date();
+      const rangeStart = scope?.startDate ?? new Date(now.getFullYear(), now.getMonth(), 1);
+      const rangeEnd = scope?.endDate ?? new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
       // Buscar transações do mês com categorias
-      const { data: transactions, error: txError } = await supabase
+      let query = supabase
         .from('credit_card_transactions')
         .select(`
           id,
           description,
           amount,
-          created_at,
+          purchase_date,
           category_id,
           categories (
             id,
@@ -70,9 +72,21 @@ export function useTopSpending(month?: Date) {
             icon
           )
         `)
-        .eq('user_id', user.id)
-        .gte('created_at', startOfMonth.toISOString())
-        .lte('created_at', endOfMonth.toISOString());
+        .eq('user_id', user.id);
+
+      if (!hasExplicitAll && scope?.startDate) {
+        query = query.gte('purchase_date', rangeStart.toISOString().split('T')[0]);
+      }
+
+      if (!hasExplicitAll && scope?.endDate) {
+        query = query.lte('purchase_date', rangeEnd.toISOString().split('T')[0]);
+      }
+
+      if (scope?.cardId) {
+        query = query.eq('credit_card_id', scope.cardId);
+      }
+
+      const { data: transactions, error: txError } = await query;
 
       if (txError) throw txError;
 
@@ -142,15 +156,15 @@ export function useTopSpending(month?: Date) {
         if (existing) {
           existing.totalAmount += tx.amount;
           existing.transactionCount += 1;
-          if (new Date(tx.created_at) > new Date(existing.lastPurchaseDate)) {
-            existing.lastPurchaseDate = tx.created_at;
+          if (new Date(tx.purchase_date) > new Date(existing.lastPurchaseDate)) {
+            existing.lastPurchaseDate = tx.purchase_date;
           }
         } else {
           merchantMap.set(merchantName, {
             merchantName,
             totalAmount: tx.amount,
             transactionCount: 1,
-            lastPurchaseDate: tx.created_at,
+            lastPurchaseDate: tx.purchase_date,
             categoryName: category?.name || 'Outros',
             categoryColor: category?.color || '#6B7280',
           });

@@ -3,8 +3,14 @@ import { PieChart, TrendingUp, BarChart3 } from 'lucide-react';
 import { ExpensesPieChart } from './ExpensesPieChart';
 import { ExpensesTimeline } from './ExpensesTimeline';
 import { MonthlyComparison } from './MonthlyComparison';
+import { AnalyticsData } from '@/hooks/useAnalytics';
 
-export function ChartsSection() {
+interface ChartsSectionProps {
+  analyticsData: AnalyticsData | null;
+  loading: boolean;
+}
+
+export function ChartsSection({ analyticsData, loading }: ChartsSectionProps) {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold text-gray-900">Gráficos Interativos</h2>
@@ -29,15 +35,15 @@ export function ChartsSection() {
         </TabsList>
 
         <TabsContent value="pizza" className="mt-6">
-          <ExpensesPieChart />
+          <ExpensesPieChart analyticsData={analyticsData} loading={loading} />
         </TabsContent>
 
         <TabsContent value="timeline" className="mt-6">
-          <ExpensesTimeline />
+          <ExpensesTimeline analyticsData={analyticsData} loading={loading} />
         </TabsContent>
 
         <TabsContent value="comparativo" className="mt-6">
-          <MonthlyComparison />
+          <MonthlyComparison analyticsData={analyticsData} loading={loading} />
         </TabsContent>
       </Tabs>
     </div>
