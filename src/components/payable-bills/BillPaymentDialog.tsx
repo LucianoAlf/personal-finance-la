@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -65,14 +66,29 @@ export function BillPaymentDialog({
     resolver: zodResolver(paymentSchema),
     defaultValues: {
       paid_amount: bill ? getRemainingAmount(bill) : 0,
-      payment_method: 'pix',
+      payment_method: bill?.payment_method || 'pix',
+      account_from_id: bill?.payment_account_id || '',
+      confirmation_number: '',
+      notes: '',
     },
   });
 
-  if (!bill) return null;
+  const remaining = bill ? getRemainingAmount(bill) : 0;
+  const isPaid = bill?.status === 'paid';
 
-  const remaining = getRemainingAmount(bill);
-  const isPaid = bill.status === 'paid';
+  useEffect(() => {
+    if (!open || !bill) return;
+
+    form.reset({
+      paid_amount: remaining,
+      payment_method: bill.payment_method || 'pix',
+      account_from_id: bill.payment_account_id || '',
+      confirmation_number: '',
+      notes: '',
+    });
+  }, [bill, form, open, remaining]);
+
+  if (!bill) return null;
 
   const handleSubmit = async (data: PaymentFormData) => {
     const input: MarkBillAsPaidInput = {

@@ -37,6 +37,7 @@ import {
 import { BILL_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
 import { getBillCategoryName } from '@/utils/billCalculations';
 import { useCategories } from '@/hooks/useCategories';
+import { useAccounts } from '@/hooks/useAccounts';
 
 interface BillCardProps {
   bill: PayableBill;
@@ -51,6 +52,7 @@ interface BillCardProps {
 
 export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigReminders, onRevertPayment, highlight }: BillCardProps) {
   const { categories } = useCategories();
+  const { accounts } = useAccounts();
   const statusColor = getStatusColor(bill.status);
   // Passar status para não mostrar alerta vermelho em contas pagas
   const dueDateColor = getDueDateColor(bill.due_date, bill.status);
@@ -64,6 +66,13 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigRemind
     return getBillCategoryName(bill.bill_type);
   };
   const priorityColor = getPriorityColor(bill.priority);
+  const paymentAccount = bill.payment_account_id
+    ? accounts.find((account) => account.id === bill.payment_account_id)
+    : null;
+  const paymentSummary = [
+    PAYMENT_METHOD_LABELS[bill.payment_method || 'pix'] || bill.payment_method || 'PIX',
+    paymentAccount?.name || null,
+  ].filter(Boolean).join(' • ');
 
   const getStatusBadgeVariant = (color: string) => {
     switch (color) {
@@ -234,6 +243,10 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigRemind
                 {PAYMENT_METHOD_LABELS[bill.payment_method] || bill.payment_method}
               </Badge>
             )}
+          </div>
+
+          <div className="mt-3 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            Pagamento rapido: <span className="font-medium text-foreground">{paymentSummary}</span>
           </div>
         </div>
       </Card>

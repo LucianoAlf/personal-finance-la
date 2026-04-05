@@ -7,6 +7,7 @@ import { Inbox } from 'lucide-react';
 
 interface BillListProps {
   bills: PayableBill[];
+  allBills?: PayableBill[];
   onPay?: (bill: PayableBill) => void;
   onEdit?: (bill: PayableBill) => void;
   onDelete?: (bill: PayableBill) => void;
@@ -19,6 +20,7 @@ interface BillListProps {
 
 export function BillList({
   bills,
+  allBills,
   onPay,
   onEdit,
   onDelete,
@@ -30,11 +32,19 @@ export function BillList({
 }: BillListProps) {
   // Separar contas individuais e parcelamentos agrupados
   const { individualBills, installmentGroups } = useMemo(() => {
+    const sourceBills = allBills || bills;
+    const visibleInstallmentGroupIds = new Set(
+      bills
+        .filter((bill) => bill.is_installment && bill.installment_group_id)
+        .map((bill) => bill.installment_group_id as string)
+    );
     // IDs de parcelas que pertencem a um grupo
     const groupedInstallmentIds = new Set<string>();
     
     // Agrupar parcelamentos
-    const groups = groupInstallments(bills);
+    const groups = groupInstallments(sourceBills).filter((group) =>
+      visibleInstallmentGroupIds.has(group.groupId)
+    );
     
     // Marcar todas as parcelas que foram agrupadas
     groups.forEach((group) => {
@@ -50,7 +60,7 @@ export function BillList({
       individualBills: individual,
       installmentGroups: groups,
     };
-  }, [bills]);
+  }, [allBills, bills]);
 
   if (bills.length === 0) {
     return (
@@ -88,6 +98,7 @@ export function BillList({
                 onPayInstallment={onPay}
                 onEditInstallment={onEdit}
                 onDeleteGroup={onDeleteInstallmentGroup}
+                onRevertInstallmentPayment={onRevertPayment}
               />
             ))}
           </div>

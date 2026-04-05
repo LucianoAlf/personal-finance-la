@@ -33,6 +33,8 @@ import {
 } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
 import { cn } from '@/lib/utils';
+import { PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
+import { useAccounts } from '@/hooks/useAccounts';
 
 interface BillCalendarProps {
   bills: PayableBill[];
@@ -55,6 +57,7 @@ export function BillCalendar({
   onEdit,
   onDelete,
 }: BillCalendarProps) {
+  const { accounts } = useAccounts();
   const [internalCurrentMonth, setInternalCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -304,76 +307,92 @@ export function BillCalendar({
 
           <div className="space-y-3 max-h-[60vh] overflow-y-auto">
             {selectedDateBills.map((bill) => (
-              <Card
-                key={bill.id}
-                className={cn(
-                  "p-4",
-                  bill.status === 'overdue' && "border-l-4 border-l-red-500",
-                  bill.status === 'pending' && "border-l-4 border-l-yellow-500",
-                  bill.status === 'paid' && "border-l-4 border-l-green-500"
-                )}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h4 className="font-semibold">{bill.description}</h4>
-                    {bill.provider_name && (
-                      <p className="text-sm text-muted-foreground">
-                        {bill.provider_name}
-                      </p>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-lg">
-                      {new Intl.NumberFormat('pt-BR', {
-                        style: 'currency',
-                        currency: 'BRL',
-                      }).format(bill.status === 'paid' && bill.paid_amount ? bill.paid_amount : bill.amount)}
-                    </p>
-                    <Badge
-                      variant={
-                        bill.status === 'paid'
-                          ? 'success'
-                          : bill.status === 'overdue'
-                          ? 'danger'
-                          : 'warning'
-                      }
-                      className="mt-1"
-                    >
-                      {bill.status === 'paid' && <CheckCircle className="h-3 w-3 mr-1" />}
-                      {bill.status === 'overdue' && <AlertTriangle className="h-3 w-3 mr-1" />}
-                      {bill.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
-                      {bill.status === 'paid' ? 'Paga' : bill.status === 'overdue' ? 'Vencida' : 'Pendente'}
-                    </Badge>
-                  </div>
-                </div>
+              (() => {
+                const paymentAccount = bill.payment_account_id
+                  ? accounts.find((account) => account.id === bill.payment_account_id)
+                  : null;
+                const paymentSummary = [
+                  PAYMENT_METHOD_LABELS[bill.payment_method || 'pix'] || bill.payment_method || 'PIX',
+                  paymentAccount?.name || null,
+                ].filter(Boolean).join(' • ');
 
-                {bill.status !== 'paid' && (
-                  <div className="flex gap-2 mt-3">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      className="flex-1"
-                      onClick={() => {
-                        onPay(bill);
-                        setDialogOpen(false);
-                      }}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Pagar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        onEdit(bill);
-                        setDialogOpen(false);
-                      }}
-                    >
-                      Editar
-                    </Button>
-                  </div>
-                )}
-              </Card>
+                return (
+                  <Card
+                    key={bill.id}
+                    className={cn(
+                      "p-4",
+                      bill.status === 'overdue' && "border-l-4 border-l-red-500",
+                      bill.status === 'pending' && "border-l-4 border-l-yellow-500",
+                      bill.status === 'paid' && "border-l-4 border-l-green-500"
+                    )}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h4 className="font-semibold">{bill.description}</h4>
+                        {bill.provider_name && (
+                          <p className="text-sm text-muted-foreground">
+                            {bill.provider_name}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-lg">
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(bill.status === 'paid' && bill.paid_amount ? bill.paid_amount : bill.amount)}
+                        </p>
+                        <Badge
+                          variant={
+                            bill.status === 'paid'
+                              ? 'success'
+                              : bill.status === 'overdue'
+                              ? 'danger'
+                              : 'warning'
+                          }
+                          className="mt-1"
+                        >
+                          {bill.status === 'paid' && <CheckCircle className="h-3 w-3 mr-1" />}
+                          {bill.status === 'overdue' && <AlertTriangle className="h-3 w-3 mr-1" />}
+                          {bill.status === 'pending' && <Clock className="h-3 w-3 mr-1" />}
+                          {bill.status === 'paid' ? 'Paga' : bill.status === 'overdue' ? 'Vencida' : 'Pendente'}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                      Pagamento rapido: <span className="font-medium text-foreground">{paymentSummary}</span>
+                    </div>
+
+                    {bill.status !== 'paid' && (
+                      <div className="flex gap-2 mt-3">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          className="flex-1"
+                          onClick={() => {
+                            onPay(bill);
+                            setDialogOpen(false);
+                          }}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Pagar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            onEdit(bill);
+                            setDialogOpen(false);
+                          }}
+                        >
+                          Editar
+                        </Button>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })()
             ))}
 
             {/* Total do dia */}

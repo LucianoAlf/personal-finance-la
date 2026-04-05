@@ -20,6 +20,7 @@ import {
   CreditCard,
   Clock,
   Hash,
+  Undo2,
 } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
 import {
@@ -28,7 +29,9 @@ import {
   getStatusColor,
   getBillCategoryName,
 } from '@/utils/billCalculations';
+import { PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
 import { useCategories } from '@/hooks/useCategories';
+import { useAccounts } from '@/hooks/useAccounts';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -59,6 +62,7 @@ interface InstallmentGroupCardProps {
   onPayInstallment?: (bill: PayableBill) => void;
   onEditInstallment?: (bill: PayableBill) => void;
   onDeleteGroup?: (groupId: string) => void;
+  onRevertInstallmentPayment?: (bill: PayableBill) => void;
 }
 
 export function InstallmentGroupCard({
@@ -66,7 +70,25 @@ export function InstallmentGroupCard({
   onPayInstallment,
   onEditInstallment,
   onDeleteGroup,
+  onRevertInstallmentPayment,
 }: InstallmentGroupCardProps) {
+  const { accounts } = useAccounts();
+  const summarySourceInstallment =
+    group.installments.find((installment) => installment.payment_method || installment.payment_account_id) ||
+    group.nextInstallment ||
+    group.installments[0];
+  const paymentAccount = summarySourceInstallment?.payment_account_id
+    ? accounts.find((account) => account.id === summarySourceInstallment.payment_account_id)
+    : null;
+  const paymentSummary = [
+    summarySourceInstallment?.payment_method
+      ? summarySourceInstallment.payment_method === 'credit_card'
+        ? group.creditCardName || 'Cartão'
+        : PAYMENT_METHOD_LABELS[summarySourceInstallment.payment_method as keyof typeof PAYMENT_METHOD_LABELS] || summarySourceInstallment.payment_method
+      : 'PIX',
+    paymentAccount?.name || null,
+  ].filter(Boolean).join(' • ');
+
   const { categories, loading: categoriesLoading } = useCategories();
   const [isExpanded, setIsExpanded] = useState(false);
   
@@ -148,7 +170,24 @@ export function InstallmentGroupCard({
                 {group.nextInstallment && (
                   <DropdownMenuItem onClick={() => onPayInstallment?.(group.nextInstallment!)}>
                     <CheckCircle2 className="mr-2 h-4 w-4" />
-                    Pagar próxima parcela
+                    Pagar {group.nextInstallment.installment_number}/{group.totalInstallments}
+                  </DropdownMenuItem>
+                )}
+                {group.installments.some((installment) => installment.status === 'paid' || installment.status === 'partial') && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const lastPaidInstallment = [...group.installments]
+                        .filter((installment) => installment.status === 'paid' || installment.status === 'partial')
+                        .sort((a, b) => (b.installment_number || 0) - (a.installment_number || 0))[0];
+
+                      if (lastPaidInstallment) {
+                        onRevertInstallmentPayment?.(lastPaidInstallment);
+                      }
+                    }}
+                    className="text-orange-600 focus:text-orange-600"
+                  >
+                    <Undo2 className="mr-2 h-4 w-4" />
+                    Reverter último pagamento
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -217,6 +256,13 @@ export function InstallmentGroupCard({
                 {group.overdueCount} vencidas
               </Badge>
             )}
+            {summarySourceInstallment?.payment_method && (
+              <Badge variant="outline" className="text-xs">
+                {summarySourceInstallment.payment_method === 'credit_card'
+                  ? group.creditCardName || 'Cartão'
+                  : PAYMENT_METHOD_LABELS[summarySourceInstallment.payment_method as keyof typeof PAYMENT_METHOD_LABELS] || summarySourceInstallment.payment_method}
+              </Badge>
+            )}
           </div>
 
           {/* Próxima Parcela */}
@@ -254,6 +300,10 @@ export function InstallmentGroupCard({
             </div>
           </div>
 
+          <div className="mb-4 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            Pagamento rapido: <span className="font-medium text-foreground">{paymentSummary}</span>
+          </div>
+
           {/* Botões de Ação */}
           <div className="flex gap-2">
             <Button
@@ -281,7 +331,7 @@ export function InstallmentGroupCard({
                 onClick={() => onPayInstallment?.(group.nextInstallment!)}
               >
                 <CreditCard className="h-4 w-4 mr-1" />
-                Pagar próxima
+                Pagar {group.nextInstallment.installment_number}/{group.totalInstallments}
               </Button>
             )}
           </div>
@@ -332,12 +382,18 @@ export function InstallmentGroupCard({
                           {formatCurrency(installment.amount)}
                         </span>
                         {installment.status !== 'paid' && (
+                          <Button size="sm" variant="ghost" onClick={() => onPayInstallment?.(installment)}>
+                            Pagar
+                          </Button>
+                        )}
+                        {(installment.status === 'paid' || installment.status === 'partial') && (
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => onPayInstallment?.(installment)}
+                            className="text-orange-600 hover:text-orange-700"
+                            onClick={() => onRevertInstallmentPayment?.(installment)}
                           >
-                            Pagar
+                            Reverter
                           </Button>
                         )}
                       </div>

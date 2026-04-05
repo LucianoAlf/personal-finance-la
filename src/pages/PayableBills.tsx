@@ -22,7 +22,6 @@ import { useCategories } from '@/hooks/useCategories';
 import { BillSummaryCards } from '@/components/payable-bills/BillSummaryCards';
 import { BillList } from '@/components/payable-bills/BillList';
 import { BillDialog } from '@/components/payable-bills/BillDialog';
-import { BillPaymentDialog } from '@/components/payable-bills/BillPaymentDialog';
 import { BillHistoryTable } from '@/components/payable-bills/BillHistoryTable';
 import { BillReportsDashboard } from '@/components/payable-bills/reports';
 import { ReminderConfigDialog } from '@/components/payable-bills/ReminderConfigDialog';
@@ -42,6 +41,7 @@ import { toast } from 'sonner';
 import { parseISO, format, isAfter, isBefore, addDays, addMonths, subMonths, isSameMonth } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { isBillOverdue } from '@/utils/billCalculations';
+import { getRemainingAmount } from '@/utils/billCalculations';
 
 export default function PayableBills() {
   const {
@@ -70,7 +70,6 @@ export default function PayableBills() {
 
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [reminderDialogOpen, setReminderDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
@@ -411,9 +410,16 @@ export default function PayableBills() {
     }
   };
 
-  const handlePay = (bill: PayableBill) => {
-    setSelectedBill(bill);
-    setPaymentDialogOpen(true);
+  const handlePay = async (bill: PayableBill) => {
+    const remainingAmount = getRemainingAmount(bill);
+    if (remainingAmount <= 0) return;
+
+    await handleMarkAsPaid({
+      bill_id: bill.id,
+      paid_amount: remainingAmount,
+      payment_method: bill.payment_method || 'pix',
+      account_from_id: bill.payment_account_id,
+    });
   };
 
   const handleConfigReminders = (bill: PayableBill) => {
@@ -454,11 +460,21 @@ export default function PayableBills() {
       />
 
       <div className="p-6 space-y-6">
+        {/* Cards de Resumo */}
+        <BillSummaryCards
+          pendingAmount={displaySummary.pendingAmount}
+          pendingCount={displaySummary.pendingCount}
+          overdueAmount={displaySummary.overdueAmount}
+          overdueCount={displaySummary.overdueCount}
+          paidAmount={displaySummary.paidAmount}
+          paidCount={displaySummary.paidCount}
+        />
+
         <Card>
           <div className="p-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Competência</p>
-              <div className="flex items-center gap-2 mt-2">
+              <div className="mt-2 flex items-center gap-2">
                 <Button variant="ghost" size="icon" onClick={handlePreviousMonth} className="h-8 w-8">
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
@@ -467,7 +483,7 @@ export default function PayableBills() {
                   onClick={() => setMonthModalOpen(true)}
                   className="min-w-[180px] justify-center font-medium"
                 >
-                  <CalendarDays className="h-4 w-4 mr-2" />
+                  <CalendarDays className="mr-2 h-4 w-4" />
                   {formatMonthYear(selectedMonthDate)}
                 </Button>
                 <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8">
@@ -486,16 +502,6 @@ export default function PayableBills() {
             </div>
           </div>
         </Card>
-
-        {/* Cards de Resumo */}
-        <BillSummaryCards
-          pendingAmount={displaySummary.pendingAmount}
-          pendingCount={displaySummary.pendingCount}
-          overdueAmount={displaySummary.overdueAmount}
-          overdueCount={displaySummary.overdueCount}
-          paidAmount={displaySummary.paidAmount}
-          paidCount={displaySummary.paidCount}
-        />
 
         {/* Tabs */}
         <Tabs defaultValue="bills" className="space-y-6">
@@ -620,6 +626,7 @@ export default function PayableBills() {
               ) : (
                 <BillList
                   bills={filteredBills}
+                  allBills={bills}
                   onPay={handlePay}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
@@ -668,13 +675,6 @@ export default function PayableBills() {
         onOpenChange={setEditDialogOpen}
         onSubmit={handleUpdate}
         bill={selectedBill || undefined}
-      />
-
-      <BillPaymentDialog
-        open={paymentDialogOpen}
-        onOpenChange={setPaymentDialogOpen}
-        onSubmit={handleMarkAsPaid}
-        bill={selectedBill}
       />
 
       <ReminderConfigDialog
