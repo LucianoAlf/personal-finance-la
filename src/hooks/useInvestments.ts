@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { processGamificationEvent } from '@/lib/gamification';
 import { Investment, CreateInvestmentInput, UpdateInvestmentInput } from '@/types/database.types';
 
 /**
@@ -87,6 +88,7 @@ export function useInvestments() {
       if (error) throw error;
 
       await fetchInvestments(); // Recarregar lista
+      await processGamificationEvent('create_investment');
       toast.success(`✅ ${input.name} adicionado ao portfólio!`);
       return data;
     } catch (err: any) {

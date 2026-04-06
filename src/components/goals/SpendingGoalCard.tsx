@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { GoalProgress } from './GoalProgress';
-import { formatCurrency } from '@/utils/formatters';
+import { formatCurrency, parseDateOnly } from '@/utils/formatters';
 import { useGoalProgress } from '@/hooks/useGoalProgress';
 import type { FinancialGoalWithCategory } from '@/types/database.types';
 import { format } from 'date-fns';
@@ -193,8 +193,8 @@ export function SpendingGoalCard({
         {/* Período */}
         {goal.period_start && goal.period_end && (
           <div className="text-xs text-gray-500 pt-2 border-t mt-4">
-            {format(new Date(goal.period_start), 'dd/MM/yyyy', { locale: ptBR })} até{' '}
-            {format(new Date(goal.period_end), 'dd/MM/yyyy', { locale: ptBR })}
+            {format(parseDateOnly(goal.period_start), 'dd/MM/yyyy', { locale: ptBR })} até{' '}
+            {format(parseDateOnly(goal.period_end), 'dd/MM/yyyy', { locale: ptBR })}
             {progress.days_left !== undefined && progress.days_left >= 0 && (
               <span className="ml-2">
                 • {progress.days_left} {progress.days_left === 1 ? 'dia' : 'dias'} restantes

@@ -2,7 +2,8 @@ export interface Account {
   id: string;
   user_id: string;
   name: string;
-  type: 'checking' | 'savings' | 'cash' | 'investment' | 'credit_card';
+  type: 'checking' | 'savings' | 'cash' | 'wallet' | 'investment' | 'credit_card';
+  bank?: string;
   bank_name?: string;
   initial_balance: number;
   current_balance: number;

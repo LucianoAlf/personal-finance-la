@@ -325,14 +325,21 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
       // Salvar a conta
       const result = await onSubmit(input);
 
-      const savedBill = Array.isArray(result) ? result[0] : result;
+      const savedBill: PayableBill | null = Array.isArray(result)
+        ? result[0] ?? null
+        : result && typeof result === 'object' && 'id' in result
+        ? result
+        : null;
       const billId = savedBill?.id || bill?.id;
 
       let reminderToastShown = false;
       if (data.enable_reminders && data.reminders && data.reminders.length > 0) {
         if (billId) {
           const reminderPayload = buildReminderPayload(
-            data.reminders,
+            (data.reminders || []).filter(
+              (reminder): reminder is { days_before: number; time: string } =>
+                typeof reminder?.days_before === 'number' && typeof reminder?.time === 'string'
+            ),
             data.reminder_channels || ['whatsapp']
           );
 

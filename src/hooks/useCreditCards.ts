@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
 import {
@@ -14,6 +14,9 @@ export function useCreditCards() {
   const [cardsSummary, setCardsSummary] = useState<CreditCardSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const cardsChannelNameRef = useRef(`credit_cards_${crypto.randomUUID()}`);
+  const transactionsChannelNameRef = useRef(`credit_card_transactions_for_cards_${crypto.randomUUID()}`);
+  const invoicesChannelNameRef = useRef(`credit_card_invoices_for_cards_${crypto.randomUUID()}`);
 
   // Buscar cartões
   const fetchCards = async () => {
@@ -207,53 +210,51 @@ export function useCreditCards() {
 
     // Subscription para mudanças nos cartões
     const cardsSubscription = supabase
-      .channel(`credit_cards_${user.id}`)
+      .channel(cardsChannelNameRef.current)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'credit_cards',
+          filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
-          const newRow: any = (payload as any).new;
-          const oldRow: any = (payload as any).old;
-          if (newRow?.user_id !== user.id && oldRow?.user_id !== user.id) return;
-          console.log('🔄 Cartão alterado:', payload);
+        () => {
           fetchCards();
           fetchCardsSummary();
         }
       )
       .subscribe((status) => {
-        console.log('🛰️ Realtime[cards] status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('Realtime[credit_cards] channel error');
+        }
       });
 
     // Subscription para mudanças nas transações (atualiza limites)
     const transactionsSubscription = supabase
-      .channel(`credit_card_transactions_for_cards_${user.id}`)
+      .channel(transactionsChannelNameRef.current)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'credit_card_transactions',
+          filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
-          const newRow: any = (payload as any).new;
-          const oldRow: any = (payload as any).old;
-          if (newRow?.user_id !== user.id && oldRow?.user_id !== user.id) return;
-          console.log('🔄 Transação alterou cartão:', payload);
+        () => {
           fetchCards(); // Atualiza cartões (limite disponível)
           fetchCardsSummary(); // Atualiza resumo quando há transações
         }
       )
       .subscribe((status) => {
-        console.log('🛰️ Realtime[cards<-transactions] status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('Realtime[credit_cards<-transactions] channel error');
+        }
       });
 
     // Subscription para mudanças nas faturas
     const invoicesSubscription = supabase
-      .channel(`credit_card_invoices_for_cards_${user.id}`)
+      .channel(invoicesChannelNameRef.current)
       .on(
         'postgres_changes',
         {
@@ -262,12 +263,15 @@ export function useCreditCards() {
           table: 'credit_card_invoices',
           filter: `user_id=eq.${user.id}`,
         },
-        (payload) => {
-          console.log('🔄 Fatura alterou cartão:', payload);
+        () => {
           fetchCardsSummary(); // Atualiza resumo quando há mudanças nas faturas
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('Realtime[credit_card_invoices] channel error');
+        }
+      });
 
     return () => {
       cardsSubscription.unsubscribe();

@@ -46,7 +46,7 @@ export function BudgetSummaryCards({ totalPlanned, totalActual, totalDifference,
       {/* Total Planejado */}
       <motion.div variants={item}>
         <Card className="p-6">
-          <p className="text-sm text-gray-600">Total Planejado</p>
+          <p className="text-sm text-gray-600">Total dos Limites</p>
           <h3 className="text-2xl font-bold text-gray-900">{formatCurrency(totalPlanned)}</h3>
           <p className="text-xs text-gray-500 mt-1">{formatMonthYear(month)}</p>
         </Card>
@@ -82,7 +82,7 @@ export function BudgetSummaryCards({ totalPlanned, totalActual, totalDifference,
               )}
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              {execPct.toFixed(0)}% do planejado
+              {execPct.toFixed(0)}% dos limites
               {execPct > 100 && <span className="text-red-600 font-semibold ml-1">(+{(execPct - 100).toFixed(0)}%)</span>}
             </p>
           </div>
@@ -104,7 +104,7 @@ export function BudgetSummaryCards({ totalPlanned, totalActual, totalDifference,
             {diffPositive ? '' : '-'}{formatCurrency(Math.abs(totalDifference))}
           </h3>
           <p className="text-xs mt-1 text-gray-600">
-            {diffPositive ? '✅ Dentro do orçamento' : '⚠️ Acima do planejado'}
+            {diffPositive ? '✅ Dentro do planejado' : '⚠️ Acima dos limites'}
           </p>
         </Card>
       </motion.div>

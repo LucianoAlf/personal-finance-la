@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { subDays } from 'date-fns';
+import { formatDateOnly } from '@/utils/formatters';
 
 export interface PortfolioSnapshot {
   id: string;
@@ -27,7 +28,7 @@ export function usePortfolioHistory(days: number = 365) {
       setError(null);
 
       try {
-        const startDate = subDays(new Date(), days).toISOString().split('T')[0];
+        const startDate = formatDateOnly(subDays(new Date(), days));
 
         const { data, error: fetchError } = await supabase
           .from('portfolio_snapshots')

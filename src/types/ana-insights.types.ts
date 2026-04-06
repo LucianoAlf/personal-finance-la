@@ -30,6 +30,16 @@ export interface DashboardInsightsResponse {
   secondary: AnaInsight[];
   healthScore: number;
   motivationalQuote: string;
+  healthBreakdown?: {
+    bills: number;
+    investments: number;
+    budget: number;
+    planning: number;
+  };
+  meta?: {
+    hasSufficientData?: boolean;
+    [key: string]: any;
+  };
 }
 
 // Configurações de cores por prioridade
@@ -70,7 +80,7 @@ export const INSIGHT_TYPE_LABELS: Record<InsightType, string> = {
   goal_achievement: 'Meta Alcançada',
   bill_alert: 'Alerta de Conta',
   investment_opportunity: 'Oportunidade',
-  budget_warning: 'Orçamento',
+  budget_warning: 'Meta de Gasto',
   portfolio_health: 'Carteira',
   savings_tip: 'Dica',
 };

@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useInvestments } from '@/hooks/useInvestments';
+import { useInvestmentGoals } from '@/hooks/useInvestmentGoals';
 import { useInvestmentPrices } from '@/hooks/useInvestmentPrices';
 import { useInvestmentTransactions } from '@/hooks/useInvestmentTransactions';
 import { usePortfolioMetrics } from '@/hooks/usePortfolioMetrics';
@@ -24,18 +26,23 @@ import { DividendHistoryTable } from '@/components/investments/DividendHistoryTa
 import { OpportunityFeed } from '@/components/investments/OpportunityFeed';
 import { SmartRebalanceWidget } from '@/components/investments/SmartRebalanceWidget';
 import { AnaInvestmentInsights } from '@/components/investments/AnaInvestmentInsights';
+import { InvestmentPlanningCalculator } from '@/components/investments/InvestmentPlanningCalculator';
 import { BadgesDisplay } from '@/components/investments/BadgesDisplay';
 import { DiversificationScoreCard } from '@/components/investments/DiversificationScoreCard';
 import { PerformanceHeatMap } from '@/components/investments/PerformanceHeatMap';
 import { BenchmarkComparison } from '@/components/investments/BenchmarkComparison';
 import { InvestmentReportDialog } from '@/components/investments/InvestmentReportDialog';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDividendCalendar, useDividendHistory } from '@/hooks/useDividendCalendar';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell, DollarSign } from 'lucide-react';
 import type { CreateInvestmentInput, UpdateInvestmentInput, CreateTransactionInput } from '@/types/database.types';
 
 export function Investments() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { investments, loading, refresh, addInvestment, updateInvestment, deleteInvestment } = useInvestments();
+  const { goals: investmentGoals } = useInvestmentGoals();
   const { transactions, addTransaction, deleteTransaction } = useInvestmentTransactions();
   const { alerts, addAlert, deleteAlert, toggleAlert } = useInvestmentAlerts();
   const { formatCurrency } = useUserPreferences();
@@ -48,6 +55,34 @@ export function Investments() {
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('portfolio');
+  const selectedGoalId = searchParams.get('goalId');
+
+  const relatedGoalsByInvestment = useMemo(() => {
+    const map = new Map<string, typeof investmentGoals>();
+
+    investmentGoals.forEach((goal) => {
+      goal.linked_investments?.forEach((investmentId) => {
+        const current = map.get(investmentId) || [];
+        map.set(investmentId, [...current, goal]);
+      });
+    });
+
+    return map;
+  }, [investmentGoals]);
+
+  const selectedGoal = useMemo(
+    () => investmentGoals.find((goal) => goal.id === selectedGoalId) || null,
+    [investmentGoals, selectedGoalId]
+  );
+  const planningYears = useMemo(() => {
+    if (!selectedGoal) return 15;
+    const currentYear = new Date().getFullYear();
+    const targetYear = new Date(selectedGoal.target_date).getFullYear();
+    return Math.max(1, targetYear - currentYear);
+  }, [selectedGoal]);
+  const planningContribution = selectedGoal?.monthly_contribution
+    || investmentGoals.reduce((sum, goal) => sum + Number(goal.monthly_contribution || 0), 0)
+    || 1000;
 
   // Preparar items para buscar cotações
   const priceItems = investments.map((inv) => ({
@@ -86,6 +121,11 @@ export function Investments() {
     await addTransaction(data);
   };
 
+  const openNewInvestmentDialog = () => {
+    setEditingInvestment(null);
+    setInvestmentDialogOpen(true);
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -102,12 +142,18 @@ export function Investments() {
   if (investments.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
+        <InvestmentDialog
+          open={investmentDialogOpen}
+          onOpenChange={setInvestmentDialogOpen}
+          investment={editingInvestment}
+          onSave={handleSaveInvestment}
+        />
         <Header
           title="Investimentos"
           subtitle="Acompanhe sua carteira de investimentos"
           icon={<TrendingUp size={24} />}
           actions={
-            <Button size="sm">
+            <Button size="sm" onClick={openNewInvestmentDialog}>
               <Plus size={16} className="mr-1" />
               Novo Investimento
             </Button>
@@ -122,7 +168,7 @@ export function Investments() {
             <p className="text-gray-600 mb-6">
               Comece a construir seu portfólio adicionando seu primeiro investimento
             </p>
-            <Button>
+            <Button onClick={openNewInvestmentDialog}>
               <Plus size={16} className="mr-2" />
               Adicionar Primeiro Investimento
             </Button>
@@ -161,10 +207,7 @@ export function Investments() {
             <InvestmentReportDialog />
             <Button
               size="sm"
-              onClick={() => {
-                setEditingInvestment(null);
-                setInvestmentDialogOpen(true);
-              }}
+              onClick={openNewInvestmentDialog}
             >
               <Plus size={16} className="mr-1" />
               Novo Investimento
@@ -193,6 +236,29 @@ export function Investments() {
           onOpenChange={setAlertDialogOpen}
           onSave={addAlert}
         />
+
+        {selectedGoal && (
+          <Card className="border-purple-200 bg-purple-50/50">
+            <CardContent className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm text-purple-700 font-medium">Contexto da meta</p>
+                <h2 className="text-lg font-semibold">{selectedGoal.name}</h2>
+                <p className="text-sm text-muted-foreground">
+                  A carteira vinculada cobre {formatCurrency(selectedGoal.metrics?.effective_current_amount ?? selectedGoal.current_amount)} de {formatCurrency(selectedGoal.target_amount)}.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => navigate('/metas?tab=investments')}>
+                  Ver Meta
+                </Button>
+                <Button onClick={() => setActiveTab('portfolio')}>
+                  Ver Ativos Vinculados
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Resumo */}
         <PortfolioSummaryCards
           totalInvested={metrics.totalInvested}
@@ -255,6 +321,7 @@ export function Investments() {
                     <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">Cotação</th>
                     <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">Total</th>
                     <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">Rentabilidade</th>
+                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">Metas</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -285,6 +352,24 @@ export function Investments() {
                         >
                           {percentG >= 0 ? '+' : ''}
                           {percentG.toFixed(2)}%
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          <div className="flex flex-wrap gap-2">
+                            {(relatedGoalsByInvestment.get(investment.id) || []).length === 0 ? (
+                              <span className="text-muted-foreground">Sem vínculo</span>
+                            ) : (
+                              (relatedGoalsByInvestment.get(investment.id) || []).map((goal) => (
+                                <Badge
+                                  key={goal.id}
+                                  variant={goal.id === selectedGoalId ? 'default' : 'secondary'}
+                                  className="cursor-pointer"
+                                  onClick={() => navigate(`/metas?tab=investments`)}
+                                >
+                                  {goal.name}
+                                </Badge>
+                              ))
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -358,6 +443,17 @@ export function Investments() {
           <TabsContent value="overview" className="space-y-6">
             {/* Ana Clara Insights Widget - Destaque no topo */}
             <AnaInvestmentInsights investments={investments} />
+
+            <InvestmentPlanningCalculator
+              title="Planejamento patrimonial e aposentadoria"
+              description="Simule patrimônio alvo, renda futura e o aporte mensal necessário com base na sua carteira real."
+              initialCurrentAmount={selectedGoal?.metrics?.effective_current_amount ?? metrics.currentValue}
+              initialMonthlyContribution={planningContribution}
+              initialTargetAmount={selectedGoal?.target_amount ?? 1000000}
+              initialYearsToGoal={planningYears}
+              initialAnnualReturnRate={selectedGoal?.expected_return_rate ?? 8}
+              initialDesiredMonthlyIncome={selectedGoal?.category === 'retirement' ? 30000 : 0}
+            />
 
             {/* SPRINT 5: Diversification Score Card */}
             <DiversificationScoreCard />

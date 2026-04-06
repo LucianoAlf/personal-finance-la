@@ -4,12 +4,16 @@ import type { FinancialGoalWithCategory } from '@/types/database.types';
 import { supabase } from '@/lib/supabase';
 import { endOfMonth, startOfMonth, subMonths, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateOnly, parseDateOnly } from '@/utils/formatters';
 
 interface Props {
   goal: FinancialGoalWithCategory;
 }
 
-interface Row { amount: number; purchase_date: string; }
+interface Row {
+  amount: number;
+  date: string;
+}
 
 export function SpendingCategoryTrendChart({ goal }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
@@ -17,17 +21,43 @@ export function SpendingCategoryTrendChart({ goal }: Props) {
   useEffect(() => {
     let mounted = true;
     async function fetchRows() {
-      // Últimos 6 meses
       const end = endOfMonth(new Date());
       const start = startOfMonth(subMonths(new Date(), 5));
-      const { data, error } = await supabase
-        .from('credit_card_transactions')
-        .select('amount, purchase_date')
-        .eq('category_id', goal.category_id)
-        .gte('purchase_date', start.toISOString().split('T')[0])
-        .lte('purchase_date', end.toISOString().split('T')[0]);
+
+      const startDate = formatDateOnly(start);
+      const endDate = formatDateOnly(end);
+
+      const [{ data: regularData, error: regularError }, { data: creditData, error: creditError }] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('amount, transaction_date')
+          .eq('category_id', goal.category_id)
+          .eq('type', 'expense')
+          .eq('is_paid', true)
+          .gte('transaction_date', startDate)
+          .lte('transaction_date', endDate),
+        supabase
+          .from('credit_card_transactions')
+          .select('amount, purchase_date')
+          .eq('category_id', goal.category_id)
+          .gte('purchase_date', startDate)
+          .lte('purchase_date', endDate),
+      ]);
+
       if (!mounted) return;
-      if (!error && data) setRows(data as any);
+
+      if (!regularError && !creditError) {
+        setRows([
+          ...((regularData || []).map((row) => ({
+            amount: Number(row.amount || 0),
+            date: row.transaction_date,
+          }))),
+          ...((creditData || []).map((row) => ({
+            amount: Number(row.amount || 0),
+            date: row.purchase_date,
+          }))),
+        ]);
+      }
     }
     if (goal.goal_type === 'spending_limit' && goal.category_id) fetchRows();
     return () => { mounted = false; };
@@ -41,7 +71,7 @@ export function SpendingCategoryTrendChart({ goal }: Props) {
       map.set(key, 0);
     }
     rows.forEach((r) => {
-      const d = new Date(r.purchase_date);
+      const d = parseDateOnly(r.date);
       const key = format(d, 'MMM/yyyy', { locale: ptBR });
       map.set(key, (map.get(key) || 0) + Number(r.amount));
     });

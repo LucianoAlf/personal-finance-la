@@ -101,10 +101,28 @@ export interface InvestmentGoalMetrics {
   shortfall: number; // Quanto falta se não atingir
 }
 
+export interface LinkedInvestmentSnapshot {
+  id: string;
+  name: string;
+  ticker?: string | null;
+  current_value: number;
+  total_invested: number;
+}
+
+export interface InvestmentGoalPortfolioMetrics extends InvestmentGoalMetrics {
+  manual_current_amount: number;
+  linked_current_amount: number;
+  effective_current_amount: number;
+  linked_investments_count: number;
+  current_gap: number;
+  projected_gap: number;
+}
+
 // Goal com métricas (para UI)
 export interface InvestmentGoalWithMetrics extends InvestmentGoal {
-  metrics: InvestmentGoalMetrics;
+  metrics: InvestmentGoalPortfolioMetrics;
   projection: InvestmentProjectionMonth[];
+  linked_investment_details: LinkedInvestmentSnapshot[];
 }
 
 // Labels PT-BR

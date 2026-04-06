@@ -1,6 +1,28 @@
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+export const parseDateOnly = (date: string | Date): Date => {
+  if (date instanceof Date) {
+    return new Date(date.getTime());
+  }
+
+  if (DATE_ONLY_REGEX.test(date)) {
+    return new Date(`${date}T12:00:00`);
+  }
+
+  return new Date(date);
+};
+
+export const formatDateOnly = (date: string | Date): string => {
+  const d = parseDateOnly(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export const formatCurrency = (value: number): string => {
   // Validar valor antes de formatar
   if (value === null || value === undefined || isNaN(value)) {
@@ -14,7 +36,7 @@ export const formatCurrency = (value: number): string => {
 };
 
 export const formatDate = (date: Date | string, pattern: string = 'dd/MM/yyyy'): string => {
-  const dateObj = typeof date === 'string' ? new Date(date) : date;
+  const dateObj = parseDateOnly(date);
   return format(dateObj, pattern, { locale: ptBR });
 };
 
@@ -42,8 +64,7 @@ export const getInitials = (name: string): string => {
 
 // Formatar data para input (YYYY-MM-DD)
 export const formatDateForInput = (date: string | Date): string => {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toISOString().split('T')[0];
+  return formatDateOnly(date);
 };
 
 // Formatar data relativa (hoje, ontem, etc)
@@ -52,12 +73,7 @@ export const formatRelativeDate = (date: string | Date): string => {
   // Isso garante que a data seja interpretada corretamente independente do fuso horário
   let d: Date;
   if (typeof date === 'string') {
-    // Se for apenas data (YYYY-MM-DD), adicionar horário do meio-dia para evitar problemas de timezone
-    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      d = new Date(date + 'T12:00:00');
-    } else {
-      d = new Date(date);
-    }
+    d = parseDateOnly(date);
   } else {
     d = date;
   }

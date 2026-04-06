@@ -300,18 +300,18 @@ export interface CreditCardInvoice {
   id: string;
   credit_card_id: string;
   user_id: string;
-  reference_month: Date;
-  closing_date: Date;
-  due_date: Date;
+  reference_month: Date | string;
+  closing_date: Date | string;
+  due_date: Date | string;
   total_amount: number;
   paid_amount: number;
   remaining_amount: number;
   status: InvoiceStatus;
-  payment_date?: Date;
+  payment_date?: Date | string;
   payment_account_id?: string;
   notes?: string;
-  created_at: Date;
-  updated_at: Date;
+  created_at: Date | string;
+  updated_at: Date | string;
 }
 
 export interface CreateInvoiceInput {

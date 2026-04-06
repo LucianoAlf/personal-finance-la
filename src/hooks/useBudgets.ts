@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import type { Category } from '@/types/categories';
+import type { Transaction } from '@/types/transactions';
 import { useCategories } from './useCategories';
 import { useTransactions } from './useTransactions';
+
+/**
+ * @deprecated Mantido apenas como legado temporário.
+ * O fluxo canônico de planejamento mensal por categoria agora usa
+ * `financial_goals.goal_type = "spending_limit"` via `useSpendingGoalsPlanning`.
+ */
 
 export interface BudgetItem {
   id: string;
@@ -27,61 +35,77 @@ interface DBBudget {
   notes?: string;
 }
 
-export function useBudgets(month: string = getCurrentMonth()) {
-  const [budgets, setBudgets] = useState<BudgetItem[]>([]);
+function enrichBudgetRows(rows: DBBudget[], categories: Category[], transactions: Transaction[]): BudgetItem[] {
+  return rows.map((b) => {
+    const category = categories.find((c) => c.id === b.category_id);
+    const actual = transactions
+      .filter(
+        (t) =>
+          t.category_id === b.category_id &&
+          t.type === 'expense' &&
+          t.is_paid &&
+          new Date(t.transaction_date as any).toISOString().slice(0, 7) === b.month
+      )
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const planned = Number(b.planned_amount || 0);
+    const percentage = planned > 0 ? (actual / planned) * 100 : 0;
+    const status: BudgetItem['status'] = percentage >= 100 ? 'exceeded' : percentage >= 80 ? 'warning' : 'ok';
+
+    return {
+      id: b.id,
+      category_id: b.category_id,
+      category_name: category?.name || 'Sem categoria',
+      category_icon: category?.icon || '📦',
+      category_color: category?.color || 'gray',
+      planned_amount: planned,
+      actual_amount: Number(actual || 0),
+      difference: Number(actual || 0) - planned,
+      percentage,
+      status,
+      notes: b.notes,
+      month: b.month,
+    };
+  });
+}
+
+/** @param heroSummaryMonth Mês extra para totais do hero (ex.: mês civil atual), sem segundo fetch de transações. */
+export function useBudgets(month: string = getCurrentMonth(), heroSummaryMonth?: string) {
+  const [rawRows, setRawRows] = useState<DBBudget[]>([]);
   const [loading, setLoading] = useState(true);
   const { categories } = useCategories();
   const { transactions } = useTransactions();
 
+  const monthsToFetch = useMemo(() => {
+    const set = new Set<string>([month]);
+    if (heroSummaryMonth) set.add(heroSummaryMonth);
+    return [...set];
+  }, [month, heroSummaryMonth]);
+
   const fetchBudgets = useCallback(async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('budgets')
-        .select('*')
-        .eq('month', month);
+      const { data, error } = await supabase.from('budgets').select('*').in('month', monthsToFetch);
 
       if (error) throw error;
-      const rows = (data || []) as DBBudget[];
-
-      const enriched: BudgetItem[] = rows.map((b) => {
-        const category = categories.find((c) => c.id === b.category_id);
-        const actual = transactions
-          .filter(
-            (t) =>
-              t.category_id === b.category_id &&
-              t.type === 'expense' &&
-              t.is_paid &&
-              new Date(t.transaction_date as any).toISOString().slice(0, 7) === month
-          )
-          .reduce((sum, t) => sum + Number(t.amount), 0);
-
-        const percentage = b.planned_amount > 0 ? (actual / b.planned_amount) * 100 : 0;
-        const status: BudgetItem['status'] = percentage >= 100 ? 'exceeded' : percentage >= 80 ? 'warning' : 'ok';
-
-        return {
-          id: b.id,
-          category_id: b.category_id,
-          category_name: category?.name || 'Sem categoria',
-          category_icon: category?.icon || '📦',
-          category_color: category?.color || 'gray',
-          planned_amount: Number(b.planned_amount || 0),
-          actual_amount: Number(actual || 0),
-          difference: Number(actual || 0) - Number(b.planned_amount || 0),
-          percentage,
-          status,
-          notes: b.notes,
-          month: b.month,
-        };
-      });
-
-      setBudgets(enriched);
+      setRawRows((data || []) as DBBudget[]);
     } catch (err) {
       console.error('Erro ao buscar budgets:', err);
     } finally {
       setLoading(false);
     }
-  }, [month, categories, transactions]);
+  }, [monthsToFetch]);
+
+  const budgets = useMemo(
+    () => enrichBudgetRows(rawRows.filter((b) => b.month === month), categories, transactions),
+    [rawRows, month, categories, transactions]
+  );
+
+  const heroMonthKey = heroSummaryMonth ?? month;
+  const heroBudgetItems = useMemo(
+    () => enrichBudgetRows(rawRows.filter((b) => b.month === heroMonthKey), categories, transactions),
+    [rawRows, heroMonthKey, categories, transactions]
+  );
 
   const saveBudget = useCallback(
     async (categoryId: string, amount: number, notes?: string) => {
@@ -147,8 +171,21 @@ export function useBudgets(month: string = getCurrentMonth()) {
   const totalActual = useMemo(() => budgets.reduce((sum, b) => sum + Number(b.actual_amount || 0), 0), [budgets]);
   const totalDifference = useMemo(() => totalPlanned - totalActual, [totalActual, totalPlanned]);
 
+  const heroTotalPlanned = useMemo(
+    () => heroBudgetItems.reduce((sum, b) => sum + Number(b.planned_amount || 0), 0),
+    [heroBudgetItems]
+  );
+  const heroTotalActual = useMemo(
+    () => heroBudgetItems.reduce((sum, b) => sum + Number(b.actual_amount || 0), 0),
+    [heroBudgetItems]
+  );
+
   return {
     budgets,
+    heroBudgetItems,
+    heroSummaryMonth: heroMonthKey,
+    heroTotalPlanned,
+    heroTotalActual,
     loading,
     totalPlanned,
     totalActual,

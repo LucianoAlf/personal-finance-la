@@ -22,7 +22,7 @@ export function SmartRebalanceWidget({ investments }: SmartRebalanceWidgetProps)
 
   // Calcular ações de rebalanceamento
   const { actions, isBalanced } = useMemo(() => {
-    if (targets.length === 0 || metrics.totalValue === 0) {
+    if (targets.length === 0 || metrics.currentValue === 0) {
       return { actions: [], isBalanced: false };
     }
 
@@ -36,7 +36,7 @@ export function SmartRebalanceWidget({ investments }: SmartRebalanceWidgetProps)
     const rebalanceActions = calculateRebalancing(
       currentAllocation,
       targets,
-      metrics.totalValue,
+      metrics.currentValue,
       5 // threshold 5%
     );
 

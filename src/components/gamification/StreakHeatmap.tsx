@@ -1,21 +1,23 @@
-import { Flame } from 'lucide-react';
+import { CalendarCheck2, Flame, Trophy } from 'lucide-react';
 
 interface StreakHeatmapProps {
   currentStreak: number;
   bestStreak: number;
+  lastActivityDate?: string | Date | null;
+  subtitle?: string;
 }
 
-export function StreakHeatmap({ currentStreak, bestStreak }: StreakHeatmapProps) {
-  const months = Array.from({ length: 12 }, (_, i) => {
-    const d = new Date();
-    d.setMonth(d.getMonth() - (11 - i));
-    const maintained = i >= 12 - Math.min(12, currentStreak);
-    return {
-      key: `${d.getFullYear()}-${d.getMonth() + 1}`,
-      label: d.toLocaleString('pt-BR', { month: 'short' }),
-      maintained,
-    };
-  });
+export function StreakHeatmap({ currentStreak, bestStreak, lastActivityDate, subtitle }: StreakHeatmapProps) {
+  const today = new Date().toISOString().slice(0, 10);
+  const normalizedLastActivityDate = lastActivityDate instanceof Date
+    ? lastActivityDate.toISOString().slice(0, 10)
+    : lastActivityDate ?? null;
+  const activeToday = normalizedLastActivityDate === today;
+  const milestones = [3, 7, 14, 30, 60, 100];
+  const nextMilestone = milestones.find((milestone) => milestone > currentStreak) ?? null;
+  const progressToNextMilestone = nextMilestone
+    ? Math.min(100, (currentStreak / nextMilestone) * 100)
+    : 100;
 
   return (
     <div className="space-y-3">
@@ -23,36 +25,61 @@ export function StreakHeatmap({ currentStreak, bestStreak }: StreakHeatmapProps)
         <Flame className="h-5 w-5 text-orange-600" />
         <h3 className="text-lg font-semibold text-gray-900">Streak de Consistência</h3>
       </div>
+      {subtitle ? (
+        <p className="text-xs text-gray-500 leading-snug mb-1">{subtitle}</p>
+      ) : null}
 
-      <div className="grid grid-cols-12 gap-1">
-        {months.map((m) => (
-          <div
-            key={m.key}
-            className={`aspect-[1/1] rounded-sm transition-all ${m.maintained ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-200 hover:bg-gray-300'}`}
-            title={`${m.label} - ${m.maintained ? 'Mantido ✓' : 'Sem dados'}`}
-          />
-        ))}
+      <div className="rounded-xl border border-orange-200 bg-gradient-to-r from-orange-50 to-amber-50 p-4">
+        <div className="flex items-end justify-between gap-4">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-orange-700">Streak atual</p>
+            <p className="text-3xl font-bold text-orange-700">{currentStreak}</p>
+            <p className="text-xs text-orange-700/80">
+              {currentStreak === 1 ? 'dia seguido de atividade no app' : 'dias seguidos de atividade no app'}
+            </p>
+          </div>
+          <div className="rounded-lg bg-white/80 px-3 py-2 text-right shadow-sm">
+            <p className="text-xs text-gray-500">Próxima marca</p>
+            <p className="text-lg font-semibold text-gray-900">
+              {nextMilestone ? `${nextMilestone} dias` : 'Recorde aberto'}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-1">
+          <div className="flex items-center justify-between text-xs text-gray-600">
+            <span>Progresso para a próxima marca</span>
+            <span>{Math.round(progressToNextMilestone)}%</span>
+          </div>
+          <div className="h-2 rounded-full bg-white/70 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-orange-500 to-amber-500 transition-all"
+              style={{ width: `${progressToNextMilestone}%` }}
+            />
+          </div>
+        </div>
       </div>
 
-      <div className="flex justify-between text-xs text-gray-600">
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 bg-gray-200 rounded-sm" />
-          <span>Sem dados</span>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-lg border bg-gray-50 p-3">
+          <div className="flex items-center gap-2 text-gray-700">
+            <CalendarCheck2 className="h-4 w-4 text-blue-600" />
+            <span className="text-sm font-medium">Atividade de hoje</span>
+          </div>
+          <p className="mt-2 text-sm text-gray-600">
+            {activeToday ? 'Registrada e já contando para o streak.' : 'Ainda não registrada hoje.'}
+          </p>
         </div>
-        <div className="flex items-center gap-1">
-          <div className="w-3 h-3 bg-green-500 rounded-sm" />
-          <span>Streak mantido</span>
-        </div>
-      </div>
 
-      <div className="pt-3 border-t grid grid-cols-2 gap-4 text-center">
-        <div>
-          <p className="text-2xl font-bold text-orange-600">{currentStreak}</p>
-          <p className="text-xs text-gray-600">Atual</p>
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-yellow-600">{bestStreak}</p>
-          <p className="text-xs text-gray-600">Recorde 🏆</p>
+        <div className="rounded-lg border bg-gray-50 p-3">
+          <div className="flex items-center gap-2 text-gray-700">
+            <Trophy className="h-4 w-4 text-yellow-600" />
+            <span className="text-sm font-medium">Recorde</span>
+          </div>
+          <p className="mt-2 text-2xl font-bold text-gray-900">{bestStreak}</p>
+          <p className="text-xs text-gray-500">
+            {bestStreak === 1 ? 'melhor dia seguido' : 'melhores dias seguidos'}
+          </p>
         </div>
       </div>
     </div>

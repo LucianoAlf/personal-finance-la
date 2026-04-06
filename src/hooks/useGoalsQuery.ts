@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
@@ -24,7 +25,41 @@ export const useGoalsQuery = () => {
     queryFn: fetchGoals,
     staleTime: 5 * 60 * 1000,
     placeholderData: (prev) => prev,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
   });
+
+  useEffect(() => {
+    const subscription = supabase
+      .channel('financial_goals_dashboard_summary')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'financial_goals',
+        },
+        () => {
+          query.refetch();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'financial_goal_contributions',
+        },
+        () => {
+          query.refetch();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [query]);
 
   const goals = (query.data || []) as any[];
 

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
 import {
@@ -13,6 +13,9 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
   const [transactions, setTransactions] = useState<CreditCardTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const realtimeChannelNameRef = useRef(
+    `credit_card_transactions_${cardId || 'all'}_${invoiceId || 'all'}_${crypto.randomUUID()}`
+  );
 
   // Buscar transações
   const fetchTransactions = async () => {
@@ -248,25 +251,23 @@ export function useCreditCardTransactions(cardId?: string, invoiceId?: string) {
     fetchTransactions();
 
     const subscription = supabase
-      .channel(`credit_card_transactions_${user.id}`)
+      .channel(realtimeChannelNameRef.current)
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
           table: 'credit_card_transactions',
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          const uid = user?.id;
-          const newRow: any = (payload as any).new;
-          const oldRow: any = (payload as any).old;
-          if (newRow?.user_id !== uid && oldRow?.user_id !== uid) return; // filtro no cliente
-          console.log('🔄 Transação alterada:', payload);
           fetchTransactions();
         }
       )
       .subscribe((status) => {
-        console.log('🛰️ Realtime[transactions] status:', status);
+        if (status === 'CHANNEL_ERROR') {
+          console.warn('Realtime[credit_card_transactions] channel error');
+        }
       });
 
     return () => {

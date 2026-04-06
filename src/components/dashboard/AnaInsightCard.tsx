@@ -44,12 +44,14 @@ const iconMap: Record<string, LucideIcon> = {
 
 export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardProps) {
   const navigate = useNavigate();
-  const colors = INSIGHT_COLORS[insight.priority];
+  const priority = insight.priority in INSIGHT_COLORS ? insight.priority : 'info';
+  const typeLabel = INSIGHT_TYPE_LABELS[insight.type] ?? 'Insight';
+  const colors = INSIGHT_COLORS[priority];
   const isLarge = size === 'large';
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
   
   // Selecionar ícone baseado na prioridade
-  const iconName = INSIGHT_PRIORITY_ICONS[insight.priority];
+  const iconName = INSIGHT_PRIORITY_ICONS[priority];
   const Icon = iconMap[iconName] || Sparkles;
 
   const handleAction = () => {
@@ -92,7 +94,7 @@ export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardP
               variant="outline"
               className={`${colors.text} text-xs shrink-0 self-start whitespace-normal text-left`}
             >
-              {INSIGHT_TYPE_LABELS[insight.type]}
+              {typeLabel}
             </Badge>
           </div>
 

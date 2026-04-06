@@ -3,21 +3,35 @@ import { Button } from '@/components/ui/button';
 import { Calendar, TrendingUp, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatCurrency } from '@/utils/formatters';
-import { useBudgetsQuery } from '@/hooks/useBudgetsQuery';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useGoalsQuery } from '@/hooks/useGoalsQuery';
+import { summarizeBudgetItems, toBudgetItemsFromSpendingGoals } from '@/utils/spendingGoalPlanning';
+import type { FinancialGoalWithCategory } from '@/types/database.types';
 
-export function BudgetComplianceWidget() {
+interface BudgetComplianceWidgetProps {
+  monthKey?: string;
+}
+
+export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps) {
   const navigate = useNavigate();
-  
   const currentMonth = useMemo(() => {
+    if (monthKey) return monthKey;
     const now = new Date();
     const y = now.getFullYear();
     const m = String(now.getMonth() + 1).padStart(2, '0');
     return `${y}-${m}`;
-  }, []);
+  }, [monthKey]);
 
-  const { budgets, loading, totalPlanned, totalActual, totalDifference } = useBudgetsQuery(currentMonth);
+  const { goals, loading } = useGoalsQuery();
+  const budgets = useMemo(
+    () => toBudgetItemsFromSpendingGoals(goals as FinancialGoalWithCategory[], currentMonth),
+    [currentMonth, goals]
+  );
+  const { totalPlanned, totalActual, totalDifference } = useMemo(
+    () => summarizeBudgetItems(budgets),
+    [budgets]
+  );
 
   const exceeded = budgets.filter((b) => b.status === 'exceeded').length;
   const warning = budgets.filter((b) => b.status === 'warning').length;
@@ -43,15 +57,15 @@ export function BudgetComplianceWidget() {
             <Calendar className="h-5 w-5 text-purple-600" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">Orçamento Mensal</h3>
-            <p className="text-xs text-gray-500">Nenhum orçamento definido</p>
+            <h3 className="font-semibold text-gray-900">Metas de Gasto do Mês</h3>
+            <p className="text-xs text-gray-500">Nenhum limite mensal definido</p>
           </div>
         </div>
         <p className="text-sm text-gray-600 mb-4">
-          Defina limites de gastos por categoria para manter o controle financeiro.
+          Defina limites por categoria na aba de metas para acompanhar o planejamento mensal.
         </p>
-        <Button size="sm" onClick={() => navigate('/metas?tab=budget')} className="w-full">
-          Criar Orçamento
+        <Button size="sm" onClick={() => navigate('/metas?tab=spending')} className="w-full">
+          Planejar Gastos
         </Button>
       </Card>
     );
@@ -76,11 +90,11 @@ export function BudgetComplianceWidget() {
               <StatusIcon className={`h-5 w-5 ${statusColor}`} />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">Orçamento Mensal</h3>
+              <h3 className="font-semibold text-gray-900">Metas de Gasto do Mês</h3>
               <p className="text-xs text-gray-500">{budgets.length} categorias</p>
             </div>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => navigate('/metas?tab=budget')}>
+          <Button size="sm" variant="ghost" onClick={() => navigate('/metas?tab=spending')}>
             Ver Detalhes
           </Button>
         </div>
@@ -120,14 +134,14 @@ export function BudgetComplianceWidget() {
         {/* Total */}
         <div className="mt-4 pt-4 border-t border-gray-200">
           <div className="flex items-center justify-between text-sm mb-1">
-            <span className="text-gray-600">Gasto / Planejado</span>
+            <span className="text-gray-600">Gasto / Limite</span>
             <span className={`font-semibold ${statusColor}`}>
               {formatCurrency(totalActual)} / {formatCurrency(totalPlanned)}
             </span>
           </div>
           {totalPlanned > 0 && (
             <div className="text-xs text-right text-gray-500">
-              {((totalActual / totalPlanned) * 100).toFixed(0)}% do planejado
+              {((totalActual / totalPlanned) * 100).toFixed(0)}% dos limites
               {totalActual > totalPlanned && (
                 <span className="text-red-600 font-semibold ml-1">
                   (+{(((totalActual / totalPlanned) * 100) - 100).toFixed(0)}%)
@@ -146,7 +160,7 @@ export function BudgetComplianceWidget() {
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
               <p className="text-xs text-red-700">
-                Você ultrapassou o orçamento em {formatCurrency(Math.abs(totalDifference))}
+                Você ultrapassou os limites do mês em {formatCurrency(Math.abs(totalDifference))}
               </p>
             </div>
           </motion.div>

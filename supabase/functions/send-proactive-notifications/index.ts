@@ -4,9 +4,10 @@
  * 
  * Tipos de notificações:
  * 1. Contas vencendo em 3 dias
- * 2. Orçamento em 80%, 90%, 100%
- * 3. Metas alcançadas
- * 4. Dividendos recebidos
+ * 2. Metas de gasto em 80%, 90%, 100%
+ * 3. Início de ciclos financeiros
+ * 4. Metas alcançadas
+ * 5. Dividendos recebidos
  * 
  * Executado via Cron Job diariamente às 9h
  */ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -135,13 +136,16 @@ serve(async (req)=>{
   // 1. Verificar contas vencendo em 3 dias
   const billsNotif = await checkUpcomingBills(supabase, userId);
   if (billsNotif) notifications.push(billsNotif);
-  // 2. Verificar orçamento
+  // 2. Verificar metas de gasto
   const budgetNotif = await checkBudgetStatus(supabase, userId);
   if (budgetNotif) notifications.push(budgetNotif);
-  // 3. Verificar metas alcançadas
+  // 3. Verificar ciclos financeiros próximos
+  const cyclesNotif = await checkFinancialCycles(supabase, userId);
+  if (cyclesNotif) notifications.push(cyclesNotif);
+  // 4. Verificar metas alcançadas
   const goalsNotif = await checkAchievedGoals(supabase, userId);
   if (goalsNotif) notifications.push(goalsNotif);
-  // 4. Verificar dividendos recebidos
+  // 5. Verificar dividendos recebidos
   const dividendsNotif = await checkDividends(supabase, userId);
   if (dividendsNotif) notifications.push(dividendsNotif);
   // 5. Enviar notificações via WhatsApp
@@ -187,19 +191,32 @@ serve(async (req)=>{
   };
 }
 /**
- * 2. Verificar status do orçamento
+ * 2. Verificar status das metas de gasto do mês
  */ async function checkBudgetStatus(supabase, userId) {
   const now = new Date();
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  // Buscar preferências de orçamento
-  const { data: preferences } = await supabase.from('notification_preferences').select('budget_alert_thresholds, budget_alert_cooldown_hours').eq('user_id', userId).single();
-  const thresholds = preferences?.budget_alert_thresholds || [
-    80,
-    100
-  ];
+
+  const { data: preferences } = await supabase
+    .from('notification_preferences')
+    .select('budget_alert_thresholds, budget_alert_threshold_percentage, budget_alert_cooldown_hours')
+    .eq('user_id', userId)
+    .single();
+
+  const thresholds = (preferences?.budget_alert_thresholds?.length
+    ? preferences.budget_alert_thresholds
+    : preferences?.budget_alert_threshold_percentage
+      ? [
+          preferences.budget_alert_threshold_percentage,
+          100,
+        ]
+      : [
+          80,
+          100,
+        ])
+    .filter((value)=>value >= 50 && value <= 100);
   const cooldownHours = preferences?.budget_alert_cooldown_hours || 24;
-  // Verificar cooldown (última notificação de orçamento)
+
   const { data: lastNotif } = await supabase.from('notifications_log').select('created_at').eq('user_id', userId).eq('type', 'budget_alert').order('created_at', {
     ascending: false
   }).limit(1).single();
@@ -210,46 +227,51 @@ serve(async (req)=>{
       return null;
     }
   }
-  // Buscar despesas do mês
-  const { data: expenses, error: expensesError } = await supabase.from('transactions').select('amount').eq('user_id', userId).eq('type', 'expense').gte('date', firstDay.toISOString()).lte('date', lastDay.toISOString());
-  if (expensesError) {
-    console.error('[checkBudgetStatus] Erro despesas:', expensesError);
+
+  const { data: spendingGoals, error: goalsError } = await supabase
+    .from('financial_goals')
+    .select('target_amount,current_amount,period_start,period_end,status')
+    .eq('user_id', userId)
+    .eq('goal_type', 'spending_limit')
+    .in('status', ['active', 'exceeded'])
+    .lte('period_start', lastDay.toISOString().split('T')[0])
+    .gte('period_end', firstDay.toISOString().split('T')[0]);
+
+  if (goalsError) {
+    console.error('[checkBudgetStatus] Erro metas de gasto:', goalsError);
     return null;
   }
-  const totalExpenses = expenses?.reduce((sum, exp)=>sum + Math.abs(parseFloat(exp.amount)), 0) || 0;
-  // Buscar orçamento mensal
-  const { data: budgetGoal } = await supabase.from('financial_goals').select('target_amount').eq('user_id', userId).eq('type', 'budget').eq('status', 'active').single();
-  if (!budgetGoal) return null;
-  const budgetLimit = parseFloat(budgetGoal.target_amount);
-  const percentage = totalExpenses / budgetLimit * 100;
-  // Verificar se atingiu algum threshold configurado
+
+  const spendingLimit = spendingGoals?.reduce((sum, goal)=>sum + Math.abs(parseFloat(goal.target_amount)), 0) || 0;
+  const totalSpent = spendingGoals?.reduce((sum, goal)=>sum + Math.abs(parseFloat(goal.current_amount)), 0) || 0;
+
+  if (spendingLimit <= 0) return null;
+
+  const percentage = totalSpent / spendingLimit * 100;
   const reachedThreshold = thresholds.sort((a, b)=>b - a).find((t)=>percentage >= t);
   if (!reachedThreshold) return null;
   let emoji = '';
-  let alertLevel = '';
   if (reachedThreshold >= 100) {
     emoji = '🚨';
-    alertLevel = `${reachedThreshold}% - LIMITE ATINGIDO`;
   } else if (reachedThreshold >= 90) {
     emoji = '⚠️';
-    alertLevel = `${reachedThreshold}% - ATENÇÃO`;
   } else {
     emoji = '⚡';
-    alertLevel = `${reachedThreshold}% - ALERTA`;
   }
-  const remaining = budgetLimit - totalExpenses;
-  let message = `${emoji} *Alerta de Orçamento*\n\n`;
-  message += `Você já gastou *${percentage.toFixed(1)}%* do seu orçamento mensal!\n\n`;
-  message += `💸 Gasto: R$ ${totalExpenses.toFixed(2)}\n`;
-  message += `🎯 Limite: R$ ${budgetLimit.toFixed(2)}\n`;
+
+  const remaining = spendingLimit - totalSpent;
+  let message = `${emoji} *Alerta de Meta de Gasto*\n\n`;
+  message += `Você já consumiu *${percentage.toFixed(1)}%* dos seus limites mensais por categoria.\n\n`;
+  message += `💸 Gasto acumulado: R$ ${totalSpent.toFixed(2)}\n`;
+  message += `🎯 Limites do mês: R$ ${spendingLimit.toFixed(2)}\n`;
   if (remaining > 0) {
     message += `💰 Restante: R$ ${remaining.toFixed(2)}\n\n`;
-    message += `_Cuidado para não estourar o orçamento!_ 😅`;
+    message += `_Acompanhe as categorias em risco para não estourar o planejamento._`;
   } else {
     message += `❌ Você excedeu em R$ ${Math.abs(remaining).toFixed(2)}\n\n`;
-    message += `_Hora de revisar seus gastos!_ 💪`;
+    message += `_Hora de revisar as categorias que passaram do limite._`;
   }
-  // Registrar log para cooldown
+
   await supabase.from('notifications_log').insert({
     user_id: userId,
     type: 'budget_alert',
@@ -260,10 +282,120 @@ serve(async (req)=>{
       percentage: percentage.toFixed(1)
     }
   });
-  console.log(`[checkBudgetStatus] ✅ Orçamento em ${percentage.toFixed(1)}% (threshold: ${reachedThreshold}%)`);
+  console.log(`[checkBudgetStatus] ✅ Metas de gasto em ${percentage.toFixed(1)}% (threshold: ${reachedThreshold}%)`);
   return {
     type: 'budget_alert',
     message
+  };
+}
+
+/**
+ * 3. Verificar ciclos financeiros próximos
+ */ async function checkFinancialCycles(supabase, userId) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
+
+  const { data: cycles, error } = await supabase
+    .from('financial_cycles')
+    .select('id, name, type, day, notify_days_before')
+    .eq('user_id', userId)
+    .eq('active', true)
+    .eq('notify_start', true)
+    .order('day', { ascending: true });
+
+  if (error) {
+    console.error('[checkFinancialCycles] Erro:', error);
+    return null;
+  }
+
+  if (!cycles || cycles.length === 0) return null;
+
+  const cycleAlerts = cycles
+    .map((cycle) => {
+      let nextDate = new Date(currentYear, currentMonth, cycle.day);
+
+      if (nextDate < today) {
+        nextDate = new Date(currentYear, currentMonth + 1, cycle.day);
+      }
+
+      const diffMs = nextDate.getTime() - today.getTime();
+      const daysUntil = Math.round(diffMs / (1000 * 60 * 60 * 24));
+      const notifyDaysBefore = Math.max(0, Number(cycle.notify_days_before || 0));
+
+      if (daysUntil < 0 || daysUntil > notifyDaysBefore) {
+        return null;
+      }
+
+      return {
+        id: cycle.id,
+        name: cycle.name,
+        type: cycle.type,
+        day: cycle.day,
+        daysUntil,
+      };
+    })
+    .filter(Boolean);
+
+  if (cycleAlerts.length === 0) return null;
+
+  const { data: lastNotif } = await supabase
+    .from('notifications_log')
+    .select('created_at, metadata')
+    .eq('user_id', userId)
+    .eq('type', 'financial_cycle_reminder')
+    .order('created_at', { ascending: false })
+    .limit(5);
+
+  const alreadyNotifiedKeys = new Set(
+    (lastNotif || [])
+      .map((item)=>item.metadata?.cycle_key)
+      .filter(Boolean)
+  );
+
+  const pendingAlerts = cycleAlerts.filter((cycle) => {
+    const cycleKey = `${cycle.id}:${today.toISOString().slice(0, 10)}`;
+    return !alreadyNotifiedKeys.has(cycleKey);
+  });
+
+  if (pendingAlerts.length === 0) return null;
+
+  let message = `🗓️ *Lembrete de Ciclo Financeiro*\n\n`;
+  pendingAlerts.slice(0, 3).forEach((cycle)=>{
+    const timingText = cycle.daysUntil === 0
+      ? 'começa hoje'
+      : cycle.daysUntil === 1
+        ? 'começa amanhã'
+        : `começa em ${cycle.daysUntil} dias`;
+
+    message += `• ${cycle.name} (${timingText})\n`;
+    message += `  Dia de referência: ${cycle.day}\n\n`;
+  });
+
+  message += `_Use esse marco para revisar limites, aportes e decisões do próximo período._`;
+
+  await Promise.all(
+    pendingAlerts.map((cycle) =>
+      supabase.from('notifications_log').insert({
+        user_id: userId,
+        type: 'financial_cycle_reminder',
+        title: `Ciclo ${cycle.name}`,
+        message,
+        sent_via: 'whatsapp',
+        metadata: {
+          cycle_id: cycle.id,
+          cycle_key: `${cycle.id}:${today.toISOString().slice(0, 10)}`,
+          days_until: cycle.daysUntil,
+          reference_day: cycle.day,
+        },
+      })
+    )
+  );
+
+  return {
+    type: 'financial_cycle_reminder',
+    message,
   };
 }
 /**
@@ -272,7 +404,7 @@ serve(async (req)=>{
   // Buscar metas que foram alcançadas nas últimas 24h
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const { data: goals, error } = await supabase.from('financial_goals').select('name, target_amount, current_amount, type').eq('user_id', userId).eq('status', 'completed').gte('updated_at', yesterday.toISOString());
+  const { data: goals, error } = await supabase.from('financial_goals').select('name, target_amount, current_amount, goal_type').eq('user_id', userId).eq('goal_type', 'savings').eq('status', 'completed').gte('updated_at', yesterday.toISOString());
   if (error) {
     console.error('[checkAchievedGoals] Erro:', error);
     return null;
@@ -297,17 +429,26 @@ serve(async (req)=>{
   // Buscar dividendos recebidos nas últimas 24h
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  const { data: dividends, error } = await supabase.from('investment_transactions').select('investment_id, amount, investments(ticker)').eq('user_id', userId).eq('type', 'dividend').gte('date', yesterday.toISOString());
+  const { data: dividends, error } = await supabase
+    .from('investment_transactions')
+    .select('investment_id, total_value, transaction_type, investments(ticker)')
+    .eq('user_id', userId)
+    .in('transaction_type', [
+      'dividend',
+      'interest'
+    ])
+    .gte('transaction_date', yesterday.toISOString());
   if (error) {
     console.error('[checkDividends] Erro:', error);
     return null;
   }
   if (!dividends || dividends.length === 0) return null;
-  const totalDividends = dividends.reduce((sum, div)=>sum + parseFloat(div.amount), 0);
+  const totalDividends = dividends.reduce((sum, div)=>sum + parseFloat(div.total_value), 0);
   let message = `💰 *Dividendos Recebidos!*\n\n`;
-  message += `Você recebeu dividendos:\n\n`;
+  message += `Você recebeu proventos:\n\n`;
   dividends.forEach((div)=>{
-    message += `• ${div.investments.ticker}: R$ ${parseFloat(div.amount).toFixed(2)}\n`;
+    const label = div.transaction_type === 'interest' ? 'juros' : 'dividendos';
+    message += `• ${div.investments.ticker}: R$ ${parseFloat(div.total_value).toFixed(2)} (${label})\n`;
   });
   message += `\n💵 *Total:* R$ ${totalDividends.toFixed(2)}\n\n`;
   message += `_Seu dinheiro trabalhando por você!_ 📈`;

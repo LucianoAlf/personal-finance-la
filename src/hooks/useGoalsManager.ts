@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { processGamificationEvent } from '@/lib/gamification';
 import type {
   SavingsGoal,
   CreateGoalInput,
@@ -8,7 +9,82 @@ import type {
   GoalContribution,
   CreateGoalContributionInput,
   GoalWithStats,
+  GoalStatus,
 } from '@/types/settings.types';
+
+type FinancialSavingsGoalRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  category?: SavingsGoal['category'] | null;
+  target_amount: number | string;
+  current_amount: number | string;
+  start_date?: string | null;
+  target_date?: string | null;
+  deadline?: string | null;
+  priority?: SavingsGoal['priority'] | null;
+  status?: string | null;
+  icon?: string | null;
+  notify_milestones?: boolean | null;
+  notify_contribution?: boolean | null;
+  contribution_frequency?: SavingsGoal['contribution_frequency'] | null;
+  contribution_day?: number | null;
+  notify_delay?: boolean | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type FinancialGoalContributionRow = {
+  id: string;
+  goal_id: string;
+  user_id: string;
+  amount: number | string;
+  date?: string | null;
+  note?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+};
+
+const normalizeGoalStatus = (status: string | null | undefined): GoalStatus => {
+  if (status === 'completed' || status === 'exceeded' || status === 'archived') {
+    return status;
+  }
+
+  return 'active';
+};
+
+const mapGoalRecord = (record: FinancialSavingsGoalRow): SavingsGoal => ({
+  id: record.id,
+  user_id: record.user_id,
+  name: record.name,
+  category: record.category || 'general',
+  target_amount: Number(record.target_amount || 0),
+  current_amount: Number(record.current_amount || 0),
+  start_date: record.start_date || new Date().toISOString().split('T')[0],
+  target_date: record.target_date || record.deadline || '',
+  deadline: record.deadline || record.target_date || null,
+  priority: record.priority || 'medium',
+  status: normalizeGoalStatus(record.status),
+  icon: record.icon,
+  notify_milestones: record.notify_milestones ?? true,
+  notify_contribution: record.notify_contribution ?? false,
+  contribution_frequency: record.contribution_frequency || undefined,
+  contribution_day: record.contribution_day || undefined,
+  notify_delay: record.notify_delay ?? false,
+  created_at: record.created_at,
+  updated_at: record.updated_at,
+});
+
+const mapContributionRecord = (record: FinancialGoalContributionRow): GoalContribution => ({
+  id: record.id,
+  goal_id: record.goal_id,
+  user_id: record.user_id,
+  amount: Number(record.amount || 0),
+  date: record.date || record.created_at.split('T')[0],
+  note: record.note || undefined,
+  created_at: record.created_at,
+  updated_at: record.updated_at || record.created_at,
+});
 
 export function useGoalsManager() {
   const [goals, setGoals] = useState<SavingsGoal[]>([]);
@@ -27,14 +103,15 @@ export function useGoalsManager() {
       if (!user) throw new Error('Usuário não autenticado');
 
       const { data, error: fetchError } = await supabase
-        .from('savings_goals')
+        .from('financial_goals')
         .select('*')
         .eq('user_id', user.id)
+        .eq('goal_type', 'savings')
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
 
-      setGoals(data || []);
+      setGoals(((data || []) as FinancialSavingsGoalRow[]).map(mapGoalRecord));
     } catch (err: any) {
       console.error('Error fetching goals:', err);
       setError(err.message);
@@ -51,14 +128,16 @@ export function useGoalsManager() {
       if (!user) throw new Error('Usuário não autenticado');
 
       const { data, error: createError } = await supabase
-        .from('savings_goals')
+        .from('financial_goals')
         .insert({
           user_id: user.id,
+          goal_type: 'savings',
           name: input.name,
           category: input.category,
           target_amount: input.target_amount,
           current_amount: input.current_amount || 0,
           start_date: input.start_date || new Date().toISOString().split('T')[0],
+          deadline: input.target_date,
           target_date: input.target_date,
           priority: input.priority || 'medium',
           status: 'active',
@@ -74,7 +153,8 @@ export function useGoalsManager() {
 
       if (createError) throw createError;
 
-      setGoals((prev) => [data, ...prev]);
+      setGoals((prev) => [mapGoalRecord(data as FinancialSavingsGoalRow), ...prev]);
+      await processGamificationEvent('create_goal');
       toast.success('Meta criada com sucesso!');
       return data;
     } catch (err: any) {
@@ -87,16 +167,23 @@ export function useGoalsManager() {
   // Atualizar meta
   const updateGoal = useCallback(async (id: string, input: UpdateGoalInput): Promise<boolean> => {
     try {
+      const payload: Record<string, unknown> = { ...input };
+
+      if (input.target_date !== undefined) {
+        payload.target_date = input.target_date;
+        payload.deadline = input.target_date;
+      }
+
       const { data, error: updateError } = await supabase
-        .from('savings_goals')
-        .update(input)
+        .from('financial_goals')
+        .update(payload)
         .eq('id', id)
         .select()
         .single();
 
       if (updateError) throw updateError;
 
-      setGoals((prev) => prev.map((g) => (g.id === id ? data : g)));
+      setGoals((prev) => prev.map((g) => (g.id === id ? mapGoalRecord(data as FinancialSavingsGoalRow) : g)));
       toast.success('Meta atualizada!');
       return true;
     } catch (err: any) {
@@ -110,7 +197,7 @@ export function useGoalsManager() {
   const deleteGoal = useCallback(async (id: string): Promise<boolean> => {
     try {
       const { error: deleteError } = await supabase
-        .from('savings_goals')
+        .from('financial_goals')
         .delete()
         .eq('id', id);
 
@@ -133,13 +220,15 @@ export function useGoalsManager() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Usuário não autenticado');
 
+        const contributionDate = input.date || new Date().toISOString().split('T')[0];
+
         const { error: insertError } = await supabase
-          .from('goal_contributions')
+          .from('financial_goal_contributions')
           .insert({
             user_id: user.id,
             goal_id: input.goal_id,
             amount: input.amount,
-            date: input.date || new Date().toISOString().split('T')[0],
+            date: contributionDate,
             note: input.note,
           });
 
@@ -147,6 +236,7 @@ export function useGoalsManager() {
 
         // O trigger já atualiza current_amount, mas vamos refetch para garantir
         await fetchGoals();
+        await processGamificationEvent('add_goal_contribution');
         toast.success(`R$ ${input.amount.toLocaleString('pt-BR')} adicionado à meta!`);
         return true;
       } catch (err: any) {
@@ -162,15 +252,17 @@ export function useGoalsManager() {
   const getContributionHistory = useCallback(async (goalId: string) => {
     try {
       const { data, error: fetchError } = await supabase
-        .from('goal_contributions')
+        .from('financial_goal_contributions')
         .select('*')
         .eq('goal_id', goalId)
-        .order('date', { ascending: false });
+        .order('date', { ascending: false })
+        .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
 
-      setContributions(data || []);
-      return data || [];
+      const mapped = ((data || []) as FinancialGoalContributionRow[]).map(mapContributionRecord);
+      setContributions(mapped);
+      return mapped;
     } catch (err: any) {
       console.error('Error fetching contributions:', err);
       toast.error('Erro ao carregar histórico');
@@ -199,7 +291,7 @@ export function useGoalsManager() {
     const remaining = Math.max(0, goal.target_amount - goal.current_amount);
     
     const today = new Date();
-    const targetDate = new Date(goal.target_date);
+    const targetDate = new Date(`${goal.target_date}T12:00:00`);
     
     // Validar se a data é válida
     const isValidDate = !isNaN(targetDate.getTime());
@@ -214,7 +306,7 @@ export function useGoalsManager() {
     
     const isOverdue = daysRemaining === 0 && goal.status === 'active' && percentage < 100;
     
-    const startDate = new Date(goal.start_date);
+    const startDate = new Date(`${goal.start_date}T12:00:00`);
     const isValidStartDate = !isNaN(startDate.getTime());
     
     const totalDays = isValidDate && isValidStartDate
@@ -242,16 +334,27 @@ export function useGoalsManager() {
     fetchGoals();
 
     const subscription = supabase
-      .channel('savings_goals_changes')
+      .channel('financial_savings_goals_changes')
       .on(
         'postgres_changes',
         {
           event: '*',
           schema: 'public',
-          table: 'savings_goals',
+          table: 'financial_goals',
         },
         (payload) => {
           console.log('Goal change:', payload);
+          fetchGoals();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'financial_goal_contributions',
+        },
+        () => {
           fetchGoals();
         }
       )

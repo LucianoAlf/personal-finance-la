@@ -2,7 +2,7 @@ import * as React from 'react';
 import { cn } from '@/lib/cn';
 
 export interface BadgeProps {
-  variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'outline';
+  variant?: 'default' | 'success' | 'warning' | 'danger' | 'destructive' | 'info' | 'outline' | 'secondary';
   children?: React.ReactNode;
   className?: string;
   style?: React.CSSProperties;
@@ -12,9 +12,11 @@ export interface BadgeProps {
 function Badge({ className, variant = 'default', style, onClick, children }: BadgeProps) {
   const variants = {
     default: 'bg-primary text-primary-foreground',
+    secondary: 'bg-secondary text-secondary-foreground',
     success: 'bg-success text-success-foreground',
     warning: 'bg-warning text-warning-foreground',
     danger: 'bg-danger text-danger-foreground',
+    destructive: 'bg-danger text-danger-foreground',
     info: 'bg-info text-info-foreground',
     outline: 'text-foreground border border-input',
   };

@@ -18,16 +18,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { DatePickerInput } from '@/components/ui/date-picker-input';
+import { Checkbox } from '@/components/ui/checkbox';
+import { InvestmentPlanningCalculator } from '@/components/investments/InvestmentPlanningCalculator';
 import { 
   Target, 
   TrendingUp, 
-  Calendar, 
-  Bell,
   Loader2,
   AlertTriangle,
-  Home,
-  GraduationCap,
-  Palmtree,
 } from 'lucide-react';
 import type { 
   InvestmentGoal, 
@@ -36,7 +33,10 @@ import type {
   InvestmentGoalCategory,
   InvestmentGoalPriority,
 } from '@/types/investment-goals.types';
-import { INVESTMENT_GOAL_LABELS, INVESTMENT_GOAL_COLORS } from '@/types/investment-goals.types';
+import { INVESTMENT_GOAL_COLORS, INVESTMENT_GOAL_ICONS, INVESTMENT_GOAL_LABELS } from '@/types/investment-goals.types';
+import { formatDateOnly, parseDateOnly } from '@/utils/formatters';
+import { useInvestmentsQuery } from '@/hooks/useInvestmentsQuery';
+import { formatCurrency } from '@/utils/formatters';
 
 const goalSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório').max(100),
@@ -49,10 +49,25 @@ const goalSchema = z.object({
   expected_return_rate: z.number().min(0, 'Taxa deve ser positiva').max(100, 'Taxa máxima é 100%'),
   monthly_contribution: z.number().min(0).default(0),
   contribution_day: z.number().min(1).max(28).optional(),
+  linked_investments: z.array(z.string()).default([]),
+  auto_invest: z.boolean().default(false),
   priority: z.enum(['low', 'medium', 'high', 'critical']).default('medium'),
   notify_milestones: z.boolean().default(true),
   notify_contribution: z.boolean().default(false),
   notify_rebalancing: z.boolean().default(false),
+}).superRefine((data, ctx) => {
+  if (!data.start_date || !data.target_date) return;
+
+  const startDate = parseDateOnly(data.start_date);
+  const targetDate = parseDateOnly(data.target_date);
+
+  if (targetDate <= startDate) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['target_date'],
+      message: 'A data alvo deve ser posterior à data de início',
+    });
+  }
 });
 
 type GoalFormData = z.infer<typeof goalSchema>;
@@ -64,17 +79,22 @@ interface InvestmentGoalDialogProps {
   onSave: (input: CreateInvestmentGoalInput | UpdateInvestmentGoalInput) => Promise<boolean>;
 }
 
-const CATEGORY_ICONS = {
-  retirement: Palmtree,
-  financial_freedom: TrendingUp,
-  education: GraduationCap,
-  real_estate: Home,
-  general: Target,
-};
+const getDefaultGoalDate = () => formatDateOnly(new Date());
 
 export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: InvestmentGoalDialogProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState('basic');
+  const currentYear = new Date().getFullYear();
+  const {
+    investments: availableInvestments,
+    isPending: investmentsPending,
+    isFetching: investmentsFetching,
+    refetch: refetchInvestments,
+  } = useInvestmentsQuery();
+
+  /** Evita mensagem “sem ativos” enquanto ainda há fetch (cache vazio ou refetch após novo investimento). */
+  const showInvestmentsLinkLoading =
+    investmentsPending || (investmentsFetching && availableInvestments.length === 0);
 
   const {
     register,
@@ -92,11 +112,13 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
       category: 'general',
       target_amount: 10000,
       current_amount: 0,
-      start_date: new Date().toISOString().split('T')[0],
+      start_date: getDefaultGoalDate(),
       target_date: '',
       expected_return_rate: 8,
       monthly_contribution: 500,
       contribution_day: 5,
+      linked_investments: [],
+      auto_invest: false,
       priority: 'medium',
       notify_milestones: true,
       notify_contribution: false,
@@ -111,14 +133,31 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
   const watchReturnRate = watch('expected_return_rate');
   const watchStartDate = watch('start_date');
   const watchTargetDate = watch('target_date');
+  const watchLinkedInvestments = watch('linked_investments');
+  const watchAutoInvest = watch('auto_invest');
   const watchNotifyContribution = watch('notify_contribution');
+  const startDateValue = watchStartDate ? parseDateOnly(watchStartDate) : undefined;
+  const targetDateValue = watchTargetDate ? parseDateOnly(watchTargetDate) : undefined;
+  const targetMinDate = startDateValue ? new Date(startDateValue.getTime() + 24 * 60 * 60 * 1000) : undefined;
+  const startMaxDate = targetDateValue ? new Date(targetDateValue.getTime() - 24 * 60 * 60 * 1000) : undefined;
+  const linkedCurrentValue = (watchLinkedInvestments || []).reduce((sum, investmentId) => {
+    const investment = availableInvestments.find((item) => item.id === investmentId);
+    if (!investment) return sum;
+    return sum + Number(investment.current_value || (investment.quantity * (investment.current_price || investment.purchase_price)));
+  }, 0);
+  const plannerCurrentAmount = watchCurrentAmount + (watchAutoInvest ? linkedCurrentValue : 0);
+  const plannerYears = watchStartDate && watchTargetDate
+    ? Math.max(1, (parseDateOnly(watchTargetDate).getFullYear() - parseDateOnly(watchStartDate).getFullYear()) * 12 + (parseDateOnly(watchTargetDate).getMonth() - parseDateOnly(watchStartDate).getMonth())) / 12
+    : 15;
 
   // Calcular projeção simples
   const projection = (() => {
     if (!watchTargetDate || !watchStartDate) return null;
     
-    const start = new Date(watchStartDate);
-    const target = new Date(watchTargetDate);
+    const start = parseDateOnly(watchStartDate);
+    const target = parseDateOnly(watchTargetDate);
+    if (target <= start) return null;
+
     const months = Math.max(1, (target.getFullYear() - start.getFullYear()) * 12 + (target.getMonth() - start.getMonth()));
     
     const monthlyRate = watchReturnRate / 12 / 100;
@@ -140,18 +179,20 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
   // Preencher form ao editar
   useEffect(() => {
     if (goal) {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getDefaultGoalDate();
       reset({
         name: goal.name,
         description: goal.description || '',
         category: goal.category,
         target_amount: goal.target_amount,
         current_amount: goal.current_amount,
-        start_date: goal.start_date || today,
-        target_date: goal.target_date,
+        start_date: goal.start_date ? formatDateOnly(goal.start_date) : today,
+        target_date: formatDateOnly(goal.target_date),
         expected_return_rate: goal.expected_return_rate,
         monthly_contribution: goal.monthly_contribution,
         contribution_day: goal.contribution_day || undefined,
+        linked_investments: goal.linked_investments || [],
+        auto_invest: goal.auto_invest,
         priority: goal.priority,
         notify_milestones: goal.notify_milestones,
         notify_contribution: goal.notify_contribution,
@@ -164,11 +205,13 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
         category: 'general',
         target_amount: 10000,
         current_amount: 0,
-        start_date: new Date().toISOString().split('T')[0],
+        start_date: getDefaultGoalDate(),
         target_date: '',
         expected_return_rate: 8,
         monthly_contribution: 500,
         contribution_day: 5,
+        linked_investments: [],
+        auto_invest: false,
         priority: 'medium',
         notify_milestones: true,
         notify_contribution: false,
@@ -177,13 +220,36 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
     }
   }, [goal, reset, open]);
 
+  useEffect(() => {
+    if (!open) return;
+    void refetchInvestments();
+  }, [open, refetchInvestments]);
+
+  const toggleLinkedInvestment = (investmentId: string, checked: boolean) => {
+    const nextLinkedInvestments = checked
+      ? Array.from(new Set([...(watchLinkedInvestments || []), investmentId]))
+      : (watchLinkedInvestments || []).filter((id) => id !== investmentId);
+
+    setValue('linked_investments', nextLinkedInvestments, { shouldDirty: true, shouldValidate: true });
+
+    if (checked && !watchAutoInvest) {
+      setValue('auto_invest', true, { shouldDirty: true });
+    }
+
+    if (!checked && nextLinkedInvestments.length === 0) {
+      setValue('auto_invest', false, { shouldDirty: true });
+    }
+  };
+
   const onSubmit = async (data: GoalFormData) => {
     setIsSaving(true);
     try {
       const input = {
         ...data,
         color: INVESTMENT_GOAL_COLORS[data.category],
-        icon: Object.keys(CATEGORY_ICONS)[Object.values(CATEGORY_ICONS).indexOf(CATEGORY_ICONS[data.category])],
+        icon: INVESTMENT_GOAL_ICONS[data.category],
+        start_date: formatDateOnly(data.start_date),
+        target_date: formatDateOnly(data.target_date),
       };
       
       const success = await onSave(input);
@@ -303,6 +369,82 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="rounded-lg border p-4 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <Label className="text-base">Integrar com carteira real</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Vincule ativos existentes para que a meta some automaticamente o valor real da carteira ao progresso.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={watchAutoInvest}
+                    onCheckedChange={(checked) => setValue('auto_invest', checked, { shouldDirty: true, shouldValidate: true })}
+                    disabled={(watchLinkedInvestments || []).length === 0}
+                  />
+                </div>
+
+                {showInvestmentsLinkLoading ? (
+                  <div
+                    className="space-y-3 py-1"
+                    aria-busy="true"
+                    aria-label="Carregando investimentos para vincular"
+                  >
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                      <span>Buscando seus investimentos ativos…</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="h-14 rounded-md border bg-muted/50 animate-pulse" />
+                      <div className="h-14 rounded-md border bg-muted/50 animate-pulse w-5/6" />
+                    </div>
+                  </div>
+                ) : availableInvestments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Você ainda não tem investimentos ativos para vincular. Cadastre ativos na página de investimentos para conectar esta meta.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {availableInvestments.map((investment) => {
+                      const currentValue = Number(investment.current_value || (investment.quantity * (investment.current_price || investment.purchase_price)));
+                      const isChecked = (watchLinkedInvestments || []).includes(investment.id);
+
+                      return (
+                        <label
+                          key={investment.id}
+                          className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/40"
+                        >
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={(checked) => toggleLinkedInvestment(investment.id, checked === true)}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <p className="font-medium">{investment.ticker || investment.name}</p>
+                                <p className="text-sm text-muted-foreground">{investment.name}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-semibold">{formatCurrency(currentValue)}</p>
+                                <p className="text-xs text-muted-foreground">valor atual</p>
+                              </div>
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {(watchLinkedInvestments || []).length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {watchAutoInvest
+                      ? 'O progresso mostrará aportes manuais + patrimônio atual dos ativos vinculados.'
+                      : 'Os vínculos ficam salvos, mas ainda não entram no progresso até você ativar a integração automática.'}
+                  </p>
+                )}
+              </div>
             </TabsContent>
 
             {/* ABA 2: VALORES & PRAZO */}
@@ -356,8 +498,12 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
                   <Label htmlFor="start_date">Data Início *</Label>
                   <DatePickerInput
                     value={watch('start_date')}
-                    onChange={(value) => setValue('start_date', value)}
+                    onChange={(value) => setValue('start_date', value, { shouldDirty: true, shouldValidate: true })}
                     placeholder="Selecione a data de início"
+                    maxDate={startMaxDate}
+                    enableMonthYearNavigation
+                    fromYear={currentYear - 10}
+                    toYear={currentYear + 70}
                   />
                   {errors.start_date && (
                     <p className="text-sm text-red-600">{errors.start_date.message}</p>
@@ -368,8 +514,12 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
                   <Label htmlFor="target_date">Data Alvo *</Label>
                   <DatePickerInput
                     value={watch('target_date')}
-                    onChange={(value) => setValue('target_date', value)}
+                    onChange={(value) => setValue('target_date', value, { shouldDirty: true, shouldValidate: true })}
                     placeholder="Selecione a data alvo"
+                    minDate={targetMinDate}
+                    enableMonthYearNavigation
+                    fromYear={currentYear - 5}
+                    toYear={currentYear + 70}
                   />
                   {errors.target_date && (
                     <p className="text-sm text-red-600">{errors.target_date.message}</p>
@@ -457,6 +607,19 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
                   />
                 </div>
               </div>
+
+              <InvestmentPlanningCalculator
+                title="Planejamento avançado da meta"
+                description="Entenda se o objetivo faz sentido em termos reais, já considerando inflação, impostos e custos."
+                initialCurrentAmount={plannerCurrentAmount}
+                initialMonthlyContribution={watchMonthlyContribution}
+                initialTargetAmount={watchTargetAmount}
+                initialYearsToGoal={Math.max(1, Math.round(plannerYears))}
+                initialAnnualReturnRate={watchReturnRate}
+                initialDesiredMonthlyIncome={watchCategory === 'retirement' ? 30000 : 0}
+                editableBaseInputs={false}
+                compact
+              />
             </TabsContent>
 
             {/* ABA 4: NOTIFICAÇÕES */}

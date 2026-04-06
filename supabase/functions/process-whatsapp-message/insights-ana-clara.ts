@@ -31,6 +31,7 @@ interface MetaProgresso {
   atual: number;
   objetivo: number;
   percentual: number;
+  tipo?: 'savings' | 'spending_limit';
 }
 
 interface ContaBancaria {
@@ -300,38 +301,22 @@ async function buscarProgressoMetas(userId: string): Promise<MetaProgresso[]> {
   const supabase = getSupabase();
   
   try {
-    // Tentar tabela financial_goals primeiro
     const { data: metas } = await supabase
       .from('financial_goals')
-      .select('name, current_amount, target_amount')
+      .select('name, current_amount, target_amount, goal_type, category:categories(name)')
       .eq('user_id', userId)
       .eq('status', 'active')
+      .in('goal_type', ['savings', 'spending_limit'])
       .limit(3);
-    
-    if (!metas || metas.length === 0) {
-      // Fallback para savings_goals
-      const { data: metasSavings } = await supabase
-        .from('savings_goals')
-        .select('name, current_amount, target_amount')
-        .eq('user_id', userId)
-        .eq('status', 'active')
-        .limit(3);
-      
-      if (!metasSavings) return [];
-      
-      return metasSavings.map(m => ({
-        nome: m.name,
-        atual: m.current_amount || 0,
-        objetivo: m.target_amount || 0,
-        percentual: m.target_amount > 0 ? Math.round(((m.current_amount || 0) / m.target_amount) * 100) : 0
-      }));
-    }
-    
+
+    if (!metas) return [];
+
     return metas.map(m => ({
-      nome: m.name,
+      nome: m.goal_type === 'spending_limit' ? `Limite ${m.category?.name || m.name}` : m.name,
       atual: m.current_amount || 0,
       objetivo: m.target_amount || 0,
-      percentual: m.target_amount > 0 ? Math.round(((m.current_amount || 0) / m.target_amount) * 100) : 0
+      percentual: m.target_amount > 0 ? Math.round(((m.current_amount || 0) / m.target_amount) * 100) : 0,
+      tipo: m.goal_type,
     }));
   } catch (error) {
     console.error('[INSIGHTS] Erro ao buscar metas:', error);
@@ -492,7 +477,7 @@ function formatarOutputCompleto(
       const barraCheia = Math.min(Math.round(meta.percentual / 5), 20);
       const barraVazia = 20 - barraCheia;
       const barra = '█'.repeat(barraCheia) + '░'.repeat(barraVazia);
-      output += `• ${meta.nome}: ${meta.percentual}%\n`;
+      output += `• ${meta.nome}: ${meta.percentual}%${meta.tipo === 'spending_limit' ? ' do limite' : ''}\n`;
       output += `  [${barra}]\n`;
       output += `  R$ ${formatarMoeda(meta.atual)} / ${formatarMoeda(meta.objetivo)}\n\n`;
     }

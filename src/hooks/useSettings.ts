@@ -12,6 +12,10 @@ import type {
   UserSettingsResponse,
 } from '@/types/settings.types';
 
+interface UpdateSettingsOptions {
+  showSuccessToast?: boolean;
+}
+
 export function useSettings() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userSettings, setUserSettings] = useState<UserSettings | null>(null);
@@ -102,7 +106,10 @@ export function useSettings() {
   }, [userId]);
 
   // Atualizar user_settings
-  const updateUserSettings = useCallback(async (input: UpdateUserSettingsInput) => {
+  const updateUserSettings = useCallback(async (
+    input: UpdateUserSettingsInput,
+    options: UpdateSettingsOptions = {}
+  ) => {
     if (!userId) return;
 
     try {
@@ -116,7 +123,9 @@ export function useSettings() {
       if (error) throw error;
 
       setUserSettings(data);
-      toast.success('Configurações atualizadas!');
+      if (options.showSuccessToast !== false) {
+        toast.success('Configurações atualizadas!');
+      }
       return data;
     } catch (err: any) {
       console.error('Error updating user settings:', err);
@@ -127,7 +136,10 @@ export function useSettings() {
 
   // Atualizar notification_preferences
   const updateNotificationPreferences = useCallback(
-    async (input: UpdateNotificationPreferencesInput) => {
+    async (
+      input: UpdateNotificationPreferencesInput,
+      options: UpdateSettingsOptions = {}
+    ) => {
       if (!userId) return;
 
       try {
@@ -141,7 +153,9 @@ export function useSettings() {
         if (error) throw error;
 
         setNotificationPreferences(data);
-        toast.success('Preferências de notificação atualizadas!');
+        if (options.showSuccessToast !== false) {
+          toast.success('Preferências de notificação atualizadas!');
+        }
         return data;
       } catch (err: any) {
         console.error('Error updating notification preferences:', err);

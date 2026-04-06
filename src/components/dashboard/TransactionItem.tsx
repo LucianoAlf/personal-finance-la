@@ -14,6 +14,9 @@ interface TransactionItemProps {
   amount: number;
   is_paid?: boolean;
   is_recurring?: boolean;
+  extraBadgeText?: string;
+  /** Linha extra abaixo do valor (ex.: total da compra parcelada). */
+  amountFootnote?: string;
   onClick?: () => void;
 }
 
@@ -25,6 +28,8 @@ export function TransactionItem({
   amount,
   is_paid = true,
   is_recurring,
+  extraBadgeText,
+  amountFootnote,
   onClick,
 }: TransactionItemProps) {
   const { getCategoryById } = useCategories();
@@ -103,6 +108,11 @@ export function TransactionItem({
                 Pendente
               </Badge>
             )}
+            {extraBadgeText && (
+              <Badge variant="info" className="text-xs whitespace-nowrap">
+                {extraBadgeText}
+              </Badge>
+            )}
           </div>
         </div>
       </div>
@@ -121,6 +131,11 @@ export function TransactionItem({
           {type === 'income' ? '+' : type === 'transfer' ? '+' : '-'} {formatCurrency(amount)}
         </p>
         <p className="text-sm text-gray-500 dark:text-gray-400">{displayDate}</p>
+        {amountFootnote ? (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 max-w-[11rem] ml-auto text-right">
+            {amountFootnote}
+          </p>
+        ) : null}
       </div>
     </div>
   );

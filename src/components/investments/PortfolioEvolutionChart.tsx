@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Info } from 'lucide-react';
 import {
@@ -10,8 +11,9 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import { usePortfolioHistory } from '@/hooks/usePortfolioHistory';
 import { formatCurrency } from '@/utils/formatters';
-import { format, subMonths } from 'date-fns';
+import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface EvolutionData {
@@ -29,34 +31,34 @@ export function PortfolioEvolutionChart({
   totalInvested,
   currentValue,
 }: PortfolioEvolutionChartProps) {
-  // Gerar dados simulados dos últimos 6 meses
-  // TODO: Substituir por dados reais quando tivermos histórico
-  const generateMockData = (): EvolutionData[] => {
-    const data: EvolutionData[] = [];
-    const months = 6;
-    
-    for (let i = months; i >= 0; i--) {
-      const date = subMonths(new Date(), i);
-      const progress = (months - i) / months;
-      
-      // Simular crescimento gradual do investido
-      const invested = totalInvested * progress;
-      
-      // Simular variação do valor atual (com alguma volatilidade)
-      const volatility = Math.sin(i) * 0.05; // -5% a +5%
-      const current = invested * (1 + volatility) * (currentValue / totalInvested);
-      
-      data.push({
-        date: format(date, 'MMM/yy', { locale: ptBR }),
-        invested: Math.round(invested),
-        current: Math.round(current),
-      });
-    }
-    
-    return data;
-  };
+  const { history, loading } = usePortfolioHistory(365);
+  const data = useMemo(() => {
+    if (history.length === 0) {
+      if (totalInvested === 0 && currentValue === 0) return [];
 
-  const data = generateMockData();
+      return [
+        {
+          date: format(new Date(), 'MMM/yy', { locale: ptBR }),
+          invested: Math.round(totalInvested),
+          current: Math.round(currentValue),
+        },
+      ];
+    }
+
+    const snapshotsByMonth = new Map<string, EvolutionData>();
+
+    history.forEach((snapshot) => {
+      const snapshotDate = new Date(`${snapshot.snapshot_date}T12:00:00`);
+      const monthKey = format(snapshotDate, 'yyyy-MM');
+      snapshotsByMonth.set(monthKey, {
+        date: format(snapshotDate, 'MMM/yy', { locale: ptBR }),
+        invested: Math.round(snapshot.total_invested),
+        current: Math.round(snapshot.current_value),
+      });
+    });
+
+    return Array.from(snapshotsByMonth.values());
+  }, [currentValue, history, totalInvested]);
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload }: any) => {
@@ -143,11 +145,17 @@ export function PortfolioEvolutionChart({
           <Info className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
           <div>
             <p className="text-sm text-muted-foreground mb-2">
-              Este gráfico mostra uma simulação baseada nos valores atuais.
+              {loading
+                ? 'Carregando snapshots reais do portfólio...'
+                : history.length > 0
+                  ? 'Este gráfico mostra a evolução real do portfólio com base nos snapshots registrados.'
+                  : 'Ainda não há histórico suficiente de snapshots. O gráfico exibirá a evolução real assim que novos registros forem gerados.'}
             </p>
-            <p className="text-xs text-muted-foreground">
-              O histórico real será gerado conforme você registrar transações ao longo do tempo.
-            </p>
+            {history.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                O valor atual continua visível, mas a série histórica depende da criação periódica de snapshots do portfólio.
+              </p>
+            )}
           </div>
         </div>
       </CardContent>

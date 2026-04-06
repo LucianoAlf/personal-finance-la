@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
-import { DollarSign, Info, AlertTriangle } from 'lucide-react';
+import { DollarSign, Info, AlertTriangle, Save, RotateCcw, Loader2 } from 'lucide-react';
 import {
   Tooltip,
   TooltipContent,
@@ -17,10 +17,15 @@ interface FinancialSettingsCardProps {
   closingDay: number;
   budgetAllocation?: BudgetAllocation | null;
   budgetAlertThreshold?: number | null;
+  isLoading?: boolean;
+  isSaving?: boolean;
+  isDirty?: boolean;
   onSavingsGoalChange: (value: number) => void;
   onClosingDayChange: (value: number) => void;
   onBudgetAllocationChange: (allocation: BudgetAllocation) => void;
   onBudgetAlertThresholdChange: (threshold: number) => void;
+  onSave: () => void | Promise<void>;
+  onReset: () => void;
 }
 
 export function FinancialSettingsCard({
@@ -28,34 +33,24 @@ export function FinancialSettingsCard({
   closingDay,
   budgetAllocation,
   budgetAlertThreshold,
+  isLoading = false,
+  isSaving = false,
+  isDirty = false,
   onSavingsGoalChange,
   onClosingDayChange,
   onBudgetAllocationChange,
   onBudgetAlertThresholdChange,
+  onSave,
+  onReset,
 }: FinancialSettingsCardProps) {
-  const [allocation, setAllocation] = useState<BudgetAllocation>(
-    budgetAllocation || {
-      essentials: 50,
-      investments: 20,
-      leisure: 20,
-      others: 10,
-    }
-  );
-
-  const [threshold, setThreshold] = useState(budgetAlertThreshold || 80);
-
-  // Atualizar allocation quando prop mudar
-  useEffect(() => {
-    if (budgetAllocation) {
-      setAllocation(budgetAllocation);
-    }
-  }, [budgetAllocation]);
-
-  useEffect(() => {
-    if (budgetAlertThreshold) {
-      setThreshold(budgetAlertThreshold);
-    }
-  }, [budgetAlertThreshold]);
+  const isDisabled = isLoading || isSaving;
+  const allocation: BudgetAllocation = budgetAllocation || {
+    essentials: 50,
+    investments: 20,
+    leisure: 20,
+    others: 10,
+  };
+  const threshold = budgetAlertThreshold ?? 80;
 
   // Calcular total da alocação
   const allocationTotal =
@@ -66,7 +61,6 @@ export function FinancialSettingsCard({
   // Atualizar alocação individual
   const handleAllocationChange = (key: keyof BudgetAllocation, value: number) => {
     const newAllocation = { ...allocation, [key]: value };
-    setAllocation(newAllocation);
     onBudgetAllocationChange(newAllocation);
   };
 
@@ -102,6 +96,12 @@ export function FinancialSettingsCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {isLoading && (
+          <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+            Carregando configurações salvas...
+          </div>
+        )}
+
         {/* Meta de Economia Mensal */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -115,6 +115,7 @@ export function FinancialSettingsCard({
             max={100}
             step={5}
             className="w-full"
+            disabled={isDisabled}
           />
           <div className="flex items-center gap-2">
             <Input
@@ -124,6 +125,7 @@ export function FinancialSettingsCard({
               value={savingsGoal}
               onChange={(e) => onSavingsGoalChange(parseInt(e.target.value) || 0)}
               className="w-20"
+              disabled={isDisabled}
             />
             <span className="text-sm text-muted-foreground">
               % da sua renda mensal
@@ -141,7 +143,7 @@ export function FinancialSettingsCard({
                   <Info className="h-4 w-4 text-muted-foreground" />
                 </TooltipTrigger>
                 <TooltipContent>
-                  <p>Dia que seu ciclo financeiro reinicia</p>
+                  <p>Referência pessoal de planejamento usada pela Ana Clara e por resumos financeiros.</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -153,16 +155,17 @@ export function FinancialSettingsCard({
             value={closingDay}
             onChange={(e) => onClosingDayChange(parseInt(e.target.value) || 1)}
             className="w-24"
+            disabled={isDisabled}
           />
           <p className="text-xs text-muted-foreground">
-            Próximo fechamento: {getNextClosingDate()}
+            Próximo marco de planejamento: {getNextClosingDate()}
           </p>
         </div>
 
-        {/* Alocação de Orçamento */}
+        {/* Alocação do Planejamento */}
         <div className="space-y-4 pt-4 border-t">
           <div className="flex items-center justify-between">
-            <Label className="text-base font-semibold">Alocação de Orçamento</Label>
+            <Label className="text-base font-semibold">Alocação do Planejamento</Label>
             <span
               className={`text-sm font-medium ${
                 isAllocationValid ? 'text-green-600' : 'text-red-600'
@@ -185,6 +188,7 @@ export function FinancialSettingsCard({
               max={100}
               step={5}
               className="w-full"
+              disabled={isDisabled}
             />
             <p className="text-xs text-muted-foreground">
               Moradia, alimentação, transporte
@@ -204,6 +208,7 @@ export function FinancialSettingsCard({
               max={100}
               step={5}
               className="w-full"
+              disabled={isDisabled}
             />
             <p className="text-xs text-muted-foreground">
               Poupança, investimentos
@@ -223,6 +228,7 @@ export function FinancialSettingsCard({
               max={100}
               step={5}
               className="w-full"
+              disabled={isDisabled}
             />
             <p className="text-xs text-muted-foreground">
               Entretenimento, hobbies
@@ -242,6 +248,7 @@ export function FinancialSettingsCard({
               max={100}
               step={5}
               className="w-full"
+              disabled={isDisabled}
             />
             <p className="text-xs text-muted-foreground">
               Despesas diversas
@@ -267,17 +274,42 @@ export function FinancialSettingsCard({
             <Slider
               value={[threshold]}
               onValueChange={(values) => {
-                setThreshold(values[0]);
                 onBudgetAlertThresholdChange(values[0]);
               }}
               min={50}
               max={100}
               step={5}
               className="w-full"
+              disabled={isDisabled}
             />
             <p className="text-xs text-muted-foreground">
-              do orçamento mensal
+              usado pela Ana Clara e pelas notificações proativas de meta de gasto
             </p>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs text-muted-foreground">
+            As alterações só são aplicadas ao sistema quando você salvar.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button type="button" variant="outline" onClick={onReset} disabled={!isDirty || isDisabled}>
+              <RotateCcw className="mr-2 h-4 w-4" />
+              Descartar
+            </Button>
+            <Button type="button" onClick={onSave} disabled={!isDirty || !isAllocationValid || isDisabled}>
+              {isSaving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Salvar alterações
+                </>
+              )}
+            </Button>
           </div>
         </div>
       </CardContent>

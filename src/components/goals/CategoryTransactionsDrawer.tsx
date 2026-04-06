@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { MoreVertical, Edit2, Eye, Calendar, TrendingUp, ArrowRight } from 'lucide-react';
 import { useTransactions } from '@/hooks/useTransactions';
 import { useCreditCardTransactions } from '@/hooks/useCreditCardTransactions';
-import { formatCurrency, formatRelativeDate } from '@/utils/formatters';
+import { formatCurrency, formatDateOnly, formatRelativeDate, parseDateOnly } from '@/utils/formatters';
 import { startOfMonth, endOfMonth, subMonths, startOfYear, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Transaction } from '@/types/transactions';
@@ -83,7 +83,7 @@ export function CategoryTransactionsDrawer({
       setCreditForm({
         description: selectedCredit.description || '',
         amount: Number(selectedCredit.amount) || 0,
-        purchase_date: new Date(selectedCredit.purchase_date),
+        purchase_date: parseDateOnly(selectedCredit.purchase_date),
         establishment: selectedCredit.establishment || '',
         notes: selectedCredit.notes || undefined,
       });
@@ -125,14 +125,15 @@ export function CategoryTransactionsDrawer({
 
   // Unificar transações regulares e de cartão de crédito
   const unifiedTransactions = useMemo((): UnifiedTransaction[] => {
-    // Transações regulares
+    // Transações regulares (exclui linhas já mescladas de cartão em useTransactions — evita duplicar com creditCardTransactions)
     const regular = regularTransactions
       .filter((t) => t.category_id === categoryId && t.type === 'expense')
+      .filter((t) => !t.credit_card_id)
       .map((t) => ({
         id: t.id,
         description: t.description,
         amount: Number(t.amount),
-        transaction_date: new Date(t.transaction_date),
+        transaction_date: parseDateOnly(t.transaction_date),
         is_paid: t.is_paid,
         notes: t.notes,
         account_name: t.account?.name,
@@ -146,7 +147,7 @@ export function CategoryTransactionsDrawer({
         id: t.id,
         description: t.description,
         amount: Number(t.amount),
-        transaction_date: new Date(t.purchase_date),
+        transaction_date: parseDateOnly(t.purchase_date),
         notes: t.notes,
         establishment: t.establishment,
         source: 'credit_card' as const,
@@ -471,7 +472,7 @@ export function CategoryTransactionsDrawer({
                 <div>
                   <p className="text-sm text-gray-500 mb-1">Data</p>
                   <p className="font-medium text-gray-900">
-                    {format(new Date(selectedRegular.transaction_date), "dd/MM/yyyy", { locale: ptBR })}
+                    {format(parseDateOnly(selectedRegular.transaction_date), "dd/MM/yyyy", { locale: ptBR })}
                   </p>
                 </div>
                 <div>
@@ -574,8 +575,8 @@ export function CategoryTransactionsDrawer({
                 <div>
                   <label className="text-sm text-gray-600">Data</label>
                   <DatePickerInput
-                    value={creditForm.purchase_date.toISOString().slice(0,10)}
-                    onChange={(value) => setCreditForm((f) => ({ ...f, purchase_date: new Date(value) }))}
+                    value={formatDateOnly(creditForm.purchase_date)}
+                    onChange={(value) => setCreditForm((f) => ({ ...f, purchase_date: parseDateOnly(value) }))}
                     placeholder="Selecione a data da compra"
                     disableFuture={true}
                   />

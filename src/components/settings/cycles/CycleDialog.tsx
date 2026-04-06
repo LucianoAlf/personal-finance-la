@@ -29,7 +29,7 @@ import { LABELS } from '@/types/settings.types';
 
 const cycleSchema = z.object({
   name: z.string().min(1, 'Nome é obrigatório').max(100),
-  type: z.enum(['salary', 'rent', 'bills', 'investment', 'other']),
+  type: z.enum(['salary', 'credit_card', 'rent', 'custom']),
   day: z.number().min(1, 'Dia deve ser entre 1 e 28').max(28, 'Dia deve ser entre 1 e 28'),
   active: z.boolean().default(true),
   description: z.string().optional(),
@@ -124,7 +124,7 @@ export function CycleDialog({ open, onOpenChange, cycle, onSave, onDelete }: Cyc
         active: true,
         description: '',
         color: CYCLE_COLORS[0],
-        icon: '💰',
+        icon: 'Salário',
         notify_start: false,
         notify_days_before: 3,
       });

@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { InvestmentTransaction, CreateTransactionInput } from '@/types/database.types';
 import { toast } from 'sonner';
+import { processGamificationEvent } from '@/lib/gamification';
 
 interface UseInvestmentTransactionsOptions {
   investmentId?: string;
@@ -71,6 +72,7 @@ export function useInvestmentTransactions(options: UseInvestmentTransactionsOpti
 
       // Refresh transactions
       await fetchTransactions();
+      await processGamificationEvent('investment_activity');
 
       toast.success('Transação adicionada com sucesso!');
       return newTransaction;
@@ -106,6 +108,7 @@ export function useInvestmentTransactions(options: UseInvestmentTransactionsOpti
 
       // Refresh transactions
       await fetchTransactions();
+      await processGamificationEvent('investment_activity');
 
       toast.success('Transação deletada com sucesso!');
     } catch (err) {

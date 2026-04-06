@@ -213,6 +213,7 @@ export interface WebhookEndpoint {
   // Endpoint
   url: string;
   http_method: HttpMethod;
+  method?: HttpMethod;
   
   // Autenticação
   auth_type: AuthType;
@@ -234,7 +235,9 @@ export interface WebhookEndpoint {
   // Estatísticas
   total_calls: number;
   success_calls: number;
+  success_count?: number;
   failed_calls: number;
+  failure_count?: number;
   last_triggered_at: string | null;
   last_status_code: number | null;
   
@@ -291,6 +294,7 @@ export interface WebhookLog {
   
   // Response
   response_status_code: number | null;
+  status_code?: number | null;
   response_body: string | null;
   response_headers: Record<string, string> | null;
   response_time_ms: number | null;
@@ -464,7 +468,7 @@ export type GoalCategory =
   | 'general';
 
 export type GoalPriority = 'low' | 'medium' | 'high' | 'critical';
-export type GoalStatus = 'active' | 'completed' | 'paused' | 'cancelled';
+export type GoalStatus = 'active' | 'completed' | 'exceeded' | 'archived';
 export type ContributionFrequency = 'weekly' | 'biweekly' | 'monthly';
 
 export interface SavingsGoal {
@@ -479,6 +483,7 @@ export interface SavingsGoal {
   priority: GoalPriority;
   status: GoalStatus;
   icon?: string | null;
+  deadline?: string | null;
   notify_milestones: boolean;
   notify_contribution: boolean;
   contribution_frequency?: ContributionFrequency | null;
@@ -538,7 +543,7 @@ export interface GoalWithStats extends SavingsGoal {
 
 // ==================== FINANCIAL CYCLES ====================
 
-export type CycleType = 'salary' | 'rent' | 'bills' | 'investment' | 'other';
+export type CycleType = 'salary' | 'credit_card' | 'rent' | 'custom';
 
 export interface CycleAutoAction {
   type: 'reminder' | 'transaction' | 'budget_update';
@@ -577,7 +582,7 @@ export interface CreateCycleInput {
   auto_actions?: CycleAutoAction[];
 }
 
-export interface UpdateCycleInput extends Partial<CreateCycleInput> {}
+export type UpdateCycleInput = Partial<CreateCycleInput>;
 
 // Computed properties para UI
 export interface CycleWithStats extends FinancialCycle {
@@ -691,8 +696,8 @@ export const LABELS = {
   goalStatus: {
     active: 'Ativa',
     completed: 'Concluída',
-    paused: 'Pausada',
-    cancelled: 'Cancelada',
+    exceeded: 'Excedida',
+    archived: 'Arquivada',
   },
   
   contributionFrequency: {
@@ -703,10 +708,9 @@ export const LABELS = {
   
   cycleType: {
     salary: 'Salário',
+    credit_card: 'Cartão de Crédito',
     rent: 'Aluguel',
-    bills: 'Contas',
-    investment: 'Investimento',
-    other: 'Outro',
+    custom: 'Personalizado',
   },
   
   dayOfWeek: {

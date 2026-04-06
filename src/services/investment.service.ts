@@ -213,18 +213,22 @@ export class InvestmentService {
           body: JSON.stringify({ symbol: ticker, type }),
         }
       );
+      const quote = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(`Edge Function error: ${response.status}`);
-      }
-
-      const quote = await response.json();
-
-      // Se retornou erro da API
-      if (quote.error) {
         return {
           symbol: ticker,
-          error: quote.error,
+          error: quote?.error || `Edge Function error: ${response.status}`,
+          source: 'edge-function',
+          timestamp: new Date().toISOString(),
+        };
+      }
+
+      // Se retornou erro da API
+      if (!quote || quote.error) {
+        return {
+          symbol: ticker,
+          error: quote?.error || 'Quote unavailable',
           source: 'edge-function',
           timestamp: new Date().toISOString(),
         };

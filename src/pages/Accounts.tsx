@@ -16,7 +16,7 @@ export function Accounts() {
   // ✅ Cálculos usando dados reais
   const totalBalance = getTotalBalance();
   const checkingTotal = getBalanceByType(['checking']);
-  const walletsTotal = getBalanceByType(['wallet']);
+  const walletsTotal = getBalanceByType(['wallet', 'cash']);
 
   const getAccountIcon = (type: string) => {
     switch (type) {
@@ -137,7 +137,7 @@ export function Accounts() {
             </Card>
           ) : (
             accounts.map((account) => {
-            const bank = BANKS.find((b) => b.value === account.bank);
+            const bank = BANKS.find((b) => b.value === (account.bank || account.bank_name));
             const Icon = getAccountIcon(account.type);
 
             return (

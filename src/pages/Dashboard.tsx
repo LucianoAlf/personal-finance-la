@@ -20,8 +20,9 @@ import { useTransactionsQuery } from '@/hooks/useTransactionsQuery';
 import { useAccountsQuery } from '@/hooks/useAccountsQuery';
 import { useCreditCardsQuery } from '@/hooks/useCreditCardsQuery';
 import { useInvoicesQuery } from '@/hooks/useInvoicesQuery';
-import { useBudgetsQuery } from '@/hooks/useBudgetsQuery';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
+import { useGoalsQuery } from '@/hooks/useGoalsQuery';
+import type { FinancialGoalWithCategory } from '@/types/database.types';
 import {
   Wallet,
   TrendingUp,
@@ -30,6 +31,9 @@ import {
   FileText,
   Home,
 } from 'lucide-react';
+import { groupTransactionsForDisplay } from '@/utils/groupTransactionsForDisplay';
+import { competenceMonthFromTransaction, isInvoicePaymentExpense } from '@/utils/transactionCompetence';
+import { summarizeBudgetItems, toBudgetItemsFromSpendingGoals } from '@/utils/spendingGoalPlanning';
 
 export function Dashboard() {
   const { user, profile } = useAuth();
@@ -64,10 +68,12 @@ export function Dashboard() {
     loading: invoicesLoading,
   } = useInvoicesQuery();
 
-  const { 
-    budgets, 
-    loading: budgetsLoading 
-  } = useBudgetsQuery(monthKey);
+  const { goals } = useGoalsQuery();
+  const spendingPlanItems = useMemo(
+    () => toBudgetItemsFromSpendingGoals(goals as FinancialGoalWithCategory[], monthKey),
+    [goals, monthKey]
+  );
+  const spendingPlanSummary = useMemo(() => summarizeBudgetItems(spendingPlanItems), [spendingPlanItems]);
 
   // ✅ OTIMIZADO: Cachear filtro de transações com useMemo
   // ✅ CORREÇÃO: Filtrar por string (YYYY-MM) sem conversão de timezone
@@ -76,10 +82,7 @@ export function Dashboard() {
     const selectedMonth = String(selectedDate.getMonth() + 1).padStart(2, '0');
     const selectedYearMonth = `${selectedYear}-${selectedMonth}`;
     
-    return transactions.filter(t => {
-      // Compara apenas YYYY-MM (sem new Date que causa bug de timezone)
-      return t.transaction_date.startsWith(selectedYearMonth);
-    });
+    return transactions.filter((t) => competenceMonthFromTransaction(t) === selectedYearMonth);
   }, [transactions, selectedDate]);
 
   // ✅ OTIMIZADO: Cachear cálculos com useMemo
@@ -89,25 +92,17 @@ export function Dashboard() {
       .reduce((sum, t) => sum + Number(t.amount), 0);
     
     const expenses = filteredTransactions
-      .filter(t => t.type === 'expense')
+      .filter((t) => t.type === 'expense' && !isInvoicePaymentExpense(t))
       .reduce((sum, t) => sum + Number(t.amount), 0);
     
-    // ✅ CRÍTICO: Ordenar por created_at DESC (mais recentes primeiro!)
-    // Não por transaction_date, senão transações com data futura aparecem primeiro
-    const recent = [...filteredTransactions]
-      .sort((a, b) => {
-        const dateA = new Date(a.created_at || a.transaction_date);
-        const dateB = new Date(b.created_at || b.transaction_date);
-        return dateB.getTime() - dateA.getTime(); // DESC
-      })
-      .slice(0, 5);
+    const recent = groupTransactionsForDisplay(filteredTransactions, formatCurrency).slice(0, 5);
 
     return {
       totalIncome: income,
       totalExpenses: expenses,
       recentTransactions: recent
     };
-  }, [filteredTransactions]);
+  }, [filteredTransactions, formatCurrency]);
 
   // CÁLCULOS COM DADOS REAIS DO MÊS SELECIONADO
   const totalBalance = getTotalBalance();
@@ -155,15 +150,11 @@ export function Dashboard() {
             gradient="red"
             loading={transactionsLoading && transactions.length === 0}
             subtitle={(() => {
-              // ✅ Subtitle dinâmico: calcular percentual real do orçamento
-              const totalBudget = budgets.reduce((sum, b) => sum + Number(b.planned_amount), 0);
-              
-              if (totalBudget === 0) {
-                return 'Sem orçamento definido';
+              if (spendingPlanSummary.totalPlanned === 0) {
+                return 'Sem meta mensal definida';
               }
-              
-              const budgetPercentage = Math.round((totalExpenses / totalBudget) * 100);
-              return `${budgetPercentage}% do orçamento`;
+
+              return `${spendingPlanSummary.utilizationPct}% dos limites`;
             })()}
             onClick={() => navigate('/transacoes?type=expense')}
           />
@@ -221,8 +212,8 @@ export function Dashboard() {
             {/* Widget de Metas */}
             <GoalsSummaryWidget />
 
-            {/* Widget de Orçamento */}
-            <BudgetComplianceWidget />
+            {/* Widget de Metas de Gasto */}
+            <BudgetComplianceWidget monthKey={monthKey} />
           </div>
         </div>
 
@@ -244,18 +235,30 @@ export function Dashboard() {
             </CardHeader>
             <CardContent className="space-y-3">
               {recentTransactions.length > 0 ? (
-                recentTransactions.map((transaction) => (
+                recentTransactions.map((transaction) => {
+                  const shown = transaction.displayAmount ?? transaction.amount;
+                  const total = transaction.displayPurchaseTotal;
+                  const amountFootnote =
+                    transaction.groupedInstallments?.length && total != null
+                      ? Math.abs(Number(total) - Number(shown)) > 0.009
+                        ? `Compra total ${formatCurrency(total)} · competência no mês ${formatCurrency(shown)}`
+                        : `Compra total ${formatCurrency(total)}`
+                      : undefined;
+                  return (
                   <TransactionItem
                     key={transaction.id}
                     type={transaction.type}
-                    description={transaction.description}
+                    description={transaction.displayDescription || transaction.description}
                     category_id={transaction.category_id}
                     date={new Date(`${transaction.transaction_date}T00:00:00`)}
-                    amount={transaction.amount}
+                    amount={shown}
                     is_paid={transaction.is_paid}
                     is_recurring={transaction.is_recurring}
+                    extraBadgeText={transaction.groupedInstallments?.length ? `Parcelado ${transaction.total_installments || transaction.groupedInstallmentCount}x` : undefined}
+                    amountFootnote={amountFootnote}
                   />
-                ))
+                );
+                })
               ) : (
                 <div className="flex flex-col items-center justify-center py-12 text-center">
                   <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">

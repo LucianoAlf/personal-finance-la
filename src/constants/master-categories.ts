@@ -23,6 +23,7 @@ export interface MasterCategory {
   color: string;
   type: CategoryType;
   order: number;
+  description?: string;
   keywords?: string[];
 }
 

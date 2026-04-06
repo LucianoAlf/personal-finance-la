@@ -26,6 +26,16 @@ interface Portfolio {
     purchasePrice?: number;
   }>;
   targets?: Array<{ assetClass: string; targetPercentage: number }>;
+  goals?: Array<{
+    name: string;
+    category: string;
+    targetAmount: number;
+    currentAmount: number;
+    finalProjection: number;
+    projectedGap: number;
+    linkedInvestmentsCount: number;
+    status: string;
+  }>;
 }
 
 interface GPTInsightsResponse {
@@ -155,6 +165,12 @@ serve(async (req) => {
       })
       .join('\n') || 'Nenhuma meta definida';
 
+    const goalsText = portfolio.goals
+      ?.map((goal) => {
+        return `- ${goal.name} (${goal.category}) | Atual: R$ ${goal.currentAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Alvo: R$ ${goal.targetAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Projeção: R$ ${goal.finalProjection.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Gap projetado: R$ ${goal.projectedGap.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Vínculos: ${goal.linkedInvestmentsCount}`;
+      })
+      .join('\n') || 'Nenhuma meta de investimento ativa';
+
     const context = `
 ANÁLISE DE PORTFÓLIO DE INVESTIMENTOS BRASILEIRO
 
@@ -172,6 +188,9 @@ ${investmentsText}
 🎯 METAS DE ALOCAÇÃO:
 ${targetsText}
 
+🎯 METAS DE INVESTIMENTO:
+${goalsText}
+
 📅 CONTEXTO ECONÔMICO BRASIL (2025):
 - Selic: ~11.25% a.a.
 - IPCA (inflação): ~4.5% a.a.
@@ -183,6 +202,7 @@ ${targetsText}
 
 Seu papel:
 - Analisar portfólios de investimentos de forma técnica e objetiva
+- Relacionar a carteira real com metas de investimento e aposentadoria
 - Fornecer insights PRÁTICOS e ACIONÁVEIS
 - Considerar o contexto econômico brasileiro atual
 - Priorizar diversificação, segurança e rentabilidade sustentável
@@ -194,6 +214,7 @@ Princípios que você segue:
 3. Risco deve ser proporcional ao perfil e horizonte temporal
 4. Dividendos são importantes para renda passiva
 5. Custos e impostos impactam retornos
+6. Um portfólio só faz sentido se ajudar a cumprir objetivos concretos
 
 IMPORTANTE: Seja honesta sobre riscos. Não faça promessas irreais. Base suas recomendações em fundamentos sólidos.`;
 

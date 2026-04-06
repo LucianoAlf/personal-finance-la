@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTransactions } from '@/hooks/useTransactions';
 import { formatCurrency } from '@/utils/formatters';
+import { competenceMonthFromTransaction, isInvoicePaymentExpense } from '@/utils/transactionCompetence';
 import { Plus, Upload, Filter, Wallet, ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
+import { format, addMonths, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 export function Transactions() {
@@ -19,25 +20,22 @@ export function Transactions() {
 
   // Filtrar transações pelo mês selecionado
   const filteredTransactions = useMemo(() => {
-    const start = format(startOfMonth(selectedMonth), 'yyyy-MM-dd');
-    const end = format(endOfMonth(selectedMonth), 'yyyy-MM-dd');
-    
-    return transactions.filter((t) => {
-      const txDate = t.transaction_date;
-      return txDate >= start && txDate <= end;
-    });
+    const y = selectedMonth.getFullYear();
+    const m = String(selectedMonth.getMonth() + 1).padStart(2, '0');
+    const ym = `${y}-${m}`;
+    return transactions.filter((t) => competenceMonthFromTransaction(t) === ym);
   }, [transactions, selectedMonth]);
 
   // Calcular totais do mês filtrado
   const totalIncome = useMemo(() => {
     return filteredTransactions
-      .filter((t) => t.type === 'income' && t.is_paid)
+      .filter((t) => t.type === 'income')
       .reduce((sum, t) => sum + Number(t.amount), 0);
   }, [filteredTransactions]);
 
   const totalExpenses = useMemo(() => {
     return filteredTransactions
-      .filter((t) => t.type === 'expense' && t.is_paid)
+      .filter((t) => t.type === 'expense' && !isInvoicePaymentExpense(t))
       .reduce((sum, t) => sum + Number(t.amount), 0);
   }, [filteredTransactions]);
 
@@ -157,7 +155,16 @@ export function Transactions() {
               </div>
             ) : (
               filteredTransactions.map((transaction) => (
-                <TransactionItem key={transaction.id} {...transaction} />
+                <TransactionItem
+                  key={transaction.id}
+                  type={transaction.type}
+                  description={transaction.description}
+                  category_id={transaction.category_id}
+                  date={transaction.transaction_date}
+                  amount={transaction.amount}
+                  is_paid={transaction.is_paid}
+                  is_recurring={transaction.is_recurring}
+                />
               ))
             )}
           </CardContent>

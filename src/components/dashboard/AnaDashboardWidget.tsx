@@ -146,11 +146,11 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
           {/* Health Score Bar Detalhado */}
           <HealthScoreBar 
             score={healthScore}
-            breakdown={{
+            breakdown={insights.healthBreakdown || {
               bills: Math.round(healthScore * 0.3),
               investments: Math.round(healthScore * 0.3),
               budget: Math.round(healthScore * 0.2),
-              diversification: Math.round(healthScore * 0.2),
+              planning: Math.round(healthScore * 0.2),
             }}
             showBreakdown={true}
             label="Saúde Financeira"

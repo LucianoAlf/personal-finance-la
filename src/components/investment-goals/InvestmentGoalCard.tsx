@@ -14,31 +14,32 @@ import {
   Trash2,
   TrendingDown,
 } from 'lucide-react';
-import type { InvestmentGoal } from '@/types/investment-goals.types';
+import type { InvestmentGoal, InvestmentGoalPortfolioMetrics } from '@/types/investment-goals.types';
 import { INVESTMENT_GOAL_LABELS } from '@/types/investment-goals.types';
-import { formatCurrency } from '@/utils/formatters';
+import { formatCurrency, parseDateOnly } from '@/utils/formatters';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface InvestmentGoalCardProps {
   goal: InvestmentGoal;
-  metrics?: {
-    percentage: number;
-    months_remaining: number;
-    final_projection: number;
-    is_on_track: boolean;
-  };
+  metrics?: InvestmentGoalPortfolioMetrics;
   onEdit?: (goal: InvestmentGoal) => void;
   onContribute?: (goal: InvestmentGoal) => void;
   onDelete?: (id: string) => void;
+  onOpenPortfolio?: (goal: InvestmentGoal) => void;
 }
 
-export function InvestmentGoalCard({ goal, metrics, onEdit, onContribute, onDelete }: InvestmentGoalCardProps) {
+export function InvestmentGoalCard({ goal, metrics, onEdit, onContribute, onDelete, onOpenPortfolio }: InvestmentGoalCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const percentage = metrics?.percentage || (goal.current_amount / goal.target_amount) * 100;
+  const currentAmount = metrics?.effective_current_amount ?? goal.current_amount;
+  const percentage = metrics?.percentage || (currentAmount / goal.target_amount) * 100;
   const isOnTrack = metrics?.is_on_track ?? true;
   const monthsRemaining = metrics?.months_remaining || calculateMonthsRemaining(goal.target_date);
+  const currentGap = metrics?.current_gap ?? Math.max(0, goal.target_amount - currentAmount);
+  const linkedAmount = metrics?.linked_current_amount ?? 0;
+  const manualAmount = metrics?.manual_current_amount ?? goal.current_amount;
+  const linkedCount = metrics?.linked_investments_count ?? 0;
 
   const handleDelete = async () => {
     if (!confirm('Tem certeza que deseja deletar esta meta de investimento?')) return;
@@ -88,7 +89,7 @@ export function InvestmentGoalCard({ goal, metrics, onEdit, onContribute, onDele
         {/* Progress Bar */}
         <div>
           <div className="flex justify-between mb-2 text-sm">
-            <span className="font-semibold">{formatCurrency(goal.current_amount)}</span>
+            <span className="font-semibold">{formatCurrency(currentAmount)}</span>
             <span className="text-muted-foreground">{formatCurrency(goal.target_amount)}</span>
           </div>
           <Progress 
@@ -137,10 +138,33 @@ export function InvestmentGoalCard({ goal, metrics, onEdit, onContribute, onDele
             <div>
               <p className="text-muted-foreground">Conclusão</p>
               <p className="font-semibold">
-                {format(new Date(goal.target_date), 'MMM/yyyy', { locale: ptBR })}
+                {format(parseDateOnly(goal.target_date), 'MMM/yyyy', { locale: ptBR })}
               </p>
             </div>
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 text-sm rounded-lg bg-muted/50 p-3">
+          <div>
+            <p className="text-muted-foreground">Distância atual</p>
+            <p className="font-semibold">{formatCurrency(currentGap)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Projeção final</p>
+            <p className="font-semibold">{formatCurrency(metrics?.final_projection ?? currentAmount)}</p>
+          </div>
+          {linkedCount > 0 && (
+            <>
+              <div>
+                <p className="text-muted-foreground">Carteira vinculada</p>
+                <p className="font-semibold">{formatCurrency(linkedAmount)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Aportes manuais</p>
+                <p className="font-semibold">{formatCurrency(manualAmount)}</p>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Projeção Final */}
@@ -175,7 +199,18 @@ export function InvestmentGoalCard({ goal, metrics, onEdit, onContribute, onDele
         </Button>
         
         {/* Ações Secundárias - Lado a Lado */}
-        <div className="flex gap-2 w-full">
+        <div className="flex gap-2 w-full flex-wrap">
+          {linkedCount > 0 && onOpenPortfolio && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onOpenPortfolio(goal)}
+              className="flex-1"
+            >
+              <Target className="h-4 w-4 mr-2" />
+              Ver Carteira
+            </Button>
+          )}
           <Button 
             variant="outline" 
             size="sm" 

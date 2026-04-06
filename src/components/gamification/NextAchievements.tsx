@@ -18,32 +18,54 @@ interface BadgeWithProgress extends BadgeProgress {
 }
 
 export function NextAchievements({ badges }: NextAchievementsProps) {
-  // Calcular progresso de cada badge não desbloqueado
-  const badgesWithProgress: BadgeWithProgress[] = badges
-    .filter(a => !a.unlocked)
-    .map(userBadge => {
-      const achievement = ACHIEVEMENTS.find(a => a.id === userBadge.badge_id);
-      if (!achievement) return null;
+  const badgesWithProgress: BadgeWithProgress[] = ACHIEVEMENTS
+    .map((achievement) => {
+      const achievementBadges = badges.filter((badge) => badge.badge_id === achievement.id);
+      const unlockedTiers = achievementBadges
+        .filter((badge) => badge.unlocked)
+        .map((badge) => badge.tier);
 
+      const highestUnlockedTier = unlockedTiers.includes('gold')
+        ? 'gold'
+        : unlockedTiers.includes('silver')
+        ? 'silver'
+        : unlockedTiers.includes('bronze')
+        ? 'bronze'
+        : null;
+
+      const nextTierRow = achievementBadges.find((badge) => !badge.unlocked);
+      const currentProgress = Number(nextTierRow?.progress || 0);
       const { percentage, nextTarget, nextTier } = calculateTierProgress(
         achievement,
-        userBadge.progress,
-        userBadge.unlocked ? userBadge.tier : null
+        currentProgress,
+        highestUnlockedTier
       );
 
+      if (!nextTier) return null;
+
       return {
-        ...userBadge,
+        id: nextTierRow?.id || `${achievement.id}-${nextTier}`,
+        user_id: nextTierRow?.user_id || '',
+        badge_id: achievement.id,
+        tier: nextTier,
+        progress: currentProgress,
+        target: nextTarget,
+        unlocked: false,
+        unlocked_at: nextTierRow?.unlocked_at || null,
+        xp_reward: nextTierRow?.xp_reward || achievement.tiers.find((tier) => tier.tier === nextTier)?.xp_reward || 0,
+        created_at: nextTierRow?.created_at || new Date().toISOString(),
+        updated_at: nextTierRow?.updated_at || new Date().toISOString(),
         name: achievement.name,
         description: achievement.description,
         icon: achievement.icon,
         progressPercentage: percentage,
         nextTarget,
         nextTier,
-      };
+      } as BadgeWithProgress;
     })
-    .filter((a): a is BadgeWithProgress => a !== null)
-    .sort((a, b) => b.progressPercentage - a.progressPercentage) // Ordenar por progresso (mais próximas primeiro)
-    .slice(0, 3); // Pegar apenas as 3 mais próximas
+    .filter((achievement): achievement is BadgeWithProgress => achievement !== null)
+    .sort((a, b) => b.progressPercentage - a.progressPercentage)
+    .slice(0, 3);
 
   if (badgesWithProgress.length === 0) {
     return (

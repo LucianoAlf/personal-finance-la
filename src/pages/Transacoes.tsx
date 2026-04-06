@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, TrendingUp, TrendingDown, Wallet, X, List, Search, Filter, ChevronLeft, ChevronRight, ArrowLeftRight } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, Wallet, X, List, Search, Filter, ChevronLeft, ChevronRight, ArrowLeftRight, Landmark } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,32 +20,12 @@ import type { Transaction, TransactionType } from '@/types/transactions';
 import { TYPE_COLORS } from '@/constants/categories';
 import * as LucideIcons from 'lucide-react';
 import { getBankLogo, detectBankFromName, getBankColor } from '@/constants/bankLogos';
-
-interface TransactionListItem extends Transaction {
-  displayAmount?: number;
-  displayDate?: string;
-  displayDescription?: string;
-  groupedInstallments?: Transaction[];
-  groupedInstallmentCount?: number;
-}
-
-const normalizeInstallmentDescription = (description: string) =>
-  description.replace(/\s*\(\d+\/\d+\)\s*$/, '').trim();
-
-const buildInstallmentGroupKey = (transaction: Transaction) => {
-  if (transaction.installment_group_id) {
-    return transaction.installment_group_id;
-  }
-
-  return [
-    transaction.credit_card_id || 'no-card',
-    normalizeInstallmentDescription(transaction.description),
-    transaction.transaction_date,
-    transaction.category_id || 'no-category',
-    transaction.total_installments || 1,
-    transaction.total_amount || transaction.amount * (transaction.total_installments || 1),
-  ].join('::');
-};
+import { groupTransactionsForDisplay, type DisplayTransactionItem } from '@/utils/groupTransactionsForDisplay';
+import {
+  competenceMonthFromTransaction,
+  isInvoicePaymentExpense,
+  isCashOutExpenseInBankMonth,
+} from '@/utils/transactionCompetence';
 
 export const Transacoes = () => {
   // HOOKS E NAVEGAÇÃO
@@ -104,14 +84,12 @@ export const Transacoes = () => {
       .replace(/[\u0300-\u036f]/g, '');
   };
 
-  // FILTRAR TRANSAÇÕES POR MÊS SELECIONADO
-  let filteredTransactions = transactions.filter(t => {
-    const selectedYear = selectedDate.getFullYear();
-    const selectedMonth = String(selectedDate.getMonth() + 1).padStart(2, '0');
-    const selectedYearMonth = `${selectedYear}-${selectedMonth}`;
-    // Compara apenas YYYY-MM (sem new Date que causa bug de timezone)
-    return t.transaction_date?.startsWith(selectedYearMonth);
-  });
+  const selectedCalendarYearMonth = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
+
+  // FILTRAR POR MÊS DE COMPETÊNCIA (cartão = fatura do mês; conta = data do lançamento)
+  let filteredTransactions = transactions.filter(
+    (t) => competenceMonthFromTransaction(t) === selectedCalendarYearMonth
+  );
 
   // FILTRAR POR CONTA (se filtro ativo na URL)
   if (accountIdFromUrl) {
@@ -157,18 +135,16 @@ export const Transacoes = () => {
     filteredTransactions = filteredTransactions.filter(transaction => {
       // 1. FILTRO DE DATA
       if (activeFilters.dateRange.from || activeFilters.dateRange.to) {
-        const transactionDate = new Date(transaction.transaction_date);
-        
+        const txYm = competenceMonthFromTransaction(transaction);
         if (activeFilters.dateRange.from) {
-          const fromDate = new Date(activeFilters.dateRange.from);
-          fromDate.setHours(0, 0, 0, 0);
-          if (transactionDate < fromDate) return false;
+          const fromD = new Date(activeFilters.dateRange.from);
+          const fromYm = `${fromD.getFullYear()}-${String(fromD.getMonth() + 1).padStart(2, '0')}`;
+          if (txYm < fromYm) return false;
         }
-        
         if (activeFilters.dateRange.to) {
-          const toDate = new Date(activeFilters.dateRange.to);
-          toDate.setHours(23, 59, 59, 999);
-          if (transactionDate > toDate) return false;
+          const toD = new Date(activeFilters.dateRange.to);
+          const toYm = `${toD.getFullYear()}-${String(toD.getMonth() + 1).padStart(2, '0')}`;
+          if (txYm > toYm) return false;
         }
       }
 
@@ -217,43 +193,10 @@ export const Transacoes = () => {
     });
   }
 
-  const groupedTransactions: TransactionListItem[] = [];
-  const installmentGroups = new Map<string, Transaction[]>();
-
-  filteredTransactions.forEach((transaction) => {
-    if (
-      transaction.credit_card_id &&
-      transaction.total_installments &&
-      transaction.total_installments > 1
-    ) {
-      const installmentKey = buildInstallmentGroupKey(transaction);
-      const existing = installmentGroups.get(installmentKey) || [];
-      existing.push(transaction);
-      installmentGroups.set(installmentKey, existing);
-      return;
-    }
-
-    groupedTransactions.push(transaction);
-  });
-
-  installmentGroups.forEach((groupTransactions) => {
-    const sortedInstallments = [...groupTransactions].sort(
-      (a, b) => (a.installment_number || 0) - (b.installment_number || 0)
-    );
-    const firstInstallment = sortedInstallments[0];
-    const baseDescription = normalizeInstallmentDescription(firstInstallment.description);
-
-    groupedTransactions.push({
-      ...firstInstallment,
-      description: baseDescription,
-      displayDescription: `${baseDescription} (${firstInstallment.total_installments}x de ${formatCurrency(firstInstallment.amount)})`,
-      displayAmount: firstInstallment.total_amount || firstInstallment.amount * (firstInstallment.total_installments || 1),
-      groupedInstallments: sortedInstallments,
-      groupedInstallmentCount: sortedInstallments.length,
-    });
-  });
-
-  groupedTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  const groupedTransactions: DisplayTransactionItem[] = groupTransactionsForDisplay(
+    filteredTransactions,
+    formatCurrency
+  );
 
   // FORMATAÇÃO DE DATA
   const formatMonthYear = (date: Date) => {
@@ -303,13 +246,17 @@ export const Transacoes = () => {
     setMonthModalOpen(false);
   };
 
-  // CALCULAR TOTAIS DO MÊS (DADOS REAIS) - Sempre usar filteredTransactions
+  // Totais alinhados à lista: competência no mês; pagamento de fatura não entra em “despesas” (evita dupla com compras no cartão)
   const monthlyIncome = filteredTransactions
-    .filter(t => t.type === 'income' && t.is_paid)
+    .filter((t) => t.type === 'income')
     .reduce((sum, t) => sum + Number(t.amount), 0);
 
   const monthlyExpenses = filteredTransactions
-    .filter(t => t.type === 'expense' && t.is_paid)
+    .filter((t) => t.type === 'expense' && !isInvoicePaymentExpense(t))
+    .reduce((sum, t) => sum + Number(t.amount), 0);
+
+  const monthlyCashOut = filteredTransactions
+    .filter((t) => isCashOutExpenseInBankMonth(t, selectedCalendarYearMonth))
     .reduce((sum, t) => sum + Number(t.amount), 0);
 
   const monthlyBalance = monthlyIncome - monthlyExpenses;
@@ -423,7 +370,7 @@ export const Transacoes = () => {
       {/* CONTEÚDO */}
       <div className="p-6 space-y-6">
         {/* CARDS DE RESUMO - DADOS REAIS */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {/* Receitas do Mês */}
           <Card className="border-l-4 border-green-500">
             <CardContent className="p-6">
@@ -434,6 +381,7 @@ export const Transacoes = () => {
               <p className="text-3xl font-bold text-gray-900">
                 {formatCurrency(monthlyIncome)}
               </p>
+              <p className="text-xs text-gray-400 mt-2">Por competência no mês selecionado</p>
             </CardContent>
           </Card>
 
@@ -447,6 +395,9 @@ export const Transacoes = () => {
               <p className="text-3xl font-bold text-gray-900">
                 {formatCurrency(monthlyExpenses)}
               </p>
+              <p className="text-xs text-gray-400 mt-2">
+                Competência: cartão pela fatura do mês. Sem pagamento de fatura.
+              </p>
             </CardContent>
           </Card>
 
@@ -459,6 +410,22 @@ export const Transacoes = () => {
               </div>
               <p className={`text-3xl font-bold ${monthlyBalance >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
                 {formatCurrency(monthlyBalance)}
+              </p>
+              <p className="text-xs text-gray-400 mt-2">Receitas menos despesas por competência</p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-l-4 border-slate-500">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-sm text-gray-500">Saídas no Caixa</p>
+                <Landmark className="text-slate-600" size={20} />
+              </div>
+              <p className="text-3xl font-bold text-gray-900">
+                {formatCurrency(monthlyCashOut)}
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                O que saiu da conta no mês, incluindo pagamento de fatura.
               </p>
             </CardContent>
           </Card>
@@ -710,7 +677,11 @@ export const Transacoes = () => {
                                 {isGroupedInstallment && (
                                   <>
                                     <span>•</span>
-                                    <span>{totalInstallments} parcelas de {formatCurrency(installmentAmount)}</span>
+                                    <span>
+                                      {transaction.displayPurchaseTotal != null
+                                        ? `${totalInstallments}x de ${formatCurrency(installmentAmount)}`
+                                        : `${totalInstallments} parcelas de ${formatCurrency(installmentAmount)}`}
+                                    </span>
                                   </>
                                 )}
                               </div>
@@ -723,6 +694,14 @@ export const Transacoes = () => {
                               {transaction.type === 'expense' ? '- ' : '+ '}
                               {formatCurrency(amountToDisplay)}
                             </p>
+                            {isGroupedInstallment &&
+                              transaction.displayPurchaseTotal != null &&
+                              Math.abs(Number(transaction.displayPurchaseTotal) - Number(amountToDisplay)) > 0.009 && (
+                                <p className="text-xs text-gray-500 mt-1 max-w-[11rem] ml-auto">
+                                  Compra total {formatCurrency(transaction.displayPurchaseTotal)} · competência no mês{' '}
+                                  {formatCurrency(amountToDisplay)}
+                                </p>
+                              )}
                           </div>
                         </div>
                       </CardContent>

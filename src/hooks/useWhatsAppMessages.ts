@@ -157,14 +157,42 @@ export function useWhatsAppMessages(
       const messagesByType = messagesData?.reduce((acc, m) => {
         acc[m.message_type] = (acc[m.message_type] || 0) + 1;
         return acc;
-      }, {} as Record<WhatsAppMessageType, number>) || {};
+      }, {
+        text: 0,
+        audio: 0,
+        image: 0,
+        document: 0,
+        video: 0,
+        location: 0,
+        contact: 0,
+      } as Record<WhatsAppMessageType, number>) || {
+        text: 0,
+        audio: 0,
+        image: 0,
+        document: 0,
+        video: 0,
+        location: 0,
+        contact: 0,
+      };
 
       const messagesByIntent = messagesData?.reduce((acc, m) => {
         if (m.intent) {
           acc[m.intent] = (acc[m.intent] || 0) + 1;
         }
         return acc;
-      }, {} as Record<IntentType, number>) || {};
+      }, {
+        transaction: 0,
+        quick_command: 0,
+        conversation: 0,
+        help: 0,
+        unknown: 0,
+      } as Record<IntentType, number>) || {
+        transaction: 0,
+        quick_command: 0,
+        conversation: 0,
+        help: 0,
+        unknown: 0,
+      };
 
       const commandCounts = Object.entries(intentCounts)
         .filter(([intent]) => intent === 'quick_command')

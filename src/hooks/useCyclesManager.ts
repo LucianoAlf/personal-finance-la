@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type {
@@ -13,6 +13,7 @@ export function useCyclesManager() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCycle, setSelectedCycle] = useState<FinancialCycle | null>(null);
+  const realtimeChannelNameRef = useRef(`financial-cycles-${crypto.randomUUID()}`);
 
   // Buscar ciclos do usuário
   const fetchCycles = useCallback(async () => {
@@ -225,26 +226,39 @@ export function useCyclesManager() {
 
   // Realtime subscription
   useEffect(() => {
+    let subscription: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
+
     fetchCycles();
 
-    const subscription = supabase
-      .channel('financial_cycles_changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'financial_cycles',
-        },
-        (payload) => {
-          console.log('Cycle change:', payload);
-          fetchCycles();
-        }
-      )
-      .subscribe();
+    const setupSubscription = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || cancelled) return;
+
+      subscription = supabase
+        .channel(realtimeChannelNameRef.current)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'financial_cycles',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            fetchCycles();
+          }
+        )
+        .subscribe();
+    };
+
+    setupSubscription();
 
     return () => {
-      subscription.unsubscribe();
+      cancelled = true;
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, [fetchCycles]);
 

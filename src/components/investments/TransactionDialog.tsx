@@ -145,7 +145,14 @@ export function TransactionDialog({
     try {
       setLoading(true);
       const transactionData: CreateTransactionInput = {
-        ...data,
+        investment_id: data.investment_id,
+        transaction_type: data.transaction_type,
+        quantity: data.quantity,
+        price: data.price,
+        total_value: data.total_value,
+        fees: data.fees,
+        tax: data.tax,
+        notes: data.notes,
         transaction_date: new Date(data.transaction_date),
       };
       await onSave(transactionData);

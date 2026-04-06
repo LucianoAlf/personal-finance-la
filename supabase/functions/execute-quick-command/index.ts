@@ -247,17 +247,16 @@ async function getContas(supabase: any, userId: string) {
  */
 async function getMeta(supabase: any, userId: string, goalName: string) {
   if (!goalName) {
-    // Listar todas as metas
     const { data: goals, error } = await supabase
-      .from('savings_goals') // savings_goals é a tabela oficial de metas
-      .select('name, target_amount, current_amount')
+      .from('financial_goals')
+      .select('name, target_amount, current_amount, goal_type, period_end, category:categories(name)')
       .eq('user_id', userId)
-      .eq('status', 'active')
+      .in('status', ['active', 'exceeded'])
       .limit(5);
     
     if (error) throw error;
     
-    if (goals.length === 0) {
+    if ((goals || []).length === 0) {
       return {
         success: true,
         message: '🎯 *Metas Financeiras*\n\nVocê ainda não tem metas cadastradas.',
@@ -270,9 +269,12 @@ async function getMeta(supabase: any, userId: string, goalName: string) {
     goals.forEach((goal: any) => {
       const progress = (goal.current_amount / goal.target_amount) * 100;
       const progressBar = getProgressBar(progress);
+      const label = goal.goal_type === 'spending_limit'
+        ? (goal.category?.name || goal.name)
+        : goal.name;
       
-      message += `${goal.name}\n`;
-      message += `${progressBar} ${progress.toFixed(0)}%\n`;
+      message += `${label}\n`;
+      message += `${progressBar} ${progress.toFixed(0)}%${goal.goal_type === 'spending_limit' ? ' do limite' : ''}\n`;
       message += `R$ ${formatCurrency(goal.current_amount)} de R$ ${formatCurrency(goal.target_amount)}\n\n`;
     });
     
@@ -284,13 +286,19 @@ async function getMeta(supabase: any, userId: string, goalName: string) {
   }
   
   // Buscar meta específica
-  const { data: goal, error } = await supabase
-    .from('savings_goals')
-    .select('*')
+  const { data: goals, error } = await supabase
+    .from('financial_goals')
+    .select('*, category:categories(name)')
     .eq('user_id', userId)
-    .ilike('name', `%${goalName}%`)
-    .eq('status', 'active')
-    .single();
+    .in('status', ['active', 'exceeded'])
+    .limit(20);
+
+  const normalizedGoalName = goalName.trim().toLowerCase();
+  const goal = (goals || []).find((item: any) => {
+    const name = String(item.name || '').toLowerCase();
+    const categoryName = String(item.category?.name || '').toLowerCase();
+    return name.includes(normalizedGoalName) || categoryName.includes(normalizedGoalName);
+  });
   
   if (error || !goal) {
     return {
@@ -302,14 +310,21 @@ async function getMeta(supabase: any, userId: string, goalName: string) {
   const progress = (goal.current_amount / goal.target_amount) * 100;
   const remaining = goal.target_amount - goal.current_amount;
   const progressBar = getProgressBar(progress);
+  const label = goal.goal_type === 'spending_limit' ? (goal.category?.name || goal.name) : goal.name;
   
   return {
     success: true,
-    message: `🎯 *Meta: ${goal.name}*\n\n` +
-             `${progressBar} ${progress.toFixed(1)}%\n\n` +
-             `💰 Economizado: R$ ${formatCurrency(goal.current_amount)}\n` +
-             `🎯 Meta: R$ ${formatCurrency(goal.target_amount)}\n` +
-             `📊 Faltam: R$ ${formatCurrency(remaining)}`,
+    message: goal.goal_type === 'spending_limit'
+      ? `🧾 *Limite: ${label}*\n\n` +
+        `${progressBar} ${progress.toFixed(1)}% do limite\n\n` +
+        `💳 Gasto atual: R$ ${formatCurrency(goal.current_amount)}\n` +
+        `🎯 Limite: R$ ${formatCurrency(goal.target_amount)}\n` +
+        `${remaining >= 0 ? `📊 Restam: R$ ${formatCurrency(remaining)}` : `🚨 Excedeu: R$ ${formatCurrency(Math.abs(remaining))}`}`
+      : `🎯 *Meta: ${goal.name}*\n\n` +
+        `${progressBar} ${progress.toFixed(1)}%\n\n` +
+        `💰 Economizado: R$ ${formatCurrency(goal.current_amount)}\n` +
+        `🎯 Meta: R$ ${formatCurrency(goal.target_amount)}\n` +
+        `📊 Faltam: R$ ${formatCurrency(remaining)}`,
     data: { goal, progress, remaining },
   };
 }
@@ -319,31 +334,139 @@ async function getMeta(supabase: any, userId: string, goalName: string) {
  * Resumo do portfólio de investimentos
  */
 async function getInvestimentos(supabase: any, userId: string) {
-  const { data: summary, error } = await supabase
-    .rpc('get_portfolio_summary', { p_user_id: userId });
-  
-  if (error) throw error;
-  
-  if (!summary || summary.total_value === 0) {
+  const [{ data: investments, error: investmentsError }, { data: investmentGoals, error: goalsError }] = await Promise.all([
+    supabase
+      .from('investments')
+      .select('id, name, ticker, quantity, purchase_price, current_price, total_invested, current_value, type')
+      .eq('user_id', userId)
+      .eq('is_active', true),
+    supabase
+      .from('investment_goals')
+      .select('id, name, category, target_amount, current_amount, target_date, monthly_contribution, expected_return_rate, linked_investments, auto_invest, status')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('target_date', { ascending: true }),
+  ]);
+
+  if (investmentsError) throw investmentsError;
+  if (goalsError) throw goalsError;
+
+  const summary = (investments || []).reduce((acc: any, investment: any) => {
+    const totalInvested = Number(investment.total_invested || (Number(investment.quantity) * Number(investment.purchase_price || 0)));
+    const currentValue = Number(investment.current_value || (Number(investment.quantity) * Number(investment.current_price || investment.purchase_price || 0)));
+    acc.total_invested += totalInvested;
+    acc.total_value += currentValue;
+    return acc;
+  }, {
+    total_invested: 0,
+    total_value: 0,
+  });
+
+  if ((!investments || investments.length === 0) && (!investmentGoals || investmentGoals.length === 0)) {
     return {
       success: true,
-      message: '📈 *Investimentos*\n\nVocê ainda não tem investimentos cadastrados.',
+      message: '📈 *Investimentos*\n\nVocê ainda não tem investimentos nem metas de investimento ativas.',
       data: { summary: null },
     };
   }
   
   const returnValue = summary.total_value - summary.total_invested;
-  const returnPercentage = (returnValue / summary.total_invested) * 100;
+  const returnPercentage = summary.total_invested > 0 ? (returnValue / summary.total_invested) * 100 : 0;
   const returnEmoji = returnValue >= 0 ? '📈' : '📉';
+  const goalsSummary = (investmentGoals || [])
+    .map((goal: any) => buildInvestmentGoalSnapshot(goal, investments || []))
+    .sort((a: any, b: any) => b.projected_gap - a.projected_gap)
+    .slice(0, 3);
+
+  const goalsMessage = goalsSummary.length > 0
+    ? `\n\n🎯 *Metas de investimento*\n` + goalsSummary.map((goal: any) => (
+      `• ${goal.name}: ${goal.progress_percentage.toFixed(1)}% (${formatCurrency(goal.current_amount)} de ${formatCurrency(goal.target_amount)})\n` +
+      `  Projeção: ${formatCurrency(goal.final_projection)} | Gap: ${formatCurrency(goal.projected_gap)}\n` +
+      `  Aporte atual: ${formatCurrency(goal.monthly_contribution)} | Necessário: ${formatCurrency(goal.required_monthly_contribution)}`
+    )).join('\n\n')
+    : '\n\n🎯 Nenhuma meta de investimento ativa.';
   
   return {
     success: true,
     message: `💼 *Seu Portfólio*\n\n` +
              `💰 Valor Atual: R$ ${formatCurrency(summary.total_value)}\n` +
              `📊 Investido: R$ ${formatCurrency(summary.total_invested)}\n` +
-             `${returnEmoji} Retorno: R$ ${formatCurrency(returnValue)} (${returnPercentage >= 0 ? '+' : ''}${returnPercentage.toFixed(2)}%)`,
-    data: { summary, return_value: returnValue, return_percentage: returnPercentage },
+             `${returnEmoji} Retorno: R$ ${formatCurrency(returnValue)} (${returnPercentage >= 0 ? '+' : ''}${returnPercentage.toFixed(2)}%)` +
+             goalsMessage,
+    data: { summary, return_value: returnValue, return_percentage: returnPercentage, goals: goalsSummary },
   };
+}
+
+function buildInvestmentGoalSnapshot(goal: any, investments: any[]) {
+  const linkedCurrentAmount = goal.auto_invest
+    ? (goal.linked_investments || []).reduce((sum: number, investmentId: string) => {
+        const investment = investments.find((item: any) => item.id === investmentId);
+        if (!investment) return sum;
+        return sum + Number(investment.current_value || (Number(investment.quantity) * Number(investment.current_price || investment.purchase_price || 0)));
+      }, 0)
+    : 0;
+
+  const currentAmount = Number(goal.current_amount || 0) + linkedCurrentAmount;
+  const targetAmount = Number(goal.target_amount || 0);
+  const monthlyContribution = Number(goal.monthly_contribution || 0);
+  const annualRate = Number(goal.expected_return_rate || 0);
+  const monthsRemaining = calculateInvestmentGoalMonths(goal.target_date);
+  const finalProjection = projectInvestmentGoalValue(currentAmount, monthlyContribution, annualRate, monthsRemaining);
+  const requiredMonthlyContribution = solveInvestmentGoalContribution(currentAmount, annualRate, monthsRemaining, targetAmount);
+
+  return {
+    name: goal.name,
+    current_amount: currentAmount,
+    target_amount: targetAmount,
+    monthly_contribution: monthlyContribution,
+    final_projection: finalProjection,
+    required_monthly_contribution: requiredMonthlyContribution,
+    projected_gap: Math.max(0, targetAmount - finalProjection),
+    progress_percentage: targetAmount > 0 ? (currentAmount / targetAmount) * 100 : 0,
+  };
+}
+
+function calculateInvestmentGoalMonths(targetDate?: string | null) {
+  if (!targetDate) return 0;
+  const today = new Date();
+  const target = new Date(`${targetDate}T12:00:00`);
+  const months = (target.getFullYear() - today.getFullYear()) * 12 + (target.getMonth() - today.getMonth());
+  return Math.max(0, months);
+}
+
+function projectInvestmentGoalValue(currentAmount: number, monthlyContribution: number, annualRate: number, months: number) {
+  if (months <= 0) return currentAmount;
+  const monthlyRate = Math.pow(1 + annualRate / 100, 1 / 12) - 1;
+  let balance = currentAmount;
+
+  for (let month = 0; month < months; month += 1) {
+    balance = balance * (1 + monthlyRate) + monthlyContribution;
+  }
+
+  return balance;
+}
+
+function solveInvestmentGoalContribution(currentAmount: number, annualRate: number, months: number, targetAmount: number) {
+  if (targetAmount <= currentAmount || months <= 0) return 0;
+
+  let low = 0;
+  let high = Math.max(targetAmount, 1000);
+
+  while (projectInvestmentGoalValue(currentAmount, high, annualRate, months) < targetAmount) {
+    high *= 2;
+    if (high > targetAmount * 10) break;
+  }
+
+  for (let iteration = 0; iteration < 32; iteration += 1) {
+    const mid = (low + high) / 2;
+    if (projectInvestmentGoalValue(currentAmount, mid, annualRate, months) >= targetAmount) {
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+
+  return high;
 }
 
 /**

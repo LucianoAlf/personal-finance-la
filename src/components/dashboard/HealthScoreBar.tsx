@@ -18,7 +18,7 @@ interface HealthScoreBreakdown {
   bills: number;        // 0-30
   investments: number;  // 0-30
   budget: number;       // 0-20
-  diversification: number; // 0-20
+  planning: number; // 0-20
 }
 
 interface HealthScoreBarProps {
@@ -93,7 +93,7 @@ export function HealthScoreBar({
     },
     {
       icon: Wallet,
-      label: 'Orçamento',
+      label: 'Metas de Gasto',
       value: breakdown.budget,
       max: 20,
       color: 'text-blue-600',
@@ -101,8 +101,8 @@ export function HealthScoreBar({
     },
     {
       icon: PieChart,
-      label: 'Diversificação',
-      value: breakdown.diversification,
+      label: 'Planejamento',
+      value: breakdown.planning,
       max: 20,
       color: 'text-amber-600',
       bgColor: 'bg-amber-100',

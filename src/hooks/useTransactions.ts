@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { processGamificationEvent } from '@/lib/gamification';
 import type { Transaction, TransactionType } from '@/types/transactions';
 
 interface TransactionFilters {
@@ -15,6 +16,7 @@ export const useTransactions = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const realtimeChannelNameRef = useRef(`all_transactions_realtime_${crypto.randomUUID()}`);
 
   // Buscar todas as transações com relacionamentos
   const fetchTransactions = async (filters?: TransactionFilters) => {
@@ -96,6 +98,7 @@ export const useTransactions = () => {
           purchase_date,
           created_at,
           credit_card_id,
+          invoice_id,
           is_installment,
           is_parent_installment,
           installment_number,
@@ -103,7 +106,8 @@ export const useTransactions = () => {
           installment_group_id,
           total_amount,
           category:categories(id, name, icon, color),
-          credit_card:credit_cards(id, name, color)
+          credit_card:credit_cards(id, name, color),
+          invoice:credit_card_invoices(reference_month)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
@@ -114,15 +118,11 @@ export const useTransactions = () => {
         return;
       }
 
-      console.log('📊 Transações de cartão encontradas:', ccData?.length || 0);
-      console.log('📊 Dados brutos de cartão:', ccData?.map((c: any) => ({ 
-        desc: c.description, 
-        is_installment: c.is_installment, 
-        total: c.total_installments 
-      })));
-      
       // Mapear transações de cartão para o formato de Transaction
-      const creditCardTransactions = (ccData || []).map((cc: any) => ({
+      const creditCardTransactions = (ccData || []).map((cc: any) => {
+        const ref = cc.invoice?.reference_month as string | undefined;
+        const competenceMonth = ref ? ref.slice(0, 7) : (cc.purchase_date || '').slice(0, 7);
+        return {
         id: cc.id,
         user_id: cc.user_id,
         account_id: null,
@@ -131,6 +131,7 @@ export const useTransactions = () => {
         amount: cc.amount,
         description: cc.description,
         transaction_date: cc.purchase_date,
+        competence_month: competenceMonth,
         is_paid: false,
         is_recurring: false,
         recurrence_type: null,
@@ -158,7 +159,8 @@ export const useTransactions = () => {
         total_installments: cc.total_installments,
         installment_group_id: cc.installment_group_id,
         total_amount: cc.total_amount,
-      }));
+      };
+      });
 
       // Combinar e ordenar
       const allTransactions = [...transactionsWithTags, ...creditCardTransactions];
@@ -203,6 +205,7 @@ export const useTransactions = () => {
 
       // Recarregar transações para incluir a nova com joins
       await fetchTransactions();
+      await processGamificationEvent('create_transaction');
       
       return data;
     } catch (err) {
@@ -426,42 +429,60 @@ export const useTransactions = () => {
 
   // Effect para buscar transações e configurar realtime
   useEffect(() => {
-    fetchTransactions();
+    let isActive = true;
+    let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 
-    // ✅ OTIMIZADO: Um único canal com múltiplas tabelas para resposta mais rápida
-    const realtimeChannel = supabase
-      .channel('all_transactions_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'transactions',
-        },
-        (payload) => {
-          console.log('🔄 Realtime IMEDIATO: transação normal', payload.eventType);
-          fetchTransactions();
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'credit_card_transactions',
-        },
-        (payload) => {
-          console.log('🔄 Realtime IMEDIATO: transação de cartão', payload.eventType);
-          fetchTransactions();
-        }
-      )
-      .subscribe((status) => {
-        console.log('🛰️ Realtime[all_transactions] status:', status);
-      });
+    const setupRealtime = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    // Cleanup
+      if (!isActive) return;
+
+      fetchTransactions();
+
+      if (!user) return;
+
+      realtimeChannel = supabase
+        .channel(realtimeChannelNameRef.current)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'transactions',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            fetchTransactions();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'credit_card_transactions',
+            filter: `user_id=eq.${user.id}`,
+          },
+          () => {
+            fetchTransactions();
+          }
+        )
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') {
+            console.warn('Realtime[all_transactions] channel error');
+          }
+        });
+    };
+
+    setupRealtime();
+
     return () => {
-      supabase.removeChannel(realtimeChannel);
+      isActive = false;
+      if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+      }
     };
   }, []);
 

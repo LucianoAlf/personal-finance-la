@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -38,6 +38,7 @@ interface CreateGoalDialogProps {
   onCreated?: (goal: FinancialGoal) => void;
   // Quais tipos podem ser criados neste diálogo. Se apenas um for permitido, o seletor de tipo será ocultado.
   allowedTypes?: Array<'savings' | 'spending_limit'>;
+  excludedCategoryIds?: string[];
 }
 
 // Schema unificado que valida ambos os tipos dinamicamente
@@ -96,7 +97,14 @@ const goalFormSchema = z.object({
 
 type GoalFormData = z.infer<typeof goalFormSchema>;
 
-export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', onCreated, allowedTypes = ['savings', 'spending_limit'] }: CreateGoalDialogProps) {
+export function CreateGoalDialog({
+  open,
+  onOpenChange,
+  defaultType = 'savings',
+  onCreated,
+  allowedTypes = ['savings', 'spending_limit'],
+  excludedCategoryIds = [],
+}: CreateGoalDialogProps) {
   const [loading, setLoading] = useState(false);
   const { createSavingsGoal, createSpendingGoal } = useGoals();
   const { categories } = useCategories();
@@ -126,7 +134,10 @@ export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', 
   const deadline = watch('deadline');
 
   // Categorias de despesa (para metas de gasto)
-  const expenseCategories = categories.filter((c) => c.type === 'expense');
+  const expenseCategories = useMemo(
+    () => categories.filter((c) => c.type === 'expense' && !excludedCategoryIds.includes(c.id)),
+    [categories, excludedCategoryIds]
+  );
 
   // Reset form quando o modal abrir
   useEffect(() => {
@@ -328,30 +339,43 @@ export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', 
                 <Select
                   value={selectedCategoryId}
                   onValueChange={(value) => setValue('category_id', value)}
+                  disabled={expenseCategories.length === 0}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma categoria" />
+                    <SelectValue
+                      placeholder={
+                        expenseCategories.length === 0
+                          ? 'Todas as categorias já possuem meta'
+                          : 'Selecione uma categoria'
+                      }
+                    />
                   </SelectTrigger>
                   <SelectContent>
                     <div className="px-2 py-1.5 text-xs font-semibold text-red-600 flex items-center gap-1">
                       <span>💸</span> CATEGORIAS DE DESPESA ({expenseCategories.length})
                     </div>
-                    {expenseCategories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-5 h-5 rounded-full flex items-center justify-center"
-                            style={{ backgroundColor: `${category.color}20` }}
-                          >
-                            {(() => {
-                              const Icon = (LucideIcons as any)[category.icon];
-                              return Icon ? <Icon className="h-3.5 w-3.5" style={{ color: category.color }} /> : null;
-                            })()}
-                          </div>
-                          <span>{category.name}</span>
-                        </div>
+                    {expenseCategories.length === 0 ? (
+                      <SelectItem value="no-categories-available" disabled>
+                        Todas as categorias elegíveis já foram adicionadas
                       </SelectItem>
-                    ))}
+                    ) : (
+                      expenseCategories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="w-5 h-5 rounded-full flex items-center justify-center"
+                              style={{ backgroundColor: `${category.color}20` }}
+                            >
+                              {(() => {
+                                const Icon = (LucideIcons as any)[category.icon];
+                                return Icon ? <Icon className="h-3.5 w-3.5" style={{ color: category.color }} /> : null;
+                              })()}
+                            </div>
+                            <span>{category.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
                 {errors.category_id && (
@@ -421,7 +445,10 @@ export function CreateGoalDialog({ open, onOpenChange, defaultType = 'savings', 
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading}>
+            <Button
+              type="submit"
+              disabled={loading || (goalType === 'spending_limit' && expenseCategories.length === 0)}
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Criar Meta
             </Button>

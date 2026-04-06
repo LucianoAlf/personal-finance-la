@@ -4,6 +4,7 @@ import { ChartCard } from './ChartCard';
 import { formatCurrency } from '@/utils/formatters';
 import { useMemo } from 'react';
 import type { Transaction } from '@/types/transactions';
+import { isInvoicePaymentExpense } from '@/utils/transactionCompetence';
 
 interface ExpensesByCategoryChartProps {
   transactions: Transaction[];
@@ -18,9 +19,13 @@ interface ChartData {
 }
 
 export function ExpensesByCategoryChart({ transactions, selectedDate }: ExpensesByCategoryChartProps) {
-  // Filtrar apenas despesas pagas (as transações já vêm filtradas por mês no pai)
+  void selectedDate;
+
+  // As transações já vêm filtradas por competência no pai.
+  // Aqui seguimos a mesma regra do card "Despesas do Mês":
+  // incluir despesas de cartão e excluir apenas pagamentos de fatura.
   const expenses = useMemo(() => (
-    transactions.filter(t => t.type === 'expense' && t.is_paid)
+    transactions.filter((t) => t.type === 'expense' && !isInvoicePaymentExpense(t))
   ), [transactions]);
 
   // Agrupar por categoria usando a categoria embutida na transação (evita esperar hook de categorias)

@@ -221,6 +221,7 @@ export const Contas: React.FC = () => {
       await addTransaction({
         type: 'transfer',
         account_id: transferFromAccountId,
+        category_id: 'transfer',
         amount: parsedAmount,
         description,
         transaction_date: transferDate,

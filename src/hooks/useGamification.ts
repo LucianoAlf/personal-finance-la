@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { bootstrapGamificationState } from '@/lib/gamification';
+import { isCanonicalAchievementId } from '@/config/achievements';
 import type { 
   UserGamification, 
   BadgeProgress, 
@@ -41,14 +43,11 @@ export const calculateXPForLevel = (level: number): number => {
 // CONSTANTES: Recompensas de XP
 // =====================================================
 export const XP_REWARDS = {
-  CREATE_GOAL: 50,
-  COMPLETE_GOAL: 200,
-  ADD_CONTRIBUTION: 20,
-  MAINTAIN_STREAK_MONTH: 100,
-  EXCEED_SAVINGS_TARGET: 150,
-  STAY_UNDER_SPENDING_LIMIT: 100,
-  CREATE_FIRST_GOAL: 100,
-  COMPLETE_ALL_MONTHLY_GOALS: 300,
+  CREATE_TRANSACTION: 10,
+  CREATE_GOAL: 20,
+  ADD_CONTRIBUTION: 15,
+  PAY_BILL: 10,
+  CREATE_INVESTMENT: 25,
   UNLOCK_ACHIEVEMENT_BRONZE: 50,
   UNLOCK_ACHIEVEMENT_SILVER: 150,
   UNLOCK_ACHIEVEMENT_GOLD: 300,
@@ -129,7 +128,7 @@ export function useGamification() {
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
-      setBadges(data || []);
+      setBadges((data || []).filter((badge) => isCanonicalAchievementId(badge.badge_id)));
     } catch (err) {
       console.error('Erro ao buscar badges:', err);
     }
@@ -265,8 +264,13 @@ export function useGamification() {
   // Efeitos
   // =====================================================
   useEffect(() => {
-    fetchProfile();
-    fetchBadges();
+    const initialize = async () => {
+      setLoading(true);
+      await bootstrapGamificationState();
+      await Promise.all([fetchProfile(), fetchBadges()]);
+    };
+
+    initialize();
   }, [fetchProfile, fetchBadges]);
 
   // Detectar conquistas recém-desbloqueadas (após primeira carga)

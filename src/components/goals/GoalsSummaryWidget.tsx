@@ -4,14 +4,17 @@ import { Button } from '@/components/ui/button';
 import { Target, ArrowRight, TrendingUp, AlertCircle, Flame, Trophy } from 'lucide-react';
 import { useGoalsQuery } from '@/hooks/useGoalsQuery';
 import { formatCurrency } from '@/utils/formatters';
+import { formatMonthKey, getSpendingGoalsForMonth } from '@/utils/spendingGoalPlanning';
+import type { FinancialGoalWithCategory } from '@/types/database.types';
 
 export function GoalsSummaryWidget() {
   const { goals, loading, getStats } = useGoalsQuery();
   const navigate = useNavigate();
   const stats = getStats();
+  const currentMonth = formatMonthKey(new Date());
 
   const savingsGoals = goals.filter(g => g.goal_type === 'savings');
-  const spendingGoals = goals.filter(g => g.goal_type === 'spending_limit');
+  const spendingGoals = getSpendingGoalsForMonth(goals as FinancialGoalWithCategory[], currentMonth);
 
   const totalSavingsTarget = savingsGoals.reduce((sum, g) => sum + g.target_amount, 0);
   const totalSavingsCurrent = savingsGoals.reduce((sum, g) => sum + g.current_amount, 0);
@@ -116,7 +119,7 @@ export function GoalsSummaryWidget() {
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className={`h-4 w-4 ${limitsExceeded > 0 ? 'text-red-600' : 'text-green-600'}`} />
               <span className={`text-sm font-semibold ${limitsExceeded > 0 ? 'text-red-900' : 'text-green-900'}`}>
-                {limitsComplied} de {totalSpendingGoals} limites cumpridos este mês
+                {limitsComplied} de {totalSpendingGoals} limites cumpridos neste mês
               </span>
             </div>
             {limitsExceeded > 0 && (

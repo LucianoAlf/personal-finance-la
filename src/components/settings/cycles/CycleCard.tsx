@@ -13,6 +13,7 @@ import { MoreVertical, Edit, Copy, Trash2, Calendar, DollarSign, Home, FileText,
 import { cn } from '@/lib/cn';
 import type { CycleWithStats } from '@/types/settings.types';
 import { LABELS } from '@/types/settings.types';
+import { useState, useEffect } from 'react';
 
 interface CycleCardProps {
   cycle: CycleWithStats;
@@ -31,6 +32,12 @@ export function CycleCard({
   onToggleActive,
   onUpdateDay,
 }: CycleCardProps) {
+  const [draftDay, setDraftDay] = useState(String(cycle.day));
+
+  useEffect(() => {
+    setDraftDay(String(cycle.day));
+  }, [cycle.day]);
+
   // Mapeamento de ícones
   const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
     'Salário': DollarSign,
@@ -51,11 +58,11 @@ export function CycleCard({
     switch (type) {
       case 'salary':
         return 'bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300';
+      case 'credit_card':
+        return 'bg-orange-100 dark:bg-orange-900 text-orange-700 dark:text-orange-300';
       case 'rent':
         return 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300';
-      case 'bills':
-        return 'bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300';
-      case 'investment':
+      case 'custom':
         return 'bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300';
       default:
         return 'bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300';
@@ -65,6 +72,22 @@ export function CycleCard({
   const formatNextCycleDate = (dateStr: string) => {
     const date = new Date(dateStr);
     return date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+
+  const commitDay = () => {
+    const parsed = parseInt(draftDay, 10);
+
+    if (!Number.isFinite(parsed)) {
+      setDraftDay(String(cycle.day));
+      return;
+    }
+
+    const normalizedDay = Math.min(28, Math.max(1, parsed));
+    setDraftDay(String(normalizedDay));
+
+    if (normalizedDay !== cycle.day) {
+      onUpdateDay(normalizedDay);
+    }
   };
 
   return (
@@ -126,11 +149,12 @@ export function CycleCard({
                 type="number"
                 min={1}
                 max={28}
-                value={cycle.day}
-                onChange={(e) => {
-                  const day = parseInt(e.target.value);
-                  if (day >= 1 && day <= 28) {
-                    onUpdateDay(day);
+                value={draftDay}
+                onChange={(e) => setDraftDay(e.target.value)}
+                onBlur={commitDay}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitDay();
                   }
                 }}
                 className="w-16 text-center"

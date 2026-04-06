@@ -27,7 +27,10 @@ export interface Transaction {
   total_amount?: number;
   credit_card_id?: string;
   credit_card_name?: string;
-  
+  /** Mês de competência YYYY-MM (ex.: cartão pela fatura). Ausente = usar transaction_date. */
+  competence_month?: string;
+  payment_method?: 'credit' | 'debit' | 'pix' | 'cash' | string;
+
   // Joins (quando buscar com relacionamentos)
   category?: {
     id: string;

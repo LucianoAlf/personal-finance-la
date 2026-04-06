@@ -22,6 +22,7 @@ function Calendar({
         month: "space-y-4",
         caption: "flex justify-center pt-1 relative items-center",
         caption_label: "text-sm font-medium",
+        caption_dropdowns: "flex items-center gap-2",
         nav: "space-x-1 flex items-center",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
@@ -49,6 +50,9 @@ function Calendar({
         day_range_middle:
           "aria-selected:bg-accent aria-selected:text-accent-foreground",
         day_hidden: "invisible",
+        dropdown: "h-8 rounded-md border border-input bg-background px-2 text-sm",
+        dropdown_month: "h-8 rounded-md border border-input bg-background px-2 text-sm",
+        dropdown_year: "h-8 rounded-md border border-input bg-background px-2 text-sm",
         ...classNames,
       }}
       components={{

@@ -34,6 +34,7 @@ import {
 import { classificarIntencao, isAnalyticsQuery, isComandoEdicao, isComandoExclusao, extrairEntidadesEdicao } from './nlp-processor.ts';
 import { classificarIntencaoNLP, IntencaoClassificada } from './nlp-classifier.ts';
 import { processarIntencaoTransacao, processarIntencaoTransferencia, processarTransferenciaEntreContas, processarEdicao, processarExclusao } from './transaction-mapper.ts';
+import { processarAporteMetaViaMensagem, shouldHandleGoalContributionMessage } from './goal-contributions.ts';
 // Botões desativados - 100% conversacional
 // import { enviarConfirmacaoComBotoes, extrairButtonId, parsearButtonId } from './button-sender.ts';
 import { isAudioPTT, extrairMessageId, processarAudioPTT, extrairInfoAudio } from './audio-handler.ts';
@@ -877,6 +878,30 @@ serve(async (req: Request) => {
     intencaoNLP.entidades = validarEntidadesNLP(intencaoNLP.entidades, content);
     
     console.log('📋 Entidades (DEPOIS validação):', JSON.stringify(intencaoNLP.entidades));
+
+    if (shouldHandleGoalContributionMessage(content, intencaoNLP.entidades.valor)) {
+      const aporteMeta = await processarAporteMetaViaMensagem(
+        user.id,
+        content,
+        intencaoNLP.entidades.valor
+      );
+
+      if (aporteMeta.handled) {
+        await enviarViaEdgeFunction(phone, aporteMeta.message);
+        await supabase.from('whatsapp_messages').update({
+          processing_status: aporteMeta.success ? 'completed' : 'failed',
+          intent: 'registrar_aporte_meta',
+          processed_at: new Date().toISOString()
+        }).eq('id', message.id);
+
+        return new Response(JSON.stringify({
+          success: aporteMeta.success,
+          type: 'goal_contribution'
+        }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
     
     // ============================================
     // ARQUITETURA HÍBRIDA: TEMPLATE vs CONVERSACIONAL
@@ -1580,7 +1605,7 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
         // IMPORTANTE: Se isCartaoQuery é true e temos um filtro (conta ou cartão),
         // verificar se existe um cartão de crédito com esse nome
         let usarRelatorioCartao = false;
-        let filtroParaCartao = cartaoFiltro || (isCartaoQuery ? contaFiltro : undefined);
+        const filtroParaCartao = cartaoFiltro || (isCartaoQuery ? contaFiltro : undefined);
         
         console.log('[CARTAO-DECISAO] isCartaoQuery:', isCartaoQuery);
         console.log('[CARTAO-DECISAO] cartaoFiltro:', cartaoFiltro);

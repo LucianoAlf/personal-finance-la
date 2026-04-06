@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { formatDateOnly, parseDateOnly } from '@/utils/formatters';
+import { processGamificationEvent } from '@/lib/gamification';
 import type {
   FinancialGoal,
   FinancialGoalWithCategory,
   GoalType,
-  GoalStatus,
   CreateSavingsGoalInput,
   CreateSpendingGoalInput,
   GoalStats,
@@ -80,11 +81,11 @@ export function useGoals(): UseGoalsReturn {
         
         let days_left: number | undefined;
         if (goal.deadline) {
-          const deadline = new Date(goal.deadline);
+          const deadline = parseDateOnly(goal.deadline);
           const today = new Date();
           days_left = Math.ceil((deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         } else if (goal.period_end) {
-          const period_end = new Date(goal.period_end);
+          const period_end = parseDateOnly(goal.period_end);
           const today = new Date();
           days_left = Math.ceil((period_end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
         }
@@ -96,9 +97,9 @@ export function useGoals(): UseGoalsReturn {
           percentage,
           remaining,
           days_left,
-          deadline: goal.deadline ? new Date(goal.deadline) : undefined,
-          period_start: goal.period_start ? new Date(goal.period_start) : undefined,
-          period_end: goal.period_end ? new Date(goal.period_end) : undefined,
+          deadline: goal.deadline ? parseDateOnly(goal.deadline) : undefined,
+          period_start: goal.period_start ? parseDateOnly(goal.period_start) : undefined,
+          period_end: goal.period_end ? parseDateOnly(goal.period_end) : undefined,
           created_at: new Date(goal.created_at),
           updated_at: new Date(goal.updated_at),
         };
@@ -130,7 +131,12 @@ export function useGoals(): UseGoalsReturn {
         fetchGoals();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'credit_card_transactions', filter: `user_id=eq.${user.id}` }, () => {
-        // triggers atualizam financial_goals
+        fetchGoals();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions', filter: `user_id=eq.${user.id}` }, () => {
+        fetchGoals();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_goal_contributions', filter: `user_id=eq.${user.id}` }, () => {
         fetchGoals();
       })
       .subscribe();
@@ -154,7 +160,7 @@ export function useGoals(): UseGoalsReturn {
           icon: data.icon || '💰',
           target_amount: data.target_amount,
           current_amount: data.current_amount || 0,
-          deadline: data.deadline.toISOString().split('T')[0],
+          deadline: formatDateOnly(data.deadline),
           status: 'active',
         })
         .select()
@@ -168,6 +174,7 @@ export function useGoals(): UseGoalsReturn {
       });
 
       await fetchGoals();
+      await processGamificationEvent('create_goal');
       return newGoal;
     } catch (err: any) {
       console.error('Error creating savings goal:', err);
@@ -193,11 +200,9 @@ export function useGoals(): UseGoalsReturn {
           name: data.name,
           category_id: data.category_id,
           target_amount: data.target_amount,
-          current_amount: 0,
           period_type: data.period_type,
-          period_start: data.period_start.toISOString().split('T')[0],
-          period_end: data.period_end.toISOString().split('T')[0],
-          status: 'active',
+          period_start: formatDateOnly(data.period_start),
+          period_end: formatDateOnly(data.period_end),
         })
         .select()
         .single();
@@ -210,6 +215,7 @@ export function useGoals(): UseGoalsReturn {
       });
 
       await fetchGoals();
+      await processGamificationEvent('create_goal');
       return newGoal;
     } catch (err: any) {
       console.error('Error creating spending goal:', err);
@@ -225,9 +231,23 @@ export function useGoals(): UseGoalsReturn {
   // Atualizar meta
   const updateGoal = async (id: string, data: Partial<FinancialGoal>) => {
     try {
+      const normalizedData: Record<string, unknown> = { ...data };
+
+      if (data.deadline) {
+        normalizedData.deadline = formatDateOnly(data.deadline);
+      }
+
+      if (data.period_start) {
+        normalizedData.period_start = formatDateOnly(data.period_start);
+      }
+
+      if (data.period_end) {
+        normalizedData.period_end = formatDateOnly(data.period_end);
+      }
+
       const { error: updateError } = await supabase
         .from('financial_goals')
-        .update(data)
+        .update(normalizedData)
         .eq('id', id);
 
       if (updateError) throw updateError;
@@ -287,6 +307,7 @@ export function useGoals(): UseGoalsReturn {
         });
       if (error) throw error;
       await fetchGoals();
+      await processGamificationEvent('add_goal_contribution');
       toast({
         title: '✅ Aporte registrado',
         description: `Adicionado ${amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} à meta.`,

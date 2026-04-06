@@ -35,7 +35,7 @@ export function BudgetInsights({ budgets, totalDifference, month }: BudgetInsigh
             <div>
               <div className="font-semibold text-green-800">Parabéns!</div>
               <div className="text-sm text-green-700">
-                Você está dentro do orçamento em todas as categorias de {formatMonthYear(month)}.
+                Você está dentro do planejado em todas as categorias de {formatMonthYear(month)}.
               </div>
             </div>
           </Card>
@@ -58,9 +58,9 @@ export function BudgetInsights({ budgets, totalDifference, month }: BudgetInsigh
         <Card className="border border-red-200 bg-red-50 p-4 flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
           <div>
-            <div className="font-semibold text-red-800">Orçamento ultrapassado</div>
+            <div className="font-semibold text-red-800">Planejamento ultrapassado</div>
             <div className="text-sm text-red-700">
-              Você gastou {formatCurrency(Math.abs(totalDifference))} a mais que o planejado em {formatMonthYear(month)}.
+              Você gastou {formatCurrency(Math.abs(totalDifference))} a mais que o limite planejado em {formatMonthYear(month)}.
             </div>
           </div>
         </Card>

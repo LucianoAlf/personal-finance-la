@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 
+/**
+ * @deprecated Mantido apenas para compatibilidade temporária.
+ * O dashboard e a página de metas devem ler `spending_limit` como fonte canônica.
+ */
+
 // ✅ Buscar orçamentos + calcular gastos do mês por categoria
 const fetchBudgets = async (monthKey: string): Promise<any[]> => {
   const { data: { user } } = await supabase.auth.getUser();

@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatDateOnly, parseDateOnly } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
 import { useGoals } from '@/hooks/useGoals';
 import type { FinancialGoalWithCategory, PeriodType } from '@/types/database.types';
@@ -61,7 +62,7 @@ export function EditGoalDialog({ open, onOpenChange, goal }: EditGoalDialogProps
       reset({
         name: goal.name,
         target_amount: goal.target_amount,
-        deadline: goal.deadline ? new Date(goal.deadline) : undefined,
+        deadline: goal.deadline ? parseDateOnly(goal.deadline) : undefined,
       });
     } else {
       reset({
@@ -77,7 +78,7 @@ export function EditGoalDialog({ open, onOpenChange, goal }: EditGoalDialogProps
       await updateGoal(goal.id, {
         name: data.name,
         target_amount: data.target_amount,
-        deadline: data.deadline ? (data.deadline as Date).toISOString().split('T')[0] : null,
+        deadline: data.deadline ? formatDateOnly(data.deadline as Date) : null,
       } as any);
     } else {
       await updateGoal(goal.id, {

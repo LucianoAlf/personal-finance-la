@@ -104,13 +104,16 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
   const watchStartDate = watch('start_date');
   const watchTargetDate = watch('target_date');
   const watchNotifyContribution = watch('notify_contribution');
+  const setGoalField = (field: keyof GoalFormData, value: GoalFormData[keyof GoalFormData]) => {
+    setValue(field as never, value as never, { shouldDirty: true, shouldValidate: true });
+  };
 
   // Calcular contribuição mensal sugerida
   const suggestedMonthly = (() => {
     if (!watchTargetDate || !watchStartDate) return 0;
     const remaining = watchTargetAmount - watchCurrentAmount;
-    const start = new Date(watchStartDate);
-    const target = new Date(watchTargetDate);
+    const start = new Date(`${watchStartDate}T12:00:00`);
+    const target = new Date(`${watchTargetDate}T12:00:00`);
     const monthsRemaining = Math.max(1, (target.getTime() - start.getTime()) / (1000 * 60 * 60 * 24 * 30));
     return remaining / monthsRemaining;
   })();
@@ -146,7 +149,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
         start_date: new Date().toISOString().split('T')[0],
         target_date: '',
         priority: 'medium',
-        icon: '🎯',
+        icon: 'Target',
         notify_milestones: true,
         notify_contribution: false,
         notify_delay: false,
@@ -252,7 +255,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
                 <Label htmlFor="category">Categoria *</Label>
                 <Select
                   value={watchCategory}
-                  onValueChange={(value) => setValue('category', value as GoalCategory)}
+                  onValueChange={(value) => setGoalField('category', value as GoalCategory)}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -320,7 +323,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
                       <button
                         key={item.label}
                         type="button"
-                        onClick={() => setValue('icon', item.label)}
+                        onClick={() => setGoalField('icon', item.label)}
                         className={`p-2 rounded-lg border-2 transition-colors ${
                           watchIcon === item.label
                             ? 'border-primary bg-primary/10'
@@ -343,7 +346,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
                   <Label htmlFor="start_date">Data Início</Label>
                   <DatePickerInput
                     value={watch('start_date')}
-                    onChange={(value) => setValue('start_date', value)}
+                    onChange={(value) => setGoalField('start_date', value)}
                     placeholder="Selecione a data de início"
                   />
                 </div>
@@ -352,7 +355,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
                   <Label htmlFor="target_date">Data Alvo *</Label>
                   <DatePickerInput
                     value={watch('target_date')}
-                    onChange={(value) => setValue('target_date', value)}
+                    onChange={(value) => setGoalField('target_date', value)}
                     placeholder="Selecione a data alvo"
                   />
                   {errors.target_date && (
@@ -365,7 +368,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
                 <Label htmlFor="priority">Prioridade</Label>
                 <Select
                   value={watch('priority')}
-                  onValueChange={(value) => setValue('priority', value as GoalPriority)}
+                  onValueChange={(value) => setGoalField('priority', value as GoalPriority)}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -409,7 +412,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
                 </div>
                 <Switch
                   checked={watch('notify_milestones')}
-                  onCheckedChange={(checked) => setValue('notify_milestones', checked)}
+                  onCheckedChange={(checked) => setGoalField('notify_milestones', checked)}
                 />
               </div>
 
@@ -422,7 +425,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
                 </div>
                 <Switch
                   checked={watchNotifyContribution}
-                  onCheckedChange={(checked) => setValue('notify_contribution', checked)}
+                  onCheckedChange={(checked) => setGoalField('notify_contribution', checked)}
                 />
               </div>
 
@@ -432,7 +435,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
                     <Label>Frequência</Label>
                     <Select
                       value={watch('contribution_frequency') || 'monthly'}
-                      onValueChange={(value) => setValue('contribution_frequency', value as any)}
+                      onValueChange={(value) => setGoalField('contribution_frequency', value as GoalFormData['contribution_frequency'])}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -469,7 +472,7 @@ export function GoalDialog({ open, onOpenChange, goal, onSave, onDelete }: GoalD
                 </div>
                 <Switch
                   checked={watch('notify_delay')}
-                  onCheckedChange={(checked) => setValue('notify_delay', checked)}
+                  onCheckedChange={(checked) => setGoalField('notify_delay', checked)}
                 />
               </div>
             </TabsContent>

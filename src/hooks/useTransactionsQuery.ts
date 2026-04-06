@@ -70,15 +70,21 @@ const fetchTransactions = async (filters?: TransactionFilters): Promise<Transact
       purchase_date,
       created_at,
       credit_card_id,
+      invoice_id,
+      is_installment,
+      is_parent_installment,
+      installment_number,
+      total_installments,
+      installment_group_id,
+      total_amount,
       category:categories(id, name, icon, color),
-      credit_card:credit_cards(id, name, color)
+      credit_card:credit_cards(id, name, color),
+      invoice:credit_card_invoices(reference_month)
     `)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
-  // Aplicar filtros de data
-  if (filters?.startDate) ccQuery = ccQuery.gte('purchase_date', filters.startDate);
-  if (filters?.endDate) ccQuery = ccQuery.lte('purchase_date', filters.endDate);
+  // Competência do cartão vem da fatura; filtro por data aplica-se depois do mapeamento.
   if (filters?.categoryId) ccQuery = ccQuery.eq('category_id', filters.categoryId);
   
   // Filtro de tipo: se for 'income', não incluir transações de cartão (são sempre despesas)
@@ -88,15 +94,16 @@ const fetchTransactions = async (filters?: TransactionFilters): Promise<Transact
 
   const { data: ccData, error: ccError } = await ccQuery;
 
-  console.log('📊 Transações de cartão encontradas:', ccData?.length || 0);
-
   if (ccError) {
     console.error('Erro ao buscar transações de cartão:', ccError);
     return normalTransactions;
   }
 
   // Mapear transações de cartão para o formato de Transaction
-  const creditCardTransactions: Transaction[] = (ccData || []).map((cc: any) => ({
+  let creditCardTransactions: Transaction[] = (ccData || []).map((cc: any) => {
+    const ref = cc.invoice?.reference_month as string | undefined;
+    const competenceMonth = ref ? ref.slice(0, 7) : (cc.purchase_date || '').slice(0, 7);
+    return {
     id: cc.id,
     user_id: cc.user_id,
     account_id: null,
@@ -105,6 +112,7 @@ const fetchTransactions = async (filters?: TransactionFilters): Promise<Transact
     amount: cc.amount,
     description: cc.description,
     transaction_date: cc.purchase_date,
+    competence_month: competenceMonth,
     is_paid: false, // Compras de cartão são pagas quando a fatura é paga
     is_recurring: false,
     recurrence_type: null,
@@ -126,7 +134,25 @@ const fetchTransactions = async (filters?: TransactionFilters): Promise<Transact
     // Campos extras para identificar como cartão
     credit_card_id: cc.credit_card_id,
     credit_card_name: cc.credit_card?.name,
-  }));
+    is_installment: cc.is_installment || false,
+    is_parent_installment: cc.is_parent_installment || false,
+    installment_number: cc.installment_number,
+    total_installments: cc.total_installments,
+    installment_group_id: cc.installment_group_id,
+    total_amount: cc.total_amount,
+  };
+  });
+
+  if (filters?.startDate || filters?.endDate) {
+    const startYm = filters.startDate ? filters.startDate.slice(0, 7) : null;
+    const endYm = filters.endDate ? filters.endDate.slice(0, 7) : null;
+    creditCardTransactions = creditCardTransactions.filter((t) => {
+      const ym = t.competence_month || t.transaction_date.slice(0, 7);
+      if (startYm && ym < startYm) return false;
+      if (endYm && ym > endYm) return false;
+      return true;
+    });
+  }
 
   // Combinar e ordenar por data de criação
   const allTransactions = [...normalTransactions, ...creditCardTransactions];

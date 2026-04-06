@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Sun, Moon, Monitor, Calendar, DollarSign, Globe } from 'lucide-react';
-import { formatCurrency, formatDate, formatNumber } from '@/utils/formatters';
+import { formatCurrency, formatDate, formatNumber } from '@/lib/formatters';
 
 interface SettingsPreviewProps {
   // Configurações atuais para preview

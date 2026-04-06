@@ -281,19 +281,26 @@ async function comandoMetas(userId: string): Promise<string> {
   
   const { data: goals } = await supabase
     .from('financial_goals')
-    .select('name, target_amount, current_amount, deadline, icon, goal_type')
+    .select('name, target_amount, current_amount, target_date, deadline, icon, goal_type, period_end, category:categories(name)')
     .eq('user_id', userId)
-    .eq('status', 'active')
-    .eq('goal_type', 'savings')
-    .order('deadline');
+    .in('status', ['active', 'exceeded'])
+    .in('goal_type', ['savings', 'spending_limit'])
+    .order('goal_type', { ascending: true })
+    .order('target_date', { ascending: true, nullsFirst: false });
   
   if (!goals || goals.length === 0) {
     return '🎯 Nenhuma meta ativa.';
   }
   
+  const savingsGoals = goals.filter((goal) => goal.goal_type === 'savings');
+  const spendingGoals = goals.filter((goal) => goal.goal_type === 'spending_limit');
   let mensagem = '🎯 *Suas Metas*\n\n';
   
-  for (const goal of goals) {
+  if (savingsGoals.length > 0) {
+    mensagem += '*Economia*\n';
+  }
+
+  for (const goal of savingsGoals) {
     const icon = goal.icon || '🎯';
     const target = Number(goal.target_amount);
     const current = Number(goal.current_amount || 0);
@@ -301,8 +308,9 @@ async function comandoMetas(userId: string): Promise<string> {
     const barra = gerarBarraProgresso(percentual);
     
     let deadlineText = '';
-    if (goal.deadline) {
-      const targetDate = new Date(goal.deadline);
+    const goalDeadline = goal.target_date || goal.deadline;
+    if (goalDeadline) {
+      const targetDate = new Date(`${goalDeadline}T12:00:00`);
       const today = new Date();
       const diffDays = Math.ceil((targetDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
       
@@ -314,6 +322,34 @@ async function comandoMetas(userId: string): Promise<string> {
     mensagem += `${icon} *${goal.name}*${deadlineText}\n`;
     mensagem += `   ${barra} ${percentual.toFixed(0)}%\n`;
     mensagem += `   ${formatCurrency(current)} / ${formatCurrency(target)}\n\n`;
+  }
+
+  if (spendingGoals.length > 0) {
+    mensagem += '*Controle de Gastos*\n';
+  }
+
+  for (const goal of spendingGoals) {
+    const categoryName = goal.category?.name || goal.name;
+    const target = Number(goal.target_amount);
+    const current = Number(goal.current_amount || 0);
+    const percentual = target > 0 ? (current / target * 100) : 0;
+    const restante = target - current;
+    const barra = gerarBarraProgresso(percentual);
+    let periodText = '';
+
+    if (goal.period_end) {
+      const periodEnd = new Date(`${goal.period_end}T12:00:00`);
+      const today = new Date();
+      const diffDays = Math.ceil((periodEnd.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays >= 0) {
+        periodText = ` (${diffDays} ${diffDays === 1 ? 'dia' : 'dias'} restantes)`;
+      }
+    }
+
+    mensagem += `🧾 *${categoryName}*${periodText}\n`;
+    mensagem += `   ${barra} ${percentual.toFixed(0)}% do limite\n`;
+    mensagem += `   ${formatCurrency(current)} / ${formatCurrency(target)}\n`;
+    mensagem += `   ${restante >= 0 ? `Restam ${formatCurrency(restante)}` : `Excedeu ${formatCurrency(Math.abs(restante))}`}\n\n`;
   }
   
   return mensagem;
@@ -328,12 +364,19 @@ async function comandoInvestimentos(userId: string): Promise<string> {
   
   const { data: investments } = await supabase
     .from('investments')
-    .select('name, ticker, quantity, average_price, current_price, type')
+    .select('name, ticker, quantity, purchase_price, current_price, total_invested, current_value, type')
     .eq('user_id', userId)
     .eq('is_active', true);
+
+  const { data: investmentGoals } = await supabase
+    .from('investment_goals')
+    .select('id, name, category, target_amount, current_amount, target_date, monthly_contribution, expected_return_rate, linked_investments, auto_invest, status')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .order('target_date', { ascending: true });
   
-  if (!investments || investments.length === 0) {
-    return '💼 Nenhum investimento cadastrado.';
+  if ((!investments || investments.length === 0) && (!investmentGoals || investmentGoals.length === 0)) {
+    return '💼 Nenhum investimento cadastrado.\n\n🎯 Você também ainda não tem metas de investimento ativas.';
   }
   
   let totalInvestido = 0;
@@ -350,8 +393,8 @@ async function comandoInvestimentos(userId: string): Promise<string> {
   };
   
   for (const inv of investments) {
-    const investido = Number(inv.quantity) * Number(inv.average_price);
-    const atual = Number(inv.quantity) * Number(inv.current_price);
+    const investido = Number(inv.total_invested || (Number(inv.quantity) * Number(inv.purchase_price || 0)));
+    const atual = Number(inv.current_value || (Number(inv.quantity) * Number(inv.current_price || inv.purchase_price || 0)));
     const retorno = investido > 0 ? ((atual / investido - 1) * 100).toFixed(2) : '0.00';
     const emoji = typeEmojis[inv.type] || '💼';
     const sinal = Number(retorno) >= 0 ? '📈' : '📉';
@@ -362,16 +405,110 @@ async function comandoInvestimentos(userId: string): Promise<string> {
     totalInvestido += investido;
     totalAtual += atual;
   }
-  
-  const retornoTotal = totalInvestido > 0 
-    ? ((totalAtual / totalInvestido - 1) * 100).toFixed(2) 
-    : '0.00';
-  
-  mensagem += `━━━━━━━━━━━━━━\n`;
-  mensagem += `💰 Total: ${formatCurrency(totalAtual)}\n`;
-  mensagem += `📊 Retorno: ${retornoTotal}%`;
+
+  if (investments && investments.length > 0) {
+    const retornoTotal = totalInvestido > 0
+      ? ((totalAtual / totalInvestido - 1) * 100).toFixed(2)
+      : '0.00';
+    
+    mensagem += `━━━━━━━━━━━━━━\n`;
+    mensagem += `💰 Total: ${formatCurrency(totalAtual)}\n`;
+    mensagem += `📊 Retorno: ${retornoTotal}%\n`;
+  } else {
+    mensagem += 'Sem ativos reais cadastrados no portfólio.\n';
+  }
+
+  if (investmentGoals && investmentGoals.length > 0) {
+    mensagem += `\n🎯 *Metas de Investimento*\n\n`;
+
+    const goalsSummary = investmentGoals
+      .map((goal) => buildInvestmentGoalSnapshot(goal, investments || []))
+      .sort((a, b) => b.projectedGap - a.projectedGap)
+      .slice(0, 3);
+
+    goalsSummary.forEach((goal) => {
+      const progress = goal.targetAmount > 0 ? (goal.currentAmount / goal.targetAmount) * 100 : 0;
+      mensagem += `• *${goal.name}*: ${progress.toFixed(1)}% (${formatCurrency(goal.currentAmount)} de ${formatCurrency(goal.targetAmount)})\n`;
+      mensagem += `  Projeção: ${formatCurrency(goal.finalProjection)} | Gap: ${formatCurrency(goal.projectedGap)}\n`;
+      mensagem += `  Aporte atual: ${formatCurrency(goal.monthlyContribution)} | Necessário: ${formatCurrency(goal.requiredMonthlyContribution)}\n\n`;
+    });
+  } else {
+    mensagem += `\n🎯 Nenhuma meta de investimento ativa.`;
+  }
   
   return mensagem;
+}
+
+function buildInvestmentGoalSnapshot(goal: any, investments: any[]) {
+  const linkedCurrentAmount = goal.auto_invest
+    ? (goal.linked_investments || []).reduce((sum: number, investmentId: string) => {
+        const investment = investments.find((item: any) => item.id === investmentId);
+        if (!investment) return sum;
+        return sum + Number(investment.current_value || (Number(investment.quantity) * Number(investment.current_price || investment.purchase_price || 0)));
+      }, 0)
+    : 0;
+
+  const currentAmount = Number(goal.current_amount || 0) + linkedCurrentAmount;
+  const targetAmount = Number(goal.target_amount || 0);
+  const monthlyContribution = Number(goal.monthly_contribution || 0);
+  const annualRate = Number(goal.expected_return_rate || 0);
+  const monthsRemaining = calculateMonthsRemaining(goal.target_date);
+  const finalProjection = projectFutureValue(currentAmount, monthlyContribution, annualRate, monthsRemaining);
+  const requiredMonthlyContribution = solveRequiredMonthlyContribution(currentAmount, annualRate, monthsRemaining, targetAmount);
+
+  return {
+    name: goal.name,
+    currentAmount,
+    targetAmount,
+    monthlyContribution,
+    finalProjection,
+    requiredMonthlyContribution,
+    projectedGap: Math.max(0, targetAmount - finalProjection),
+  };
+}
+
+function calculateMonthsRemaining(targetDate?: string | null): number {
+  if (!targetDate) return 0;
+  const today = new Date(`${todayBrasilia()}T12:00:00`);
+  const target = new Date(`${targetDate}T12:00:00`);
+  const months = (target.getFullYear() - today.getFullYear()) * 12 + (target.getMonth() - today.getMonth());
+  return Math.max(0, months);
+}
+
+function projectFutureValue(currentAmount: number, monthlyContribution: number, annualRate: number, months: number): number {
+  if (months <= 0) return currentAmount;
+
+  const monthlyRate = Math.pow(1 + annualRate / 100, 1 / 12) - 1;
+  let balance = currentAmount;
+
+  for (let month = 0; month < months; month += 1) {
+    balance = balance * (1 + monthlyRate) + monthlyContribution;
+  }
+
+  return balance;
+}
+
+function solveRequiredMonthlyContribution(currentAmount: number, annualRate: number, months: number, targetAmount: number): number {
+  if (targetAmount <= currentAmount || months <= 0) return 0;
+
+  let low = 0;
+  let high = Math.max(targetAmount, 1000);
+
+  while (projectFutureValue(currentAmount, high, annualRate, months) < targetAmount) {
+    high *= 2;
+    if (high > targetAmount * 10) break;
+  }
+
+  for (let iteration = 0; iteration < 32; iteration += 1) {
+    const mid = (low + high) / 2;
+    if (projectFutureValue(currentAmount, mid, annualRate, months) >= targetAmount) {
+      high = mid;
+    } else {
+      low = mid;
+    }
+  }
+
+  return high;
 }
 
 // ============================================

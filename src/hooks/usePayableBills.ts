@@ -1,7 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { processGamificationEvent } from '@/lib/gamification';
 import {
   PayableBill,
   CreateBillInput,
@@ -17,6 +18,7 @@ export function usePayableBills(initialFilters?: BillFilters) {
   const [bills, setBills] = useState<PayableBill[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<BillFilters>(initialFilters || {});
+  const channelNameRef = useRef(`payable-bills-${crypto.randomUUID()}`);
 
   const syncRecurringBillsHorizon = useCallback(async () => {
     if (!user?.id) return;
@@ -150,26 +152,18 @@ export function usePayableBills(initialFilters?: BillFilters) {
   useEffect(() => {
     if (!user?.id) return;
 
-    // Nome único para evitar conflitos de canal
-    const channelName = `payable-bills-${user.id}`;
-    
-    // Remover canal existente antes de criar novo
-    const existingChannel = supabase.channel(channelName);
-    supabase.removeChannel(existingChannel);
-
     const channel = supabase
-      .channel(channelName)
+      .channel(channelNameRef.current)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'payable_bills', filter: `user_id=eq.${user.id}` },
-        (payload) => {
-          console.log('🔄 Payable bills atualizado:', payload.eventType);
+        () => {
           fetchBills();
         }
       )
       .subscribe((status) => {
         if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Erro no canal realtime payable_bills');
+          console.warn('Realtime[payable_bills] channel error');
         }
       });
 
@@ -458,6 +452,7 @@ export function usePayableBills(initialFilters?: BillFilters) {
       }
 
       await fetchBills();
+      await processGamificationEvent('pay_bill');
       return result;
     } catch (error) {
       console.error('Erro ao marcar conta como paga:', error);

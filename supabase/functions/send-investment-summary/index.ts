@@ -100,14 +100,58 @@ serve(async (req) => {
         continue;
       }
 
-      // Buscar dados do portfólio
-      const { data: portfolio } = await supabase
-        .rpc('calculate_portfolio_metrics', { p_user_id: user.user_id });
+      const [{ data: summary, error: summaryError }, { data: investments, error: investmentsError }, { data: recentDividends, error: dividendsError }] = await Promise.all([
+        supabase
+          .from('v_portfolio_summary')
+          .select('*')
+          .eq('user_id', user.user_id)
+          .maybeSingle(),
+        supabase
+          .from('investments')
+          .select('ticker, name, total_invested, current_value, quantity, purchase_price, current_price')
+          .eq('user_id', user.user_id)
+          .eq('is_active', true),
+        supabase
+          .from('investment_transactions')
+          .select('total_value, transaction_type, investments(ticker)')
+          .eq('user_id', user.user_id)
+          .in('transaction_type', ['dividend', 'interest'])
+          .gte('transaction_date', new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+      ]);
 
-      if (!portfolio) {
+      if (summaryError) throw summaryError;
+      if (investmentsError) throw investmentsError;
+      if (dividendsError) throw dividendsError;
+
+      if (!summary) {
         console.log(`[send-investment-summary] ⚠️ Portfolio vazio para ${user.user_id}`);
         continue;
       }
+
+      const topPerformers = (investments || [])
+        .map((investment)=> {
+          const totalInvested = Number(investment.total_invested || (Number(investment.quantity) * Number(investment.purchase_price || 0)));
+          const currentValue = Number(investment.current_value || (Number(investment.quantity) * Number(investment.current_price || investment.purchase_price || 0)));
+          const returnPercentage = totalInvested > 0 ? (currentValue - totalInvested) / totalInvested * 100 : 0;
+          return {
+            ticker: investment.ticker || investment.name,
+            return_percentage: returnPercentage
+          };
+        })
+        .sort((a, b)=>b.return_percentage - a.return_percentage)
+        .slice(0, 3);
+
+      const totalDividends = (recentDividends || []).reduce((sum, item)=>sum + Number(item.total_value || 0), 0);
+
+      const portfolio = {
+        total_invested: summary.total_invested || 0,
+        current_value: summary.current_value || 0,
+        total_return: summary.total_return || 0,
+        return_percentage: summary.return_percentage || 0,
+        diversification_score: summary.categories_count || 0,
+        top_performers: topPerformers,
+        recent_dividends_total: totalDividends
+      };
 
       // Buscar telefone
       const { data: userdata } = await supabase
@@ -182,12 +226,9 @@ function formatInvestmentSummary(
     message += `\n`;
   }
 
-  if (portfolio.upcoming_dividends && portfolio.upcoming_dividends.length > 0) {
-    message += `💰 *Próximos Dividendos:*\n`;
-    const total = portfolio.upcoming_dividends.reduce((sum: number, div: any) => 
-      sum + parseFloat(div.amount), 0
-    );
-    message += `Total esperado: R$ ${total.toFixed(2)}\n\n`;
+  if (portfolio.recent_dividends_total && portfolio.recent_dividends_total > 0) {
+    message += `💰 *Proventos recentes (30 dias):*\n`;
+    message += `Total recebido: R$ ${parseFloat(portfolio.recent_dividends_total || 0).toFixed(2)}\n\n`;
   }
 
   message += `🎯 *Diversificação:* ${portfolio.diversification_score || 0}/100\n\n`;

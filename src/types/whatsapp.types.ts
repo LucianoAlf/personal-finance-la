@@ -117,6 +117,7 @@ export interface WhatsAppConnectionStatus {
   // Status da conexão
   status: string; // 'disconnected' | 'connecting' | 'connected'
   connected: boolean;
+  connected_at?: string;
   logged_in: boolean;
   jid?: string;
   

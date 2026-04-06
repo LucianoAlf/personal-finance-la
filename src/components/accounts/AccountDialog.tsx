@@ -39,7 +39,7 @@ interface AccountDialogProps {
 
 const accountSchema = z.object({
   name: z.string().min(3, 'Nome deve ter pelo menos 3 caracteres'),
-  type: z.enum(['checking', 'savings', 'cash', 'investment', 'credit_card'] as const),
+  type: z.enum(['checking', 'savings', 'cash', 'wallet', 'investment', 'credit_card'] as const),
   bank_name: z.string().optional(),
   initial_balance: z.number().min(0, 'Saldo inicial deve ser maior ou igual a 0'),
   color: z.string(),

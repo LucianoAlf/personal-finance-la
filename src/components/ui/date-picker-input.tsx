@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/cn';
+import { formatDateOnly, parseDateOnly } from '@/utils/formatters';
 
 interface DatePickerInputProps {
   value?: string;
@@ -18,6 +19,9 @@ interface DatePickerInputProps {
   disablePast?: boolean;
   minDate?: Date;
   maxDate?: Date;
+  enableMonthYearNavigation?: boolean;
+  fromYear?: number;
+  toYear?: number;
 }
 
 export function DatePickerInput({
@@ -30,33 +34,37 @@ export function DatePickerInput({
   disablePast = false,
   minDate,
   maxDate,
+  enableMonthYearNavigation = false,
+  fromYear,
+  toYear,
 }: DatePickerInputProps) {
   const [open, setOpen] = React.useState(false);
-  const selectedDate = value ? new Date(value + 'T00:00:00') : undefined;
+  const selectedDate = value ? parseDateOnly(value) : undefined;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   const handleSelect = (date: Date | undefined) => {
     if (!date) return;
-    
-    date.setHours(0, 0, 0, 0);
-    
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    
-    onChange?.(`${y}-${m}-${d}`);
+
+    const safeDate = new Date(date);
+    safeDate.setHours(12, 0, 0, 0);
+    onChange?.(formatDateOnly(safeDate));
     setOpen(false);
   };
 
   const isDateDisabled = (date: Date) => {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
+    const min = minDate ? new Date(minDate) : undefined;
+    const max = maxDate ? new Date(maxDate) : undefined;
+
+    min?.setHours(0, 0, 0, 0);
+    max?.setHours(0, 0, 0, 0);
 
     if (disableFuture && d > today) return true;
     if (disablePast && d < today) return true;
-    if (minDate && d < minDate) return true;
-    if (maxDate && d > maxDate) return true;
+    if (min && d < min) return true;
+    if (max && d > max) return true;
 
     return false;
   };
@@ -83,6 +91,10 @@ export function DatePickerInput({
           selected={selectedDate}
           onSelect={handleSelect}
           disabled={isDateDisabled}
+          captionLayout={enableMonthYearNavigation ? 'dropdown-buttons' : undefined}
+          fromYear={fromYear}
+          toYear={toYear}
+          defaultMonth={selectedDate ?? minDate ?? maxDate ?? today}
           initialFocus
         />
       </PopoverContent>

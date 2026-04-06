@@ -1,8 +1,9 @@
 // FASE 1: Ana Clara com GPT-4 Real - Hook atualizado
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { usePortfolioMetrics } from './usePortfolioMetrics';
 import { useAllocationTargets } from './useAllocationTargets';
+import { useInvestmentGoals } from './useInvestmentGoals';
 import type { Investment } from '@/types/database.types';
 
 // Interface para resposta do GPT-4
@@ -44,6 +45,43 @@ export interface AnaInsights {
 export function useAnaInsights(investments: Investment[]): AnaInsights {
   const metrics = usePortfolioMetrics(investments);
   const { targets } = useAllocationTargets();
+  const { goals: investmentGoals } = useInvestmentGoals();
+  const portfolioPayload = useMemo(() => ({
+    totalInvested: metrics.totalInvested,
+    currentValue: metrics.currentValue,
+    totalReturn: metrics.totalReturn,
+    returnPercentage: metrics.returnPercentage,
+    allocation: metrics.allocation,
+    investments: investments.map(inv => {
+      const currentValue = inv.current_value || (inv.quantity * (inv.current_price || inv.purchase_price));
+      const totalInvested = inv.total_invested || (inv.quantity * inv.purchase_price);
+      const returnPercentage = totalInvested > 0 ? ((currentValue - totalInvested) / totalInvested) * 100 : 0;
+
+      return {
+        ticker: inv.ticker || inv.name,
+        type: inv.type,
+        quantity: inv.quantity,
+        returnPercentage,
+        dividendYield: inv.dividend_yield,
+        currentPrice: inv.current_price,
+        purchasePrice: inv.purchase_price,
+      };
+    }),
+    targets: targets.map(t => ({
+      assetClass: t.asset_class,
+      targetPercentage: t.target_percentage,
+    })),
+    goals: investmentGoals.map((goal) => ({
+      name: goal.name,
+      category: goal.category,
+      targetAmount: goal.target_amount,
+      currentAmount: goal.metrics?.effective_current_amount ?? goal.current_amount,
+      finalProjection: goal.metrics?.final_projection ?? goal.current_amount,
+      projectedGap: goal.metrics?.projected_gap ?? 0,
+      linkedInvestmentsCount: goal.metrics?.linked_investments_count ?? 0,
+      status: goal.metrics?.is_on_track ? 'on_track' : 'attention',
+    })),
+  }), [investments, investmentGoals, metrics.allocation, metrics.currentValue, metrics.returnPercentage, metrics.totalInvested, metrics.totalReturn, targets]);
   
   const [gptInsights, setGptInsights] = useState<AnaInsightsGPT | undefined>();
   const [isLoading, setIsLoading] = useState(false);
@@ -51,7 +89,6 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
 
   useEffect(() => {
     let isMounted = true;
-    let timeoutId: ReturnType<typeof setTimeout>;
 
     async function fetchGPTInsights() {
       // Só buscar se tiver investimentos e valor
@@ -60,48 +97,15 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
         return;
       }
 
-      // Se já está carregando, não fazer nova requisição
-      if (isLoading) {
-        console.log('[useAnaInsights] Já está carregando, ignorando...');
-        return;
-      }
-
       try {
         setIsLoading(true);
         setError(undefined);
-
-        const portfolio = {
-          totalInvested: metrics.totalInvested,
-          currentValue: metrics.currentValue,
-          totalReturn: metrics.totalReturn,
-          returnPercentage: metrics.returnPercentage,
-          allocation: metrics.allocation,
-          investments: investments.map(inv => {
-            const currentValue = inv.current_value || (inv.quantity * (inv.current_price || inv.purchase_price));
-            const totalInvested = inv.total_invested || (inv.quantity * inv.purchase_price);
-            const returnPercentage = totalInvested > 0 ? ((currentValue - totalInvested) / totalInvested) * 100 : 0;
-            
-            return {
-              ticker: inv.ticker || inv.name,
-              type: inv.type,
-              quantity: inv.quantity,
-              returnPercentage,
-              dividendYield: inv.dividend_yield,
-              currentPrice: inv.current_price,
-              purchasePrice: inv.purchase_price,
-            };
-          }),
-          targets: targets.map(t => ({
-            assetClass: t.asset_class,
-            targetPercentage: t.target_percentage,
-          })),
-        };
 
         console.log('[useAnaInsights] 🚀 Invocando Edge Function (com cache)...');
 
         const { data, error: invokeError } = await supabase.functions.invoke(
           'ana-investment-insights',
-          { body: { portfolio, forceRefresh: false } }
+          { body: { portfolio: portfolioPayload, forceRefresh: false } }
         );
 
         if (!isMounted) return;
@@ -132,7 +136,7 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
     }
 
     // Debounce de 500ms para evitar múltiplas chamadas
-    timeoutId = setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       fetchGPTInsights();
     }, 500);
 
@@ -140,7 +144,7 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [investments.length, metrics.currentValue]);
+  }, [portfolioPayload, investments.length, metrics.currentValue]);
 
   // Calcular breakdown básico localmente (fallback)
   const breakdown = {

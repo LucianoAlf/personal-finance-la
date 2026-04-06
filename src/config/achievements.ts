@@ -22,6 +22,8 @@ export interface Achievement {
   tiers: AchievementTier[];
 }
 
+export const CANONICAL_ACHIEVEMENT_IDS = new Set<string>();
+
 // =====================================================
 // CONFIGURAÇÃO DE TIERS
 // =====================================================
@@ -72,12 +74,16 @@ export const generateInsight = (
     case 'consistency_king':
     case 'unstoppable': {
       const n = Math.ceil(remaining);
-      return `Mantenha por mais ${n} ${n === 1 ? 'mês' : 'meses'}`;
+      return `Mantenha por mais ${n} ${n === 1 ? 'dia' : 'dias'}`;
     }
     case 'spending_control':
+    case 'perfect_month': {
+      const n = Math.ceil(remaining);
+      return `Mantenha esse ritmo por mais ${n} ${n === 1 ? 'ciclo válido' : 'ciclos válidos'}`;
+    }
     case 'budget_ninja': {
       const n = Math.ceil(remaining);
-      return `Cumpra mais ${n} ${n === 1 ? 'limite' : 'limites'} este mês`;
+      return `Mantenha mais ${n} ${n === 1 ? 'categoria' : 'categorias'} dentro do limite`;
     }
     default:
       return `Faltam ${achievement.category === 'savings' ? formatCurrency(remaining) : remaining.toLocaleString('pt-BR')}`;
@@ -162,7 +168,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: 'consistency_king',
     name: 'Rei da Consistência',
-    description: 'Mantenha uma sequência de meses cumprindo metas',
+    description: 'Mantenha uma sequência diária de atividade no app',
     icon: Flame,
     category: 'streak',
     tiers: [
@@ -174,7 +180,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   {
     id: 'unstoppable',
     name: 'Imparável',
-    description: 'Sequência épica de meses sem falhas',
+    description: 'Construa um recorde de dias seguidos de atividade',
     icon: Rocket,
     category: 'streak',
     tiers: [
@@ -300,6 +306,12 @@ export const getAchievementById = (id: string): Achievement | undefined => {
   return ACHIEVEMENTS.find(a => a.id === id);
 };
 
+ACHIEVEMENTS.forEach((achievement) => {
+  CANONICAL_ACHIEVEMENT_IDS.add(achievement.id);
+});
+
+export const isCanonicalAchievementId = (id: string): boolean => CANONICAL_ACHIEVEMENT_IDS.has(id);
+
 /**
  * Filtra conquistas por categoria
  */
@@ -327,7 +339,11 @@ export const calculateTierProgress = (
   currentProgress: number,
   currentTier: 'bronze' | 'silver' | 'gold' | null
 ): { percentage: number; nextTarget: number; nextTier: 'bronze' | 'silver' | 'gold' | null } => {
-  const nextTier = getNextTier(currentTier);
+  const availableTiers = achievement.tiers.filter((tier) => tier.xp_reward > 0);
+  const currentIndex = currentTier
+    ? availableTiers.findIndex((tier) => tier.tier === currentTier)
+    : -1;
+  const nextTier = availableTiers[currentIndex + 1]?.tier ?? null;
   
   if (!nextTier) {
     return { percentage: 100, nextTarget: 0, nextTier: null };

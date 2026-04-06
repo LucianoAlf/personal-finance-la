@@ -4,6 +4,7 @@ import { ChartCard } from './ChartCard';
 import { formatCurrency } from '@/utils/formatters';
 import type { Transaction } from '@/types/transactions';
 import { useMemo } from 'react';
+import { competenceMonthFromTransaction, isInvoicePaymentExpense } from '@/utils/transactionCompetence';
 
 interface MonthlyTrendChartProps {
   transactions: Transaction[];
@@ -19,34 +20,33 @@ interface ChartData {
 export function MonthlyTrendChart({ transactions, selectedDate }: MonthlyTrendChartProps) {
   // Gerar últimos 6 meses (memo)
   const monthsWindow = useMemo(() => {
-    const months = [] as { month: string; fullDate: Date }[];
+    const months = [] as { month: string; yearMonth: string }[];
     const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     for (let i = 5; i >= 0; i--) {
       const date = new Date(selectedDate);
       date.setMonth(date.getMonth() - i);
-      months.push({ month: monthNames[date.getMonth()], fullDate: date });
+      months.push({
+        month: monthNames[date.getMonth()],
+        yearMonth: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
+      });
     }
     return months;
   }, [selectedDate]);
 
-  // Calcular receitas e despesas por mês (memo)
+  // Calcular receitas e despesas usando a mesma régua dos cards:
+  // mês de competência para cartão e exclusão de pagamento de fatura.
   const chartData: ChartData[] = useMemo(() => {
-    return monthsWindow.map(({ month, fullDate }) => {
-      const monthTransactions = transactions.filter(t => {
-        const tDate = new Date(t.transaction_date);
-        return (
-          tDate.getMonth() === fullDate.getMonth() &&
-          tDate.getFullYear() === fullDate.getFullYear() &&
-          t.is_paid
-        );
-      });
+    return monthsWindow.map(({ month, yearMonth }) => {
+      const monthTransactions = transactions.filter(
+        (t) => competenceMonthFromTransaction(t) === yearMonth
+      );
 
       const income = monthTransactions
-        .filter(t => t.type === 'income')
+        .filter((t) => t.type === 'income')
         .reduce((sum, t) => sum + Number(t.amount), 0);
 
       const expense = monthTransactions
-        .filter(t => t.type === 'expense')
+        .filter((t) => t.type === 'expense' && !isInvoicePaymentExpense(t))
         .reduce((sum, t) => sum + Number(t.amount), 0);
 
       return { month, income, expense };

@@ -18,17 +18,37 @@ const BRAPI_API_KEY = Deno.env.get('BRAPI_API_KEY') || '';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+function buildErrorPayload(symbol: string, error: unknown) {
+  return {
+    error: error instanceof Error ? error.message : 'Unknown error',
+    symbol: symbol || null,
+    name: symbol || null,
+    price: 0,
+    change: 0,
+    changePercent: 0,
+  };
+}
+
+function isLookupError(error: unknown) {
+  const message = error instanceof Error ? error.message : '';
+  return /BrAPI error|CoinGecko error|Quote not found|Crypto not found|Unsupported type/i.test(message);
+}
+
 serve(async (req) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let requestBody = '';
+  let parsedRequest: QuoteRequest | null = null;
+
   try {
-    const body = await req.text();
-    console.log('[get-quote] Body recebido:', body);
-    
-    const { symbol, type }: QuoteRequest = JSON.parse(body);
+    requestBody = await req.text();
+    console.log('[get-quote] Body recebido:', requestBody);
+
+    parsedRequest = JSON.parse(requestBody) as QuoteRequest;
+    const { symbol, type } = parsedRequest;
 
     if (!symbol || !type) {
       return new Response(
@@ -163,16 +183,10 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error('[get-quote] Erro:', error);
+    const normalizedSymbol = parsedRequest?.symbol?.toUpperCase() ?? '';
 
     try {
-      const cached = await getCachedQuoteFromSupabase((() => {
-        try {
-          const { symbol } = JSON.parse(await req.clone().text());
-          return (symbol as string)?.toUpperCase() ?? '';
-        } catch (_) {
-          return '';
-        }
-      })());
+      const cached = await getCachedQuoteFromSupabase(normalizedSymbol);
 
       if (cached) {
         console.log('[get-quote] Retornando cotação do cache');
@@ -200,15 +214,11 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        symbol: null,
-        name: null,
-        price: 0,
-        change: 0,
-        changePercent: 0,
-      }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify(buildErrorPayload(normalizedSymbol, error)),
+      {
+        status: isLookupError(error) ? 200 : 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
     );
   }
 });

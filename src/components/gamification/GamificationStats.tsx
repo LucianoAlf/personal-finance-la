@@ -1,6 +1,6 @@
 import { Trophy, Zap, Target, TrendingUp, Rocket, CheckCircle2, BarChart3 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import type { UserGamification, FinancialGoalWithCategory } from '@/types/database.types';
+import type { UserGamification } from '@/types/database.types';
 import { getLevelTitle } from '@/hooks/useGamification';
 
 interface GamificationStatsProps {
@@ -10,7 +10,9 @@ interface GamificationStatsProps {
   levelTitle: string;
   xpForNextLevel: number;
   xpProgress: number;
-  goals: FinancialGoalWithCategory[];
+  totalGoals: number;
+  activeGoals: number;
+  successRate: number;
 }
 
 export function GamificationStats({
@@ -20,20 +22,13 @@ export function GamificationStats({
   levelTitle,
   xpForNextLevel,
   xpProgress,
-  goals,
+  totalGoals,
+  activeGoals,
+  successRate,
 }: GamificationStatsProps) {
-  const successRate = (() => {
-    const total = goals?.length || 0;
-    if (total === 0) return 0;
-    const completed = goals.filter((g) => g.status === 'completed').length;
-    return Math.round((completed / total) * 100);
-  })();
-
   const nextLevel = (profile?.level || 1) + 1;
   const nextTitle = getLevelTitle(nextLevel);
   const remaining = Math.max(0, (xpForNextLevel || 0) - (profile?.xp || 0));
-  const totalGoals = goals?.length || 0;
-  const activeGoals = goals?.filter((g) => g.status === 'active').length || 0;
 
   return (
     <div className="space-y-4">
