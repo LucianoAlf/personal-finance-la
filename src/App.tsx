@@ -15,6 +15,7 @@ import { Goals } from './pages/Goals';
 import { Investments } from './pages/Investments';
 import { Reports } from './pages/Reports';
 import { Education } from './pages/Education';
+import LessonViewer from './pages/LessonViewer';
 import { Settings } from './pages/Settings';
 import { Tags } from './pages/Tags';
 import Categories from './pages/Categories';
@@ -72,6 +73,7 @@ function App() {
           <Route path="metas" element={<Goals />} />
           <Route path="investimentos" element={<Investments />} />
           <Route path="relatorios" element={<Reports />} />
+          <Route path="educacao/licao/:lessonId" element={<LessonViewer />} />
           <Route path="educacao" element={<Education />} />
           <Route path="configuracoes" element={<Settings />} />
           <Route path="tags" element={<Tags />} />

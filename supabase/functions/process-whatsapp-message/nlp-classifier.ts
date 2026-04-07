@@ -10,6 +10,10 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  buildWhatsAppSuitabilityFacts,
+  formatWhatsAppSuitabilityFactsBlock,
+} from '../_shared/education-profile.ts';
 
 // ============================================
 // BANCOS BRASILEIROS - Para distinguir conta a pagar de conta bancária
@@ -1201,21 +1205,31 @@ async function buscarMemoriaUsuario(
   userId: string
 ): Promise<string> {
   try {
-    // Buscar memórias do usuário + globais (user_id IS NULL)
-    const { data: memorias, error } = await supabase
-      .from('user_memory')
-      .select('tipo, chave, valor')
-      .or(`user_id.eq.${userId},user_id.is.null`)
-      .order('frequencia', { ascending: false })
-      .limit(30);
+    const [{ data: memorias, error }, { data: investorRow }] = await Promise.all([
+      supabase
+        .from('user_memory')
+        .select('tipo, chave, valor')
+        .or(`user_id.eq.${userId},user_id.is.null`)
+        .order('frequencia', { ascending: false })
+        .limit(30),
+      supabase
+        .from('investor_profile_assessments')
+        .select('profile_key, confidence, effective_at, explanation, questionnaire_version, answers')
+        .eq('user_id', userId)
+        .order('effective_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+
+    const suitabilityBlock = formatWhatsAppSuitabilityFactsBlock(buildWhatsAppSuitabilityFacts(investorRow ?? null));
 
     if (error) {
       console.log('⚠️ Tabela user_memory não existe ainda, usando padrão');
-      return getMemoriaPadrao();
+      return getMemoriaPadrao() + suitabilityBlock;
     }
 
     if (!memorias || memorias.length === 0) {
-      return getMemoriaPadrao();
+      return getMemoriaPadrao() + suitabilityBlock;
     }
 
     const girias = memorias.filter((m: { tipo: string }) => m.tipo === 'giria');
@@ -1237,10 +1251,10 @@ async function buscarMemoriaUsuario(
       });
     }
 
-    return texto || getMemoriaPadrao();
+    return (texto || getMemoriaPadrao()) + suitabilityBlock;
   } catch (error) {
     console.log('⚠️ Erro ao buscar memória:', error);
-    return getMemoriaPadrao();
+    return getMemoriaPadrao() + formatWhatsAppSuitabilityFactsBlock(buildWhatsAppSuitabilityFacts(null));
   }
 }
 

@@ -12,6 +12,14 @@
 // ============================================
 
 import { getSupabase, getEmojiBanco, todayBrasilia } from './utils.ts';
+import {
+  buildWhatsAppSuitabilityFacts,
+  type InvestorSuitabilityWhatsAppFacts,
+} from '../_shared/education-profile.ts';
+import {
+  fetchEducationMentoringWhatsAppFacts,
+  type EducationMentoringWhatsAppFacts,
+} from '../_shared/education-renderers.ts';
 import { enviarConfirmacaoComBotoes } from './button-sender.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
 import { templateTransacaoRegistrada } from './response-templates.ts';
@@ -83,6 +91,10 @@ export interface ContextData {
   step?: string; // 'awaiting_account', 'awaiting_category', 'awaiting_value', etc.
   phone?: string;
   current_data?: Record<string, unknown>;
+  /** Deterministic suitability snapshot for flows that read conversation_context. */
+  investor_suitability?: InvestorSuitabilityWhatsAppFacts;
+  /** Auditable education mentoring snapshot (refreshed on context load; not a hidden prompt state). */
+  education_mentoring?: EducationMentoringWhatsAppFacts;
   [key: string]: unknown;
 }
 
@@ -213,6 +225,57 @@ const REFERENCE_CONTEXT_TYPES: ContextType[] = [
   'faturas_vencidas_context'
 ];
 
+export async function fetchInvestorSuitabilityForContext(
+  userId: string,
+): Promise<InvestorSuitabilityWhatsAppFacts> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('investor_profile_assessments')
+    .select('profile_key, confidence, effective_at, explanation, questionnaire_version, answers')
+    .eq('user_id', userId)
+    .order('effective_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.log('⚠️ investor_profile_assessments fetch failed:', error.message);
+    return buildWhatsAppSuitabilityFacts(null);
+  }
+
+  return buildWhatsAppSuitabilityFacts(data);
+}
+
+export function enrichContextoComInvestorSuitability(
+  contexto: ContextoConversa,
+  facts: InvestorSuitabilityWhatsAppFacts,
+): ContextoConversa {
+  return {
+    ...contexto,
+    context_data: {
+      ...contexto.context_data,
+      investor_suitability: facts,
+    },
+  };
+}
+
+export async function fetchEducationMentoringForContext(userId: string): Promise<EducationMentoringWhatsAppFacts> {
+  const supabase = getSupabase();
+  return fetchEducationMentoringWhatsAppFacts(supabase, userId);
+}
+
+export function enrichContextoComEducationMentoring(
+  contexto: ContextoConversa,
+  facts: EducationMentoringWhatsAppFacts,
+): ContextoConversa {
+  return {
+    ...contexto,
+    context_data: {
+      ...contexto.context_data,
+      education_mentoring: facts,
+    },
+  };
+}
+
 export async function buscarContexto(userId: string): Promise<ContextoConversa | null> {
   const supabase = getSupabase();
   
@@ -235,12 +298,22 @@ export async function buscarContexto(userId: string): Promise<ContextoConversa |
   const flowContext = data.find(c => FLOW_CONTEXT_TYPES.includes(c.context_type as ContextType));
   if (flowContext) {
     console.log('🔄 Usando contexto de FLUXO:', flowContext.context_type);
-    return flowContext as ContextoConversa;
+    const suitabilityFacts = await fetchInvestorSuitabilityForContext(userId);
+    const educationFacts = await fetchEducationMentoringForContext(userId);
+    return enrichContextoComEducationMentoring(
+      enrichContextoComInvestorSuitability(flowContext as ContextoConversa, suitabilityFacts),
+      educationFacts,
+    );
   }
   
   // Se não há contexto de fluxo, retornar o mais recente (provavelmente referência)
   console.log('📝 Usando contexto de REFERÊNCIA:', data[0].context_type);
-  return data[0] as ContextoConversa;
+  const suitabilityFacts = await fetchInvestorSuitabilityForContext(userId);
+  const educationFacts = await fetchEducationMentoringForContext(userId);
+  return enrichContextoComEducationMentoring(
+    enrichContextoComInvestorSuitability(data[0] as ContextoConversa, suitabilityFacts),
+    educationFacts,
+  );
 }
 
 // ============================================

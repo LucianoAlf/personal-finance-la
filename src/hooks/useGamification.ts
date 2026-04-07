@@ -82,7 +82,6 @@ export function useGamification() {
         .single();
 
       if (fetchError) {
-        // Se não existe, criar perfil inicial
         if (fetchError.code === 'PGRST116') {
           const { data: newProfile, error: createError } = await supabase
             .from('user_gamification')
@@ -108,8 +107,6 @@ export function useGamification() {
     } catch (err) {
       setError(err as Error);
       console.error('Erro ao buscar perfil de gamificação:', err);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -266,8 +263,14 @@ export function useGamification() {
   useEffect(() => {
     const initialize = async () => {
       setLoading(true);
-      await bootstrapGamificationState();
-      await Promise.all([fetchProfile(), fetchBadges()]);
+      try {
+        // Fetch existing data immediately; bootstrap writes run in the background
+        // and feed back via the realtime subscription.
+        await Promise.all([fetchProfile(), fetchBadges()]);
+      } finally {
+        setLoading(false);
+      }
+      bootstrapGamificationState().catch(() => {});
     };
 
     initialize();

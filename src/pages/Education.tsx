@@ -1,10 +1,200 @@
+import { useCallback, useMemo, useState } from 'react';
+import { GraduationCap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+
+import { EducationAnaMentorshipCard } from '@/components/education/EducationAnaMentorshipCard';
+import { InvestorProfileQuestionnaire } from '@/components/education/InvestorProfileQuestionnaire';
+import { EducationAchievementsSection } from '@/components/education/EducationAchievementsSection';
+import { EducationDailyTipCard } from '@/components/education/EducationDailyTipCard';
+import { EducationEmptyState } from '@/components/education/EducationEmptyState';
+import { EducationGlossarySection } from '@/components/education/EducationGlossarySection';
+import { EducationHero } from '@/components/education/EducationHero';
+import { EducationInvestorProfileCard } from '@/components/education/EducationInvestorProfileCard';
+import { EducationJourneySection } from '@/components/education/EducationJourneySection';
+import { EducationProgressSection } from '@/components/education/EducationProgressSection';
 import { Header } from '@/components/layout/Header';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Bot, BookOpen, Trophy, Lightbulb, Lock, CheckCircle2, GraduationCap } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useAuth } from '@/hooks/useAuth';
+import { useEducationIntelligence } from '@/hooks/useEducationIntelligence';
+import { useGamification } from '@/hooks/useGamification';
+import { useInvestorProfile } from '@/hooks/useInvestorProfile';
+import { useToast } from '@/hooks/use-toast';
+import {
+  buildAnaMentorshipPresentation,
+  buildDailyTipPresentation,
+  buildEducationHeroSubtitle,
+  getLessonUrl,
+  buildJourneyRows,
+  hasResolvedTrustedInvestorProfile,
+  buildProgressSummaryLines,
+  shouldPromptInvestorProfileReview,
+  shouldShowEducationFirstRunEmptyState,
+  shouldShowInvestorProfileQuestionnaire,
+  shouldShowGenericRecommendationNotice,
+  type EducationCatalogLesson,
+  type LessonProgressStatus,
+} from '@/utils/education/view-model';
+import { getEducationQualityLabel } from '@/utils/education/intelligence-contract';
 
 export function Education() {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user, loading: authLoading } = useAuth();
+  const {
+    context,
+    catalog,
+    isLoading: educationLoading,
+    error,
+    startLesson,
+    completeLesson,
+    isSavingProgress,
+  } = useEducationIntelligence();
+  const gamification = useGamification();
+  const { latestAssessment, trustedAssessment, isLoading: investorProfileLoading } = useInvestorProfile();
+  const [isInvestorQuestionnaireOpen, setIsInvestorQuestionnaireOpen] = useState(false);
+
+  const pageLoading = authLoading || (Boolean(user) && educationLoading);
+
+  const trackTitleBySlug = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const t of catalog?.tracks ?? []) {
+      map[t.slug] = t.title;
+    }
+    return map;
+  }, [catalog?.tracks]);
+
+  const progressByLessonId = useMemo(() => {
+    const m = new Map<string, LessonProgressStatus>();
+    for (const row of catalog?.progressRows ?? []) {
+      m.set(row.lessonId, row.status);
+    }
+    return m;
+  }, [catalog?.progressRows]);
+
+  const lessonsByModuleId = useMemo(() => {
+    const acc: Record<string, EducationCatalogLesson[]> = {};
+    for (const lesson of catalog?.lessons ?? []) {
+      if (!acc[lesson.moduleId]) acc[lesson.moduleId] = [];
+      acc[lesson.moduleId].push(lesson);
+    }
+    for (const k of Object.keys(acc)) {
+      acc[k].sort((a, b) => a.sortOrder - b.sortOrder);
+    }
+    return acc;
+  }, [catalog?.lessons]);
+
+  const journeyRows = useMemo(() => {
+    if (!context || !catalog) return [];
+    return buildJourneyRows({
+      context,
+      tracks: catalog.tracks,
+      modules: catalog.modules,
+      lessons: catalog.lessons,
+      progressByLessonId,
+    });
+  }, [context, catalog, progressByLessonId]);
+
+  const heroSubtitle = useMemo(() => {
+    if (!context) return '';
+    return buildEducationHeroSubtitle(context, trackTitleBySlug);
+  }, [context, trackTitleBySlug]);
+
+  const progressLines = useMemo(() => {
+    if (!context) return [];
+    return buildProgressSummaryLines(context);
+  }, [context]);
+
+  const tipPresentation = useMemo(() => {
+    if (!context) return { narrativeText: null as string | null, deterministicReason: null as string | null };
+    const p = buildDailyTipPresentation(context);
+    return {
+      narrativeText: p?.narrativeText ?? null,
+      deterministicReason: p?.deterministicReason ?? null,
+    };
+  }, [context]);
+
+  const nextLessonTitle = useMemo(() => {
+    const id = context?.progress?.nextLessonId;
+    if (!id || !catalog?.lessons) return null;
+    return catalog.lessons.find((l) => l.id === id)?.title ?? null;
+  }, [context?.progress?.nextLessonId, catalog?.lessons]);
+
+  const reviewInvestorProfile = useMemo(
+    () =>
+      shouldPromptInvestorProfileReview(
+        trustedAssessment?.effectiveAt ?? latestAssessment?.effective_at ?? null,
+      ),
+    [latestAssessment?.effective_at, trustedAssessment?.effectiveAt],
+  );
+
+  const showInvestorQuestionnaire = useMemo(
+    () =>
+      shouldShowInvestorProfileQuestionnaire({
+        isLoading: authLoading || pageLoading || investorProfileLoading || !user,
+        hasTrustedProfile: hasResolvedTrustedInvestorProfile({
+          canonicalProfileKey: context?.investorProfile?.profileKey,
+          assessmentProfileKey: trustedAssessment?.profileKey,
+        }),
+        forceOpen: isInvestorQuestionnaireOpen,
+        reviewRequired: reviewInvestorProfile,
+      }),
+    [
+      authLoading,
+      context?.investorProfile?.profileKey,
+      investorProfileLoading,
+      isInvestorQuestionnaireOpen,
+      pageLoading,
+      reviewInvestorProfile,
+      trustedAssessment?.profileKey,
+      user,
+    ],
+  );
+
+  const anaMentorshipPresentation = useMemo(() => {
+    if (!context) return null;
+    return buildAnaMentorshipPresentation(context, trackTitleBySlug, nextLessonTitle);
+  }, [context, nextLessonTitle, trackTitleBySlug]);
+
+  const showEmptyState = Boolean(
+    context &&
+      catalog &&
+      shouldShowEducationFirstRunEmptyState(context, catalog.progressRows),
+  );
+
+  const showGenericNotice = Boolean(context && shouldShowGenericRecommendationNotice(context));
+
+  const wrapLessonAction = useCallback(
+    (fn: (id: string) => Promise<void>) => async (lessonId: string) => {
+      try {
+        await fn(lessonId);
+      } catch (e) {
+        toast({
+          title: 'Não foi possível atualizar o progresso',
+          description: e instanceof Error ? e.message : 'Tente novamente.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [toast],
+  );
+
+  const handleStartLesson = useMemo(
+    () => wrapLessonAction(startLesson),
+    [startLesson, wrapLessonAction],
+  );
+
+  const handleCompleteLesson = useMemo(
+    () => wrapLessonAction(completeLesson),
+    [completeLesson, wrapLessonAction],
+  );
+
+  const handleContinueSuggested = useCallback(async () => {
+    const id = context?.progress?.nextLessonId;
+    if (!id) return;
+    await handleStartLesson(id);
+    navigate(getLessonUrl(id));
+  }, [context?.progress?.nextLessonId, handleStartLesson, navigate]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header
@@ -14,132 +204,75 @@ export function Education() {
       />
 
       <div className="p-6 space-y-6">
-        {/* Hero Section */}
-        <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0">
-          <CardContent className="p-8">
-            <div className="flex items-center space-x-4 mb-4">
-              <Bot size={48} />
-              <div>
-                <h2 className="text-2xl font-bold">Aprenda com a Ana Clara</h2>
-                <p className="text-white/80">
-                  Sua coach financeira está aqui para te ajudar!
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>
+              Não foi possível carregar o hub educacional. Verifique sua conexão e tente novamente.
+            </AlertDescription>
+          </Alert>
+        )}
 
-        {/* Trilha de Aprendizado */}
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Trilha de Aprendizado</h3>
-          <div className="space-y-4">
-            <Card className="border-l-4 border-green-500">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4">
-                    <CheckCircle2 className="text-green-500 flex-shrink-0" size={24} />
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-1">
-                        Módulo 1: Organização Básica
-                      </h4>
-                      <p className="text-sm text-gray-600 mb-2">5/5 lições completas</p>
-                      <Badge variant="success">Concluído</Badge>
-                    </div>
-                  </div>
-                  <Button size="sm" variant="outline">
-                    Revisar
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+        <EducationHero
+          loading={pageLoading}
+          subtitle={heroSubtitle}
+          levelLabel={gamification.loading ? null : gamification.levelTitle}
+          streakDays={gamification.profile?.current_streak ?? null}
+        />
 
-            <Card className="border-l-4 border-blue-500">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4">
-                    <BookOpen className="text-blue-500 flex-shrink-0" size={24} />
-                    <div>
-                      <h4 className="font-semibold text-gray-900 mb-1">
-                        Módulo 2: Eliminando Dívidas
-                      </h4>
-                      <p className="text-sm text-gray-600 mb-2">3/5 lições completas (60%)</p>
-                      <Badge variant="info">Em Progresso</Badge>
-                    </div>
-                  </div>
-                  <Button size="sm">Continuar</Button>
-                </div>
-              </CardContent>
-            </Card>
+        {showEmptyState && <EducationEmptyState />}
 
-            <Card className="border-l-4 border-gray-300 opacity-60">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-4">
-                    <Lock className="text-gray-400 flex-shrink-0" size={24} />
-                    <div>
-                      <h4 className="font-semibold text-gray-600 mb-1">
-                        Módulo 3: Começando a Investir
-                      </h4>
-                      <p className="text-sm text-gray-500 mb-2">
-                        Bloqueado - Complete o Módulo 2
-                      </p>
-                      <Badge variant="outline">Bloqueado</Badge>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
+        <EducationInvestorProfileCard
+          loading={pageLoading || investorProfileLoading}
+          section={context?.investorProfile ?? null}
+          reviewRequired={reviewInvestorProfile}
+          questionnaireVersion={latestAssessment?.questionnaire_version ?? null}
+          onOpenQuestionnaire={() => setIsInvestorQuestionnaireOpen(true)}
+        />
 
-        {/* Conquistas */}
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Suas Conquistas</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            {[
-              { icon: Trophy, label: 'Primeiro Mês', unlocked: true },
-              { icon: CheckCircle2, label: 'Economizou 10%', unlocked: true },
-              { icon: Trophy, label: '30 Dias Streak', unlocked: true },
-              { icon: Trophy, label: 'Meta Alcançada', unlocked: false },
-              { icon: Trophy, label: 'Investidor', unlocked: false },
-              { icon: Trophy, label: 'Mestre das Finanças', unlocked: false },
-            ].map((achievement, index) => {
-              const Icon = achievement.icon;
-              return (
-                <Card
-                  key={index}
-                  className={achievement.unlocked ? 'border-purple-500' : 'opacity-50'}
-                >
-                  <CardContent className="p-4 flex flex-col items-center text-center">
-                    <Icon
-                      size={32}
-                      className={achievement.unlocked ? 'text-purple-500' : 'text-gray-400'}
-                    />
-                    <p className="text-xs font-medium text-gray-900 mt-2">
-                      {achievement.label}
-                    </p>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        </div>
+        {showInvestorQuestionnaire ? (
+          <InvestorProfileQuestionnaire
+            mode={trustedAssessment?.profileKey ? 'review' : 'initial'}
+            onSubmitted={() => setIsInvestorQuestionnaireOpen(false)}
+            onCancel={trustedAssessment?.profileKey ? () => setIsInvestorQuestionnaireOpen(false) : undefined}
+          />
+        ) : null}
 
-        {/* Dica do Dia */}
-        <Card className="border-l-4 border-yellow-500">
-          <CardContent className="p-6">
-            <div className="flex items-start space-x-4">
-              <Lightbulb className="text-yellow-500 flex-shrink-0" size={32} />
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Dica do Dia</h4>
-                <p className="text-gray-700">
-                  Que tal revisar seus gastos com serviços de streaming? Você pode estar pagando
-                  por serviços que não usa mais. Cancele assinaturas desnecessárias e economize!
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <EducationProgressSection
+          loading={pageLoading}
+          section={context?.progress ?? null}
+          summaryLines={progressLines}
+          nextLessonTitle={nextLessonTitle}
+          onContinueNextLesson={handleContinueSuggested}
+          continueDisabled={isSavingProgress || !context?.progress?.nextLessonId}
+        />
+
+        <EducationAnaMentorshipCard
+          loading={pageLoading}
+          presentation={anaMentorshipPresentation}
+          nextLessonId={context?.progress?.nextLessonId ?? null}
+          qualityLabel={context ? getEducationQualityLabel(context.quality.ana.source) : null}
+        />
+
+        <EducationJourneySection
+          loading={pageLoading}
+          trackRows={journeyRows}
+          lessonsByModuleId={lessonsByModuleId}
+          lessonProgress={progressByLessonId}
+          showGenericNotice={showGenericNotice}
+          isSaving={isSavingProgress}
+          onStartLesson={handleStartLesson}
+          onCompleteLesson={handleCompleteLesson}
+        />
+
+        <EducationAchievementsSection badges={gamification.badges} loading={gamification.loading} />
+
+        <EducationDailyTipCard
+          loading={pageLoading}
+          narrativeText={tipPresentation.narrativeText}
+          deterministicReason={tipPresentation.deterministicReason}
+        />
+
+        <EducationGlossarySection loading={pageLoading} terms={catalog?.glossaryTerms ?? []} />
       </div>
     </div>
   );

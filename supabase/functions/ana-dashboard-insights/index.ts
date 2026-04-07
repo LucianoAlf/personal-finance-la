@@ -1,6 +1,7 @@
 // WIDGET ANA CLARA DASHBOARD - Edge Function
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildDashboardEducationMentoringEntry } from '../_shared/education-renderers.ts';
 import { getDefaultAIConfig, callChat } from './_shared/ai.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -369,7 +370,8 @@ serve(async (req)=>{
         const now = new Date();
         if (expiresAt > now) {
           console.log('[ana-dashboard-insights] ✅ Retornando do CACHE (válido até', expiresAt.toISOString(), ')');
-          return new Response(JSON.stringify(cachedData.insights), {
+          const educationMentoring = await buildDashboardEducationMentoringEntry(supabase, userId);
+          return new Response(JSON.stringify({ ...cachedData.insights, educationMentoring }), {
             headers: {
               ...corsHeaders,
               'Content-Type': 'application/json',
@@ -1017,9 +1019,11 @@ IMPORTANTE:
       },
       dailyOverdue
     };
+    const educationMentoring = await buildDashboardEducationMentoringEntry(supabase, userId);
     const payload = {
       ...insights,
-      meta
+      meta,
+      educationMentoring,
     };
     // ✅ SALVAR NO CACHE (8h)
     console.log('[ana-dashboard] Salvando insights no cache (válido por 8h)...');

@@ -1,3 +1,6 @@
+import { filterInvestmentOpportunitiesBySuitability } from '../../../src/utils/education/investor-suitability.ts';
+import { deriveTrustedInvestorAssessment } from './education-profile.ts';
+
 type IntelligenceSource =
   | 'external_market'
   | 'internal_calculation'
@@ -57,6 +60,15 @@ interface UserGamificationRow {
   total_xp: number;
   current_streak: number;
   best_streak: number;
+}
+
+interface InvestorAssessmentRow {
+  profile_key: string | null;
+  confidence: number | null;
+  effective_at?: string | null;
+  explanation?: string | null;
+  questionnaire_version?: number | null;
+  answers?: Record<string, unknown> | null;
 }
 
 interface BenchmarkItem {
@@ -178,6 +190,7 @@ export async function buildInvestmentIntelligenceContext({
     { data: badgesData },
     { data: gamificationData },
     { data: cachedAnaData },
+    { data: investorAssessmentData },
   ] = await Promise.all([
     supabase
       .from('investments')
@@ -209,6 +222,13 @@ export async function buildInvestmentIntelligenceContext({
       .eq('user_id', userId)
       .eq('insight_type', 'investment')
       .maybeSingle(),
+    supabase
+      .from('investor_profile_assessments')
+      .select('profile_key, confidence, effective_at, explanation, questionnaire_version, answers')
+      .eq('user_id', userId)
+      .order('effective_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   const investments = (investmentsData || []) as InvestmentRow[];
@@ -216,6 +236,8 @@ export async function buildInvestmentIntelligenceContext({
   const goals = (goalsData || []) as InvestmentGoalRow[];
   const badges = (badgesData || []) as BadgeProgressRow[];
   const profile = (gamificationData || null) as UserGamificationRow | null;
+  const investorAssessment = (investorAssessmentData || null) as InvestorAssessmentRow | null;
+  const trustedInvestorAssessment = deriveTrustedInvestorAssessment(investorAssessment);
   const benchmarks = supabaseUrl ? await fetchBenchmarksSnapshot(supabaseUrl) : [];
 
   const totalInvested = investments.reduce((sum, investment) => sum + resolveTotalInvested(investment), 0);
@@ -260,12 +282,16 @@ export async function buildInvestmentIntelligenceContext({
 
   const selectedGoal = selectPrimaryGoal(goals, currentValue);
   const rebalance = buildRebalance(actionsInputFromAllocation(allocation), targets, currentValue);
-  const opportunities = buildDeterministicOpportunities({
-    allocation,
-    investments,
-    currentValue,
-    concentrationPercentage,
-  });
+  const opportunities = filterInvestmentOpportunitiesBySuitability(
+    buildDeterministicOpportunities({
+      allocation,
+      investments,
+      currentValue,
+      concentrationPercentage,
+    }),
+    trustedInvestorAssessment.profileKey,
+    trustedInvestorAssessment.questionnaireComplete,
+  );
   const anaCache = extractAnaCache(cachedAnaData);
 
   const context: InvestmentIntelligenceContext = {

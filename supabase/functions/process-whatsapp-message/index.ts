@@ -16,7 +16,14 @@
 // ============================================
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { getSupabase, normalizeMessageType, corsHeaders, enviarViaEdgeFunction, buscarUltimaInteracao, getEmojiBanco } from './utils.ts';
-import { buscarContexto, isContextoAtivo, processarNoContexto, salvarContexto, limparContexto, ContextType } from './context-manager.ts';
+import {
+  buscarContexto,
+  isContextoAtivo,
+  processarNoContexto,
+  salvarContexto,
+  limparContexto,
+  ContextType,
+} from './context-manager.ts';
 import { processarBotao } from './button-handler.ts';
 import { isComandoRapido, processarComandoRapido } from './quick-commands.ts';
 import { templateErroGenerico, templateComandoNaoReconhecido } from './response-templates.ts';
@@ -619,10 +626,19 @@ serve(async (req: Request) => {
     // 5. VERIFICAR CONTEXTO ATIVO
     // ============================================
     const contexto = await buscarContexto(user.id);
-    
-    if (isContextoAtivo(contexto)) {
-      console.log('🔄 Processando no contexto:', contexto!.context_type);
-      const resposta = await processarNoContexto(content, contexto!, user.id, phone);
+
+    if (contexto?.context_data?.education_mentoring) {
+      console.log(
+        '[process-whatsapp-message] education_mentoring snapshot trilha=',
+        contexto.context_data.education_mentoring.recommendedTrackSlug,
+        'sufficient=',
+        contexto.context_data.education_mentoring.hasSufficientData,
+      );
+    }
+
+    if (contexto && isContextoAtivo(contexto)) {
+      console.log('🔄 Processando no contexto:', contexto.context_type);
+      const resposta = await processarNoContexto(content, contexto, user.id, phone);
       
       // ✅ BUG FIX: Se resposta for string vazia (''), significa que detectou NOVA transação
       // e o contexto foi limpo - deixar o fluxo continuar para processar normalmente
