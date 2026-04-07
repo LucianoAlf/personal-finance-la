@@ -2,6 +2,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { getDefaultAIConfig, callChat } from './_shared/ai.ts';
+import { buildInvestmentIntelligenceContext } from '../_shared/investment-intelligence.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,37 +11,16 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 };
 
-interface Portfolio {
-  totalInvested: number;
-  currentValue: number;
-  totalReturn: number;
-  returnPercentage: number;
-  allocation: Record<string, { percentage: number; value: number }>;
-  investments: Array<{
-    ticker: string;
-    type: string;
-    quantity: number;
-    returnPercentage: number;
-    dividendYield?: number;
-    currentPrice?: number;
-    purchasePrice?: number;
-  }>;
-  targets?: Array<{ assetClass: string; targetPercentage: number }>;
-  goals?: Array<{
-    name: string;
-    category: string;
-    targetAmount: number;
-    currentAmount: number;
-    finalProjection: number;
-    projectedGap: number;
-    linkedInvestmentsCount: number;
-    status: string;
-  }>;
-}
-
 interface GPTInsightsResponse {
   healthScore: number;
   level: 'excellent' | 'good' | 'warning' | 'critical';
+  breakdown: {
+    diversification: number;
+    concentration: number;
+    returns: number;
+    risk: number;
+    total: number;
+  };
   mainInsight: string;
   strengths: string[];
   warnings: string[];
@@ -59,7 +39,11 @@ serve(async (req) => {
   }
 
   try {
-    const { portfolio, forceRefresh }: { portfolio: Portfolio; forceRefresh?: boolean } = await req.json();
+    const {
+      forceRefresh,
+    }: {
+      forceRefresh?: boolean;
+    } = await req.json();
     
     // Inicializar Supabase client
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -82,6 +66,13 @@ serve(async (req) => {
     const userId = user.id;
     console.log('[ana-investment-insights] User ID:', userId);
 
+    const canonicalContext = await buildInvestmentIntelligenceContext({
+      supabase,
+      userId,
+      supabaseUrl,
+    });
+    const portfolioFingerprint = canonicalContext.fingerprint;
+
     // 🔥 VERIFICAR CACHE (se não for forceRefresh)
     if (!forceRefresh) {
       const { data: cachedData, error: cacheError } = await supabase
@@ -94,10 +85,11 @@ serve(async (req) => {
       if (!cacheError && cachedData) {
         const expiresAt = new Date(cachedData.expires_at);
         const now = new Date();
+        const cachedFingerprint = cachedData.insights?._portfolioFingerprint;
 
-        if (expiresAt > now) {
+        if (expiresAt > now && cachedFingerprint && cachedFingerprint === portfolioFingerprint) {
           console.log('[ana-investment-insights] ✅ Retornando do CACHE (válido até', expiresAt.toISOString(), ')');
-          return new Response(JSON.stringify(cachedData.insights), {
+          return new Response(JSON.stringify(stripInternalFields(cachedData.insights)), {
             headers: { 
               ...corsHeaders, 
               'Content-Type': 'application/json',
@@ -116,68 +108,53 @@ serve(async (req) => {
     // 🚀 GERAR NOVOS INSIGHTS (cache miss ou expirado)
 
     // Validar dados do portfólio
-    if (!portfolio || typeof portfolio.totalInvested !== 'number') {
+    if (canonicalContext.portfolio.investmentCount === 0) {
       throw new Error('Dados do portfólio inválidos');
     }
 
     // Construir contexto detalhado para o GPT-4
-    const allocationText = Object.entries(portfolio.allocation)
-      .filter(([_, data]) => data.percentage > 0)
-      .map(([asset, data]) => {
-        const assetLabels: Record<string, string> = {
-          renda_fixa: 'Renda Fixa',
-          acoes_nacionais: 'Ações Nacionais',
-          fiis: 'Fundos Imobiliários',
-          internacional: 'Internacional',
-          cripto: 'Criptomoedas',
-          previdencia: 'Previdência',
-          outros: 'Outros',
-        };
-        return `- ${assetLabels[asset] || asset}: ${data.percentage.toFixed(1)}% (R$ ${data.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
+    const allocationText = canonicalContext.portfolio.allocation
+      .filter((data) => data.percentage > 0)
+      .map((data) => {
+        return `- ${data.label}: ${data.percentage.toFixed(1)}% (R$ ${data.value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`;
       })
       .join('\n');
 
-    const investmentsText = portfolio.investments
-      .slice(0, 10) // Limitar a 10 investimentos principais
-      .map(inv => {
-        const parts = [
-          `- ${inv.ticker} (${inv.type})`,
-          `${inv.quantity}x`,
-          `Retorno: ${inv.returnPercentage?.toFixed(2) || '0.00'}%`,
-        ];
-        if (inv.dividendYield) parts.push(`Yield: ${inv.dividendYield.toFixed(2)}%`);
-        if (inv.currentPrice) parts.push(`Preço: R$ ${inv.currentPrice.toFixed(2)}`);
-        return parts.join(' | ');
-      })
-      .join('\n');
+    const investmentsText = canonicalContext.portfolio.topPerformers
+      .map((investment) => `- ${investment.ticker} | Retorno: ${investment.returnPercentage.toFixed(2)}%`)
+      .join('\n') || 'Sem destaques no momento';
 
-    const targetsText = portfolio.targets
-      ?.map(t => {
-        const assetLabels: Record<string, string> = {
-          renda_fixa: 'Renda Fixa',
-          acoes_nacionais: 'Ações Nacionais',
-          fiis: 'Fundos Imobiliários',
-          internacional: 'Internacional',
-          cripto: 'Criptomoedas',
-          previdencia: 'Previdência',
-        };
-        return `- ${assetLabels[t.assetClass] || t.assetClass}: ${t.targetPercentage}%`;
-      })
-      .join('\n') || 'Nenhuma meta definida';
+    const targetsText = canonicalContext.rebalance.actions.length > 0
+      ? canonicalContext.rebalance.actions
+          .map((action) => `- ${action.assetClass}: ${action.currentPercentage.toFixed(1)}% -> ${action.targetPercentage.toFixed(1)}% (${action.action})`)
+          .join('\n')
+      : 'Nenhuma meta de alocação com desvio relevante';
 
-    const goalsText = portfolio.goals
-      ?.map((goal) => {
-        return `- ${goal.name} (${goal.category}) | Atual: R$ ${goal.currentAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Alvo: R$ ${goal.targetAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Projeção: R$ ${goal.finalProjection.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Gap projetado: R$ ${goal.projectedGap.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Vínculos: ${goal.linkedInvestmentsCount}`;
-      })
-      .join('\n') || 'Nenhuma meta de investimento ativa';
+    const planningText = canonicalContext.planning.selectedGoal
+      ? `
+🧮 PLANEJAMENTO PATRIMONIAL:
+- Meta: ${canonicalContext.planning.selectedGoal.name}
+- Patrimônio atual: R$ ${canonicalContext.planning.selectedGoal.currentAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- Meta patrimonial: R$ ${canonicalContext.planning.selectedGoal.targetAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- Gap atual: R$ ${canonicalContext.planning.selectedGoal.projectedGap.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- Aporte mensal atual: R$ ${canonicalContext.planning.selectedGoal.monthlyContribution.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- Horizonte: ${canonicalContext.planning.selectedGoal.yearsToGoal} anos
+`
+      : '\n🧮 PLANEJAMENTO PATRIMONIAL:\n- Não informado\n';
+    const benchmarkText = canonicalContext.market.benchmarks.length > 0
+      ? canonicalContext.market.benchmarks
+          .map((benchmark) => `- ${benchmark.name}: ${benchmark.return.toFixed(2)}%`)
+          .join('\n')
+      : '- Benchmarks externos indisponíveis no momento';
 
     const context = `
 ANÁLISE DE PORTFÓLIO DE INVESTIMENTOS BRASILEIRO
 
 📊 MÉTRICAS GERAIS:
-- Total Investido: R$ ${portfolio.totalInvested.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-- Valor Atual: R$ ${portfolio.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-- Retorno Total: R$ ${portfolio.totalReturn.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${portfolio.returnPercentage.toFixed(2)}%)
+- Total Investido: R$ ${canonicalContext.portfolio.totalInvested.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- Valor Atual: R$ ${canonicalContext.portfolio.currentValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- Retorno Total: R$ ${canonicalContext.portfolio.totalReturn.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${canonicalContext.portfolio.returnPercentage.toFixed(2)}%)
+- Concentração máxima: ${canonicalContext.portfolio.concentrationPercentage.toFixed(1)}%
 
 🎯 ALOCAÇÃO ATUAL:
 ${allocationText}
@@ -188,14 +165,18 @@ ${investmentsText}
 🎯 METAS DE ALOCAÇÃO:
 ${targetsText}
 
-🎯 METAS DE INVESTIMENTO:
-${goalsText}
+🎯 REBALANCEAMENTO E METAS:
+${targetsText}
 
-📅 CONTEXTO ECONÔMICO BRASIL (2025):
-- Selic: ~11.25% a.a.
-- IPCA (inflação): ~4.5% a.a.
-- CDI: ~11.15% a.a.
-- Dólar: ~R$ 5.90
+${planningText}
+
+📅 BENCHMARKS DISPONÍVEIS:
+${benchmarkText}
+
+🛡️ QUALIDADE DOS DADOS:
+- Portfólio: ${canonicalContext.quality.portfolio.source}/${canonicalContext.quality.portfolio.completeness}
+- Mercado: ${canonicalContext.quality.market.source}/${canonicalContext.quality.market.completeness}
+- Planejamento: ${canonicalContext.quality.planning.source}/${canonicalContext.quality.planning.completeness}
 `;
 
     const systemPrompt = `Você é Ana Clara, uma consultora financeira IA especializada em investimentos brasileiros com 15 anos de experiência em wealth management.
@@ -227,6 +208,13 @@ Forneça uma resposta ESTRITAMENTE em formato JSON (sem markdown, sem \`\`\`json
 {
   "healthScore": <número de 0 a 100>,
   "level": "<excellent|good|warning|critical>",
+  "breakdown": {
+    "diversification": <0-30>,
+    "concentration": <0-25>,
+    "returns": <0-25>,
+    "risk": <0-20>,
+    "total": <0-100>
+  },
   "mainInsight": "<3-4 parágrafos de análise detalhada e personalizada>",
   "strengths": ["<ponto forte 1>", "<ponto forte 2>", "<ponto forte 3>"],
   "warnings": ["<ponto de atenção 1>", "<ponto de atenção 2>"],
@@ -319,6 +307,7 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
     if (
       typeof insights.healthScore !== 'number' ||
       !insights.level ||
+      !insights.breakdown ||
       !insights.mainInsight ||
       !Array.isArray(insights.strengths) ||
       !Array.isArray(insights.warnings) ||
@@ -335,12 +324,17 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 8 * 60 * 60 * 1000); // +8h
 
+    const cachePayload = {
+      ...insights,
+      _portfolioFingerprint: portfolioFingerprint || null,
+    };
+
     const { error: upsertError } = await supabase
       .from('ana_insights_cache')
       .upsert({
         user_id: userId,
         insight_type: 'investment',
-        insights: insights,
+        insights: cachePayload,
         generated_at: now.toISOString(),
         expires_at: expiresAt.toISOString(),
         updated_at: now.toISOString(),
@@ -355,7 +349,7 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
       console.log('[ana-insights] ✅ Cache salvo (expira em 8h)');
     }
 
-    return new Response(JSON.stringify(insights), {
+    return new Response(JSON.stringify(stripInternalFields(cachePayload)), {
       headers: { 
         ...corsHeaders, 
         'Content-Type': 'application/json',
@@ -379,3 +373,8 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
     );
   }
 });
+
+function stripInternalFields(insights: Record<string, unknown>) {
+  const { _portfolioFingerprint, ...publicInsights } = insights || {};
+  return publicInsights;
+}

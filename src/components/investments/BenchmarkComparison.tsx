@@ -38,6 +38,7 @@ export function BenchmarkComparison() {
 
   const portfolioReturn = usePortfolioReturn(period);
   const benchmarks = useBenchmarks(period);
+  const inflationBenchmark = benchmarks.find((b) => b.name === 'IPCA');
 
   return (
     <Card>
@@ -88,58 +89,67 @@ export function BenchmarkComparison() {
           </div>
         </motion.div>
 
+        <div className="mb-4 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+          A comparação usa benchmarks externos reais quando disponíveis. O retorno do portfólio ainda é
+          calculado a partir do histórico interno disponível no app.
+        </div>
+
         <Separator className="my-4" />
 
         {/* Benchmarks */}
-        <div className="space-y-3">
-          {benchmarks.map((bench, index) => {
-            const diff = portfolioReturn - bench.return;
-            const isWinning = diff > 0;
-            const icon = isWinning ? TrendingUp : TrendingDown;
-            const Icon = icon;
+        {benchmarks.length === 0 ? (
+          <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+            Benchmarks indisponíveis no momento. A comparação só é exibida quando a fonte real responde.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {benchmarks.map((bench, index) => {
+              const diff = portfolioReturn - bench.return;
+              const isWinning = diff > 0;
+              const icon = isWinning ? TrendingUp : TrendingDown;
+              const Icon = icon;
 
-            return (
-              <motion.div
-                key={bench.name}
-                initial={{ x: -20, opacity: 0 }}
-                animate={{ x: 0, opacity: 1 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-                className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-gray-700">{bench.name}</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <Info className="h-3.5 w-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        <p className="text-xs">{getBenchmarkDescription(bench.name)}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
+              return (
+                <motion.div
+                  key={bench.name}
+                  initial={{ x: -20, opacity: 0 }}
+                  animate={{ x: 0, opacity: 1 }}
+                  transition={{ duration: 0.3, delay: index * 0.1 }}
+                  className="flex justify-between items-center p-3 hover:bg-gray-50 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-700">{bench.name}</span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger>
+                          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          <p className="text-xs">{getBenchmarkDescription(bench.name)}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
 
-                <div className="flex items-center gap-3">
-                  {/* Retorno do Benchmark */}
-                  <span className="text-sm font-medium text-gray-900">
-                    {bench.return >= 0 ? '+' : ''}
-                    {bench.return.toFixed(2)}%
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-900">
+                      {bench.return >= 0 ? '+' : ''}
+                      {bench.return.toFixed(2)}%
+                    </span>
 
-                  {/* Badge de Diferença */}
-                  <Badge
-                    variant={isWinning ? 'default' : 'destructive'}
-                    className="min-w-[80px] justify-center"
-                  >
-                    <Icon className="h-3 w-3 mr-1" />
-                    {Math.abs(diff).toFixed(2)}%
-                  </Badge>
-                </div>
-              </motion.div>
-            );
-          })}
-        </div>
+                    <Badge
+                      variant={isWinning ? 'default' : 'destructive'}
+                      className="min-w-[80px] justify-center"
+                    >
+                      <Icon className="h-3 w-3 mr-1" />
+                      {Math.abs(diff).toFixed(2)}%
+                    </Badge>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Botão Expandir/Recolher */}
         <div className="flex justify-center mt-6">
@@ -212,7 +222,7 @@ export function BenchmarkComparison() {
             <p className="text-sm text-green-900">
               <strong>✓ Performance positiva!</strong> Seu portfólio teve retorno de{' '}
               <strong>{portfolioReturn.toFixed(2)}%</strong> em {PERIOD_LABELS[period].toLowerCase()}.
-              {portfolioReturn > benchmarks.find((b) => b.name === 'IPCA')?.return! &&
+              {inflationBenchmark && portfolioReturn > inflationBenchmark.return &&
                 ' Você está vencendo a inflação!'}
             </p>
           </motion.div>

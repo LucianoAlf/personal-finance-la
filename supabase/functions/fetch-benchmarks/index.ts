@@ -32,13 +32,12 @@ serve(async (req) => {
     const { period = '1Y' } = await req.json();
 
     // Buscar benchmarks paralelamente
-    const [cdi, ipca, sp500, bitcoin, ethereum, gold] = await Promise.allSettled([
+    const [cdi, ipca, sp500, bitcoin, ethereum] = await Promise.allSettled([
       fetchCDI(period),
       fetchIPCA(period),
       fetchSP500(period),
       fetchBitcoin(period),
       fetchEthereum(period),
-      fetchGold(period),
     ]);
 
     const benchmarks: Benchmark[] = [];
@@ -48,8 +47,6 @@ serve(async (req) => {
     if (sp500.status === 'fulfilled') benchmarks.push(sp500.value);
     if (bitcoin.status === 'fulfilled') benchmarks.push(bitcoin.value);
     if (ethereum.status === 'fulfilled') benchmarks.push(ethereum.value);
-    if (gold.status === 'fulfilled') benchmarks.push(gold.value);
-
     return new Response(
       JSON.stringify({ benchmarks }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -92,18 +89,7 @@ async function fetchCDI(period: Period): Promise<Benchmark> {
     };
   } catch (error) {
     console.error('Erro ao buscar CDI:', error);
-    // Fallback para dados estimados
-    const estimatedReturns: Record<Period, number> = {
-      '1M': 0.95,
-      '3M': 2.89,
-      '6M': 5.82,
-      '1Y': 11.75,
-    };
-    return {
-      name: 'CDI',
-      return: estimatedReturns[period],
-      type: 'fixed_income',
-    };
+    throw error;
   }
 }
 
@@ -136,17 +122,7 @@ async function fetchIPCA(period: Period): Promise<Benchmark> {
     };
   } catch (error) {
     console.error('Erro ao buscar IPCA:', error);
-    const estimatedReturns: Record<Period, number> = {
-      '1M': 0.46,
-      '3M': 1.24,
-      '6M': 2.48,
-      '1Y': 4.62,
-    };
-    return {
-      name: 'IPCA',
-      return: estimatedReturns[period],
-      type: 'inflation',
-    };
+    throw error;
   }
 }
 
@@ -158,17 +134,7 @@ async function fetchSP500(period: Period): Promise<Benchmark> {
 
   if (!apiKey) {
     console.warn('ALPHA_VANTAGE_API_KEY não configurada');
-    const estimatedReturns: Record<Period, number> = {
-      '1M': 2.5,
-      '3M': 6.8,
-      '6M': 12.3,
-      '1Y': 18.9,
-    };
-    return {
-      name: 'S&P 500',
-      return: estimatedReturns[period],
-      type: 'equity',
-    };
+    throw new Error('ALPHA_VANTAGE_API_KEY não configurada');
   }
 
   try {
@@ -202,17 +168,7 @@ async function fetchSP500(period: Period): Promise<Benchmark> {
     };
   } catch (error) {
     console.error('Erro ao buscar S&P 500:', error);
-    const estimatedReturns: Record<Period, number> = {
-      '1M': 2.5,
-      '3M': 6.8,
-      '6M': 12.3,
-      '1Y': 18.9,
-    };
-    return {
-      name: 'S&P 500',
-      return: estimatedReturns[period],
-      type: 'equity',
-    };
+    throw error;
   }
 }
 
@@ -246,17 +202,7 @@ async function fetchBitcoin(period: Period): Promise<Benchmark> {
     };
   } catch (error) {
     console.error('Erro ao buscar Bitcoin:', error);
-    const estimatedReturns: Record<Period, number> = {
-      '1M': 8.5,
-      '3M': 15.2,
-      '6M': 45.7,
-      '1Y': 120.3,
-    };
-    return {
-      name: 'Bitcoin',
-      return: estimatedReturns[period],
-      type: 'crypto',
-    };
+    throw error;
   }
 }
 
@@ -290,35 +236,6 @@ async function fetchEthereum(period: Period): Promise<Benchmark> {
     };
   } catch (error) {
     console.error('Erro ao buscar Ethereum:', error);
-    const estimatedReturns: Record<Period, number> = {
-      '1M': 7.2,
-      '3M': 12.5,
-      '6M': 38.9,
-      '1Y': 95.6,
-    };
-    return {
-      name: 'Ethereum',
-      return: estimatedReturns[period],
-      type: 'crypto',
-    };
+    throw error;
   }
-}
-
-/**
- * Buscar Ouro via Alpha Vantage (ou fallback)
- */
-async function fetchGold(period: Period): Promise<Benchmark> {
-  // CoinGecko não tem ouro, então vamos usar estimativas
-  const estimatedReturns: Record<Period, number> = {
-    '1M': 1.2,
-    '3M': 3.5,
-    '6M': 7.8,
-    '1Y': 15.4,
-  };
-
-  return {
-    name: 'Ouro',
-    return: estimatedReturns[period],
-    type: 'commodity',
-  };
 }

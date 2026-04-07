@@ -31,7 +31,68 @@ function buildErrorPayload(symbol: string, error: unknown) {
 
 function isLookupError(error: unknown) {
   const message = error instanceof Error ? error.message : '';
-  return /BrAPI error|CoinGecko error|Quote not found|Crypto not found|Unsupported type/i.test(message);
+  return /BrAPI error|CoinGecko error|Tesouro Direto error|Quote not found|Crypto not found|Treasury bond not found|Treasury price unavailable|Unsupported type/i.test(message);
+}
+
+function normalizeTreasuryText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase();
+}
+
+async function fetchTreasuryQuote(symbol: string) {
+  const response = await fetch(
+    'https://www.tesourodireto.com.br/json/br/com/b3/tesourodireto/service/api/treasurybondsinfo.json'
+  );
+
+  if (!response.ok) {
+    throw new Error(`Tesouro Direto error: ${response.status}`);
+  }
+
+  const data = await response.json();
+  const bonds = data.TrsrBdTradgList || [];
+  const normalizedSymbol = normalizeTreasuryText(symbol);
+
+  const bond = bonds.find((item: any) => {
+    const bondName = normalizeTreasuryText(item?.TrsrBd?.nm || '');
+    const extendedName = normalizeTreasuryText(
+      `${item?.TrsrBd?.nm || ''}${item?.TrsrBd?.mtrtyDt || ''}${item?.TrsrBd?.featrs || ''}`
+    );
+
+    return bondName.includes(normalizedSymbol) || extendedName.includes(normalizedSymbol);
+  });
+
+  if (!bond) {
+    throw new Error('Treasury bond not found');
+  }
+
+  const price = bond.TrsrSales?.prcAftn || bond.TrsrSales?.prcMorn || 0;
+
+  if (!price) {
+    throw new Error('Treasury price unavailable');
+  }
+
+  const previousPrice = bond.TrsrSts?.prvsClsgPric || price;
+  const change = price - previousPrice;
+  const changePercent = previousPrice > 0 ? (change / previousPrice) * 100 : 0;
+
+  return {
+    symbol: symbol.toUpperCase(),
+    name: bond.TrsrBd?.nm || symbol.toUpperCase(),
+    price,
+    change,
+    changePercent,
+    volume: null,
+    timestamp: new Date().toISOString(),
+    source: 'tesouro',
+    metadata: {
+      maturityDate: bond.TrsrBd?.mtrtyDt,
+      annualInvestmentRate: bond.TrsrBd?.anulInvstmtRate,
+      sellPrice: bond.TrsrSales?.untrInvstmtVal,
+    },
+  };
 }
 
 serve(async (req) => {
@@ -139,19 +200,7 @@ serve(async (req) => {
         },
       };
     } else if (type === 'treasury') {
-      quote = {
-        symbol: normalizedSymbol,
-        name: normalizedSymbol,
-        price: 0,
-        change: 0,
-        changePercent: 0,
-        volume: 0,
-        timestamp: new Date().toISOString(),
-        source: 'manual',
-        metadata: {
-          note: 'Treasury bonds require manual price update',
-        },
-      };
+      quote = await fetchTreasuryQuote(normalizedSymbol);
     } else {
       throw new Error(`Unsupported type: ${type}`);
     }

@@ -6,6 +6,7 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildInvestmentIntelligenceContext } from '../_shared/investment-intelligence.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -100,58 +101,29 @@ serve(async (req) => {
         continue;
       }
 
-      const [{ data: summary, error: summaryError }, { data: investments, error: investmentsError }, { data: recentDividends, error: dividendsError }] = await Promise.all([
-        supabase
-          .from('v_portfolio_summary')
-          .select('*')
-          .eq('user_id', user.user_id)
-          .maybeSingle(),
-        supabase
-          .from('investments')
-          .select('ticker, name, total_invested, current_value, quantity, purchase_price, current_price')
-          .eq('user_id', user.user_id)
-          .eq('is_active', true),
+      const [{ data: recentDividends, error: dividendsError }] = await Promise.all([
         supabase
           .from('investment_transactions')
-          .select('total_value, transaction_type, investments(ticker)')
+          .select('total_value')
           .eq('user_id', user.user_id)
           .in('transaction_type', ['dividend', 'interest'])
           .gte('transaction_date', new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()),
       ]);
 
-      if (summaryError) throw summaryError;
-      if (investmentsError) throw investmentsError;
       if (dividendsError) throw dividendsError;
 
-      if (!summary) {
+      const context = await buildInvestmentIntelligenceContext({
+        supabase,
+        userId: user.user_id,
+        supabaseUrl: SUPABASE_URL,
+      });
+
+      if (context.portfolio.investmentCount === 0) {
         console.log(`[send-investment-summary] ⚠️ Portfolio vazio para ${user.user_id}`);
         continue;
       }
 
-      const topPerformers = (investments || [])
-        .map((investment)=> {
-          const totalInvested = Number(investment.total_invested || (Number(investment.quantity) * Number(investment.purchase_price || 0)));
-          const currentValue = Number(investment.current_value || (Number(investment.quantity) * Number(investment.current_price || investment.purchase_price || 0)));
-          const returnPercentage = totalInvested > 0 ? (currentValue - totalInvested) / totalInvested * 100 : 0;
-          return {
-            ticker: investment.ticker || investment.name,
-            return_percentage: returnPercentage
-          };
-        })
-        .sort((a, b)=>b.return_percentage - a.return_percentage)
-        .slice(0, 3);
-
       const totalDividends = (recentDividends || []).reduce((sum, item)=>sum + Number(item.total_value || 0), 0);
-
-      const portfolio = {
-        total_invested: summary.total_invested || 0,
-        current_value: summary.current_value || 0,
-        total_return: summary.total_return || 0,
-        return_percentage: summary.return_percentage || 0,
-        diversification_score: summary.categories_count || 0,
-        top_performers: topPerformers,
-        recent_dividends_total: totalDividends
-      };
 
       // Buscar telefone
       const { data: userdata } = await supabase
@@ -160,15 +132,23 @@ serve(async (req) => {
         .eq('id', user.user_id)
         .single();
 
-      if (!userdata?.phone) continue;
+      const { data: whatsappConnection } = await supabase
+        .from('whatsapp_connections')
+        .select('phone_number, instance_token')
+        .eq('user_id', user.user_id)
+        .maybeSingle();
+
+      const destinationPhone = whatsappConnection?.phone_number || userdata?.phone;
+
+      if (!destinationPhone) continue;
 
       // Enviar resumo
-      const message = formatInvestmentSummary(portfolio, frequency, userdata.full_name);
+      const message = formatInvestmentSummary(context, frequency, userdata.full_name, totalDividends);
       
       const sent = await sendWhatsAppNotification(
         supabase,
         user.user_id,
-        userdata.phone,
+        destinationPhone,
         message
       );
 
@@ -203,36 +183,45 @@ serve(async (req) => {
 });
 
 function formatInvestmentSummary(
-  portfolio: any,
+  context: Awaited<ReturnType<typeof buildInvestmentIntelligenceContext>>,
   frequency: string,
-  fullName: string
+  fullName: string,
+  recentDividendsTotal: number,
 ): string {
   const period = frequency === 'weekly' ? 'Semanal' : 'Mensal';
   
   let message = `📊 *RESUMO DE INVESTIMENTOS ${period.toUpperCase()}*\n\n`;
   message += `Olá ${fullName}! 👋\n\n`;
   
-  message += `💼 *Portfólio Atual:*\n`;
-  message += `• Total Investido: R$ ${parseFloat(portfolio.total_invested || 0).toFixed(2)}\n`;
-  message += `• Valor Atual: R$ ${parseFloat(portfolio.current_value || 0).toFixed(2)}\n`;
-  message += `• Retorno: R$ ${parseFloat(portfolio.total_return || 0).toFixed(2)}\n`;
-  message += `• Performance: ${parseFloat(portfolio.return_percentage || 0).toFixed(2)}%\n\n`;
+  message += `💼 *Resumo determinístico:*\n`;
+  message += `• Total investido: R$ ${context.portfolio.totalInvested.toFixed(2)}\n`;
+  message += `• Valor atual: R$ ${context.portfolio.currentValue.toFixed(2)}\n`;
+  message += `• Retorno: R$ ${context.portfolio.totalReturn.toFixed(2)}\n`;
+  message += `• Performance: ${context.portfolio.returnPercentage.toFixed(2)}%\n`;
+  message += `• Concentração máxima: ${context.portfolio.concentrationPercentage.toFixed(1)}%\n\n`;
 
-  if (portfolio.top_performers && portfolio.top_performers.length > 0) {
+  if (context.portfolio.topPerformers.length > 0) {
     message += `📈 *Melhores Performances:*\n`;
-    portfolio.top_performers.slice(0, 3).forEach((asset: any) => {
-      message += `• ${asset.ticker}: +${asset.return_percentage.toFixed(2)}%\n`;
+    context.portfolio.topPerformers.forEach((asset) => {
+      message += `• ${asset.ticker}: ${asset.returnPercentage >= 0 ? '+' : ''}${asset.returnPercentage.toFixed(2)}%\n`;
     });
     message += `\n`;
   }
 
-  if (portfolio.recent_dividends_total && portfolio.recent_dividends_total > 0) {
+  if (recentDividendsTotal > 0) {
     message += `💰 *Proventos recentes (30 dias):*\n`;
-    message += `Total recebido: R$ ${parseFloat(portfolio.recent_dividends_total || 0).toFixed(2)}\n\n`;
+    message += `Total recebido: R$ ${recentDividendsTotal.toFixed(2)}\n\n`;
   }
 
-  message += `🎯 *Diversificação:* ${portfolio.diversification_score || 0}/100\n\n`;
-  message += `_Continue acompanhando seus investimentos!_ 📈`;
+  if (context.planning.selectedGoal) {
+    message += `🎯 *Meta principal:*\n`;
+    message += `• ${context.planning.selectedGoal.name}\n`;
+    message += `• Gap atual: R$ ${context.planning.selectedGoal.projectedGap.toFixed(2)}\n\n`;
+  }
+
+  message += `💜 *Leitura da Ana Clara:*\n`;
+  message += `${context.ana.insight || 'Sem narrativa adicional disponível no momento. Este resumo foi enviado com base nos fatos da sua carteira.'}\n\n`;
+  message += `_Continue acompanhando seus investimentos com contexto completo no app._`;
 
   return message;
 }
@@ -244,8 +233,15 @@ async function sendWhatsAppNotification(
   message: string
 ): Promise<boolean> {
   try {
-    const UAZAPI_BASE_URL = Deno.env.get('UAZAPI_BASE_URL') || 'https://api.uazapi.com';
-    const UAZAPI_TOKEN = Deno.env.get('UAZAPI_INSTANCE_TOKEN');
+    const { data: connection } = await supabase
+      .from('whatsapp_connections')
+      .select('phone_number, instance_token')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const UAZAPI_BASE_URL = (Deno.env.get('UAZAPI_BASE_URL') || Deno.env.get('UAZAPI_SERVER_URL') || 'https://api.uazapi.com').replace(/\/$/, '');
+    const UAZAPI_TOKEN = connection?.instance_token || Deno.env.get('UAZAPI_INSTANCE_TOKEN') || Deno.env.get('UAZAPI_API_KEY');
+    const destinationPhone = connection?.phone_number || phone;
 
     const response = await fetch(`${UAZAPI_BASE_URL}/send/text`, {
       method: 'POST',
@@ -254,7 +250,7 @@ async function sendWhatsAppNotification(
         'token': UAZAPI_TOKEN!,
       },
       body: JSON.stringify({
-        number: phone,
+        number: destinationPhone,
         text: message,
       }),
     });

@@ -1,6 +1,7 @@
 // SPRINT 5.1: Edge Function para criar snapshots diários do portfólio
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { buildHouseholdBalanceSnapshot } from '../_shared/household-balance-snapshot.ts';
 
 serve(async (req) => {
   try {
@@ -12,8 +13,7 @@ serve(async (req) => {
     // 1. Buscar todos usuários ativos
     const { data: users, error: usersError } = await supabase
       .from('users')
-      .select('id')
-      .eq('is_active', true);
+      .select('id');
 
     if (usersError) {
       console.error('Erro ao buscar usuários:', usersError);
@@ -28,7 +28,7 @@ serve(async (req) => {
     }
 
     const snapshots = [];
-    const today = new Date().toISOString().split('T')[0];
+    const today = getCurrentBrazilDate();
 
     // 2. Processar cada usuário
     for (const user of users) {
@@ -40,17 +40,44 @@ serve(async (req) => {
           .eq('user_id', user.id)
           .eq('is_active', true);
 
-        if (invError || !investments || investments.length === 0) {
-          console.log(`Usuário ${user.id} sem investimentos ativos`);
-          continue;
+        if (invError) {
+          throw invError;
         }
 
+        const [
+          { data: accounts, error: accountsError },
+          { data: payableBills, error: payableBillsError },
+          { data: creditCards, error: creditCardsError },
+        ] = await Promise.all([
+          supabase
+            .from('accounts')
+            .select('id, type, current_balance, include_in_total, is_active')
+            .eq('user_id', user.id)
+            .eq('is_active', true),
+          supabase
+            .from('payable_bills')
+            .select('id, amount, status, due_date')
+            .eq('user_id', user.id),
+          supabase
+            .from('credit_cards')
+            .select('id, credit_limit, available_limit')
+            .eq('user_id', user.id)
+            .eq('is_active', true)
+            .eq('is_archived', false),
+        ]);
+
+        if (accountsError) throw accountsError;
+        if (payableBillsError) throw payableBillsError;
+        if (creditCardsError) throw creditCardsError;
+
+        const activeInvestments = (investments || []) as any[];
+
         // 3. Calcular métricas
-        const totalInvested = investments.reduce(
+        const totalInvested = activeInvestments.reduce(
           (sum: number, inv: any) => sum + (inv.total_invested || 0),
           0
         );
-        const currentValue = investments.reduce(
+        const currentValue = activeInvestments.reduce(
           (sum: number, inv: any) => sum + (inv.current_value || inv.total_invested || 0),
           0
         );
@@ -59,7 +86,7 @@ serve(async (req) => {
 
         // 4. Calcular allocation
         const allocation: Record<string, number> = {};
-        investments.forEach((inv: any) => {
+        activeInvestments.forEach((inv: any) => {
           const category = inv.category || 'outros';
           const value = inv.current_value || inv.total_invested || 0;
           allocation[category] = (allocation[category] || 0) + value;
@@ -72,7 +99,7 @@ serve(async (req) => {
         });
 
         // 5. Top performers
-        const topPerformers = investments
+        const topPerformers = activeInvestments
           .map((inv: any) => {
             const invested = inv.total_invested || 0;
             const current = inv.current_value || invested;
@@ -98,9 +125,16 @@ serve(async (req) => {
           ? dividendTxs.reduce((sum, tx) => sum + (tx.total_value || 0), 0)
           : 0;
         const dividendYield = totalInvested > 0 ? (dividendsYtd / totalInvested) * 100 : 0;
+        const householdSnapshot = buildHouseholdBalanceSnapshot({
+          referenceDate: today,
+          accounts: (accounts || []) as any[],
+          investments: activeInvestments,
+          payableBills: (payableBills || []) as any[],
+          creditCards: (creditCards || []) as any[],
+        });
 
         // 7. Inserir snapshot
-        const { error: insertError } = await supabase.from('portfolio_snapshots').insert({
+        const { error: insertError } = await supabase.from('portfolio_snapshots').upsert({
           user_id: user.id,
           snapshot_date: today,
           total_invested: totalInvested,
@@ -111,21 +145,23 @@ serve(async (req) => {
           top_performers: topPerformers,
           dividends_ytd: dividendsYtd,
           dividend_yield: dividendYield,
+          total_assets: householdSnapshot.totalAssets,
+          total_liabilities: householdSnapshot.totalLiabilities,
+          net_worth: householdSnapshot.netWorth,
+          asset_breakdown: householdSnapshot.assetBreakdown,
+          liability_breakdown: householdSnapshot.liabilityBreakdown,
+        }, {
+          onConflict: 'user_id,snapshot_date',
         });
 
         if (insertError) {
-          // Se já existe (UNIQUE constraint), apenas log
-          if (insertError.code === '23505') {
-            console.log(`Snapshot já existe para usuário ${user.id} em ${today}`);
-          } else {
-            console.error(`Erro ao inserir snapshot para usuário ${user.id}:`, insertError);
-          }
+          console.error(`Erro ao inserir snapshot para usuário ${user.id}:`, insertError);
         } else {
           snapshots.push({ user_id: user.id, success: true });
         }
       } catch (error) {
         console.error(`Erro ao processar usuário ${user.id}:`, error);
-        snapshots.push({ user_id: user.id, success: false, error: String(error) });
+        snapshots.push({ user_id: user.id, success: false, error: describeError(error) });
       }
     }
 
@@ -139,8 +175,32 @@ serve(async (req) => {
   } catch (error) {
     console.error('Erro geral:', error);
     return new Response(
-      JSON.stringify({ error: String(error) }),
+      JSON.stringify({ error: describeError(error) }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 });
+
+function describeError(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    return String(record.message || record.details || JSON.stringify(record));
+  }
+
+  return String(error);
+}
+
+function getCurrentBrazilDate() {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  return formatter.format(new Date());
+}

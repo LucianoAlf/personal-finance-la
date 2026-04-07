@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
 import type { Investment } from '@/types/database.types';
+import { normalizeInvestmentCategory } from '@/utils/investments/contracts';
 
 // Schema de validação
 const investmentSchema = z.object({
@@ -39,12 +40,14 @@ const investmentSchema = z.object({
   ticker: z.string().optional(),
   type: z.enum(['stock', 'fund', 'crypto', 'treasury', 'real_estate', 'other']),
   category: z.enum([
-    'renda_fixa',
-    'acoes_nacionais',
-    'fiis',
-    'internacional',
-    'cripto',
-    'previdencia',
+    'fixed_income',
+    'stock',
+    'reit',
+    'fund',
+    'crypto',
+    'international',
+    'pension',
+    'other',
   ]).optional(),
   subcategory: z.string().optional(),
   quantity: z.coerce.number().positive('Quantidade deve ser positiva'),
@@ -77,13 +80,24 @@ const investmentTypes = [
 ];
 
 const categories = [
-  { value: 'renda_fixa', label: 'Renda Fixa' },
-  { value: 'acoes_nacionais', label: 'Ações Nacionais' },
-  { value: 'fiis', label: 'Fundos Imobiliários' },
-  { value: 'internacional', label: 'Internacional' },
-  { value: 'cripto', label: 'Criptomoedas' },
-  { value: 'previdencia', label: 'Previdência' },
+  { value: 'fixed_income', label: 'Renda Fixa' },
+  { value: 'stock', label: 'Ações Nacionais' },
+  { value: 'reit', label: 'Fundos Imobiliários' },
+  { value: 'fund', label: 'Fundos' },
+  { value: 'international', label: 'Internacional' },
+  { value: 'crypto', label: 'Criptomoedas' },
+  { value: 'pension', label: 'Previdência' },
+  { value: 'other', label: 'Outros' },
 ];
+
+const typeToDefaultCategory: Record<string, InvestmentFormData['category']> = {
+  treasury: 'fixed_income',
+  stock: 'stock',
+  real_estate: 'reit',
+  fund: 'fund',
+  crypto: 'crypto',
+  other: 'other',
+};
 
 export function InvestmentDialog({
   open,
@@ -116,7 +130,7 @@ export function InvestmentDialog({
         name: investment.name,
         ticker: investment.ticker || '',
         type: investment.type as any,
-        category: investment.category as any,
+        category: normalizeInvestmentCategory(investment.category, investment.type) as any,
         subcategory: investment.subcategory || '',
         quantity: investment.quantity,
         purchase_price: investment.purchase_price,
@@ -135,6 +149,15 @@ export function InvestmentDialog({
       setActiveTab('basic');
     }
   }, [investment, open, form]);
+
+  useEffect(() => {
+    const currentCategory = form.getValues('category');
+    const nextCategory = typeToDefaultCategory[selectedType];
+
+    if (!currentCategory && nextCategory) {
+      form.setValue('category', nextCategory, { shouldDirty: true });
+    }
+  }, [form, selectedType]);
 
   const handleSubmit = async (data: InvestmentFormData) => {
     try {

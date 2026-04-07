@@ -32,6 +32,14 @@ interface SyncResult {
   }>;
 }
 
+function normalizeTreasuryText(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase();
+}
+
 serve(async (req) => {
   const startTime = Date.now();
   console.log('[Sync] Iniciando sincronização de preços...');
@@ -247,9 +255,14 @@ async function syncTreasury(investments: Investment[], result: SyncResult) {
     const bonds = data.TrsrBdTradgList || [];
 
     for (const inv of investments) {
-      const bond = bonds.find((b: any) =>
-        b.TrsrBd.nm.toLowerCase().includes(inv.ticker.toLowerCase())
-      );
+      const normalizedTicker = normalizeTreasuryText(inv.ticker);
+      const bond = bonds.find((b: any) => {
+        const name = normalizeTreasuryText(b?.TrsrBd?.nm || '');
+        const extended = normalizeTreasuryText(
+          `${b?.TrsrBd?.nm || ''}${b?.TrsrBd?.mtrtyDt || ''}${b?.TrsrBd?.featrs || ''}`
+        );
+        return name.includes(normalizedTicker) || extended.includes(normalizedTicker);
+      });
 
       if (bond) {
         const price = bond.TrsrSales?.prcAftn || bond.TrsrSales?.prcMorn || 0;

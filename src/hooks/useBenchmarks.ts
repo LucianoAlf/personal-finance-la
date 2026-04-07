@@ -12,36 +12,6 @@ export interface Benchmark {
 type Period = '1M' | '3M' | '6M' | '1Y';
 
 /**
- * Dados mock dos benchmarks
- * Em produção, esses dados viriam de APIs como:
- * - CDI: Banco Central / B3
- * - IPCA: IBGE
- * - IBOVESPA: B3 / Yahoo Finance / Alpha Vantage
- */
-const MOCK_BENCHMARKS: Record<Period, Benchmark[]> = {
-  '1M': [
-    { name: 'CDI', return: 0.95, type: 'fixed_income' },
-    { name: 'IPCA', return: 0.46, type: 'inflation' },
-    { name: 'IBOVESPA', return: 2.15, type: 'equity' },
-  ],
-  '3M': [
-    { name: 'CDI', return: 2.89, type: 'fixed_income' },
-    { name: 'IPCA', return: 1.24, type: 'inflation' },
-    { name: 'IBOVESPA', return: 5.32, type: 'equity' },
-  ],
-  '6M': [
-    { name: 'CDI', return: 5.82, type: 'fixed_income' },
-    { name: 'IPCA', return: 2.48, type: 'inflation' },
-    { name: 'IBOVESPA', return: 8.47, type: 'equity' },
-  ],
-  '1Y': [
-    { name: 'CDI', return: 11.75, type: 'fixed_income' },
-    { name: 'IPCA', return: 4.62, type: 'inflation' },
-    { name: 'IBOVESPA', return: 12.34, type: 'equity' },
-  ],
-};
-
-/**
  * Hook para buscar benchmarks do mercado
  * SPRINT 5.1: Atualizado para buscar dados reais via Edge Function
  * 
@@ -54,14 +24,9 @@ const MOCK_BENCHMARKS: Record<Period, Benchmark[]> = {
  */
 export function useBenchmarks(period: Period = '1Y'): Benchmark[] {
   const [benchmarks, setBenchmarks] = useState<Benchmark[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchBenchmarks() {
-      setLoading(true);
-      setError(null);
-
       try {
         // Buscar dados reais via Edge Function
         const { data, error: invokeError } = await supabase.functions.invoke('fetch-benchmarks', {
@@ -77,12 +42,7 @@ export function useBenchmarks(period: Period = '1Y'): Benchmark[] {
         }
       } catch (err) {
         console.error('Erro ao buscar benchmarks:', err);
-        setError('Falha ao carregar benchmarks. Usando dados estimados.');
-
-        // Fallback para dados mock em caso de erro
-        setBenchmarks(MOCK_BENCHMARKS[period]);
-      } finally {
-        setLoading(false);
+        setBenchmarks([]);
       }
     }
 

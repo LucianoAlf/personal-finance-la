@@ -37,6 +37,15 @@ import { useDividendCalendar, useDividendHistory } from '@/hooks/useDividendCale
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell, DollarSign } from 'lucide-react';
 import type { CreateInvestmentInput, UpdateInvestmentInput, CreateTransactionInput } from '@/types/database.types';
+import {
+  resolveInvestmentDisplayPrice,
+  resolveInvestmentDisplayValue,
+  resolveInvestmentTotalInvested,
+} from '@/utils/investments/pricing';
+import {
+  buildInvestmentPriceItems,
+  buildOverviewPlanningDefaults,
+} from '@/utils/investments/overview';
 
 export function Investments() {
   const navigate = useNavigate();
@@ -46,9 +55,6 @@ export function Investments() {
   const { transactions, addTransaction, deleteTransaction } = useInvestmentTransactions();
   const { alerts, addAlert, deleteAlert, toggleAlert } = useInvestmentAlerts();
   const { formatCurrency } = useUserPreferences();
-  const metrics = usePortfolioMetrics(investments);
-  const dividendCalendar = useDividendCalendar({ investments, transactions });
-  const dividendHistory = useDividendHistory(transactions);
   
   const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
@@ -70,30 +76,7 @@ export function Investments() {
     return map;
   }, [investmentGoals]);
 
-  const selectedGoal = useMemo(
-    () => investmentGoals.find((goal) => goal.id === selectedGoalId) || null,
-    [investmentGoals, selectedGoalId]
-  );
-  const planningYears = useMemo(() => {
-    if (!selectedGoal) return 15;
-    const currentYear = new Date().getFullYear();
-    const targetYear = new Date(selectedGoal.target_date).getFullYear();
-    return Math.max(1, targetYear - currentYear);
-  }, [selectedGoal]);
-  const planningContribution = selectedGoal?.monthly_contribution
-    || investmentGoals.reduce((sum, goal) => sum + Number(goal.monthly_contribution || 0), 0)
-    || 1000;
-
-  // Preparar items para buscar cotações
-  const priceItems = investments.map((inv) => ({
-    ticker: inv.ticker || inv.name,
-    type: inv.type === 'stock' || inv.type === 'real_estate'
-      ? ('stock' as const)
-      : inv.type === 'crypto'
-      ? ('crypto' as const)
-      : ('treasury' as const),
-    investmentId: inv.id,
-  }));
+  const priceItems = useMemo(() => buildInvestmentPriceItems(investments), [investments]);
 
   // Hook de cotações em tempo real
   const {
@@ -105,6 +88,37 @@ export function Investments() {
     items: priceItems,
     autoRefresh: true,
   });
+
+  const investmentsWithMarketData = useMemo(
+    () =>
+      investments.map((investment) => {
+        const quoteKey = (investment.ticker || investment.name).toUpperCase();
+        const quote = quotes.get(quoteKey);
+
+        return {
+          ...investment,
+          total_invested: resolveInvestmentTotalInvested(investment),
+          current_price: resolveInvestmentDisplayPrice(investment, quote),
+          current_value: resolveInvestmentDisplayValue(investment, quote),
+        };
+      }),
+    [investments, quotes]
+  );
+  const metrics = usePortfolioMetrics(investmentsWithMarketData);
+  const dividendCalendar = useDividendCalendar({ investments: investmentsWithMarketData, transactions });
+  const dividendHistory = useDividendHistory(transactions);
+  const planningDefaults = useMemo(
+    () =>
+      buildOverviewPlanningDefaults({
+        goals: investmentGoals,
+        metrics: {
+          currentValue: metrics.currentValue,
+        },
+        selectedGoalId,
+      }),
+    [investmentGoals, metrics.currentValue, selectedGoalId]
+  );
+  const { selectedGoal, planningYears, monthlyContribution: planningContribution } = planningDefaults;
 
   // Handlers
   const handleSaveInvestment = async (data: any) => {
@@ -119,6 +133,12 @@ export function Investments() {
 
   const handleAddTransaction = async (data: CreateTransactionInput) => {
     await addTransaction(data);
+    await refresh();
+  };
+
+  const handleDeleteTransaction = async (id: string) => {
+    await deleteTransaction(id);
+    await refresh();
   };
 
   const openNewInvestmentDialog = () => {
@@ -325,9 +345,9 @@ export function Investments() {
                   </tr>
                 </thead>
                 <tbody>
-                  {investments.map((investment) => {
-                    const totalInv = investment.total_invested || 0;
-                    const totalCur = investment.current_value || investment.total_invested || 0;
+                  {investmentsWithMarketData.map((investment) => {
+                    const totalInv = resolveInvestmentTotalInvested(investment);
+                    const totalCur = resolveInvestmentDisplayValue(investment);
                     const gain = totalCur - totalInv;
                     const percentG = totalInv > 0 ? (gain / totalInv) * 100 : 0;
 
@@ -340,7 +360,7 @@ export function Investments() {
                           {formatCurrency(investment.purchase_price)}
                         </td>
                         <td className="py-3 px-4 text-sm text-right">
-                          {formatCurrency(investment.current_price || investment.purchase_price)}
+                          {formatCurrency(resolveInvestmentDisplayPrice(investment))}
                         </td>
                         <td className="py-3 px-4 text-sm text-right font-medium">
                           {formatCurrency(totalCur)}
@@ -396,7 +416,7 @@ export function Investments() {
 
             <TransactionTimeline
               transactions={transactions}
-              onDelete={deleteTransaction}
+              onDelete={handleDeleteTransaction}
             />
           </TabsContent>
 
@@ -442,21 +462,21 @@ export function Investments() {
           {/* Aba Visão Geral */}
           <TabsContent value="overview" className="space-y-6">
             {/* Ana Clara Insights Widget - Destaque no topo */}
-            <AnaInvestmentInsights investments={investments} />
+            <AnaInvestmentInsights investments={investmentsWithMarketData} />
 
             <InvestmentPlanningCalculator
               title="Planejamento patrimonial e aposentadoria"
               description="Simule patrimônio alvo, renda futura e o aporte mensal necessário com base na sua carteira real."
-              initialCurrentAmount={selectedGoal?.metrics?.effective_current_amount ?? metrics.currentValue}
+              initialCurrentAmount={planningDefaults.currentAmount}
               initialMonthlyContribution={planningContribution}
-              initialTargetAmount={selectedGoal?.target_amount ?? 1000000}
+              initialTargetAmount={planningDefaults.targetAmount}
               initialYearsToGoal={planningYears}
-              initialAnnualReturnRate={selectedGoal?.expected_return_rate ?? 8}
-              initialDesiredMonthlyIncome={selectedGoal?.category === 'retirement' ? 30000 : 0}
+              initialAnnualReturnRate={planningDefaults.annualReturnRate}
+              initialDesiredMonthlyIncome={planningDefaults.desiredMonthlyIncome}
             />
 
             {/* SPRINT 5: Diversification Score Card */}
-            <DiversificationScoreCard />
+            <DiversificationScoreCard investments={investmentsWithMarketData} />
 
             {/* SPRINT 5: Performance Heat Map */}
             <PerformanceHeatMap />
@@ -479,13 +499,13 @@ export function Investments() {
             </div>
 
             {/* Performance por Ativo (full width) */}
-            <PerformanceBarChart investments={investments} />
+            <PerformanceBarChart investments={investmentsWithMarketData} />
 
             {/* Investment Radar - Ana Clara */}
             <OpportunityFeed />
 
             {/* Smart Rebalance */}
-            <SmartRebalanceWidget investments={investments} />
+            <SmartRebalanceWidget investments={investmentsWithMarketData} />
 
             {/* Badges - Gamificação */}
             <BadgesDisplay />

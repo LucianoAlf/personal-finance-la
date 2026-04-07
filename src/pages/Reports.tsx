@@ -1,10 +1,110 @@
+import { useMemo, useState } from 'react';
+import { AlertCircle, BarChart3, RefreshCw } from 'lucide-react';
+
 import { Header } from '@/components/layout/Header';
-import { Card, CardContent } from '@/components/ui/card';
+import { ReportsAnaSection } from '@/components/reports/ReportsAnaSection';
+import { ReportsBalanceSheetSection } from '@/components/reports/ReportsBalanceSheetSection';
+import { ReportsEmptyState } from '@/components/reports/ReportsEmptyState';
+import { ReportsExportButton } from '@/components/reports/ReportsExportButton';
+import { ReportsGoalsSection } from '@/components/reports/ReportsGoalsSection';
+import { ReportsInvestmentsSection } from '@/components/reports/ReportsInvestmentsSection';
+import { ReportsObligationsSection } from '@/components/reports/ReportsObligationsSection';
+import { ReportsOverviewCards } from '@/components/reports/ReportsOverviewCards';
+import { ReportsPeriodFilter } from '@/components/reports/ReportsPeriodFilter';
+import { ReportsSpendingSection } from '@/components/reports/ReportsSpendingSection';
+import { ReportsTrendSection } from '@/components/reports/ReportsTrendSection';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Download, BarChart3 } from 'lucide-react';
+import { useReportAnaInsights } from '@/hooks/useReportAnaInsights';
+import { hasRenderableReportData } from '@/utils/reports/intelligence-contract';
+import { hasDisplayableDeterministicReportData } from '@/utils/reports/view-model';
+import {
+  buildReportsPeriod,
+  getDefaultReportsPeriod,
+  useReportsIntelligence,
+  type ReportsPeriodPreset,
+} from '@/hooks/useReportsIntelligence';
 
 export function Reports() {
-  const hasData = false;
+  const [periodPreset, setPeriodPreset] = useState<ReportsPeriodPreset>(
+    getDefaultReportsPeriod().preset,
+  );
+  const period = useMemo(() => buildReportsPeriod(periodPreset), [periodPreset]);
+  const {
+    data: context,
+    error,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useReportsIntelligence(period);
+  const hasDeterministicContext = Boolean(
+    context && hasDisplayableDeterministicReportData(context),
+  );
+  const anaContextFingerprint = useMemo(() => {
+    if (!context) {
+      return 'no-context';
+    }
+
+    return JSON.stringify({
+      overview: context.overview,
+      cashflow: context.cashflow,
+      spending: context.spending,
+      balanceSheet: context.balanceSheet,
+      obligations: context.obligations,
+      goals: context.goals,
+      investments: context.investments,
+      quality: {
+        overview: context.quality.overview,
+        cashflow: context.quality.cashflow,
+        spending: context.quality.spending,
+        balanceSheet: context.quality.balanceSheet,
+        obligations: context.quality.obligations,
+        goals: context.quality.goals,
+        investments: context.quality.investments,
+      },
+    });
+  }, [context]);
+  const {
+    data: anaPayload,
+    isLoading: isAnaLoading,
+    refetch: refetchAna,
+  } = useReportAnaInsights({
+    startDate: period.startDate,
+    endDate: period.endDate,
+    periodLabel: period.label,
+    contextFingerprint: anaContextFingerprint,
+    enabled: hasDeterministicContext,
+  });
+
+  const exportContext = useMemo(() => {
+    if (!context) {
+      return null;
+    }
+
+    if (!anaPayload) {
+      return context;
+    }
+
+    return {
+      ...context,
+      ana: anaPayload.ana,
+      quality: {
+        ...context.quality,
+        ana: anaPayload.quality,
+      },
+    };
+  }, [anaPayload, context]);
+
+  const showRenderableSections =
+    isLoading || Boolean(context && hasDisplayableDeterministicReportData(context));
+  const showEmptyState =
+    !isLoading && Boolean(context) && !hasDisplayableDeterministicReportData(context);
+  const showAnaSection =
+    isLoading ||
+    Boolean(
+      context &&
+        (hasDisplayableDeterministicReportData(context) || hasRenderableReportData(context)),
+    );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -13,86 +113,68 @@ export function Reports() {
         subtitle="Análises detalhadas da sua vida financeira"
         icon={<BarChart3 size={24} />}
         actions={
-          <Button size="sm">
-            <Download size={16} className="mr-1" />
-            Exportar PDF
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                void Promise.all([refetch(), refetchAna()]);
+              }}
+              disabled={isFetching}
+            >
+              <RefreshCw size={16} className="mr-1" />
+              Atualizar
+            </Button>
+            <ReportsExportButton
+              context={exportContext}
+              period={period}
+              disabled={isLoading || isFetching}
+            />
+          </div>
         }
       />
 
-      <div className="p-6 space-y-6">
-        {!hasData && (
-          <Card className="border-dashed">
-            <CardContent className="p-6">
-              <p className="text-sm text-gray-600">
-                Dados insuficientes para gerar relatorio. Comece registrando suas transacoes.
-              </p>
-            </CardContent>
-          </Card>
+      <div className="space-y-6 p-6">
+        <ReportsPeriodFilter
+          value={periodPreset}
+          onChange={setPeriodPreset}
+          periodLabel={period.label}
+          disabled={isFetching}
+        />
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Não foi possível atualizar o relatório agora</AlertTitle>
+            <AlertDescription>
+              {error instanceof Error
+                ? error.message
+                : 'O contexto canônico de relatórios falhou para este período.'}
+            </AlertDescription>
+          </Alert>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="border-l-4 border-blue-500">
-            <CardContent className="p-6">
-              <h3 className="font-semibold text-gray-900 mb-2">Score Financeiro</h3>
-              <h2 className="text-4xl font-bold text-blue-600">0</h2>
-              <p className="text-sm text-gray-600 mt-1">Dados insuficientes</p>
-            </CardContent>
-          </Card>
+        {showEmptyState && <ReportsEmptyState periodLabel={period.label} />}
 
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="text-sm text-gray-600 mb-1">Taxa de Economia</h3>
-              <h2 className="text-2xl font-bold text-green-600">0%</h2>
-              <p className="text-sm text-gray-600 mt-1">Sem dados para calcular</p>
-            </CardContent>
-          </Card>
+        {showRenderableSections && (
+          <>
+            <ReportsOverviewCards context={context} loading={isLoading} />
+            <ReportsSpendingSection context={context} loading={isLoading} />
+            <ReportsTrendSection context={context} loading={isLoading} />
+            <ReportsBalanceSheetSection context={context} loading={isLoading} />
+            <ReportsObligationsSection context={context} loading={isLoading} />
+            <ReportsGoalsSection context={context} loading={isLoading} />
+            <ReportsInvestmentsSection context={context} loading={isLoading} />
+          </>
+        )}
 
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="text-sm text-gray-600 mb-1">Patrimônio Líquido</h3>
-              <h2 className="text-2xl font-bold text-gray-900">R$ 0,00</h2>
-              <p className="text-sm text-gray-600 mt-1">Sem movimentacoes registradas</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="text-sm text-gray-600 mb-1">Metas Alcançadas</h3>
-              <h2 className="text-2xl font-bold text-purple-600">0</h2>
-              <p className="text-sm text-gray-600 mt-1">0 metas em andamento</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardContent className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Despesas por Categoria</h3>
-            <div className="h-64 flex items-center justify-center bg-gray-100 rounded-lg">
-              <p className="text-gray-500">Gráfico de despesas por categoria</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Tendências (12 meses)</h3>
-              <div className="h-64 flex items-center justify-center bg-gray-100 rounded-lg">
-                <p className="text-gray-500">Gráfico de tendências</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Evolução Patrimonial</h3>
-              <div className="h-64 flex items-center justify-center bg-gray-100 rounded-lg">
-                <p className="text-gray-500">Gráfico de evolução</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {showAnaSection && (
+          <ReportsAnaSection
+            context={exportContext}
+            loading={isLoading || (hasDeterministicContext && isAnaLoading)}
+          />
+        )}
       </div>
     </div>
   );

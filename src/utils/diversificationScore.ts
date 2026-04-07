@@ -1,5 +1,6 @@
 // SPRINT 5: Cálculo do Score de Diversificação (0-100)
 // 4 critérios: Classes de Ativos, Concentração, Número de Ativos, Geografia
+import { normalizeInvestmentCategory } from '@/utils/investments/contracts';
 
 export interface Investment {
   id: string;
@@ -70,7 +71,9 @@ export function calculateDiversificationScore(
   const totalValue = investments.reduce((sum, inv) => sum + inv.current_value, 0);
 
   // 1. DIVERSIFICAÇÃO POR CLASSE DE ATIVO (30 pontos)
-  const classes = new Set(investments.map((inv) => inv.category)).size;
+  const classes = new Set(
+    investments.map((inv) => normalizeInvestmentCategory(inv.category)).filter(Boolean)
+  ).size;
   const totalClasses = classes;
 
   // Classes ideais: 6 (renda_fixa, acoes_nacionais, fiis, internacional, cripto, previdencia)
@@ -121,7 +124,9 @@ export function calculateDiversificationScore(
   }
 
   // 4. DIVERSIFICAÇÃO GEOGRÁFICA (20 pontos)
-  const hasInternational = investments.some((inv) => inv.category === 'internacional');
+  const hasInternational = investments.some(
+    (inv) => normalizeInvestmentCategory(inv.category) === 'international'
+  );
 
   breakdown.geography = hasInternational ? 20 : 0;
 

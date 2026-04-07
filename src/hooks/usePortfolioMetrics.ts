@@ -1,5 +1,10 @@
 import { useMemo } from 'react';
 import type { Investment } from '@/types/database.types';
+import { normalizeInvestmentCategory, toAllocationBucket } from '@/utils/investments/contracts';
+import {
+  resolveInvestmentDisplayValue,
+  resolveInvestmentTotalInvested,
+} from '@/utils/investments/pricing';
 
 interface AllocationItem {
   category: string;
@@ -22,15 +27,9 @@ interface PortfolioMetrics {
 export function usePortfolioMetrics(investments: Investment[]): PortfolioMetrics {
   const metrics = useMemo(() => {
     // Totals
-    const totalInvested = investments.reduce(
-      (sum, inv) => sum + (inv.total_invested || 0),
-      0
-    );
+    const totalInvested = investments.reduce((sum, inv) => sum + resolveInvestmentTotalInvested(inv), 0);
 
-    const currentValue = investments.reduce(
-      (sum, inv) => sum + (inv.current_value || inv.total_invested || 0),
-      0
-    );
+    const currentValue = investments.reduce((sum, inv) => sum + resolveInvestmentDisplayValue(inv), 0);
 
     const totalReturn = currentValue - totalInvested;
     const returnPercentage = totalInvested > 0 ? (totalReturn / totalInvested) * 100 : 0;
@@ -39,8 +38,8 @@ export function usePortfolioMetrics(investments: Investment[]): PortfolioMetrics
     const allocation: Record<string, AllocationItem> = {};
 
     investments.forEach((inv) => {
-      const category = inv.category || 'outros';
-      const value = inv.current_value || inv.total_invested || 0;
+      const category = toAllocationBucket(normalizeInvestmentCategory(inv.category, inv.type));
+      const value = resolveInvestmentDisplayValue(inv);
 
       if (!allocation[category]) {
         allocation[category] = {
@@ -67,7 +66,7 @@ export function usePortfolioMetrics(investments: Investment[]): PortfolioMetrics
 
     investments.forEach((inv) => {
       const type = inv.type;
-      const value = inv.current_value || inv.total_invested || 0;
+      const value = resolveInvestmentDisplayValue(inv);
 
       if (!byType[type]) {
         byType[type] = { value: 0, count: 0 };
@@ -81,8 +80,8 @@ export function usePortfolioMetrics(investments: Investment[]): PortfolioMetrics
     const byCategory: Record<string, { value: number; count: number }> = {};
 
     investments.forEach((inv) => {
-      const category = inv.category || 'outros';
-      const value = inv.current_value || inv.total_invested || 0;
+      const category = toAllocationBucket(normalizeInvestmentCategory(inv.category, inv.type));
+      const value = resolveInvestmentDisplayValue(inv);
 
       if (!byCategory[category]) {
         byCategory[category] = { value: 0, count: 0 };
@@ -117,6 +116,14 @@ export function getCategoryLabel(category: string): string {
     cripto: 'Criptomoedas',
     previdencia: 'Previdência',
     outros: 'Outros',
+    fixed_income: 'Renda Fixa',
+    stock: 'Ações Nacionais',
+    reit: 'Fundos Imobiliários',
+    fund: 'Fundos',
+    crypto: 'Criptomoedas',
+    international: 'Internacional',
+    pension: 'Previdência',
+    other: 'Outros',
   };
   return labels[category] || category;
 }

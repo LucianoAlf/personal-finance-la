@@ -21,9 +21,15 @@ import {
   type DiversificationBreakdown,
 } from '@/utils/diversificationScore';
 import { useInvestments } from '@/hooks/useInvestments';
+import type { Investment } from '@/types/database.types';
 
-export function DiversificationScoreCard() {
-  const { investments } = useInvestments();
+interface DiversificationScoreCardProps {
+  investments?: Investment[];
+}
+
+export function DiversificationScoreCard({ investments: providedInvestments }: DiversificationScoreCardProps) {
+  const { investments: fetchedInvestments } = useInvestments();
+  const investments = providedInvestments ?? fetchedInvestments;
   const [isExpanded, setIsExpanded] = useState(false);
 
   const { score, breakdown, recommendations, details } = useMemo(

@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { useInvestments } from '@/hooks/useInvestments';
 import type { CreateTransactionInput } from '@/types/database.types';
+import { buildInvestmentTransactionDate } from '@/utils/investments/transaction-date';
 
 // Schema de validação
 const transactionSchema = z.object({
@@ -153,7 +154,7 @@ export function TransactionDialog({
         fees: data.fees,
         tax: data.tax,
         notes: data.notes,
-        transaction_date: new Date(data.transaction_date),
+        transaction_date: buildInvestmentTransactionDate(data.transaction_date),
       };
       await onSave(transactionData);
       onOpenChange(false);

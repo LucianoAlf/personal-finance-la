@@ -7,6 +7,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import { buildReportIntelligenceContext } from '../_shared/report-intelligence.ts';
+import {
+  hasDeterministicReportFacts,
+  renderReportSummaryMessage,
+} from '../_shared/report-renderers.ts';
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -89,36 +95,6 @@ serve(async (req) => {
         continue;
       }
 
-      // Buscar dados do dia
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-
-      // Transações do dia
-      const { data: transactions } = await supabase
-        .from('transactions')
-        .select('type, amount, category')
-        .eq('user_id', user.user_id)
-        .gte('date', today.toISOString())
-        .lt('date', tomorrow.toISOString());
-
-      if (!transactions || transactions.length === 0) {
-        console.log(`[send-daily-summary] ⏸️ Sem transações hoje para ${user.user_id}`);
-        continue;
-      }
-
-      // Calcular totais
-      const income = transactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-      
-      const expenses = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
-
-      const balance = income - expenses;
-
       // Buscar telefone
       const { data: userdata } = await supabase
         .from('users')
@@ -128,12 +104,28 @@ serve(async (req) => {
 
       if (!userdata?.phone) continue;
 
-      // Enviar resumo
-      const message = formatDailySummary(userdata.full_name, transactions, income, expenses, balance);
+      const periodDate = toDateOnly(new Date());
+      const context = await buildReportIntelligenceContext({
+        supabase,
+        userId: user.user_id,
+        startDate: periodDate,
+        endDate: periodDate,
+        supabaseUrl: SUPABASE_URL,
+      });
+
+      if (!hasDeterministicReportFacts(context)) {
+        console.log(`[send-daily-summary] ⏸️ Sem fatos determinísticos para ${user.user_id}`);
+        continue;
+      }
+
+      const message = renderReportSummaryMessage({
+        mode: 'daily',
+        userName: userdata.full_name,
+        periodLabel: formatDateLabel(periodDate),
+        context,
+      });
       
       const sent = await sendWhatsAppNotification(
-        supabase,
-        user.user_id,
         userdata.phone,
         message
       );
@@ -168,39 +160,7 @@ serve(async (req) => {
   }
 });
 
-function formatDailySummary(
-  fullName: string,
-  transactions: any[],
-  income: number,
-  expenses: number,
-  balance: number
-): string {
-  const emoji = balance >= 0 ? '💰' : '📉';
-  
-  let message = `📊 *RESUMO DIÁRIO*\n\n`;
-  message += `Olá ${fullName}! 👋\n\n`;
-  message += `Aqui está seu resumo de hoje:\n\n`;
-  
-  message += `💵 *Receitas:* R$ ${income.toFixed(2)}\n`;
-  message += `💸 *Despesas:* R$ ${expenses.toFixed(2)}\n`;
-  message += `${emoji} *Saldo do dia:* R$ ${balance.toFixed(2)}\n\n`;
-  
-  message += `📋 *Total de transações:* ${transactions.length}\n\n`;
-  
-  if (balance < 0) {
-    message += `⚠️ _Você gastou mais do que recebeu hoje._\n`;
-  } else if (balance > 0) {
-    message += `✅ _Ótimo! Você poupou hoje._\n`;
-  } else {
-    message += `⚖️ _Receitas e despesas equilibradas._\n`;
-  }
-  
-  return message;
-}
-
 async function sendWhatsAppNotification(
-  supabase: any,
-  userId: string,
   phone: string,
   message: string
 ): Promise<boolean> {
@@ -231,4 +191,19 @@ async function sendWhatsAppNotification(
     console.error('[sendWhatsAppNotification] ❌ Falha:', error);
     return false;
   }
+}
+
+function toDateOnly(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateLabel(dateValue: string): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(new Date(`${dateValue}T12:00:00`));
 }

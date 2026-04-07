@@ -7,6 +7,10 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import { parseDateOnlyAsLocal } from '../../../src/utils/dateOnly.ts';
+import { buildReportIntelligenceContext } from '../_shared/report-intelligence.ts';
+import { renderOverdueBillAlertMessage } from '../_shared/report-renderers.ts';
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -103,24 +107,38 @@ serve(async (req) => {
 
       if (billsError || !bills || bills.length === 0) continue;
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      const today = startOfDay(new Date());
 
       // Filtrar contas vencidas exatamente nos dias configurados
       const billsToAlert = bills.filter((bill: any) => {
-        const dueDate = new Date(bill.due_date);
-        const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+        const daysOverdue = getDaysOverdue(today, bill.due_date);
         return alertDays.includes(daysOverdue);
       });
 
       if (billsToAlert.length === 0) continue;
 
-      // Agrupar e enviar
-      const message = formatOverdueMessage(billsToAlert, user.user_id);
+      const periodEnd = startOfDay(today);
+      const periodStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), 1);
+      const context = await buildReportIntelligenceContext({
+        supabase,
+        userId: user.user_id,
+        startDate: toDateOnly(periodStart),
+        endDate: toDateOnly(periodEnd),
+        supabaseUrl: SUPABASE_URL,
+      });
+      const message = renderOverdueBillAlertMessage({
+        context,
+        userName: bills[0].users.full_name,
+        periodLabel: formatDateRangeLabel(toDateOnly(periodStart), toDateOnly(periodEnd)),
+        bills: billsToAlert.map((bill: any) => ({
+          description: bill.description,
+          amount: Number(bill.amount || 0),
+          dueDate: bill.due_date,
+          daysOverdue: getDaysOverdue(today, bill.due_date),
+        })),
+      });
       
       const sent = await sendWhatsAppNotification(
-        supabase,
-        user.user_id,
         bills[0].users.phone,
         message
       );
@@ -155,31 +173,7 @@ serve(async (req) => {
   }
 });
 
-function formatOverdueMessage(bills: any[], userId: string): string {
-  const totalAmount = bills.reduce((sum: number, bill: any) => sum + parseFloat(bill.amount), 0);
-  
-  let message = `🚨 *CONTAS VENCIDAS*\n\n`;
-  message += `Você tem *${bills.length} conta(s)* atrasada(s):\n\n`;
-  
-  bills.forEach((bill: any) => {
-    const dueDate = new Date(bill.due_date);
-    const today = new Date();
-    const daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
-    
-    message += `• ${bill.description}\n`;
-    message += `  💰 R$ ${parseFloat(bill.amount).toFixed(2)}\n`;
-    message += `  ⏰ Atrasada há ${daysOverdue} dia(s)\n\n`;
-  });
-
-  message += `💸 *Total em atraso:* R$ ${totalAmount.toFixed(2)}\n\n`;
-  message += `⚠️ _Regularize para evitar juros e multas!_`;
-
-  return message;
-}
-
 async function sendWhatsAppNotification(
-  supabase: any,
-  userId: string,
   phone: string,
   message: string
 ): Promise<boolean> {
@@ -210,4 +204,33 @@ async function sendWhatsAppNotification(
     console.error('[sendWhatsAppNotification] ❌ Falha:', error);
     return false;
   }
+}
+
+function startOfDay(date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function getDaysOverdue(today: Date, dueDateValue: string): number {
+  const dueDate = startOfDay(parseDateOnlyAsLocal(dueDateValue));
+  return Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function toDateOnly(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateRangeLabel(startDate: string, endDate: string): string {
+  const formatter = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  return `${formatter.format(new Date(`${startDate}T12:00:00`))} a ${formatter.format(
+    new Date(`${endDate}T12:00:00`),
+  )}`;
 }

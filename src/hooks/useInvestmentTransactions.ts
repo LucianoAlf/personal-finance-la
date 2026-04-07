@@ -65,11 +65,6 @@ export function useInvestmentTransactions(options: UseInvestmentTransactionsOpti
 
       if (insertError) throw insertError;
 
-      // Recalcular investimento se for compra/venda
-      if (transaction.investment_id && ['buy', 'sell'].includes(transaction.transaction_type)) {
-        await recalculateInvestment(transaction.investment_id);
-      }
-
       // Refresh transactions
       await fetchTransactions();
       await processGamificationEvent('investment_activity');
@@ -91,20 +86,12 @@ export function useInvestmentTransactions(options: UseInvestmentTransactionsOpti
     try {
       setLoading(true);
 
-      // Get transaction before deleting (for recalculation)
-      const transaction = transactions.find(t => t.id === id);
-
       const { error: deleteError } = await supabase
         .from('investment_transactions')
         .delete()
         .eq('id', id);
 
       if (deleteError) throw deleteError;
-
-      // Recalcular investimento se necessário
-      if (transaction?.investment_id && ['buy', 'sell'].includes(transaction.transaction_type)) {
-        await recalculateInvestment(transaction.investment_id);
-      }
 
       // Refresh transactions
       await fetchTransactions();
@@ -119,7 +106,7 @@ export function useInvestmentTransactions(options: UseInvestmentTransactionsOpti
     } finally {
       setLoading(false);
     }
-  }, [transactions, fetchTransactions]);
+  }, [fetchTransactions]);
 
   // Computed values
   const totalBuy = useMemo(() => 
@@ -204,63 +191,4 @@ export function useInvestmentTransactions(options: UseInvestmentTransactionsOpti
     dividendCount: transactionsByType.dividend?.length || 0,
     splitCount: transactionsByType.split?.length || 0,
   };
-}
-
-// Helper function to recalculate investment average price and quantity
-async function recalculateInvestment(investmentId: string) {
-  try {
-    // Fetch all buy and sell transactions for this investment
-    const { data: transactions } = await supabase
-      .from('investment_transactions')
-      .select('*')
-      .eq('investment_id', investmentId)
-      .in('transaction_type', ['buy', 'sell'])
-      .order('transaction_date', { ascending: true });
-
-    if (!transactions || transactions.length === 0) return;
-
-    let totalQuantity = 0;
-    let totalCost = 0;
-
-    // Calculate totals
-    transactions.forEach(t => {
-      const qty = t.quantity || 0;
-      const value = t.total_value || 0;
-
-      if (t.transaction_type === 'buy') {
-        totalQuantity += qty;
-        totalCost += value;
-      } else if (t.transaction_type === 'sell') {
-        totalQuantity -= qty;
-        // Não subtrair do custo total (manter preço médio)
-      }
-    });
-
-    // Calculate average price
-    const averagePrice = totalQuantity > 0 ? totalCost / totalQuantity : 0;
-    const totalInvested = totalCost;
-
-    // Update investment
-    const { error } = await supabase
-      .from('investments')
-      .update({
-        quantity: totalQuantity,
-        purchase_price: averagePrice,
-        total_invested: totalInvested,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', investmentId);
-
-    if (error) throw error;
-
-    console.log('Investment recalculated:', {
-      investmentId,
-      totalQuantity,
-      averagePrice,
-      totalInvested,
-    });
-  } catch (err) {
-    console.error('Error recalculating investment:', err);
-    throw err;
-  }
 }

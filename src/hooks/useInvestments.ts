@@ -4,13 +4,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { processGamificationEvent } from '@/lib/gamification';
 import { Investment, CreateInvestmentInput, UpdateInvestmentInput } from '@/types/database.types';
+import { normalizeInvestmentCategory } from '@/utils/investments/contracts';
 
 /**
  * Hook para gerenciar investimentos do usuário
  * CRUD completo com Realtime subscriptions
  */
 export function useInvestments() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [investments, setInvestments] = useState<Investment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -19,6 +20,10 @@ export function useInvestments() {
   // FETCH: Buscar investimentos
   // ============================================
   const fetchInvestments = useCallback(async () => {
+    if (authLoading) {
+      return;
+    }
+
     if (!user?.id) {
       setInvestments([]);
       setLoading(false);
@@ -46,7 +51,7 @@ export function useInvestments() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [authLoading, user?.id]);
 
   // ============================================
   // CREATE: Adicionar investimento
@@ -71,6 +76,7 @@ export function useInvestments() {
         .insert({
           user_id: user.id,
           type: input.type,
+          category: normalizeInvestmentCategory(input.category, input.type),
           name: input.name,
           ticker: input.ticker || null,
           quantity: input.quantity,
@@ -79,6 +85,10 @@ export function useInvestments() {
           total_invested,
           current_value,
           purchase_date: input.purchase_date || null,
+          subcategory: input.subcategory || null,
+          annual_rate: input.annual_rate || null,
+          maturity_date: input.maturity_date || null,
+          dividend_yield: input.dividend_yield || null,
           notes: input.notes || null,
           is_active: true,
         })
@@ -113,6 +123,13 @@ export function useInvestments() {
     try {
       // Se alterou quantity ou purchase_price, recalcular total_invested
       const updates: any = { ...input };
+      if (input.category !== undefined || input.type !== undefined) {
+        const current = investments.find((i) => i.id === id);
+        updates.category = normalizeInvestmentCategory(
+          input.category ?? current?.category,
+          input.type ?? current?.type
+        );
+      }
       
       if (input.quantity !== undefined || input.purchase_price !== undefined) {
         const current = investments.find(i => i.id === id);

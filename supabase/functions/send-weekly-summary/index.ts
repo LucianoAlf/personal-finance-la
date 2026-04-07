@@ -7,6 +7,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import { buildReportIntelligenceContext } from '../_shared/report-intelligence.ts';
+import {
+  hasDeterministicReportFacts,
+  renderReportSummaryMessage,
+} from '../_shared/report-renderers.ts';
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -89,56 +95,6 @@ serve(async (req) => {
         continue;
       }
 
-      // Últimos 7 dias
-      const weekStart = new Date();
-      weekStart.setDate(weekStart.getDate() - 6);
-      weekStart.setHours(0, 0, 0, 0);
-      const weekEnd = new Date();
-      weekEnd.setHours(23, 59, 59, 999);
-
-      // Transações da semana
-      const { data: transactions } = await supabase
-        .from('transactions')
-        .select('type, amount, category')
-        .eq('user_id', user.user_id)
-        .gte('date', weekStart.toISOString())
-        .lte('date', weekEnd.toISOString());
-
-      if (!transactions || transactions.length === 0) {
-        console.log(`[send-weekly-summary] ⏸️ Sem transações na semana para ${user.user_id}`);
-        continue;
-      }
-
-      // Calcular totais
-      const income = transactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-      
-      const expenses = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
-
-      const balance = income - expenses;
-
-      // Semana anterior para comparação
-      const prevWeekStart = new Date(weekStart);
-      prevWeekStart.setDate(prevWeekStart.getDate() - 7);
-      const prevWeekEnd = new Date(weekStart);
-      prevWeekEnd.setMilliseconds(-1);
-
-      const { data: prevTransactions } = await supabase
-        .from('transactions')
-        .select('type, amount')
-        .eq('user_id', user.user_id)
-        .gte('date', prevWeekStart.toISOString())
-        .lte('date', prevWeekEnd.toISOString());
-
-      const prevExpenses = prevTransactions
-        ?.filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
-
-      const variation = prevExpenses > 0 ? ((expenses - prevExpenses) / prevExpenses) * 100 : 0;
-
       // Buscar telefone
       const { data: userdata } = await supabase
         .from('users')
@@ -148,19 +104,31 @@ serve(async (req) => {
 
       if (!userdata?.phone) continue;
 
-      // Enviar resumo
-      const message = formatWeeklySummary(
-        userdata.full_name,
-        transactions.length,
-        income,
-        expenses,
-        balance,
-        variation
-      );
+      const weekEnd = startOfDay(new Date());
+      const weekStart = addDays(weekEnd, -6);
+      const startDate = toDateOnly(weekStart);
+      const endDate = toDateOnly(weekEnd);
+      const context = await buildReportIntelligenceContext({
+        supabase,
+        userId: user.user_id,
+        startDate,
+        endDate,
+        supabaseUrl: SUPABASE_URL,
+      });
+
+      if (!hasDeterministicReportFacts(context)) {
+        console.log(`[send-weekly-summary] ⏸️ Sem fatos determinísticos para ${user.user_id}`);
+        continue;
+      }
+
+      const message = renderReportSummaryMessage({
+        mode: 'weekly',
+        userName: userdata.full_name,
+        periodLabel: formatDateRangeLabel(startDate, endDate),
+        context,
+      });
       
       const sent = await sendWhatsAppNotification(
-        supabase,
-        user.user_id,
         userdata.phone,
         message
       );
@@ -195,45 +163,7 @@ serve(async (req) => {
   }
 });
 
-function formatWeeklySummary(
-  fullName: string,
-  txCount: number,
-  income: number,
-  expenses: number,
-  balance: number,
-  variation: number
-): string {
-  const emoji = balance >= 0 ? '💰' : '📉';
-  const varEmoji = variation < 0 ? '📈' : variation > 0 ? '📉' : '⚖️';
-  const varText = variation < 0 ? 'menos' : variation > 0 ? 'mais' : 'igual';
-  
-  let message = `📊 *RESUMO SEMANAL*\n\n`;
-  message += `Olá ${fullName}! 👋\n\n`;
-  message += `Resumo dos últimos 7 dias:\n\n`;
-  
-  message += `💵 *Receitas:* R$ ${income.toFixed(2)}\n`;
-  message += `💸 *Despesas:* R$ ${expenses.toFixed(2)}\n`;
-  message += `${emoji} *Saldo:* R$ ${balance.toFixed(2)}\n\n`;
-  
-  message += `📋 *Transações:* ${txCount}\n\n`;
-  
-  if (variation !== 0) {
-    message += `📊 *vs Semana passada:*\n`;
-    message += `Você gastou ${Math.abs(variation).toFixed(1)}% ${varText} ${varEmoji}\n\n`;
-  }
-  
-  if (balance < 0) {
-    message += `⚠️ _Atenção aos gastos na próxima semana._\n`;
-  } else if (balance > 0) {
-    message += `✅ _Ótimo controle financeiro!_\n`;
-  }
-  
-  return message;
-}
-
 async function sendWhatsAppNotification(
-  supabase: any,
-  userId: string,
   phone: string,
   message: string
 ): Promise<boolean> {
@@ -264,4 +194,34 @@ async function sendWhatsAppNotification(
     console.error('[sendWhatsAppNotification] ❌ Falha:', error);
     return false;
   }
+}
+
+function startOfDay(date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function addDays(date: Date, days: number): Date {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function toDateOnly(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateRangeLabel(startDate: string, endDate: string): string {
+  const formatter = new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  return `${formatter.format(new Date(`${startDate}T12:00:00`))} a ${formatter.format(
+    new Date(`${endDate}T12:00:00`),
+  )}`;
 }

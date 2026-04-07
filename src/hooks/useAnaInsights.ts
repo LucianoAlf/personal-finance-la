@@ -1,5 +1,5 @@
 // FASE 1: Ana Clara com GPT-4 Real - Hook atualizado
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { usePortfolioMetrics } from './usePortfolioMetrics';
 import { useAllocationTargets } from './useAllocationTargets';
@@ -16,6 +16,13 @@ export interface GPTRecommendation {
 export interface AnaInsightsGPT {
   healthScore: number;
   level: 'excellent' | 'good' | 'warning' | 'critical';
+  breakdown: {
+    diversification: number;
+    concentration: number;
+    returns: number;
+    risk: number;
+    total: number;
+  };
   mainInsight: string;
   strengths: string[];
   warnings: string[];
@@ -46,42 +53,22 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
   const metrics = usePortfolioMetrics(investments);
   const { targets } = useAllocationTargets();
   const { goals: investmentGoals } = useInvestmentGoals();
-  const portfolioPayload = useMemo(() => ({
-    totalInvested: metrics.totalInvested,
-    currentValue: metrics.currentValue,
-    totalReturn: metrics.totalReturn,
-    returnPercentage: metrics.returnPercentage,
-    allocation: metrics.allocation,
-    investments: investments.map(inv => {
-      const currentValue = inv.current_value || (inv.quantity * (inv.current_price || inv.purchase_price));
-      const totalInvested = inv.total_invested || (inv.quantity * inv.purchase_price);
-      const returnPercentage = totalInvested > 0 ? ((currentValue - totalInvested) / totalInvested) * 100 : 0;
-
-      return {
-        ticker: inv.ticker || inv.name,
-        type: inv.type,
-        quantity: inv.quantity,
-        returnPercentage,
-        dividendYield: inv.dividend_yield,
-        currentPrice: inv.current_price,
-        purchasePrice: inv.purchase_price,
-      };
-    }),
-    targets: targets.map(t => ({
-      assetClass: t.asset_class,
-      targetPercentage: t.target_percentage,
-    })),
-    goals: investmentGoals.map((goal) => ({
-      name: goal.name,
-      category: goal.category,
-      targetAmount: goal.target_amount,
-      currentAmount: goal.metrics?.effective_current_amount ?? goal.current_amount,
-      finalProjection: goal.metrics?.final_projection ?? goal.current_amount,
-      projectedGap: goal.metrics?.projected_gap ?? 0,
-      linkedInvestmentsCount: goal.metrics?.linked_investments_count ?? 0,
-      status: goal.metrics?.is_on_track ? 'on_track' : 'attention',
-    })),
-  }), [investments, investmentGoals, metrics.allocation, metrics.currentValue, metrics.returnPercentage, metrics.totalInvested, metrics.totalReturn, targets]);
+  const lastFingerprintRef = useRef<string | null>(null);
+  const requestFingerprint = useMemo(
+    () =>
+      JSON.stringify({
+        investmentKeys: investments.map((inv) => [
+          inv.id,
+          inv.current_value,
+          inv.total_invested,
+          inv.current_price,
+          inv.quantity,
+        ]),
+        targetKeys: targets.map((target) => [target.id, target.asset_class, target.target_percentage]),
+        goalKeys: investmentGoals.map((goal) => [goal.id, goal.target_amount, goal.current_amount, goal.target_date]),
+      }),
+    [investmentGoals, investments, targets]
+  );
   
   const [gptInsights, setGptInsights] = useState<AnaInsightsGPT | undefined>();
   const [isLoading, setIsLoading] = useState(false);
@@ -100,12 +87,15 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
       try {
         setIsLoading(true);
         setError(undefined);
-
-        console.log('[useAnaInsights] 🚀 Invocando Edge Function (com cache)...');
+        const forceRefresh = lastFingerprintRef.current !== requestFingerprint;
 
         const { data, error: invokeError } = await supabase.functions.invoke(
           'ana-investment-insights',
-          { body: { portfolio: portfolioPayload, forceRefresh: false } }
+          {
+            body: {
+              forceRefresh,
+            },
+          }
         );
 
         if (!isMounted) return;
@@ -123,8 +113,8 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
           throw new Error(data.error);
         }
 
-        console.log('[useAnaInsights] ✅ Insights recebidos');
         setGptInsights(data as AnaInsightsGPT);
+        lastFingerprintRef.current = requestFingerprint;
         setIsLoading(false);
 
       } catch (err) {
@@ -144,19 +134,18 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
       isMounted = false;
       clearTimeout(timeoutId);
     };
-  }, [portfolioPayload, investments.length, metrics.currentValue]);
+  }, [investments.length, metrics.currentValue, requestFingerprint]);
 
-  // Calcular breakdown básico localmente (fallback)
-  const breakdown = {
-    diversification: Math.min(30, Object.keys(metrics.allocation).filter(k => metrics.allocation[k].percentage > 0).length * 6),
-    concentration: investments.length > 0 ? Math.min(25, 25 - Math.max(0, (Math.max(...investments.map(inv => (inv.current_value || 0) / metrics.currentValue * 100)) - 20))) : 0,
-    returns: Math.min(25, Math.max(0, (metrics.returnPercentage + 10) * 1.25)),
-    risk: 20, // placeholder
-    total: gptInsights?.healthScore || 0,
+  const breakdown = gptInsights?.breakdown || {
+    diversification: 0,
+    concentration: 0,
+    returns: 0,
+    risk: 0,
+    total: 0,
   };
 
   return {
-    healthScore: gptInsights?.healthScore || 0,
+    healthScore: gptInsights?.healthScore || breakdown.total,
     level: gptInsights?.level || 'warning',
     insight: {
       level: gptInsights?.level || 'warning',

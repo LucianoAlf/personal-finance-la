@@ -57,7 +57,7 @@ export function PerformanceHeatMap() {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-blue-600" />
-            Performance Mensal (12 meses)
+            Performance Mensal Estimada (12 meses)
           </CardTitle>
 
           <TooltipProvider>
@@ -67,8 +67,8 @@ export function PerformanceHeatMap() {
               </TooltipTrigger>
               <TooltipContent className="max-w-xs">
                 <p className="text-sm">
-                  Visualização estilo GitHub mostrando o retorno mensal do portfólio.
-                  Verde = ganho, Vermelho = perda, Cinza = neutro.
+                  Visualização estilo GitHub baseada no replay das transações.
+                  Ainda não usa marcação a mercado histórica por mês.
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -168,6 +168,11 @@ export function PerformanceHeatMap() {
             </p>
             <p className="text-xs text-muted-foreground">{worstMonth.month}</p>
           </div>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+          Esta seção é uma estimativa operacional baseada no histórico de transações e no custo médio.
+          Para leitura patrimonial histórica real, use a evolução por snapshots.
         </div>
       </CardContent>
     </Card>

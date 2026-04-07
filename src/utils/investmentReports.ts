@@ -2,6 +2,7 @@
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, startOfQuarter, endOfQuarter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { Investment, InvestmentTransaction } from '@/types/database.types';
+import { normalizeInvestmentCategory, toAllocationBucket } from '@/utils/investments/contracts';
 
 export type ReportPeriod = 'monthly' | 'quarterly' | 'annual';
 
@@ -111,7 +112,7 @@ export function generateInvestmentReport(
   // 2. ALLOCATION
   const allocation: Record<string, { value: number; percentage: number }> = {};
   investments.forEach((inv) => {
-    const category = inv.category || 'outros';
+    const category = toAllocationBucket(normalizeInvestmentCategory(inv.category, inv.type));
     const value = inv.current_value || inv.total_invested || 0;
 
     if (!allocation[category]) {

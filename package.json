@@ -8,6 +8,7 @@
     "build": "pnpm install --prefer-offline && tsc -b && vite build",
     "build:prod": "pnpm install --prefer-offline && tsc -b && BUILD_MODE=prod vite build",
     "lint": "pnpm install --prefer-offline && eslint .",
+    "test": "vitest run",
     "preview": "pnpm install --prefer-offline && vite preview",
     "install-deps": "pnpm install --prefer-offline",
     "clean": "rimraf node_modules .pnpm-store pnpm-lock.yaml && pnpm store prune"
@@ -97,6 +98,7 @@
     "typescript-eslint": "^8.15.0",
     "vite": "^6.0.1",
     "vite-plugin-source-identifier": "1.1.2",
-    "vite-plugin-svgr": "^4.5.0"
+    "vite-plugin-svgr": "^4.5.0",
+    "vitest": "^4.1.2"
   }
 }

@@ -7,6 +7,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import { buildReportIntelligenceContext } from '../_shared/report-intelligence.ts';
+import {
+  hasDeterministicReportFacts,
+  renderReportSummaryMessage,
+} from '../_shared/report-renderers.ts';
+
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
@@ -88,66 +94,9 @@ serve(async (req) => {
         continue;
       }
 
-      // Mês atual (completado no mês anterior)
       const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const firstDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
       const lastDay = new Date(lastMonth.getFullYear(), lastMonth.getMonth() + 1, 0);
-
-      // Transações do mês
-      const { data: transactions } = await supabase
-        .from('transactions')
-        .select('type, amount, category')
-        .eq('user_id', user.user_id)
-        .gte('date', firstDay.toISOString())
-        .lte('date', lastDay.toISOString());
-
-      if (!transactions || transactions.length === 0) {
-        console.log(`[send-monthly-summary] ⏸️ Sem transações no mês para ${user.user_id}`);
-        continue;
-      }
-
-      // Calcular totais
-      const income = transactions
-        .filter(t => t.type === 'income')
-        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
-      
-      const expenses = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0);
-
-      const balance = income - expenses;
-
-      // Top 5 categorias
-      const categoryTotals = transactions
-        .filter(t => t.type === 'expense')
-        .reduce((acc, t) => {
-          const cat = t.category || 'Outros';
-          acc[cat] = (acc[cat] || 0) + Math.abs(parseFloat(t.amount));
-          return acc;
-        }, {} as Record<string, number>);
-
-      const topCategories = Object.entries(categoryTotals)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 5);
-
-      // Mês anterior para comparação
-      const prevMonth = new Date(firstDay);
-      prevMonth.setMonth(prevMonth.getMonth() - 1);
-      const prevFirstDay = new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 1);
-      const prevLastDay = new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 0);
-
-      const { data: prevTransactions } = await supabase
-        .from('transactions')
-        .select('type, amount')
-        .eq('user_id', user.user_id)
-        .gte('date', prevFirstDay.toISOString())
-        .lte('date', prevLastDay.toISOString());
-
-      const prevExpenses = prevTransactions
-        ?.filter(t => t.type === 'expense')
-        .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount)), 0) || 0;
-
-      const variation = prevExpenses > 0 ? ((expenses - prevExpenses) / prevExpenses) * 100 : 0;
 
       // Buscar telefone
       const { data: userdata } = await supabase
@@ -158,22 +107,29 @@ serve(async (req) => {
 
       if (!userdata?.phone) continue;
 
-      // Enviar resumo
-      const monthName = lastMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-      const message = formatMonthlySummary(
-        userdata.full_name,
-        monthName,
-        transactions.length,
-        income,
-        expenses,
-        balance,
-        topCategories,
-        variation
-      );
+      const startDate = toDateOnly(firstDay);
+      const endDate = toDateOnly(lastDay);
+      const context = await buildReportIntelligenceContext({
+        supabase,
+        userId: user.user_id,
+        startDate,
+        endDate,
+        supabaseUrl: SUPABASE_URL,
+      });
+
+      if (!hasDeterministicReportFacts(context)) {
+        console.log(`[send-monthly-summary] ⏸️ Sem fatos determinísticos para ${user.user_id}`);
+        continue;
+      }
+
+      const message = renderReportSummaryMessage({
+        mode: 'monthly',
+        userName: userdata.full_name,
+        periodLabel: formatMonthLabel(firstDay),
+        context,
+      });
       
       const sent = await sendWhatsAppNotification(
-        supabase,
-        user.user_id,
         userdata.phone,
         message
       );
@@ -208,55 +164,7 @@ serve(async (req) => {
   }
 });
 
-function formatMonthlySummary(
-  fullName: string,
-  monthName: string,
-  txCount: number,
-  income: number,
-  expenses: number,
-  balance: number,
-  topCategories: [string, number][],
-  variation: number
-): string {
-  const emoji = balance >= 0 ? '💰' : '📉';
-  const varEmoji = variation < 0 ? '📈' : variation > 0 ? '📉' : '⚖️';
-  
-  let message = `📊 *RESUMO MENSAL - ${monthName.toUpperCase()}*\n\n`;
-  message += `Olá ${fullName}! 👋\n\n`;
-  message += `Fechamento do mês:\n\n`;
-  
-  message += `💵 *Receitas:* R$ ${income.toFixed(2)}\n`;
-  message += `💸 *Despesas:* R$ ${expenses.toFixed(2)}\n`;
-  message += `${emoji} *Saldo:* R$ ${balance.toFixed(2)}\n\n`;
-  
-  message += `📋 *Transações:* ${txCount}\n\n`;
-  
-  if (topCategories.length > 0) {
-    message += `📈 *Top ${topCategories.length} Categorias:*\n`;
-    topCategories.forEach(([cat, value], i) => {
-      message += `${i + 1}. ${cat}: R$ ${value.toFixed(2)}\n`;
-    });
-    message += `\n`;
-  }
-  
-  if (variation !== 0) {
-    message += `📊 *vs Mês anterior:*\n`;
-    const varText = variation < 0 ? 'menos' : 'mais';
-    message += `Você gastou ${Math.abs(variation).toFixed(1)}% ${varText} ${varEmoji}\n\n`;
-  }
-  
-  if (balance < 0) {
-    message += `⚠️ _Revise seus gastos para o próximo mês._\n`;
-  } else {
-    message += `✅ _Ótimo controle financeiro!_\n`;
-  }
-  
-  return message;
-}
-
 async function sendWhatsAppNotification(
-  supabase: any,
-  userId: string,
   phone: string,
   message: string
 ): Promise<boolean> {
@@ -287,4 +195,18 @@ async function sendWhatsAppNotification(
     console.error('[sendWhatsAppNotification] ❌ Falha:', error);
     return false;
   }
+}
+
+function toDateOnly(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function formatMonthLabel(date: Date): string {
+  return new Intl.DateTimeFormat('pt-BR', {
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
 }

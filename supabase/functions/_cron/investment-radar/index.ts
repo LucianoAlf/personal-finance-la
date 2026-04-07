@@ -54,7 +54,7 @@ serve(async (req) => {
         console.log(`✅ User ${user.id}: ${opportunitiesCount} opportunities generated`);
 
         // Se gerou oportunidades, enviar notificação (WhatsApp + Email)
-        if (opportunitiesCount > 0 && data?.opportunities) {
+        if (opportunitiesCount > 0) {
           try {
             const notifResponse = await fetch(`${supabaseUrl}/functions/v1/send-opportunity-notification`, {
               method: 'POST',
@@ -64,7 +64,6 @@ serve(async (req) => {
               },
               body: JSON.stringify({ 
                 userId: user.id,
-                opportunities: data.opportunities 
               }),
             });
 

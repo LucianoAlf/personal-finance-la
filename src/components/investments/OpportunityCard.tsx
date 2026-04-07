@@ -14,9 +14,6 @@ interface OpportunityCardProps {
 }
 
 export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps) {
-  // Debug: verificar dados
-  console.log('OpportunityCard rendering:', opportunity);
-  
   const getRiskColor = (risk: string) => {
     switch (risk) {
       case 'low':
@@ -33,10 +30,14 @@ export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps
   const getTypeIcon = (type: string | undefined) => {
     if (!type) return <TrendingUp className="h-5 w-5" />;
 
-    if (type.includes('diversification') || type.includes('concentration')) {
+    if (
+      type.includes('diversification') ||
+      type.includes('concentration') ||
+      type.includes('sell_signal')
+    ) {
       return <AlertTriangle className="h-5 w-5" />;
     }
-    if (type.includes('international')) {
+    if (type.includes('international') || type.includes('sector_rotation')) {
       return <Globe className="h-5 w-5" />;
     }
     return <TrendingUp className="h-5 w-5" />;

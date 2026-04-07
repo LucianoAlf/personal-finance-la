@@ -1,8 +1,10 @@
 // SPRINT 4 DIA 1: Hook para Investment Radar
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import { normalizeInvestmentCategory, toAllocationBucket } from '@/utils/investments/contracts';
+import { shouldRefreshOpportunityFeed } from '@/utils/investments/overview';
 
 export interface MarketOpportunity {
   id: string;
@@ -19,87 +21,58 @@ export interface MarketOpportunity {
   created_at: string;
 }
 
+function inferAssetClass(opportunity: any): string {
+  if (opportunity.asset_class) {
+    return opportunity.asset_class;
+  }
+
+  const ticker = String(opportunity.ticker || '').toUpperCase();
+
+  if (ticker.includes('BTC') || ticker.includes('ETH')) return 'cripto';
+  if (ticker.includes('IVVB') || ticker.includes('SPY') || ticker.includes('QQQ')) return 'internacional';
+  if (ticker.includes('IPCA') || ticker.includes('SELIC') || ticker.includes('PRE')) return 'renda_fixa';
+  if (ticker.endsWith('11')) return 'fiis';
+
+  return toAllocationBucket(normalizeInvestmentCategory(null, 'stock'));
+}
+
+function inferRiskLevel(opportunityType: string, confidenceScore: number): string {
+  if (opportunityType === 'sell_signal') return 'high';
+  if (opportunityType === 'dividend_alert') return 'low';
+  if (confidenceScore >= 85) return 'low';
+  if (confidenceScore >= 65) return 'medium';
+  return 'high';
+}
+
+function mapOpportunity(row: any): MarketOpportunity {
+  return {
+    id: row.id,
+    user_id: row.user_id,
+    type: row.opportunity_type,
+    title: row.title,
+    description: row.description || row.ana_clara_insight || 'Sem descrição disponível',
+    confidence_score: Number(row.confidence_score || 0),
+    asset_class: inferAssetClass(row),
+    expected_return: row.expected_return ?? undefined,
+    risk_level: inferRiskLevel(row.opportunity_type, Number(row.confidence_score || 0)),
+    expires_at: row.expires_at,
+    dismissed_at: row.dismissed_at ?? undefined,
+    created_at: row.created_at,
+  };
+}
+
 export function useMarketOpportunities() {
   const { user } = useAuth();
   const [opportunities, setOpportunities] = useState<MarketOpportunity[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const refreshAttemptedRef = useRef(false);
 
-  // Fetch oportunidades ativas
-  const fetchOpportunities = useCallback(async () => {
-    if (!user) return;
+  useEffect(() => {
+    refreshAttemptedRef.current = false;
+  }, [user?.id]);
 
-    try {
-      setLoading(true);
-
-      const { data, error } = await supabase
-        .from('market_opportunities')
-        .select('*')
-        .eq('user_id', user.id)
-        .is('dismissed_at', null)
-        .gt('expires_at', new Date().toISOString())
-        .order('confidence_score', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (error) throw error;
-
-      // Se não houver oportunidades no banco, usar dados mockados
-      if (!data || data.length === 0) {
-        const mockOpportunities: MarketOpportunity[] = [
-          {
-            id: 'mock-1',
-            user_id: user.id,
-            type: 'concentration',
-            title: 'Atenção: Concentração alta em um ativo',
-            description: 'Você tem 30.0% do portfólio em um único ativo. Isso aumenta o risco. Considere diversificar mais.',
-            confidence_score: 90,
-            asset_class: 'GERAL',
-            risk_level: 'medium',
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'mock-2',
-            user_id: user.id,
-            type: 'diversification',
-            title: 'Oportunidade: Diversificação Internacional',
-            description: 'Considerar exposição internacional (ETFs, BDRs, etc.) pode reduzir risco e aumentar retornos.',
-            confidence_score: 80,
-            asset_class: 'internacional',
-            expected_return: 12.5,
-            risk_level: 'medium',
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'mock-3',
-            user_id: user.id,
-            type: 'rebalance',
-            title: 'Sugestão: Rebalanceamento de Portfólio',
-            description: 'Sua alocação atual está desbalanceada em relação às metas. Considere ajustar para melhor performance.',
-            confidence_score: 85,
-            asset_class: 'GERAL',
-            expected_return: 8.0,
-            risk_level: 'low',
-            expires_at: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date().toISOString(),
-          },
-        ];
-        setOpportunities(mockOpportunities);
-      } else {
-        setOpportunities(data);
-      }
-    } catch (error) {
-      console.error('Erro ao buscar oportunidades:', error);
-      toast.error('Erro ao carregar oportunidades');
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
-
-  // Gerar novas oportunidades via Edge Function
-  const generateOpportunities = useCallback(async () => {
+  const generateOpportunities = useCallback(async (options?: { silent?: boolean }) => {
     if (!user) return;
 
     try {
@@ -125,17 +98,79 @@ export function useMarketOpportunities() {
 
       const result = await response.json();
 
-      toast.success(`${result.opportunities?.length || 0} oportunidades encontradas!`);
+      if (!options?.silent) {
+        toast.success(`${result.opportunities?.length || 0} oportunidades encontradas!`);
+      }
 
-      // Recarregar lista
       await fetchOpportunities();
     } catch (error) {
       console.error('Erro ao gerar oportunidades:', error);
-      toast.error('Erro ao gerar oportunidades');
+      if (!options?.silent) {
+        toast.error('Erro ao gerar oportunidades');
+      }
     } finally {
       setGenerating(false);
     }
-  }, [user, fetchOpportunities]);
+  }, [user]);
+
+  // Fetch oportunidades ativas
+  const fetchOpportunities = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      setLoading(true);
+
+      const [
+        { data, error },
+        { data: latestInvestment, error: latestInvestmentError },
+      ] = await Promise.all([
+        supabase
+          .from('market_opportunities')
+          .select('*')
+          .eq('user_id', user.id)
+          .is('dismissed_at', null)
+          .gt('expires_at', new Date().toISOString())
+          .order('confidence_score', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('investments')
+          .select('updated_at')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      if (error) throw error;
+      if (latestInvestmentError) throw latestInvestmentError;
+
+      const latestOpportunityCreatedAt = (data || []).reduce<string | null>((latest, row) => {
+        if (!latest) return row.created_at;
+        return new Date(row.created_at).getTime() > new Date(latest).getTime() ? row.created_at : latest;
+      }, null);
+
+      if (
+        !refreshAttemptedRef.current &&
+        shouldRefreshOpportunityFeed({
+          latestInvestmentUpdatedAt: latestInvestment?.updated_at ?? null,
+          latestOpportunityCreatedAt,
+        })
+      ) {
+        refreshAttemptedRef.current = true;
+        await generateOpportunities({ silent: true });
+        return;
+      }
+
+      setOpportunities((data || []).map(mapOpportunity));
+    } catch (error) {
+      console.error('Erro ao buscar oportunidades:', error);
+      toast.error('Erro ao carregar oportunidades');
+    } finally {
+      setLoading(false);
+    }
+  }, [generateOpportunities, user]);
 
   // Dismiss (ignorar) oportunidade
   const dismissOpportunity = useCallback(async (opportunityId: string) => {
@@ -174,7 +209,7 @@ export function useMarketOpportunities() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          const newOpportunity = payload.new as MarketOpportunity;
+          const newOpportunity = mapOpportunity(payload.new);
 
           // Adicionar à lista se não estiver dismissed
           if (!newOpportunity.dismissed_at) {

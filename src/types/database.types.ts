@@ -451,7 +451,16 @@ export interface Investment {
   is_active: boolean;
   
   // SPRINT 1: Campos novos
-  category: 'fixed_income' | 'stock' | 'reit' | 'fund' | 'crypto' | 'international' | null;
+  category:
+    | 'fixed_income'
+    | 'stock'
+    | 'reit'
+    | 'fund'
+    | 'crypto'
+    | 'international'
+    | 'pension'
+    | 'other'
+    | null;
   subcategory: string | null;
   dividend_yield: number | null;
   maturity_date: Date | null;
@@ -468,17 +477,23 @@ export interface Investment {
 // Input para criar novo investimento
 export interface CreateInvestmentInput {
   type: Investment['type'];
+  category?: Investment['category'];
   name: string;
   ticker?: string;
   quantity: number;
   purchase_price: number;
   current_price?: number;
   purchase_date?: Date;
+  subcategory?: string;
+  dividend_yield?: number;
+  maturity_date?: Date;
+  annual_rate?: number;
   notes?: string;
 }
 
 // Input para atualizar investimento existente
 export interface UpdateInvestmentInput {
+  type?: Investment['type'];
   name?: string;
   ticker?: string;
   quantity?: number;

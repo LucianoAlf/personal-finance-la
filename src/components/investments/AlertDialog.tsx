@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, TrendingUp, TrendingDown, Percent } from 'lucide-react';
 import { useInvestments } from '@/hooks/useInvestments';
 import type { CreateAlertInput } from '@/hooks/useInvestmentAlerts';
+import { resolveInvestmentDisplayPrice } from '@/utils/investments/pricing';
 
 // Schema de validação
 const alertSchema = z.object({
@@ -128,7 +129,9 @@ export function AlertDialog({ open, onOpenChange, onSave }: AlertDialogProps) {
   const Icon = selectedTypeInfo?.icon || TrendingUp;
 
   // Calculate proximity if we have current price
-  const currentPrice = selectedInvestment?.current_price || 0;
+  const currentPrice = selectedInvestment
+    ? resolveInvestmentDisplayPrice(selectedInvestment)
+    : 0;
   const proximity =
     currentPrice > 0 && targetValue > 0
       ? ((targetValue - currentPrice) / currentPrice) * 100
@@ -172,7 +175,7 @@ export function AlertDialog({ open, onOpenChange, onSave }: AlertDialogProps) {
                   </Select>
                   {selectedInvestment && (
                     <FormDescription>
-                      Preço atual: {formatCurrency(selectedInvestment.current_price || 0)}
+                      Preço atual: {formatCurrency(currentPrice)}
                     </FormDescription>
                   )}
                   <FormMessage />

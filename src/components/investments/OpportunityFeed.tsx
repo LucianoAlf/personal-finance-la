@@ -48,7 +48,7 @@ export function OpportunityFeed() {
           <Button
             variant="outline"
             size="sm"
-            onClick={generateOpportunities}
+            onClick={() => generateOpportunities()}
             disabled={generating}
             className="gap-2"
           >
@@ -81,7 +81,7 @@ export function OpportunityFeed() {
             <p className="text-sm text-muted-foreground mb-4 max-w-sm">
               Seu portfólio está bem estruturado! Clique em "Atualizar" para gerar novas análises.
             </p>
-            <Button onClick={generateOpportunities} disabled={generating}>
+            <Button onClick={() => generateOpportunities()} disabled={generating}>
               {generating ? 'Analisando...' : 'Gerar Oportunidades'}
             </Button>
           </div>

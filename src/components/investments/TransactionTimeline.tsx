@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { InvestmentTransaction } from '@/types/database.types';
 import { formatCurrency } from '@/utils/formatters';
+import { getTransactionCalendarKey } from '@/utils/investments/transaction-date';
 
 interface TransactionTimelineProps {
   transactions: InvestmentTransaction[];
@@ -73,7 +74,7 @@ export function TransactionTimeline({
     const grouped: Record<string, InvestmentTransaction[]> = {};
 
     transactions.forEach((transaction) => {
-      const date = format(new Date(transaction.transaction_date as any), 'yyyy-MM-dd');
+      const date = getTransactionCalendarKey(transaction.transaction_date as any);
       if (!grouped[date]) {
         grouped[date] = [];
       }

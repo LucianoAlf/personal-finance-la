@@ -1,5 +1,6 @@
 // SPRINT 4 DIA 3: Portfolio Health Score Calculator
 import type { Investment } from '@/types/database.types';
+import { normalizeInvestmentCategory, toAllocationBucket } from '@/utils/investments/contracts';
 
 export interface HealthScoreBreakdown {
   total: number; // 0-100
@@ -77,7 +78,9 @@ function calculateDiversificationScore(investments: Investment[]): number {
   let score = 0;
 
   // 1.1. Número de classes de ativo (15 pontos)
-  const categories = new Set(investments.map((inv) => inv.category).filter(Boolean));
+  const categories = new Set(
+    investments.map((inv) => normalizeInvestmentCategory(inv.category, inv.type))
+  );
   const categoryScore = Math.min((categories.size / 6) * 15, 15); // 6 categorias = 100%
   score += categoryScore;
 
@@ -118,7 +121,7 @@ function calculateAllocationScore(
   // Calcular alocação atual
   const currentAllocation: Record<string, number> = {};
   investments.forEach((inv) => {
-    const category = inv.category || 'outros';
+    const category = toAllocationBucket(normalizeInvestmentCategory(inv.category, inv.type));
     const percentage = ((inv.current_value || 0) / totalValue) * 100;
     currentAllocation[category] = (currentAllocation[category] || 0) + percentage;
   });
@@ -197,9 +200,9 @@ function calculateLiquidityScore(investments: Investment[]): number {
   if (totalValue === 0) return 0;
 
   // Categorias líquidas: ações, FIIs, cripto
-  const liquidCategories = ['acoes_nacionais', 'fiis', 'cripto', 'internacional'];
+  const liquidCategories = ['stock', 'reit', 'crypto', 'international'];
   const liquidValue = investments
-    .filter((inv) => liquidCategories.includes(inv.category || ''))
+    .filter((inv) => liquidCategories.includes(normalizeInvestmentCategory(inv.category, inv.type)))
     .reduce((sum, inv) => sum + (inv.current_value || 0), 0);
 
   const liquidityPercentage = (liquidValue / totalValue) * 100;
