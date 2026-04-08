@@ -1,12 +1,12 @@
 /**
  * Component: QRCodeModal
  * Responsabilidade: Modal para conectar WhatsApp via QR Code
- * 
+ *
  * Features:
  * - QR Code para escanear
  * - Timer de expiração (2 minutos)
  * - Instruções passo a passo
- * - Refresh automático
+ * - Atualizar / gerar novo via callback do pai (estado de conexão único)
  */
 
 import { useState, useEffect } from 'react';
@@ -19,20 +19,32 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { useWhatsAppConnection } from '@/hooks/useWhatsAppConnection';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { cn } from '@/lib/utils';
 
-interface QRCodeModalProps {
+export interface QRCodeModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  qrCode: string | null;
+  qrCodeExpiry: Date | null;
+  isConnected: boolean;
+  isLoading: boolean;
+  error: string | null;
+  onRefresh: () => Promise<void>;
 }
 
-export function QRCodeModal({ open, onOpenChange }: QRCodeModalProps) {
-  const { qrCode, qrCodeExpiry, isConnected, connect, refreshQRCode } = useWhatsAppConnection();
+export function QRCodeModal({
+  open,
+  onOpenChange,
+  qrCode,
+  qrCodeExpiry,
+  isConnected,
+  isLoading,
+  error,
+  onRefresh,
+}: QRCodeModalProps) {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Calcular tempo restante
   useEffect(() => {
     if (!qrCodeExpiry) {
       setTimeLeft(null);
@@ -42,7 +54,7 @@ export function QRCodeModal({ open, onOpenChange }: QRCodeModalProps) {
     const interval = setInterval(() => {
       const now = new Date();
       const diff = qrCodeExpiry.getTime() - now.getTime();
-      
+
       if (diff <= 0) {
         setTimeLeft(0);
       } else {
@@ -53,30 +65,8 @@ export function QRCodeModal({ open, onOpenChange }: QRCodeModalProps) {
     return () => clearInterval(interval);
   }, [qrCodeExpiry]);
 
-  // Gerar QR Code ao abrir modal
-  useEffect(() => {
-    if (open && !qrCode && !isConnected) {
-      handleGenerateQRCode();
-    }
-  }, [open]);
-
-  // Fechar modal quando conectar
-  useEffect(() => {
-    if (isConnected && open) {
-      onOpenChange(false);
-    }
-  }, [isConnected]);
-
-  const handleGenerateQRCode = async () => {
-    setIsRefreshing(true);
-    await connect();
-    setIsRefreshing(false);
-  };
-
   const handleRefresh = async () => {
-    setIsRefreshing(true);
-    await refreshQRCode();
-    setIsRefreshing(false);
+    await onRefresh();
   };
 
   const formatTime = (seconds: number) => {
@@ -99,6 +89,12 @@ export function QRCodeModal({ open, onOpenChange }: QRCodeModalProps) {
         </DialogHeader>
 
         <div className="space-y-6">
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription className="text-sm">{error}</AlertDescription>
+            </Alert>
+          ) : null}
+
           {/* QR Code Display */}
           <div className="flex flex-col items-center space-y-4">
             {isConnected ? (
@@ -126,8 +122,8 @@ export function QRCodeModal({ open, onOpenChange }: QRCodeModalProps) {
                       <div className="text-center space-y-2">
                         <X className="h-12 w-12 text-destructive mx-auto" />
                         <p className="text-sm font-medium">QR Code Expirado</p>
-                        <Button size="sm" onClick={handleRefresh} disabled={isRefreshing}>
-                          <RefreshCw className={cn('h-4 w-4 mr-2', isRefreshing && 'animate-spin')} />
+                        <Button size="sm" onClick={handleRefresh} disabled={isLoading}>
+                          <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
                           Gerar Novo
                         </Button>
                       </div>
@@ -148,16 +144,16 @@ export function QRCodeModal({ open, onOpenChange }: QRCodeModalProps) {
                   variant="outline"
                   size="sm"
                   onClick={handleRefresh}
-                  disabled={isRefreshing || (timeLeft !== null && timeLeft > 0)}
+                  disabled={isLoading || (timeLeft !== null && timeLeft > 0)}
                 >
-                  <RefreshCw className={cn('h-4 w-4 mr-2', isRefreshing && 'animate-spin')} />
+                  <RefreshCw className={cn('h-4 w-4 mr-2', isLoading && 'animate-spin')} />
                   Atualizar QR Code
                 </Button>
               </>
             ) : (
               <div className="flex flex-col items-center space-y-3 p-8">
-                <Button onClick={handleGenerateQRCode} disabled={isRefreshing}>
-                  {isRefreshing ? (
+                <Button onClick={handleRefresh} disabled={isLoading}>
+                  {isLoading ? (
                     <>
                       <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                       Gerando...

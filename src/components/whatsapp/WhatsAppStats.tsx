@@ -39,7 +39,17 @@ export function WhatsAppStats() {
     {
       title: 'Total de Mensagens',
       value: stats.total_messages.toString(),
-      description: `${stats.messages_sent} enviadas, ${stats.messages_received} recebidas`,
+      description: [
+        `${stats.messages_sent} enviadas, ${stats.messages_received} recebidas`,
+        stats.last_message_at
+          ? `Última mensagem ${formatDistanceToNow(new Date(stats.last_message_at), {
+              addSuffix: true,
+              locale: ptBR,
+            })}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' · '),
       icon: MessageCircle,
       iconColor: 'text-blue-600',
       iconBg: 'bg-blue-100 dark:bg-blue-900/20',
@@ -64,7 +74,7 @@ export function WhatsAppStats() {
     },
     {
       title: 'Tempo Médio de Resposta',
-      value: stats.avg_response_time_seconds > 0
+      value: stats.avg_response_time_seconds !== null
         ? `${stats.avg_response_time_seconds.toFixed(1)}s`
         : 'N/A',
       description: 'Tempo médio de processamento',

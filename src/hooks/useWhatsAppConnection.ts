@@ -152,17 +152,14 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
       setIsLoading(true);
       setError(null);
 
-      const { error: updateError } = await supabase
-        .from('whatsapp_connections')
-        .update({
-          connected: false,
-          status: 'disconnected',
-          phone_number: null,
-          last_disconnect: new Date().toISOString(),
-        })
-        .eq('user_id', userId);
+      const { error: functionError } = await supabase.functions.invoke('disconnect-whatsapp', {
+        body: {},
+      });
 
-      if (updateError) throw updateError;
+      if (functionError) {
+        console.error('[useWhatsAppConnection] Erro na Edge Function disconnect-whatsapp:', functionError);
+        throw functionError;
+      }
 
       setQrCode(null);
       setQrCodeExpiry(null);

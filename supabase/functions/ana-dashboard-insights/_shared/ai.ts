@@ -6,6 +6,7 @@ import {
   buildOpenRouterChatBody,
   extractOpenAICompatibleText,
   extractOpenAIResponsesText,
+  usesOpenAIMaxCompletionTokens,
   usesOpenAIResponsesAPI,
 } from '../../_shared/ai-openai-compatible.ts';
 

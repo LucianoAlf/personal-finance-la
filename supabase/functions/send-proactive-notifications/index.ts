@@ -10,7 +10,9 @@
  * 5. Dividendos recebidos
  * 
  * Executado via Cron Job diariamente às 9h
- */ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+ */
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -41,7 +43,11 @@ serve(async (req)=>{
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const results = [];
     // 1. Buscar usuários com WhatsApp conectado e notificações ativas
-    const { data: users, error: usersError } = await supabase.from('whatsapp_connections').select('user_id, phone_number').eq('connected', true);
+    const { data: users, error: usersError } = await supabase
+      .from('whatsapp_connections')
+      .select('user_id, phone_number, instance_token, connected, status')
+      .eq('connected', true)
+      .eq('status', 'connected');
     if (usersError) throw usersError;
     if (!users || users.length === 0) {
       console.log('[send-proactive-notifications] ⚠️ Nenhum usuário com WhatsApp conectado');
@@ -472,9 +478,20 @@ function isTimeWithinWindow(currentTime, startTime, endTime) {
       console.error('[sendWhatsAppNotification] Usuário sem telefone configurado');
       return;
     }
-    // Enviar via UAZAPI
-    const UAZAPI_BASE_URL = Deno.env.get('UAZAPI_BASE_URL') || Deno.env.get('UAZAPI_SERVER_URL') || 'https://lamusic.uazapi.com';
-    const UAZAPI_TOKEN = connection.instance_token || Deno.env.get('UAZAPI_INSTANCE_TOKEN');
+    // Enviar via UAZAPI (base URL e token alinhados aos demais senders)
+    const UAZAPI_BASE_URL = (
+      Deno.env.get('UAZAPI_BASE_URL') ||
+      Deno.env.get('UAZAPI_SERVER_URL') ||
+      'https://api.uazapi.com'
+    ).replace(/\/$/, '');
+    const UAZAPI_TOKEN =
+      connection.instance_token ||
+      Deno.env.get('UAZAPI_INSTANCE_TOKEN') ||
+      Deno.env.get('UAZAPI_TOKEN') ||
+      Deno.env.get('UAZAPI_API_KEY');
+    if (!UAZAPI_TOKEN?.trim()) {
+      throw new Error('UAZAPI token ausente (instance_token / env)');
+    }
     const response = await fetch(`${UAZAPI_BASE_URL}/send/text`, {
       method: 'POST',
       headers: {

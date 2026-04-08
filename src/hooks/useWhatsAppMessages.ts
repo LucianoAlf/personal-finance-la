@@ -41,6 +41,65 @@ interface UseWhatsAppMessagesReturn {
 
 const PAGE_SIZE = 50;
 
+/** Rows returned by stats query (subset of whatsapp_messages). */
+export type WhatsAppStatsAggregationRow = {
+  processing_status: string;
+  intent?: string | null;
+  direction: string;
+  message_type: WhatsAppMessageType;
+  received_at: string;
+  created_at?: string;
+  metadata?: Record<string, unknown> | null;
+  response_sent_at?: string | null;
+};
+
+export function sortMessagesByReceivedAtDesc<T extends { received_at: string }>(
+  messages: T[]
+): T[] {
+  return [...messages].sort(
+    (a, b) => new Date(b.received_at).getTime() - new Date(a.received_at).getTime()
+  );
+}
+
+export function lastMessageReceivedAtFromRows(
+  rows: { received_at: string }[]
+): string | null {
+  if (!rows.length) return null;
+  return sortMessagesByReceivedAtDesc(rows)[0].received_at;
+}
+
+export function buildMostUsedQuickCommandsFromRows(
+  rows: Pick<WhatsAppStatsAggregationRow, 'intent' | 'metadata'>[]
+): Array<{ command: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const m of rows) {
+    if (m.intent !== 'quick_command') continue;
+    const raw = m.metadata?.command;
+    const cmd = typeof raw === 'string' ? raw.trim() : '';
+    if (!cmd) continue;
+    counts.set(cmd, (counts.get(cmd) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([command, count]) => ({ command, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
+export function averageInboundResponseTimeSeconds(
+  rows: Pick<WhatsAppStatsAggregationRow, 'direction' | 'received_at' | 'response_sent_at'>[]
+): number | null {
+  const deltas: number[] = [];
+  for (const m of rows) {
+    if (m.direction !== 'inbound') continue;
+    if (!m.received_at || !m.response_sent_at) continue;
+    const t0 = new Date(m.received_at).getTime();
+    const t1 = new Date(m.response_sent_at).getTime();
+    if (!Number.isFinite(t0) || !Number.isFinite(t1) || t1 < t0) continue;
+    deltas.push((t1 - t0) / 1000);
+  }
+  if (deltas.length === 0) return null;
+  return deltas.reduce((s, x) => s + x, 0) / deltas.length;
+}
+
 export function useWhatsAppMessages(
   initialFilters: MessageFilters = {}
 ): UseWhatsAppMessagesReturn {
@@ -107,9 +166,11 @@ export function useWhatsAppMessages(
       if (fetchError) throw fetchError;
 
       if (append) {
-        setMessages((prev) => [...prev, ...(data || [])]);
+        setMessages((prev) =>
+          sortMessagesByReceivedAtDesc([...prev, ...(data || [])])
+        );
       } else {
-        setMessages(data || []);
+        setMessages(sortMessagesByReceivedAtDesc(data || []));
       }
 
       setHasMore(count ? (pageNum + 1) * PAGE_SIZE < count : false);
@@ -129,81 +190,61 @@ export function useWhatsAppMessages(
       // Buscar estatísticas detalhadas das mensagens
       const { data: messagesData } = await supabase
         .from('whatsapp_messages')
-        .select('processing_status, intent, direction, message_type, created_at')
+        .select(
+          'processing_status, intent, direction, message_type, created_at, received_at, metadata, response_sent_at'
+        )
         .eq('user_id', userId);
 
-      const totalMessages = messagesData?.length || 0;
-      const totalSent = messagesData?.filter((m) => m.direction === 'outbound').length || 0;
-      const totalReceived = messagesData?.filter((m) => m.direction === 'inbound').length || 0;
-      const successCount = messagesData?.filter((m) => m.processing_status === 'completed').length || 0;
-      const failedCount = messagesData?.filter((m) => m.processing_status === 'failed').length || 0;
-      const pendingCount = messagesData?.filter((m) => m.processing_status === 'pending').length || 0;
+      const rows = (messagesData || []) as WhatsAppStatsAggregationRow[];
 
-      const intentCounts = messagesData?.reduce((acc, m) => {
-        if (m.intent) {
-          acc[m.intent] = (acc[m.intent] || 0) + 1;
-        }
-        return acc;
-      }, {} as Record<string, number>) || {};
+      const totalMessages = rows.length;
+      const totalSent = rows.filter((m) => m.direction === 'outbound').length;
+      const totalReceived = rows.filter((m) => m.direction === 'inbound').length;
+      const successCount = rows.filter((m) => m.processing_status === 'completed').length;
 
-      const mostUsedCommand = Object.entries(intentCounts)
-        .filter(([intent]) => intent === 'quick_command')
-        .sort(([, a], [, b]) => b - a)[0]?.[0] || null;
-
-      const lastMessage = messagesData?.[0];
-      const lastMessageAt = lastMessage?.created_at ? new Date(lastMessage.created_at) : null;
+      const last_message_at = lastMessageReceivedAtFromRows(rows);
+      const commandCounts = buildMostUsedQuickCommandsFromRows(rows);
+      const avg_response_time_seconds = averageInboundResponseTimeSeconds(rows);
 
       // Agrupar por tipo e intent para estatísticas
-      const messagesByType = messagesData?.reduce((acc, m) => {
-        acc[m.message_type] = (acc[m.message_type] || 0) + 1;
-        return acc;
-      }, {
-        text: 0,
-        audio: 0,
-        image: 0,
-        document: 0,
-        video: 0,
-        location: 0,
-        contact: 0,
-      } as Record<WhatsAppMessageType, number>) || {
-        text: 0,
-        audio: 0,
-        image: 0,
-        document: 0,
-        video: 0,
-        location: 0,
-        contact: 0,
-      };
+      const messagesByType = rows.reduce(
+        (acc, m) => {
+          acc[m.message_type] = (acc[m.message_type] || 0) + 1;
+          return acc;
+        },
+        {
+          text: 0,
+          audio: 0,
+          image: 0,
+          document: 0,
+          video: 0,
+          location: 0,
+          contact: 0,
+        } as Record<WhatsAppMessageType, number>
+      );
 
-      const messagesByIntent = messagesData?.reduce((acc, m) => {
-        if (m.intent) {
-          acc[m.intent] = (acc[m.intent] || 0) + 1;
-        }
-        return acc;
-      }, {
-        transaction: 0,
-        quick_command: 0,
-        conversation: 0,
-        help: 0,
-        unknown: 0,
-      } as Record<IntentType, number>) || {
-        transaction: 0,
-        quick_command: 0,
-        conversation: 0,
-        help: 0,
-        unknown: 0,
-      };
-
-      const commandCounts = Object.entries(intentCounts)
-        .filter(([intent]) => intent === 'quick_command')
-        .map(([command, count]) => ({ command, count }))
-        .sort((a, b) => b.count - a.count);
+      const messagesByIntent = rows.reduce(
+        (acc, m) => {
+          if (m.intent) {
+            acc[m.intent as IntentType] = (acc[m.intent as IntentType] || 0) + 1;
+          }
+          return acc;
+        },
+        {
+          transaction: 0,
+          quick_command: 0,
+          conversation: 0,
+          help: 0,
+          unknown: 0,
+        } as Record<IntentType, number>
+      );
 
       setStats({
         total_messages: totalMessages,
         messages_sent: totalSent,
         messages_received: totalReceived,
-        avg_response_time_seconds: 0, // TODO: calcular tempo médio de resposta
+        last_message_at,
+        avg_response_time_seconds,
         success_rate: totalMessages > 0 ? (successCount / totalMessages) * 100 : 0,
         most_used_commands: commandCounts,
         messages_by_type: messagesByType,
@@ -256,7 +297,12 @@ export function useWhatsAppMessages(
           filter: `user_id=eq.${userId}`,
         },
         (payload) => {
-          setMessages((prev) => [payload.new as WhatsAppMessage, ...prev]);
+          setMessages((prev) =>
+            sortMessagesByReceivedAtDesc([
+              payload.new as WhatsAppMessage,
+              ...prev,
+            ])
+          );
           fetchStats();
         }
       )
@@ -270,10 +316,12 @@ export function useWhatsAppMessages(
         },
         (payload) => {
           setMessages((prev) =>
-            prev.map((msg) =>
-              msg.id === (payload.new as WhatsAppMessage).id
-                ? (payload.new as WhatsAppMessage)
-                : msg
+            sortMessagesByReceivedAtDesc(
+              prev.map((msg) =>
+                msg.id === (payload.new as WhatsAppMessage).id
+                  ? (payload.new as WhatsAppMessage)
+                  : msg
+              )
             )
           );
           fetchStats();

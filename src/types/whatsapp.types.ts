@@ -105,39 +105,29 @@ export interface WhatsAppConversationContext {
   updated_at: string;
 }
 
+/** Canonical connection status (edge + client contract). */
+export type WhatsAppConnectionCanonicalStatus =
+  | 'disconnected'
+  | 'connecting'
+  | 'connected'
+  | 'error';
+
 export interface WhatsAppConnectionStatus {
   id: string;
   user_id: string;
-  
-  // Dados da instância UAZAPI
   instance_id: string;
   instance_token: string;
-  instance_name?: string;
-  
-  // Status da conexão
-  status: string; // 'disconnected' | 'connecting' | 'connected'
+  status: WhatsAppConnectionCanonicalStatus;
   connected: boolean;
-  connected_at?: string;
   logged_in: boolean;
-  jid?: string;
-  
-  // QR Code para conexão
-  qr_code?: string;
-  qr_code_expires_at?: string;
-  
-  // Informações do perfil
-  phone_number?: string;
-  profile_name?: string;
-  profile_pic_url?: string;
-  is_business: boolean;
-  
-  // Desconexão
-  last_disconnect?: string;
-  last_disconnect_reason?: string;
-  
-  // Timestamps
-  created_at: string;
+  phone_number?: string | null;
+  qr_code?: string | null;
+  qr_code_expires_at?: string | null;
+  last_disconnect?: string | null;
+  last_disconnect_reason?: string | null;
   updated_at: string;
+  /** Persisted row metadata; not part of CanonicalConnectionUpdate patch fields. */
+  connected_at?: string | null;
 }
 
 // =====================================================
@@ -288,7 +278,9 @@ export interface WhatsAppStats {
   total_messages: number;
   messages_sent: number;
   messages_received: number;
-  avg_response_time_seconds: number;
+  /** ISO timestamp of the latest message by `received_at`, or null */
+  last_message_at: string | null;
+  avg_response_time_seconds: number | null;
   success_rate: number;
   most_used_commands: Array<{
     command: string;

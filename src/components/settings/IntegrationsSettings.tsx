@@ -1,7 +1,7 @@
 // src/components/settings/IntegrationsSettings.tsx
 // Tab de integrações externas (WhatsApp, Google Calendar, Tick Tick)
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,13 +19,24 @@ import { QRCodeModal } from '@/components/whatsapp/QRCodeModal';
 import { MessageHistory } from '@/components/whatsapp/MessageHistory';
 import { WhatsAppStats } from '@/components/whatsapp/WhatsAppStats';
 import { WhatsAppOnboarding } from '@/components/whatsapp/WhatsAppOnboarding';
+import { WhatsAppCommands } from '@/components/whatsapp/WhatsAppCommands';
 
 const COMING_SOON_COPY =
   'Esta integração ainda não está conectada ao backend real nesta versão. Quando estiver pronta, o status e as ações daqui passarão a refletir a conexão real.';
 
 export function IntegrationsSettings() {
   // WhatsApp hooks
-  const { connection, isConnected, qrCode, connect, disconnect } = useWhatsAppConnection();
+  const {
+    connection,
+    isConnected,
+    qrCode,
+    qrCodeExpiry,
+    isLoading,
+    error,
+    connect,
+    disconnect,
+    refreshQRCode,
+  } = useWhatsAppConnection();
   const { stats } = useWhatsAppMessages();
   
   // WhatsApp state
@@ -41,6 +52,12 @@ export function IntegrationsSettings() {
   const handleWhatsAppDisconnect = async () => {
     await disconnect();
   };
+
+  useEffect(() => {
+    if (isConnected && showQRModal) {
+      setShowQRModal(false);
+    }
+  }, [isConnected, showQRModal]);
 
   return (
     <div className="space-y-6">
@@ -149,39 +166,7 @@ export function IntegrationsSettings() {
               </TabsContent>
 
               <TabsContent value="commands" className="space-y-4 mt-4">
-                <div className="bg-muted/50 p-6 rounded-lg space-y-4">
-                  <h4 className="font-semibold">Comandos Disponíveis</h4>
-                  <div className="grid gap-3">
-                    {[
-                      { cmd: 'saldo', desc: 'Ver saldo total de todas as contas' },
-                      { cmd: 'resumo [dia/semana/mês]', desc: 'Resumo financeiro do período' },
-                      { cmd: 'contas', desc: 'Contas a vencer nos próximos 7 dias' },
-                      { cmd: 'meta [nome]', desc: 'Status de uma meta específica' },
-                      { cmd: 'investimentos', desc: 'Resumo do portfólio' },
-                      { cmd: 'cartões', desc: 'Faturas de cartão abertas' },
-                      { cmd: 'ajuda', desc: 'Lista todos os comandos' },
-                      { cmd: 'relatório [mês]', desc: 'Relatório completo do mês' },
-                    ].map((item) => (
-                      <div
-                        key={item.cmd}
-                        className="flex items-center justify-between p-3 bg-background rounded-lg border"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {item.cmd}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">{item.desc}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <Alert>
-                    <MessageCircleMore className="h-4 w-4" />
-                    <AlertDescription className="text-sm">
-                      Você também pode enviar lançamentos por <strong>texto</strong>, <strong>áudio</strong> ou <strong>foto de nota fiscal</strong> - processamos automaticamente!
-                    </AlertDescription>
-                  </Alert>
-                </div>
+                <WhatsAppCommands />
               </TabsContent>
             </Tabs>
           )}
@@ -189,9 +174,15 @@ export function IntegrationsSettings() {
       </Card>
 
       {/* Modals WhatsApp */}
-      <QRCodeModal 
-        open={showQRModal} 
+      <QRCodeModal
+        open={showQRModal}
         onOpenChange={setShowQRModal}
+        qrCode={qrCode}
+        qrCodeExpiry={qrCodeExpiry}
+        isConnected={isConnected}
+        isLoading={isLoading}
+        error={error}
+        onRefresh={refreshQRCode}
       />
       
       <WhatsAppOnboarding
