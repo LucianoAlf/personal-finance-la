@@ -5,6 +5,7 @@
 // ============================================
 
 import { getSupabase, getEmojiBanco } from './utils.ts';
+import { resolveCanonicalCategory } from '../_shared/canonical-categorization.ts';
 import { 
   validarValor, 
   validarDiaVencimento, 
@@ -1083,70 +1084,16 @@ export async function buscarCategoryIdPorDescricao(
   userId: string,
   descricao: string
 ): Promise<string | null> {
-  const descLower = descricao.toLowerCase();
-  
-  // Mapeamento de palavras-chave para nome de categoria
-  const mapeamento: { regex: RegExp; categoria: string }[] = [
-    // Empréstimo
-    { regex: /empr[ée]stimo|consignado/, categoria: 'Empréstimo' },
-    // Eletrodomésticos
-    { regex: /geladeira|fog[ãa]o|m[áa]quina de lavar|microondas|ar condicionado|tv|televis[ãa]o|freezer|lava.*lou[çc]a/, categoria: 'Eletrodomésticos' },
-    // Tecnologia
-    { regex: /celular|iphone|smartphone|notebook|computador|tablet|ipad|macbook|pc|monitor/, categoria: 'Tecnologia' },
-    // Financiamento
-    { regex: /financiamento|parcela do carro|ve[íi]culo|carro|moto|im[óo]vel/, categoria: 'Financiamento' },
-    // Assinaturas
-    { regex: /netflix|spotify|amazon|disney|hbo|globoplay|youtube|apple|deezer|paramount|prime|max|internet|telefone|celular|fibra|wifi|vivo|claro|tim|plano/, categoria: 'Assinaturas' },
-    // Contas de Consumo
-    { regex: /luz|energia|[áa]gua|g[áa]s|enel|cpfl|cemig|sabesp|comg[áa]s|light/, categoria: 'Contas de Consumo' },
-    // Moradia
-    { regex: /aluguel|condom[íi]nio|moradia/, categoria: 'Moradia' },
-    // Impostos
-    { regex: /ipva|iptu|imposto|taxa|licenciamento|multa/, categoria: 'Impostos' },
-    // Seguros
-    { regex: /seguro/, categoria: 'Seguros' },
-    // Saúde
-    { regex: /plano.*sa[úu]de|hospital|m[ée]dico|consulta|unimed|amil|sa[úu]de/, categoria: 'Saúde' },
-    // Educação
-    { regex: /escola|faculdade|curso|matr[íi]cula|mensalidade/, categoria: 'Educação' },
-    // Esportes
-    { regex: /academia|smartfit|smart fit|gym/, categoria: 'Esportes' },
-    // Alimentação
-    { regex: /alimenta[çc][ãa]o|mercado|supermercado|restaurante/, categoria: 'Alimentação' },
-  ];
-  
-  // Encontrar categoria correspondente
-  let categoriaNome = 'Outros';
-  for (const item of mapeamento) {
-    if (item.regex.test(descLower)) {
-      categoriaNome = item.categoria;
-      break;
-    }
-  }
-  
-  // Buscar ID da categoria no banco
-  const { data: categoria } = await supabase
-    .from('categories')
-    .select('id')
-    .eq('name', categoriaNome)
-    .eq('type', 'expense')
-    .single();
-  
-  if (categoria) {
-    console.log(`[CATEGORY] Descrição "${descricao}" → Categoria "${categoriaNome}" (${categoria.id})`);
-    return categoria.id;
-  }
-  
-  // Fallback: buscar "Outros"
-  const { data: outros } = await supabase
-    .from('categories')
-    .select('id')
-    .eq('name', 'Outros')
-    .eq('type', 'expense')
-    .single();
-  
-  console.log(`[CATEGORY] Descrição "${descricao}" → Fallback "Outros" (${outros?.id})`);
-  return outros?.id || null;
+  const resolved = await resolveCanonicalCategory(supabase, {
+    userId,
+    transactionType: 'expense',
+    textSources: [descricao],
+    context: 'payable_bill',
+  });
+  console.log(
+    `[CATEGORY] Descrição "${descricao}" → "${resolved.categoryName}" (${resolved.categoryId ?? 'null'}) path=${resolved.resolutionPath}`,
+  );
+  return resolved.categoryId;
 }
 
 export interface ContaPagar {

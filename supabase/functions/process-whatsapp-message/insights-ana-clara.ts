@@ -3,6 +3,11 @@
  * Transforma a consulta de saldo em uma experiência de Personal Finance Coach
  */
 
+import {
+  buildLedgerTaxonomyBundle,
+  loadCanonicalTaxonomyContext,
+  mapTaxonomyToWhatsAppTopCategories,
+} from '../_shared/canonical-tag-context.ts';
 import { getSupabase } from './utils.ts';
 
 // ============================================
@@ -24,6 +29,16 @@ interface AnaliseMes {
   variacaoPercentual: number;
   topCategorias: { nome: string; valor: number; percentual: number }[];
   totalContasPagar: number;
+  /** Deterministic taxonomy lines from `canonical-tag-context` (categories/tags/fallback); do not paraphrase into new category names. */
+  taxonomyHints: string[];
+}
+
+interface AnaliseContaMes {
+  totalEntradas: number;
+  totalSaidas: number;
+  resultado: number;
+  topCategorias: { nome: string; valor: number; percentual: number }[];
+  taxonomyHints: string[];
 }
 
 interface MetaProgresso {
@@ -184,91 +199,52 @@ async function gerarAnaliseMes(userId: string): Promise<AnaliseMes> {
   const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
   const primeiroDiaMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1);
   const ultimoDiaMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth(), 0);
+  const startMes = primeiroDiaMes.toISOString().split('T')[0];
+  const endMes = hoje.toISOString().split('T')[0];
+  const startMesAnterior = primeiroDiaMesAnterior.toISOString().split('T')[0];
+  const endMesAnterior = ultimoDiaMesAnterior.toISOString().split('T')[0];
   
   try {
-    // Gastos do mês atual (transactions)
-    const { data: gastosMes } = await supabase
-      .from('transactions')
-      .select('amount, category:categories(name)')
-      .eq('user_id', userId)
-      .eq('type', 'expense')
-      .gte('transaction_date', primeiroDiaMes.toISOString().split('T')[0])
-      .lte('transaction_date', hoje.toISOString().split('T')[0]);
-    
-    // Gastos do mês atual (cartão de crédito)
-    const { data: gastosCartaoMes } = await supabase
-      .from('credit_card_transactions')
-      .select('amount, category:categories(name)')
-      .eq('user_id', userId)
-      .gte('transaction_date', primeiroDiaMes.toISOString().split('T')[0])
-      .lte('transaction_date', hoje.toISOString().split('T')[0]);
-    
-    // Gastos do mês anterior (transactions)
-    const { data: gastosMesAnterior } = await supabase
-      .from('transactions')
-      .select('amount')
-      .eq('user_id', userId)
-      .eq('type', 'expense')
-      .gte('transaction_date', primeiroDiaMesAnterior.toISOString().split('T')[0])
-      .lte('transaction_date', ultimoDiaMesAnterior.toISOString().split('T')[0]);
-    
-    // Gastos do mês anterior (cartão)
-    const { data: gastosCartaoMesAnterior } = await supabase
-      .from('credit_card_transactions')
-      .select('amount')
-      .eq('user_id', userId)
-      .gte('transaction_date', primeiroDiaMesAnterior.toISOString().split('T')[0])
-      .lte('transaction_date', ultimoDiaMesAnterior.toISOString().split('T')[0]);
-    
     // Contas a pagar pendentes DESTE MÊS (até o último dia do mês)
     const ultimoDiaMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0);
     const ultimoDiaMesStr = ultimoDiaMes.toISOString().split('T')[0];
     
-    const { data: contasPendentes } = await supabase
-      .from('payable_bills')
-      .select('amount')
-      .eq('user_id', userId)
-      .in('status', ['pending', 'overdue'])
-      .lte('due_date', ultimoDiaMesStr);
+    const [taxonomyMes, taxonomyMesAnterior, { data: contasPendentes }, { data: faturasPendentes }] = await Promise.all([
+      loadCanonicalTaxonomyContext({
+        supabase,
+        userId,
+        startDate: startMes,
+        endDate: endMes,
+        includeRecentCreations: false,
+      }),
+      loadCanonicalTaxonomyContext({
+        supabase,
+        userId,
+        startDate: startMesAnterior,
+        endDate: endMesAnterior,
+        includeRecentCreations: false,
+      }),
+      supabase
+        .from('payable_bills')
+        .select('amount')
+        .eq('user_id', userId)
+        .in('status', ['pending', 'overdue'])
+        .lte('due_date', ultimoDiaMesStr),
+      supabase
+        .from('credit_card_invoices')
+        .select('remaining_amount')
+        .eq('user_id', userId)
+        .in('status', ['open', 'closed', 'pending', 'overdue'])
+        .lte('due_date', ultimoDiaMesStr),
+    ]);
     
-    // Faturas pendentes DESTE MÊS
-    const { data: faturasPendentes } = await supabase
-      .from('credit_card_invoices')
-      .select('remaining_amount')
-      .eq('user_id', userId)
-      .in('status', ['open', 'closed', 'pending', 'overdue'])
-      .lte('due_date', ultimoDiaMesStr);
-    
-    // Calcular totais
-    const totalMes = (gastosMes?.reduce((acc, t) => acc + (t.amount || 0), 0) || 0) +
-                     (gastosCartaoMes?.reduce((acc, t) => acc + (t.amount || 0), 0) || 0);
-    
-    const totalMesAnterior = (gastosMesAnterior?.reduce((acc, t) => acc + (t.amount || 0), 0) || 0) +
-                             (gastosCartaoMesAnterior?.reduce((acc, t) => acc + (t.amount || 0), 0) || 0);
+    const totalMes = taxonomyMes.totalExpenseAmount;
+    const totalMesAnterior = taxonomyMesAnterior.totalExpenseAmount;
     
     const variacao = totalMesAnterior > 0 ? ((totalMes - totalMesAnterior) / totalMesAnterior) * 100 : 0;
     
-    // Top categorias (combinar transactions e cartão)
-    const categoriaMap = new Map<string, number>();
-    
-    gastosMes?.forEach(t => {
-      const cat = (t.category as any)?.name || 'Outros';
-      categoriaMap.set(cat, (categoriaMap.get(cat) || 0) + (t.amount || 0));
-    });
-    
-    gastosCartaoMes?.forEach(t => {
-      const cat = (t.category as any)?.name || 'Outros';
-      categoriaMap.set(cat, (categoriaMap.get(cat) || 0) + (t.amount || 0));
-    });
-    
-    const topCategorias = Array.from(categoriaMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([nome, valor]) => ({
-        nome,
-        valor,
-        percentual: totalMes > 0 ? Math.round((valor / totalMes) * 100) : 0
-      }));
+    const topCategorias = mapTaxonomyToWhatsAppTopCategories(taxonomyMes, 3);
+    const taxonomyHints = taxonomyMes.deterministicHints.slice(0, 6);
     
     // Total a pagar
     const totalContasPagar = (contasPendentes?.reduce((acc, c) => acc + (c.amount || 0), 0) || 0) +
@@ -279,7 +255,8 @@ async function gerarAnaliseMes(userId: string): Promise<AnaliseMes> {
       totalGastoMesAnterior: totalMesAnterior,
       variacaoPercentual: variacao,
       topCategorias,
-      totalContasPagar
+      totalContasPagar,
+      taxonomyHints,
     };
   } catch (error) {
     console.error('[INSIGHTS] Erro ao gerar análise:', error);
@@ -288,7 +265,8 @@ async function gerarAnaliseMes(userId: string): Promise<AnaliseMes> {
       totalGastoMesAnterior: 0,
       variacaoPercentual: 0,
       topCategorias: [],
-      totalContasPagar: 0
+      totalContasPagar: 0,
+      taxonomyHints: [],
     };
   }
 }
@@ -460,6 +438,14 @@ function formatarOutputCompleto(
       });
       output += '\n';
     }
+
+    if (analise.taxonomyHints?.length) {
+      output += '🏷️ *Resumo da taxonomia (app + cartão)*\n━━━━━━━━━━━━━━━━━━━━\n';
+      for (const linha of analise.taxonomyHints) {
+        output += `• ${linha}\n`;
+      }
+      output += '\n';
+    }
     
     // Projeção do mês - usar total de contas a pagar até o fim do mês
     const mesAtual = new Date().toLocaleDateString('pt-BR', { month: 'long' });
@@ -601,52 +587,36 @@ async function buscarMovimentacaoRecente(userId: string, contaId: string): Promi
   }
 }
 
-async function analisarContaMes(userId: string, contaId: string): Promise<any> {
+async function analisarContaMes(userId: string, contaId: string): Promise<AnaliseContaMes> {
   const supabase = getSupabase();
   const hoje = new Date();
-  const primeiroDiaMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  const startMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().split('T')[0];
+  const endMes = hoje.toISOString().split('T')[0];
   
   try {
     const { data: transacoes } = await supabase
       .from('transactions')
-      .select('amount, type, category:categories(name)')
+      .select(
+        'id, amount, type, transaction_date, category_id, source, description, payment_method, credit_card_id, category:categories(name)',
+      )
       .eq('user_id', userId)
       .eq('account_id', contaId)
-      .gte('transaction_date', primeiroDiaMes.toISOString().split('T')[0])
-      .lte('transaction_date', hoje.toISOString().split('T')[0]);
-    
-    let totalEntradas = 0;
-    let totalSaidas = 0;
-    const categoriaMap = new Map<string, number>();
-    
-    transacoes?.forEach((t: any) => {
-      if (t.type === 'income') {
-        totalEntradas += t.amount || 0;
-      } else {
-        totalSaidas += t.amount || 0;
-        const cat = (t.category as any)?.name || 'Outros';
-        categoriaMap.set(cat, (categoriaMap.get(cat) || 0) + (t.amount || 0));
-      }
-    });
-    
-    const topCategorias = Array.from(categoriaMap.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([nome, valor]) => ({
-        nome,
-        valor,
-        percentual: totalSaidas > 0 ? Math.round((valor / totalSaidas) * 100) : 0
-      }));
-    
+      .gte('transaction_date', startMes)
+      .lte('transaction_date', endMes);
+
+    const { taxonomy } = buildLedgerTaxonomyBundle(transacoes || [], [], startMes, endMes);
+    const topCategorias = mapTaxonomyToWhatsAppTopCategories(taxonomy, 3);
+
     return {
-      totalEntradas,
-      totalSaidas,
-      resultado: totalEntradas - totalSaidas,
-      topCategorias
+      totalEntradas: taxonomy.totalIncomeAmount,
+      totalSaidas: taxonomy.totalExpenseAmount,
+      resultado: taxonomy.totalIncomeAmount - taxonomy.totalExpenseAmount,
+      topCategorias,
+      taxonomyHints: taxonomy.deterministicHints.slice(0, 4),
     };
   } catch (error) {
     console.error('[INSIGHTS] Erro ao analisar conta mês:', error);
-    return { totalEntradas: 0, totalSaidas: 0, resultado: 0, topCategorias: [] };
+    return { totalEntradas: 0, totalSaidas: 0, resultado: 0, topCategorias: [], taxonomyHints: [] };
   }
 }
 
@@ -792,6 +762,13 @@ function formatarOutputContaEspecifica(conta: any, movimentacao: any, analise: a
       analise.topCategorias.forEach((cat: any, i: number) => {
         output += `${medalhas[i]} ${cat.nome}: ${formatarMoeda(cat.valor)} (${cat.percentual}%)\n`;
       });
+    }
+
+    if (analise.taxonomyHints?.length) {
+      output += '\n🏷️ *Resumo da taxonomia:*\n';
+      for (const linha of analise.taxonomyHints) {
+        output += `• ${linha}\n`;
+      }
     }
     
     output += '\n';

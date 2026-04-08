@@ -1,4 +1,12 @@
 // Shared AI utilities for Edge Functions
+import {
+  buildOpenAIChatBody,
+  buildOpenAIResponsesBody,
+  buildOpenRouterChatBody,
+  extractOpenAICompatibleText,
+  extractOpenAIResponsesText,
+  usesOpenAIResponsesAPI,
+} from '../../_shared/ai-openai-compatible.ts';
 
 export interface NormalizedAIConfig {
   provider: 'openai' | 'gemini' | 'claude' | 'openrouter';
@@ -36,6 +44,10 @@ export async function getDefaultAIConfig(supabase: any, userId: string): Promise
 
 export interface ChatMessage { role: 'system' | 'user' | 'assistant'; content: string; }
 
+function usesOpenAIMaxCompletionTokens(model: string): boolean {
+  return model.startsWith('gpt-5');
+}
+
 export async function callChat(config: NormalizedAIConfig, messages: ChatMessage[]): Promise<string> {
   switch (config.provider) {
     case 'openai':
@@ -52,22 +64,41 @@ export async function callChat(config: NormalizedAIConfig, messages: ChatMessage
 }
 
 async function callOpenAI(config: NormalizedAIConfig, messages: ChatMessage[]): Promise<string> {
+  if (usesOpenAIResponsesAPI(config.model)) {
+    const res = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(buildOpenAIResponsesBody({
+        model: config.model,
+        messages,
+        temperature: config.temperature,
+        maxTokens: config.maxTokens,
+      })),
+    });
+    if (!res.ok) throw new Error(`OpenAI error: ${await res.text()}`);
+    const data = await res.json();
+    return extractOpenAIResponsesText(data);
+  }
+
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
+    body: JSON.stringify(buildOpenAIChatBody({
       model: config.model,
       messages,
       temperature: config.temperature,
-      max_tokens: config.maxTokens,
-    }),
+      maxTokens: config.maxTokens,
+    })),
   });
   if (!res.ok) throw new Error(`OpenAI error: ${await res.text()}`);
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  return extractOpenAICompatibleText(data);
 }
 
 async function callOpenRouter(config: NormalizedAIConfig, messages: ChatMessage[]): Promise<string> {
@@ -77,16 +108,16 @@ async function callOpenRouter(config: NormalizedAIConfig, messages: ChatMessage[
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
+    body: JSON.stringify(buildOpenRouterChatBody({
       model: config.model,
       messages,
       temperature: config.temperature,
-      max_tokens: config.maxTokens,
-    }),
+      maxTokens: config.maxTokens,
+    })),
   });
   if (!res.ok) throw new Error(`OpenRouter error: ${await res.text()}`);
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  return extractOpenAICompatibleText(data);
 }
 
 async function callGemini(config: NormalizedAIConfig, messages: ChatMessage[]): Promise<string> {
@@ -142,6 +173,9 @@ export async function callVision(config: NormalizedAIConfig, imageDataUrl: strin
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
     };
+    const tokenField = config.provider === 'openai' && usesOpenAIMaxCompletionTokens(config.model)
+      ? { max_completion_tokens: Math.max(500, config.maxTokens || 1000) }
+      : { max_tokens: Math.max(500, config.maxTokens || 1000) };
     const body = {
       model: config.model,
       messages: [
@@ -152,12 +186,47 @@ export async function callVision(config: NormalizedAIConfig, imageDataUrl: strin
         ] }
       ],
       temperature: Math.max(0.1, config.temperature || 0.2),
-      max_tokens: Math.max(500, config.maxTokens || 1000),
+      ...tokenField,
     } as any;
     const res = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
     if (!res.ok) throw new Error(`${config.provider} vision error: ${await res.text()}`);
     const data = await res.json();
     return data.choices?.[0]?.message?.content || '';
+  }
+  if (config.provider === 'claude') {
+    const [meta, base64Payload = ''] = imageDataUrl.split(',');
+    const mimeType = meta.match(/^data:(.*?);base64$/)?.[1] || 'image/jpeg';
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': `${config.apiKey}`,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: config.model,
+        system: systemPrompt,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'text', text: userText },
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: mimeType,
+                data: base64Payload,
+              },
+            },
+          ],
+        }],
+        temperature: Math.max(0.1, config.temperature || 0.2),
+        max_tokens: Math.max(500, config.maxTokens || 1000),
+      }),
+    });
+    if (!res.ok) throw new Error(`Claude vision error: ${await res.text()}`);
+    const data = await res.json();
+    return data?.content?.[0]?.text || '';
   }
   if (config.provider === 'gemini') {
     const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`, {

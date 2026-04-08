@@ -1,5 +1,14 @@
 // Shared AI utilities for Edge Functions
 
+import {
+  buildOpenAIChatBody,
+  buildOpenAIResponsesBody,
+  buildOpenRouterChatBody,
+  extractOpenAICompatibleText,
+  extractOpenAIResponsesText,
+  usesOpenAIResponsesAPI,
+} from '../../_shared/ai-openai-compatible.ts';
+
 export interface NormalizedAIConfig {
   provider: 'openai' | 'gemini' | 'claude' | 'openrouter';
   model: string;
@@ -52,22 +61,41 @@ export async function callChat(config: NormalizedAIConfig, messages: ChatMessage
 }
 
 async function callOpenAI(config: NormalizedAIConfig, messages: ChatMessage[]): Promise<string> {
+  if (usesOpenAIResponsesAPI(config.model)) {
+    const res = await fetch('https://api.openai.com/v1/responses', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${config.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(buildOpenAIResponsesBody({
+        model: config.model,
+        messages,
+        temperature: config.temperature,
+        maxTokens: config.maxTokens,
+      })),
+    });
+    if (!res.ok) throw new Error(`OpenAI error: ${await res.text()}`);
+    const data = await res.json();
+    return extractOpenAIResponsesText(data);
+  }
+
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
+    body: JSON.stringify(buildOpenAIChatBody({
       model: config.model,
       messages,
       temperature: config.temperature,
-      max_tokens: config.maxTokens,
-    }),
+      maxTokens: config.maxTokens,
+    })),
   });
   if (!res.ok) throw new Error(`OpenAI error: ${await res.text()}`);
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  return extractOpenAICompatibleText(data);
 }
 
 async function callOpenRouter(config: NormalizedAIConfig, messages: ChatMessage[]): Promise<string> {
@@ -77,16 +105,16 @@ async function callOpenRouter(config: NormalizedAIConfig, messages: ChatMessage[
       'Authorization': `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
+    body: JSON.stringify(buildOpenRouterChatBody({
       model: config.model,
       messages,
       temperature: config.temperature,
-      max_tokens: config.maxTokens,
-    }),
+      maxTokens: config.maxTokens,
+    })),
   });
   if (!res.ok) throw new Error(`OpenRouter error: ${await res.text()}`);
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  return extractOpenAICompatibleText(data);
 }
 
 async function callGemini(config: NormalizedAIConfig, messages: ChatMessage[]): Promise<string> {

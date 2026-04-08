@@ -3,6 +3,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { getDefaultAIConfig, callChat } from './_shared/ai.ts';
 import { buildInvestmentIntelligenceContext } from '../_shared/investment-intelligence.ts';
+import { ensureStructuredOutputTokens, usesOpenAIMaxCompletionTokens } from '../_shared/ai-openai-compatible.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,6 +32,8 @@ interface GPTInsightsResponse {
   }>;
   nextSteps: string[];
 }
+
+const MIN_INVESTMENT_STRUCTURED_OUTPUT_TOKENS = 3500;
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -253,7 +256,7 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
           model: aiConfig.model,
           apiKey: aiConfig.apiKey,
           temperature: Math.min(1.5, Math.max(0, aiConfig.temperature || 0.7)),
-          maxTokens: Math.min(2500, aiConfig.maxTokens || 2000),
+          maxTokens: ensureStructuredOutputTokens(aiConfig.maxTokens, MIN_INVESTMENT_STRUCTURED_OUTPUT_TOKENS),
           systemPrompt: aiConfig.systemPrompt,
         },
         messages,
@@ -277,7 +280,9 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
             { role: 'user', content: userPrompt },
           ],
           temperature: 0.7,
-          max_tokens: 2000,
+          ...(usesOpenAIMaxCompletionTokens('gpt-5.4-mini')
+            ? { max_completion_tokens: MIN_INVESTMENT_STRUCTURED_OUTPUT_TOKENS }
+            : { max_tokens: MIN_INVESTMENT_STRUCTURED_OUTPUT_TOKENS }),
         }),
       });
       if (!response.ok) {
@@ -297,7 +302,7 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
 
     let insights: GPTInsightsResponse;
     try {
-      insights = JSON.parse(insightsText);
+      insights = parseInsightsResponse(insightsText);
     } catch (parseError) {
       console.error('[ana-insights] Erro ao parsear JSON:', parseError);
       throw new Error('Erro ao processar resposta do GPT-4');
@@ -360,11 +365,13 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
 
   } catch (error) {
     console.error('[ana-insights] Erro:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar insights';
+    const errorDetails = error instanceof Error ? error.toString() : String(error);
     
     return new Response(
       JSON.stringify({
-        error: error.message || 'Erro ao gerar insights',
-        details: error.toString(),
+        error: errorMessage,
+        details: errorDetails,
       }),
       {
         status: 500,
@@ -377,4 +384,24 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
 function stripInternalFields(insights: Record<string, unknown>) {
   const { _portfolioFingerprint, ...publicInsights } = insights || {};
   return publicInsights;
+}
+
+function parseInsightsResponse(raw: string): GPTInsightsResponse {
+  const cleaned = raw
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  const jsonText = (() => {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      return cleaned.slice(start, end + 1);
+    }
+    return cleaned;
+  })();
+
+  return JSON.parse(jsonText) as GPTInsightsResponse;
 }

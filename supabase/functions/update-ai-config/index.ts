@@ -3,6 +3,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { shouldResetAIProviderValidationState } from "../_shared/ai-config-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -86,7 +87,7 @@ serve(async (req) => {
     // Buscar configuração existente (mais recente) para preservar campos não enviados
     const { data: existing } = await supabaseClient
       .from("ai_provider_configs")
-      .select("id, is_default, is_active, api_key_encrypted, is_validated, validation_error, temperature, max_tokens, response_style, response_tone, system_prompt")
+      .select("id, is_default, is_active, api_key_encrypted, is_validated, validation_error, temperature, max_tokens, response_style, response_tone, system_prompt, model_name")
       .eq("user_id", userId)
       .eq("provider", body.provider)
       .order("updated_at", { ascending: false })
@@ -107,6 +108,17 @@ serve(async (req) => {
       is_active: body.is_active ?? existing?.is_active ?? true,
     };
 
+    const shouldResetValidation = shouldResetAIProviderValidationState(
+      {
+        apiKeyEncrypted: existing?.api_key_encrypted,
+        modelName: existing?.model_name,
+      },
+      {
+        apiKey: body.api_key,
+        modelName: body.model_name,
+      }
+    );
+
     // Se API Key foi fornecida, processar
     if (body.api_key) {
       // Extrair últimos 4 dígitos
@@ -116,12 +128,15 @@ serve(async (req) => {
       // Por enquanto, armazenar diretamente (TEMPORÁRIO)
       configData.api_key_encrypted = body.api_key;
       
-      // Verificar se a chave mudou comparando com a existente
-      // Só resetar validação se a chave realmente mudou
-      if (existing && existing.api_key_encrypted !== body.api_key) {
+      if (shouldResetValidation) {
         configData.is_validated = false;
         configData.validation_error = null;
       }
+    }
+
+    if (shouldResetValidation) {
+      configData.is_validated = false;
+      configData.validation_error = null;
     }
 
     // Persistência: update por id quando existir; insert caso contrário
@@ -139,10 +154,10 @@ serve(async (req) => {
       if (body.api_key) {
         updates.api_key_encrypted = configData.api_key_encrypted;
         updates.api_key_last_4 = configData.api_key_last_4;
-        if (configData.is_validated === false) {
-          updates.is_validated = false;
-          updates.validation_error = null;
-        }
+      }
+      if (configData.is_validated === false) {
+        updates.is_validated = false;
+        updates.validation_error = null;
       }
 
       const { data, error } = await supabaseClient
@@ -176,8 +191,9 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Error in update-ai-config:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

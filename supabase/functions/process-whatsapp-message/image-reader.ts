@@ -3,6 +3,9 @@
 // Personal Finance - Ana Clara
 // ============================================
 
+import { getSupabase } from './utils.ts';
+import { callVision, getDefaultAIConfig, type NormalizedAIConfig } from './_shared/ai.ts';
+
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const UAZAPI_BASE_URL = Deno.env.get('UAZAPI_BASE_URL');
 const UAZAPI_TOKEN = Deno.env.get('UAZAPI_TOKEN');
@@ -81,6 +84,69 @@ export interface LeituraComprovantePagamento {
   erro?: string;
 }
 
+async function resolveVisionConfig(userId?: string): Promise<NormalizedAIConfig | null> {
+  if (userId) {
+    const configured = await getDefaultAIConfig(getSupabase(), userId);
+    if (configured?.apiKey) {
+      return {
+        ...configured,
+        temperature: Math.max(0.1, Math.min(configured.temperature || 0.2, 1)),
+        maxTokens: Math.max(500, configured.maxTokens || 1000),
+      };
+    }
+  }
+
+  if (!OPENAI_API_KEY) {
+    return null;
+  }
+
+  return {
+    provider: 'openai',
+    model: 'gpt-5-mini',
+    apiKey: OPENAI_API_KEY,
+    temperature: 0.1,
+    maxTokens: 1000,
+  };
+}
+
+function parseVisionJson(content: string): Record<string, any> {
+  const jsonStr = content
+    ?.replace(/```json\n?/g, '')
+    ?.replace(/```\n?/g, '')
+    ?.trim();
+
+  return JSON.parse(jsonStr || '{}');
+}
+
+async function runVisionJson(
+  messageId: string,
+  userId: string | undefined,
+  systemPrompt: string,
+  userText: string,
+  maxTokens = 400,
+): Promise<Record<string, any>> {
+  const imagem = await baixarImagemUAZAPI(messageId);
+
+  if (!imagem || !imagem.base64) {
+    throw new Error('Não foi possível baixar a imagem');
+  }
+
+  const config = await resolveVisionConfig(userId);
+  if (!config?.apiKey) {
+    throw new Error('Nenhuma configuração de IA disponível para leitura de imagem');
+  }
+
+  const dataUrl = `data:${imagem.mimetype};base64,${imagem.base64}`;
+  const content = await callVision(
+    { ...config, maxTokens: Math.max(maxTokens, config.maxTokens || maxTokens) },
+    dataUrl,
+    systemPrompt,
+    userText,
+  );
+
+  return parseVisionJson(content);
+}
+
 // ============================================
 // BAIXAR IMAGEM VIA UAZAPI
 // ============================================
@@ -133,28 +199,12 @@ export async function baixarImagemUAZAPI(messageId: string): Promise<{ base64: s
 // DETECTAR TIPO DE IMAGEM
 // ============================================
 
-export async function detectarTipoImagem(messageId: string): Promise<DeteccaoTipoImagem> {
-  const imagem = await baixarImagemUAZAPI(messageId);
-  
-  if (!imagem || !imagem.base64) {
-    return { tipo: 'outro', confianca: 'baixa' };
-  }
-  
-  const dataUrl = `data:${imagem.mimetype};base64,${imagem.base64}`;
-  
+export async function detectarTipoImagem(messageId: string, userId?: string): Promise<DeteccaoTipoImagem> {
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "gpt-5-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Classifique o tipo de imagem financeira:
+    const parsed = await runVisionJson(
+      messageId,
+      userId,
+      `Classifique o tipo de imagem financeira:
 
 TIPOS (em ordem de prioridade):
 - "comprovante_pagamento": comprovante de app de pagamento (Shell Box, Uber, 99, estacionamento, pedágio, Sem Parar). Geralmente mostra "Pagamento aprovado" de um app.
@@ -169,27 +219,10 @@ IMPORTANTE:
 - Se mostrar Shell Box, Uber, 99, Sem Parar → comprovante_pagamento
 - Se mostrar "Pedido concluído" de delivery de comida → ifood
 - Se mostrar chave PIX ou "Pix enviado" → comprovante_pix
-
-RESPONDA APENAS em JSON válido:
-{"tipo": "comprovante_pagamento", "confianca": "alta"}`
-          },
-          {
-            role: "user",
-            content: [{
-              type: "image_url",
-              image_url: { url: dataUrl, detail: "low" }
-            }]
-          }
-        ],
-        max_tokens: 50,
-        temperature: 0.1
-      })
-    });
-    
-    const data = await response.json();
-    const resultado = data.choices?.[0]?.message?.content?.trim();
-    const jsonStr = resultado?.replace(/```json\n?/g, '')?.replace(/```\n?/g, '')?.trim();
-    const parsed = JSON.parse(jsonStr || '{}');
+{"tipo": "comprovante_pagamento", "confianca": "alta"}`,
+      'Classifique esta imagem financeira.',
+      120,
+    );
     
     console.log('[IMAGE] 🔍 Tipo detectado:', parsed.tipo, '| Confiança:', parsed.confianca);
     
@@ -208,28 +241,12 @@ RESPONDA APENAS em JSON válido:
 // LER NOTA FISCAL / CUPOM
 // ============================================
 
-export async function lerNotaFiscal(messageId: string): Promise<LeituraNotaFiscal> {
-  const imagem = await baixarImagemUAZAPI(messageId);
-  
-  if (!imagem || !imagem.base64) {
-    return { sucesso: false, erro: 'Não foi possível baixar a imagem' };
-  }
-  
-  const dataUrl = `data:${imagem.mimetype};base64,${imagem.base64}`;
-  
+export async function lerNotaFiscal(messageId: string, userId?: string): Promise<LeituraNotaFiscal> {
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "gpt-5-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um especialista em ler cupons e notas fiscais brasileiras.
+    const parsed = await runVisionJson(
+      messageId,
+      userId,
+      `Você é um especialista em ler cupons e notas fiscais brasileiras.
 Analise a imagem e extraia as informações da compra.
 
 INFORMAÇÕES A EXTRAIR:
@@ -256,25 +273,10 @@ RESPONDA APENAS em JSON válido:
 }
 
 Se NÃO conseguir ler:
-{"erro": "motivo", "confianca": null}`
-          },
-          {
-            role: "user",
-            content: [{
-              type: "image_url",
-              image_url: { url: dataUrl, detail: "high" }
-            }]
-          }
-        ],
-        max_tokens: 400,
-        temperature: 0.1
-      })
-    });
-    
-    const data = await response.json();
-    const resultado = data.choices?.[0]?.message?.content?.trim();
-    const jsonStr = resultado?.replace(/```json\n?/g, '')?.replace(/```\n?/g, '')?.trim();
-    const parsed = JSON.parse(jsonStr || '{}');
+{"erro": "motivo", "confianca": null}`,
+      'Extraia os dados desta nota fiscal.',
+      600,
+    );
     
     console.log('[IMAGE] 📄 Nota fiscal lida:', JSON.stringify(parsed));
     
@@ -308,28 +310,12 @@ Se NÃO conseguir ler:
 // LER COMPROVANTE PIX
 // ============================================
 
-export async function lerComprovantePix(messageId: string): Promise<LeituraComprovantePix> {
-  const imagem = await baixarImagemUAZAPI(messageId);
-  
-  if (!imagem || !imagem.base64) {
-    return { sucesso: false, erro: 'Não foi possível baixar a imagem' };
-  }
-  
-  const dataUrl = `data:${imagem.mimetype};base64,${imagem.base64}`;
-  
+export async function lerComprovantePix(messageId: string, userId?: string): Promise<LeituraComprovantePix> {
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "gpt-5-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um especialista em ler comprovantes de transferência PIX.
+    const parsed = await runVisionJson(
+      messageId,
+      userId,
+      `Você é um especialista em ler comprovantes de transferência PIX.
 Analise a imagem e extraia as informações.
 
 INFORMAÇÕES A EXTRAIR:
@@ -351,25 +337,10 @@ RESPONDA APENAS em JSON válido:
 }
 
 Se NÃO conseguir ler:
-{"erro": "motivo", "confianca": null}`
-          },
-          {
-            role: "user",
-            content: [{
-              type: "image_url",
-              image_url: { url: dataUrl, detail: "high" }
-            }]
-          }
-        ],
-        max_tokens: 300,
-        temperature: 0.1
-      })
-    });
-    
-    const data = await response.json();
-    const resultado = data.choices?.[0]?.message?.content?.trim();
-    const jsonStr = resultado?.replace(/```json\n?/g, '')?.replace(/```\n?/g, '')?.trim();
-    const parsed = JSON.parse(jsonStr || '{}');
+{"erro": "motivo", "confianca": null}`,
+      'Extraia os dados deste comprovante PIX.',
+      500,
+    );
     
     console.log('[IMAGE] 💸 Comprovante PIX lido:', JSON.stringify(parsed));
     
@@ -404,28 +375,12 @@ Se NÃO conseguir ler:
 // LER PEDIDO IFOOD/DELIVERY
 // ============================================
 
-export async function lerPedidoIFood(messageId: string): Promise<LeituraIFood> {
-  const imagem = await baixarImagemUAZAPI(messageId);
-  
-  if (!imagem || !imagem.base64) {
-    return { sucesso: false, erro: 'Não foi possível baixar a imagem' };
-  }
-  
-  const dataUrl = `data:${imagem.mimetype};base64,${imagem.base64}`;
-  
+export async function lerPedidoIFood(messageId: string, userId?: string): Promise<LeituraIFood> {
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "gpt-5-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um especialista em ler prints de pedidos do iFood, Rappi, 99Food.
+    const parsed = await runVisionJson(
+      messageId,
+      userId,
+      `Você é um especialista em ler prints de pedidos do iFood, Rappi, 99Food.
 Analise a imagem e extraia as informações do pedido.
 
 INFORMAÇÕES A EXTRAIR:
@@ -446,25 +401,10 @@ RESPONDA APENAS em JSON válido:
 }
 
 Se NÃO conseguir ler:
-{"erro": "motivo", "confianca": null}`
-          },
-          {
-            role: "user",
-            content: [{
-              type: "image_url",
-              image_url: { url: dataUrl, detail: "high" }
-            }]
-          }
-        ],
-        max_tokens: 400,
-        temperature: 0.1
-      })
-    });
-    
-    const data = await response.json();
-    const resultado = data.choices?.[0]?.message?.content?.trim();
-    const jsonStr = resultado?.replace(/```json\n?/g, '')?.replace(/```\n?/g, '')?.trim();
-    const parsed = JSON.parse(jsonStr || '{}');
+{"erro": "motivo", "confianca": null}`,
+      'Extraia os dados deste pedido de delivery.',
+      600,
+    );
     
     console.log('[IMAGE] 🍔 Pedido iFood lido:', JSON.stringify(parsed));
     
@@ -498,28 +438,12 @@ Se NÃO conseguir ler:
 // LER COMPROVANTE DE PAGAMENTO (Shell Box, Uber, 99, etc.)
 // ============================================
 
-export async function lerComprovantePagamento(messageId: string): Promise<LeituraComprovantePagamento> {
-  const imagem = await baixarImagemUAZAPI(messageId);
-  
-  if (!imagem || !imagem.base64) {
-    return { sucesso: false, erro: 'Não foi possível baixar a imagem' };
-  }
-  
-  const dataUrl = `data:${imagem.mimetype};base64,${imagem.base64}`;
-  
+export async function lerComprovantePagamento(messageId: string, userId?: string): Promise<LeituraComprovantePagamento> {
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: "gpt-5-mini",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um especialista em ler comprovantes de pagamento de apps brasileiros.
+    const parsed = await runVisionJson(
+      messageId,
+      userId,
+      `Você é um especialista em ler comprovantes de pagamento de apps brasileiros.
 Analise a imagem e extraia as informações do pagamento.
 
 TIPOS DE SERVIÇO:
@@ -553,25 +477,10 @@ RESPONDA APENAS em JSON válido:
 }
 
 Se NÃO conseguir ler:
-{"erro": "motivo", "confianca": null}`
-          },
-          {
-            role: "user",
-            content: [{
-              type: "image_url",
-              image_url: { url: dataUrl, detail: "high" }
-            }]
-          }
-        ],
-        max_tokens: 400,
-        temperature: 0.1
-      })
-    });
-    
-    const data = await response.json();
-    const resultado = data.choices?.[0]?.message?.content?.trim();
-    const jsonStr = resultado?.replace(/```json\n?/g, '')?.replace(/```\n?/g, '')?.trim();
-    const parsed = JSON.parse(jsonStr || '{}');
+{"erro": "motivo", "confianca": null}`,
+      'Extraia os dados deste comprovante de pagamento.',
+      600,
+    );
     
     console.log('[IMAGE] ⛽ Comprovante pagamento lido:', JSON.stringify(parsed));
     

@@ -35,3 +35,9 @@ nul
 
 # Submodule órfão (evitar duplicação)
 personal-finance-la/
+
+# Playwright
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/

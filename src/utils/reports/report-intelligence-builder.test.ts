@@ -44,6 +44,10 @@ function createSupabaseStub(
         });
         return builder;
       },
+      limit(count: number) {
+        rows = rows.slice(0, count);
+        return builder;
+      },
       then(onFulfilled?: (value: { data: Array<Record<string, unknown>>; error: null }) => unknown) {
         return Promise.resolve({ data: rows, error: null }).then(onFulfilled);
       },
@@ -487,6 +491,58 @@ describe('report intelligence builder', () => {
     ]);
     expect(context.ana?.insights?.some((line) => line.includes('Essencial'))).toBe(true);
     expect(context.quality.ana.completeness).toBe('partial');
+  });
+
+  it('includes recent user categories and tags in Ana hints for reports', async () => {
+    const context = await buildReportIntelligenceContext({
+      supabase: createSupabaseStub({
+        accounts: [],
+        transactions: [
+          {
+            id: 'tx-1',
+            user_id: 'user-1',
+            type: 'expense',
+            amount: 100,
+            transaction_date: '2026-04-05',
+            category_id: 'cat-1',
+            category: { name: 'Mercado' },
+            description: 'Compra',
+            is_paid: true,
+            payment_method: 'pix',
+            credit_card_id: null,
+          },
+        ],
+        credit_card_transactions: [],
+        credit_cards: [],
+        credit_card_invoices: [],
+        financial_goals: [],
+        payable_bills: [],
+        portfolio_snapshots: [],
+        categories: [
+          {
+            id: 'cat-new',
+            user_id: 'user-1',
+            name: 'Pets',
+            created_at: '2026-04-20T10:00:00.000Z',
+          },
+        ],
+        tags: [
+          {
+            id: 'tag-new',
+            user_id: 'user-1',
+            name: 'assinatura',
+            created_at: '2026-04-21T10:00:00.000Z',
+          },
+        ],
+      }),
+      userId: 'user-1',
+      startDate: '2026-04-01',
+      endDate: '2026-04-30',
+      dataAsOfDate: '2026-04-30',
+    });
+
+    expect(context.ana?.insights?.some((line) => line.includes('Categoria criada recentemente: "Pets"'))).toBe(true);
+    expect(context.ana?.insights?.some((line) => line.includes('Tag criada recentemente: "assinatura"'))).toBe(true);
   });
 
   it('keeps credit card purchases out of bank-month cashflow and counts invoice payments instead', async () => {

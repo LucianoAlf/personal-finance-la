@@ -104,6 +104,10 @@ export function AIProviderCard({ provider, config, isDefault, onClick, onUpdateM
   const handleSetDefault = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!config?.id) return;
+    if (!isValidated) {
+      toast.error('Valide este provedor com teste real antes de defini-lo como padrão');
+      return;
+    }
     try {
       await onSetDefault(config.id);
     } catch (error) {
@@ -230,6 +234,7 @@ export function AIProviderCard({ provider, config, isDefault, onClick, onUpdateM
               variant="outline"
               size="sm"
               onClick={handleSetDefault}
+              disabled={!isValidated}
               className="flex-1"
             >
               <Star className="h-4 w-4 mr-1" />

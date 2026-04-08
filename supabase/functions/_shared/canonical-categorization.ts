@@ -136,7 +136,8 @@ export function inferCategoryNameForPayableBillDescription(descricao: string): s
 }
 
 /**
- * Keyword + special rules (TV, água por valor) aligned with former transaction-mapper heuristics.
+ * Keyword + special rules (TV, água por valor) aligned across transaction text and payable-bill paths.
+ * Small bottled-water-like purchases intentionally stay in Alimentação; utilities stay in Contas de Consumo.
  */
 export function inferCanonicalCategoryNameFromTransactionText(
   textParts: string[],
@@ -163,7 +164,8 @@ export function inferCanonicalCategoryNameFromTransactionText(
   return detectarCategoriaPorPalavraChave(textoCompleto);
 }
 
-function fallbackDisplayName(type: TransactionCategoryType): string {
+/** Canonical fallback category labels in DB (expense → Outros, income → Outras Receitas). */
+export function getFallbackCategoryDisplayName(type: TransactionCategoryType): string {
   return type === 'income' ? 'Outras Receitas' : 'Outros';
 }
 
@@ -192,7 +194,7 @@ function pickExactOrPartial(rows: CategoryRow[], canonicalName: string): Categor
 }
 
 function pickFallbackRow(rows: CategoryRow[], type: TransactionCategoryType): CategoryRow | null {
-  const primary = normalizeUserText(fallbackDisplayName(type));
+  const primary = normalizeUserText(getFallbackCategoryDisplayName(type));
   const userPri = rows.find((r) => r.user_id && normalizeUserText(r.name) === primary);
   const sysPri = rows.find((r) => !r.user_id && normalizeUserText(r.name) === primary);
   if (userPri) return userPri;
@@ -218,7 +220,7 @@ export async function resolveCanonicalCategory(
   supabase: { from: (t: string) => any },
   input: ResolveCanonicalCategoryInput,
 ): Promise<ResolveCanonicalCategoryResult> {
-  const fbName = fallbackDisplayName(input.transactionType);
+  const fbName = getFallbackCategoryDisplayName(input.transactionType);
   const empty = (): ResolveCanonicalCategoryResult => ({
     categoryId: null,
     categoryName: fbName,

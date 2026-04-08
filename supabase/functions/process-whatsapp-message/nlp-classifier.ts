@@ -14,6 +14,18 @@ import {
   buildWhatsAppSuitabilityFacts,
   formatWhatsAppSuitabilityFactsBlock,
 } from '../_shared/education-profile.ts';
+import {
+  buildIntentRequest,
+  normalizeAIConfigRow,
+  parseIntentResponse,
+  type StructuredIntentConfig,
+} from './_shared/structured-intent.ts';
+
+/**
+ * NLP classification only extracts intents and entity strings (e.g. categoria display text).
+ * Persisted `category_id` must always be resolved via `../_shared/canonical-categorization.ts`
+ * against `public.categories` (same path as Open Finance: raw event → canonical resolution → insert).
+ */
 
 // ============================================
 // BANCOS BRASILEIROS - Para distinguir conta a pagar de conta bancária
@@ -1161,31 +1173,27 @@ async function buscarContasAPagar(
 // BUSCAR CONFIGURAÇÃO DO PROVEDOR DE IA
 // ============================================
 
-interface AIProviderConfig {
-  provider: string;
-  model: string;
-  api_key: string;
-  temperature: number;
-}
+type AIProviderConfig = StructuredIntentConfig;
 
 async function buscarConfiguracaoIA(supabase: any, userId: string): Promise<AIProviderConfig | null> {
   try {
     // Buscar provedor padrão do usuário
     const { data, error } = await supabase
       .from('ai_provider_configs')
-      .select('provider, model, api_key, temperature')
+      .select('provider, model_name, api_key_encrypted, temperature, max_tokens, system_prompt, response_style, response_tone')
       .eq('user_id', userId)
       .eq('is_default', true)
       .eq('is_validated', true)
-      .single();
+      .maybeSingle();
     
     if (error || !data) {
       console.log('⚠️ Nenhum provedor configurado, usando padrão');
       return null;
     }
     
-    console.log('✅ Provedor configurado:', data.provider, data.model);
-    return data;
+    const config = normalizeAIConfigRow(data);
+    console.log('✅ Provedor configurado:', config.provider, config.model);
+    return config;
   } catch (error) {
     console.error('Erro ao buscar config IA:', error);
     return null;
@@ -1460,12 +1468,15 @@ export async function classificarIntencaoNLP(
   ]);
 
   // Usar configuração do usuário ou fallback para env
-  const apiKey = configIA?.api_key || Deno.env.get('OPENAI_API_KEY');
-  const model = configIA?.model || 'gpt-5-mini';
-  const temperature = configIA?.temperature || 0.3;
-  const provider = configIA?.provider || 'openai';
+  const aiConfig: AIProviderConfig = configIA ?? {
+    provider: 'openai',
+    model: 'gpt-5-mini',
+    apiKey: Deno.env.get('OPENAI_API_KEY') || '',
+    temperature: 0.3,
+    maxTokens: 1200,
+  };
   
-  if (!apiKey) {
+  if (!aiConfig.apiKey) {
     console.error('❌ API Key não configurada');
     return fallbackClassificacao(texto);
   }
@@ -1494,67 +1505,35 @@ export async function classificarIntencaoNLP(
   );
 
   console.log('🧠 Chamando IA para classificação NLP...');
-  console.log('🤖 Provider:', provider, '| Modelo:', model);
+  console.log('🤖 Provider:', aiConfig.provider, '| Modelo:', aiConfig.model);
   console.log('📝 Texto:', texto);
 
   try {
-    // Determinar endpoint baseado no provider
-    let endpoint = 'https://api.openai.com/v1/chat/completions';
-    let headers: Record<string, string> = {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
-    };
-    
-    if (provider === 'google' || provider === 'gemini') {
-      // Google Gemini usa endpoint diferente
-      endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-      headers = { 'Content-Type': 'application/json' };
-    } else if (provider === 'anthropic' || provider === 'claude') {
-      endpoint = 'https://api.anthropic.com/v1/messages';
-      headers = {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json'
-      };
-    } else if (provider === 'openrouter') {
-      endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      headers = {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      };
-    }
+    const request = buildIntentRequest(
+      {
+        ...aiConfig,
+        temperature: aiConfig.temperature || 0.3,
+        maxTokens: aiConfig.maxTokens || 1200,
+      },
+      systemPrompt,
+      texto,
+      INTENT_CLASSIFICATION_FUNCTION,
+    );
 
-    // Para OpenAI e compatíveis (OpenRouter)
-    const response = await fetch(endpoint, {
+    const response = await fetch(request.url, {
       method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: texto }
-        ],
-        functions: [INTENT_CLASSIFICATION_FUNCTION],
-        function_call: { name: 'classificar_comando' },
-        temperature: temperature
-      })
+      headers: request.headers,
+      body: request.body,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('❌ Erro OpenAI:', response.status, errorText);
+      console.error(`❌ Erro ${aiConfig.provider}:`, response.status, errorText);
       return fallbackClassificacao(texto);
     }
 
     const result = await response.json();
-    const functionCall = result.choices?.[0]?.message?.function_call;
-
-    if (!functionCall?.arguments) {
-      console.error('❌ Resposta sem function_call');
-      return fallbackClassificacao(texto);
-    }
-
-    const intencao: IntencaoClassificada = JSON.parse(functionCall.arguments);
+    const intencao = parseIntentResponse(aiConfig.provider, result) as unknown as IntencaoClassificada;
     intencao.comando_original = texto;
 
     // CORREÇÃO: Se pré-processamento detectou conta a pagar, forçar a intenção

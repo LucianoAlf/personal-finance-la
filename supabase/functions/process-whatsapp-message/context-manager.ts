@@ -34,13 +34,12 @@ import {
 } from './contas-pagar.ts';
 import { consultarSaldo, listarContas } from './command-handlers.ts';
 import {
-  CATEGORIA_KEYWORDS,
   BANCO_CONFIGS,
-  detectarCategoriaPorPalavraChave,
   detectarBancoPorAlias,
   detectarPagamentoPorAlias,
   CONTEXT_TIMEOUT_MINUTES as MAPPINGS_TIMEOUT
 } from '../shared/mappings.ts';
+import { resolveCanonicalCategory } from '../_shared/canonical-categorization.ts';
 
 // TTL do contexto: 60 minutos (1 hora)
 // Aumentado de 15min para evitar perda de contexto quando usuário demora a responder
@@ -775,7 +774,7 @@ export async function processarAcaoRapidaCartao(
   // ============================================
   console.log('[CARTAO-3CAMADAS] CAMADA 1: Classificando com GPT-4...');
   
-  const classificacao = await classificarIntencaoCartaoIA(texto, cartoesUsuario);
+  const classificacao = await classificarIntencaoCartaoIA(texto, cartoesUsuario, userId);
   
   if (!classificacao || !classificacao.intencao) {
     console.log('[CARTAO-3CAMADAS] Camada 1 não identificou intenção');
@@ -1183,87 +1182,18 @@ async function processarSelecaoConta(
     
     console.log('✅ Conta verificada:', contaVerificada.name);
     
-    // ============================================
-    // BUSCAR CATEGORIA INTELIGENTE
-    // ============================================
-    // ORDEM DE PRIORIDADE:
-    // 1. GPT-4 (entidades.categoria) - IA entende semântica
-    // 2. Mapeamento por palavra-chave - fallback rápido
-    // 3. "Outros" - último fallback
-    // ============================================
-    
     const tipo = intencao.intencao === 'REGISTRAR_RECEITA' ? 'income' : 'expense';
-    
-    console.log('[CONTEXTO-CATEGORIA] Tipo:', tipo);
-    console.log('[CONTEXTO-CATEGORIA] Categoria do GPT-4:', entidades.categoria);
-    
-    // PRIORIDADE 1: Usar categoria do GPT-4 (IA entende semântica)
-    let categoriaDetectada: string | null = null;
-    
-    if (entidades.categoria && entidades.categoria.trim() !== '') {
-      categoriaDetectada = entidades.categoria;
-      console.log('[CONTEXTO-CATEGORIA] ✅ Usando categoria do GPT-4:', categoriaDetectada);
-    }
-    
-    // PRIORIDADE 2: Fallback para mapeamento por palavra-chave
-    if (!categoriaDetectada) {
-      const textosParaAnalisar = [
-        intencao?.comando_original,
-        entidades.descricao
-      ].filter(Boolean).join(' ').toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-      
-      console.log('[CONTEXTO-CATEGORIA] Textos para análise por palavra-chave:', textosParaAnalisar);
-      categoriaDetectada = detectarCategoriaPorPalavraChave(textosParaAnalisar);
-      
-      if (categoriaDetectada) {
-        console.log('[CONTEXTO-CATEGORIA] ⚡ Usando mapeamento por palavra-chave:', categoriaDetectada);
-      }
-    }
-    
-    // PRIORIDADE 3: Último fallback
-    if (!categoriaDetectada) {
-      categoriaDetectada = 'Outros';
-      console.log('[CONTEXTO-CATEGORIA] ⚠️ Usando fallback "Outros"');
-    }
-    
-    console.log('[CONTEXTO-CATEGORIA] 📋 Categoria final:', categoriaDetectada);
-    
-    // Buscar categoria no banco (global ou do usuário)
-    const { data: categorias } = await supabase
-      .from('categories')
-      .select('id, name')
-      .eq('type', tipo)
-      .or(`user_id.is.null,user_id.eq.${userId}`);
-    
-    console.log('[CONTEXTO-CATEGORIA] Categorias disponíveis:', categorias?.map((c: any) => c.name).join(', '));
-    
-    // Normalizar para comparação
-    const normalizarTexto = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    
-    // Encontrar categoria pelo nome detectado
-    let categoryId: string | null = null;
-    let categoriaNome = 'Outros';
-    
-    if (categorias && categorias.length > 0) {
-      const catEncontrada = categorias.find((c: any) => 
-        normalizarTexto(c.name) === normalizarTexto(categoriaDetectada)
-      );
-      
-      if (catEncontrada) {
-        categoryId = catEncontrada.id;
-        categoriaNome = catEncontrada.name;
-        console.log('[CONTEXTO-CATEGORIA] ✅ Categoria encontrada:', catEncontrada.name, '| ID:', catEncontrada.id);
-      } else {
-        // Fallback para "Outros"
-        const outros = categorias.find((c: any) => normalizarTexto(c.name) === 'outros');
-        if (outros) {
-          categoryId = outros.id;
-          categoriaNome = outros.name;
-          console.log('[CONTEXTO-CATEGORIA] ⚠️ Usando fallback "Outros"');
-        }
-      }
-    }
+    const textosCtx = [intencao?.comando_original, entidades.descricao].filter((t): t is string => !!t);
+    const resolvedCtx = await resolveCanonicalCategory(supabase, {
+      userId,
+      transactionType: tipo,
+      textSources: textosCtx,
+      amount: entidades.valor,
+      labelHint: entidades.categoria,
+    });
+    const categoryId: string | null = resolvedCtx.categoryId;
+    const categoriaNome = resolvedCtx.categoryName;
+    console.log('[CONTEXTO-CATEGORIA] Resolvido:', categoriaNome, categoryId, resolvedCtx.resolutionPath);
     const valorTransacao = entidades.valor || 0;
     const descricaoTransacao = entidades.descricao || 'Via WhatsApp';
     
@@ -1583,39 +1513,15 @@ async function processarConfirmacaoImagem(
     
     // Tem só uma conta, registrar direto
     const tipo = dadosImagem.tipo_transacao || 'expense';
-    
-    // Buscar categoria
-    const categoriaDetectada = dadosImagem.categoria || 'Outros';
     const tipoCategoria = tipo === 'income' ? 'income' : 'expense';
-    
-    // Buscar categoria no banco (global ou do usuário)
-    const { data: categorias } = await supabase
-      .from('categories')
-      .select('id, name')
-      .eq('type', tipoCategoria)
-      .or(`user_id.is.null,user_id.eq.${userId}`);
-    
-    // Normalizar para comparação
-    const normalizarTexto = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    
-    // Encontrar categoria pelo nome detectado
-    let categoryId: string | null = null;
-    
-    if (categorias && categorias.length > 0) {
-      const catEncontrada = categorias.find((c: any) => 
-        normalizarTexto(c.name) === normalizarTexto(categoriaDetectada)
-      );
-      
-      if (catEncontrada) {
-        categoryId = catEncontrada.id;
-      } else {
-        // Fallback para "Outros"
-        const outros = categorias.find((c: any) => normalizarTexto(c.name) === 'outros');
-        if (outros) {
-          categoryId = outros.id;
-        }
-      }
-    }
+    const resolvedImg = await resolveCanonicalCategory(supabase, {
+      userId,
+      transactionType: tipoCategoria,
+      textSources: [dadosImagem.descricao, dadosImagem.categoria].filter(Boolean) as string[],
+      labelHint: dadosImagem.categoria,
+      amount: dadosImagem.valor,
+    });
+    const categoryId: string | null = resolvedImg.categoryId;
     
     const payload = {
       user_id: userId,
@@ -1646,7 +1552,7 @@ async function processarConfirmacaoImagem(
     return `✅ *Registrado com sucesso!*\n\n` +
            `${emoji} R$ ${dadosImagem.valor.toFixed(2).replace('.', ',')}\n` +
            `📝 ${dadosImagem.descricao}\n` +
-           `📂 ${dadosImagem.categoria}\n` +
+           `📂 ${resolvedImg.categoryName}\n` +
            `🏦 ${contas[0].name}`;
   }
   
@@ -1724,38 +1630,16 @@ async function processarSelecaoContaImagem(
   // Registrar transação
   const tipo = dadosImagem.tipo_transacao || 'expense';
   const tipoCategoria = tipo === 'income' ? 'income' : 'expense';
-  
-  // Buscar categoria no banco
-  const { data: categorias } = await supabase
-    .from('categories')
-    .select('id, name')
-    .eq('type', tipoCategoria)
-    .or(`user_id.is.null,user_id.eq.${userId}`);
-  
-  const normalizarTexto = (t: string) => t.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  
-  let categoryId: string | null = null;
-  
-  if (categorias && categorias.length > 0) {
-    // Buscar categoria pelo nome
-    const catEncontrada = categorias.find((c: any) => 
-      normalizarTexto(c.name) === normalizarTexto(dadosImagem.categoria)
-    );
-    
-    if (catEncontrada) {
-      categoryId = catEncontrada.id;
-    } else {
-      // Fallback para "Outros" ou "Alimentação"
-      const fallback = categorias.find((c: any) => 
-        normalizarTexto(c.name) === 'alimentacao' || normalizarTexto(c.name) === 'outros'
-      );
-      if (fallback) {
-        categoryId = fallback.id;
-      }
-    }
-  }
-  
-  console.log('[IMAGE] Categoria detectada:', dadosImagem.categoria, '| ID:', categoryId);
+  const resolvedImg2 = await resolveCanonicalCategory(supabase, {
+    userId,
+    transactionType: tipoCategoria,
+    textSources: [dadosImagem.descricao, dadosImagem.categoria].filter(Boolean) as string[],
+    labelHint: dadosImagem.categoria,
+    amount: dadosImagem.valor,
+  });
+  let categoryId: string | null = resolvedImg2.categoryId;
+
+  console.log('[IMAGE] Categoria:', resolvedImg2.categoryName, '| ID:', categoryId);
   
   const payload = {
     user_id: userId,
@@ -1791,12 +1675,7 @@ async function processarSelecaoContaImagem(
   
   const saldoAtual = contaAtualizada?.current_balance || 0;
   
-  // Buscar nome da categoria
-  let nomeCategoria = dadosImagem.categoria;
-  if (categoryId && categorias) {
-    const cat = categorias.find((c: any) => c.id === categoryId);
-    if (cat) nomeCategoria = cat.name;
-  }
+  const nomeCategoria = resolvedImg2.categoryName;
   
   // Usa getEmojiBanco de utils.ts
   const emojiBanco = getEmojiBanco(contaSelecionada.name);

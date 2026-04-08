@@ -377,7 +377,7 @@ serve(async (req: Request) => {
       }
       
       // 2. Detectar tipo de imagem
-      const tipoImagem = await imageReader.detectarTipoImagem(imageMessageId);
+      const tipoImagem = await imageReader.detectarTipoImagem(imageMessageId, user.id);
       console.log('📷 [IMAGE] Tipo detectado:', tipoImagem.tipo, '| Confiança:', tipoImagem.confianca);
       
       // Helper: montar lista de contas (usa getEmojiBanco de utils.ts)
@@ -403,7 +403,7 @@ serve(async (req: Request) => {
       
       // 3. Processar baseado no tipo
       if (tipoImagem.tipo === 'nota_fiscal') {
-        const leitura = await imageReader.lerNotaFiscal(imageMessageId);
+        const leitura = await imageReader.lerNotaFiscal(imageMessageId, user.id);
         
         if (leitura.sucesso && leitura.dados) {
           const dados = leitura.dados;
@@ -451,7 +451,7 @@ serve(async (req: Request) => {
       }
       
       if (tipoImagem.tipo === 'ifood') {
-        const leitura = await imageReader.lerPedidoIFood(imageMessageId);
+        const leitura = await imageReader.lerPedidoIFood(imageMessageId, user.id);
         
         if (leitura.sucesso && leitura.dados) {
           const dados = leitura.dados;
@@ -490,7 +490,7 @@ serve(async (req: Request) => {
       }
       
       if (tipoImagem.tipo === 'comprovante_pagamento') {
-        const leitura = await imageReader.lerComprovantePagamento(imageMessageId);
+        const leitura = await imageReader.lerComprovantePagamento(imageMessageId, user.id);
         
         if (leitura.sucesso && leitura.dados) {
           const dados = leitura.dados;
@@ -552,7 +552,7 @@ serve(async (req: Request) => {
       }
       
       if (tipoImagem.tipo === 'comprovante_pix') {
-        const leitura = await imageReader.lerComprovantePix(imageMessageId);
+        const leitura = await imageReader.lerComprovantePix(imageMessageId, user.id);
         
         if (leitura.sucesso && leitura.dados) {
           const dados = leitura.dados;

@@ -154,10 +154,6 @@ export const Login = () => {
           </Button>
         </div>
 
-        <p className="text-center text-sm text-gray-600 mt-6">
-          Usuário de teste: <span className="font-semibold">lucianoalf.la@gmail.com</span><br />
-          Senha: <span className="font-semibold">250178Alf#</span>
-        </p>
       </div>
     </div>
   );

@@ -6,6 +6,8 @@
 
 import { getSupabase, getEmojiBanco } from './utils.ts';
 import { detectarCategoriaAutomatica } from './transaction-mapper.ts';
+import { getDefaultAIConfig } from './_shared/ai.ts';
+import { buildIntentRequest, parseIntentResponse } from './_shared/structured-intent.ts';
 
 // ============================================
 // TIPOS
@@ -127,6 +129,17 @@ export interface ClassificacaoCartaoIA {
   periodo?: 'semana' | 'hoje' | 'mes' | null;  // Período de filtro
   termo?: string;            // Para consulta de gasto específico (categoria/estabelecimento)
   confianca: number;         // 0-1
+}
+
+interface ClassificacaoCartaoIAResponse {
+  intencao?: string | null;
+  cartao?: string | null;
+  valor?: number | null;
+  parcelas?: number | null;
+  mes?: number | null;
+  periodo?: 'semana' | 'hoje' | 'mes' | null;
+  termo?: string | null;
+  confianca?: number | null;
 }
 
 // ============================================
@@ -322,34 +335,38 @@ export function buscarCategoriaFuzzy(termo: string): string {
 // ============================================
 export async function classificarIntencaoCartaoIA(
   mensagem: string,
-  cartoesUsuario: { id: string; name: string }[]
+  cartoesUsuario: { id: string; name: string }[],
+  userId: string,
 ): Promise<ClassificacaoCartaoIA | null> {
   console.log('[CAMADA 1] Classificando com GPT-4:', mensagem);
   console.log('[CAMADA 1] Cartões disponíveis:', cartoesUsuario.map(c => c.name));
   
   try {
-    const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
-    if (!OPENAI_API_KEY) {
-      console.error('[CAMADA 1] OPENAI_API_KEY não configurada');
+    const supabase = getSupabase();
+    const configuredAI = await getDefaultAIConfig(supabase, userId);
+    const aiConfig = configuredAI ?? {
+      provider: 'openai' as const,
+      model: 'gpt-5-mini',
+      apiKey: Deno.env.get('OPENAI_API_KEY'),
+      temperature: 0.1,
+      maxTokens: 200,
+    };
+
+    if (!aiConfig.apiKey) {
+      console.error('[CAMADA 1] Nenhuma API Key configurada para classificar intenção de cartão');
       return null;
     }
     
     const listaCartoes = cartoesUsuario.map(c => c.name).join(', ') || 'Nenhum cartão cadastrado';
-    
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${OPENAI_API_KEY}`
+
+    const request = buildIntentRequest(
+      {
+        ...aiConfig,
+        apiKey: aiConfig.apiKey!,
+        temperature: Math.min(0.3, Math.max(0, aiConfig.temperature || 0.1)),
+        maxTokens: Math.min(400, aiConfig.maxTokens || 200),
       },
-      body: JSON.stringify({
-        model: 'gpt-5-mini',
-        temperature: 0.1,
-        max_tokens: 200,
-        messages: [
-          {
-            role: 'system',
-            content: `Você é um classificador de intenções para um chatbot financeiro de cartões de crédito.
+      `Você é um classificador de intenções para um chatbot financeiro de cartões de crédito.
 
 CARTÕES DO USUÁRIO: [${listaCartoes}]
 
@@ -386,7 +403,7 @@ REGRAS IMPORTANTES:
 6. Se perguntar "quanto gastei no cartão X" sem categoria, é CONSULTAR_FATURA
 7. Extraia o período se mencionado: "essa semana" = semana, "hoje" = hoje, "este mês" = mes
 
-Responda APENAS com JSON válido:
+JSON esperado:
 {
   "intencao": "NOME_DA_INTENCAO",
   "cartao": "Nome exato do cartão da lista ou null",
@@ -396,33 +413,23 @@ Responda APENAS com JSON válido:
   "periodo": "semana" | "hoje" | "mes" | null,
   "termo": "categoria ou estabelecimento" ou null,
   "confianca": 0.0 a 1.0
-}`
-          },
-          {
-            role: 'user',
-            content: mensagem
-          }
-        ]
-      })
+}`,
+      mensagem,
+    );
+
+    const response = await fetch(request.url, {
+      method: 'POST',
+      headers: request.headers,
+      body: request.body,
     });
     
     if (!response.ok) {
-      console.error('[CAMADA 1] Erro na API:', response.status);
+      console.error('[CAMADA 1] Erro na API:', response.status, await response.text());
       return null;
     }
     
     const data = await response.json();
-    const content = data.choices?.[0]?.message?.content || '';
-    console.log('[CAMADA 1] Resposta GPT-4:', content);
-    
-    // Extrair JSON da resposta
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error('[CAMADA 1] JSON não encontrado na resposta');
-      return null;
-    }
-    
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = parseIntentResponse(aiConfig.provider, data) as unknown as ClassificacaoCartaoIAResponse;
     
     // Mapear intenção para tipo interno
     const mapIntencao: Record<string, TipoIntencaoCartao> = {
@@ -437,14 +444,14 @@ Responda APENAS com JSON válido:
     };
     
     return {
-      intencao: mapIntencao[parsed.intencao] || null,
-      cartao: parsed.cartao,
-      valor: parsed.valor,
-      parcelas: parsed.parcelas,
-      mes: parsed.mes,
-      periodo: parsed.periodo,
-      termo: parsed.termo,
-      confianca: parsed.confianca || 0.5
+      intencao: mapIntencao[String(parsed.intencao ?? '')] || null,
+      cartao: parsed.cartao ?? undefined,
+      valor: parsed.valor ?? undefined,
+      parcelas: parsed.parcelas ?? undefined,
+      mes: parsed.mes ?? undefined,
+      periodo: parsed.periodo ?? undefined,
+      termo: parsed.termo ?? undefined,
+      confianca: parsed.confianca ?? 0.5,
     };
     
   } catch (error) {
@@ -473,7 +480,7 @@ export async function processarMensagemCartao3Camadas(
   console.log('[3 CAMADAS] Cartões do usuário:', cartoesUsuario.map((c: any) => c.name));
   
   // CAMADA 1: GPT-4 Inteligente
-  const classificacao = await classificarIntencaoCartaoIA(mensagem, cartoesUsuario);
+  const classificacao = await classificarIntencaoCartaoIA(mensagem, cartoesUsuario, userId);
   
   if (!classificacao || !classificacao.intencao) {
     console.log('[3 CAMADAS] Camada 1 falhou, retornando null');
@@ -2151,7 +2158,7 @@ export async function listarComprasCartao(
       parcelaAtual: primeiraParcela.installment_number || 1,
       totalParcelas: primeiraParcela.total_installments || 1,
       purchase_date: primeiraParcela.purchase_date,
-      categoria: primeiraParcela.category?.name || null
+      categoria: (primeiraParcela.category as any)?.name || null
     });
   }
   

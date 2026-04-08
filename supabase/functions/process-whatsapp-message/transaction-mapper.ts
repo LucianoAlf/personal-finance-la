@@ -190,11 +190,29 @@ export async function registrarTransacao(
     
     // Buscar categoria se não foi informada
     let categoryId = input.category_id;
+    let categoryName = input.type === 'income' ? 'Outras Receitas' : 'Outros';
     
-    // Se ainda não tem categoria, buscar "Outros"
+    if (categoryId) {
+      const { data: categoriaExistente } = await supabase
+        .from('categories')
+        .select('name')
+        .eq('id', categoryId)
+        .maybeSingle();
+      if (categoriaExistente?.name) {
+        categoryName = categoriaExistente.name;
+      }
+    }
+
+    // Se ainda não tem categoria, usar o resolvedor canônico compartilhado
     if (!categoryId) {
-      const outros = await buscarCategoriaPorNome(input.user_id, 'outros', input.type);
-      categoryId = outros?.id;
+      const resolved = await resolveCanonicalCategory(supabase, {
+        userId: input.user_id,
+        transactionType: input.type,
+        textSources: input.description ? [input.description] : [],
+        amount: input.amount,
+      });
+      categoryId = resolved.categoryId ?? undefined;
+      categoryName = resolved.categoryName;
     }
     
     // Inserir transação
@@ -242,7 +260,7 @@ export async function registrarTransacao(
       type: input.type,
       amount: input.amount,
       description: input.description || 'Via WhatsApp',
-      category: categoria?.name || 'Outros',
+      category: categoria?.name || categoryName,
       account: conta?.name || 'Conta',
       data: new Date(),
       paymentMethod: input.payment_method,
@@ -459,45 +477,42 @@ export async function buscarCategoriaPorNome(
   tipo: 'income' | 'expense'
 ): Promise<CategoriaUsuario | null> {
   const supabase = getSupabase();
-  const nomeNormalizado = nomeCategoria.toLowerCase().trim();
-  
-  // ✅ Usar função centralizada de shared/mappings.ts
-  // Detectar categoria por palavra-chave
-  let termoBusca = detectarCategoriaPorPalavraChave(nomeNormalizado) || nomeNormalizado;
-  
-  console.log('[CATEGORIA] buscarCategoriaPorNome:', nomeCategoria, '→', termoBusca, '| tipo:', tipo);
-  
-  // 1. Primeiro buscar categoria do USUÁRIO
-  const { data: catUsuario } = await supabase
+
+  const resolved = await resolveCanonicalCategory(supabase, {
+    userId,
+    transactionType: tipo,
+    textSources: [nomeCategoria],
+    labelHint: nomeCategoria,
+  });
+
+  console.log(
+    '[CATEGORIA] buscarCategoriaPorNome:',
+    nomeCategoria,
+    '→',
+    resolved.categoryName,
+    '| tipo:',
+    tipo,
+    '| path:',
+    resolved.resolutionPath,
+  );
+
+  if (!resolved.categoryId) {
+    console.log('[CATEGORIA] ❌ Não encontrada:', nomeCategoria);
+    return null;
+  }
+
+  const { data: categoria } = await supabase
     .from('categories')
     .select('id, name, icon, type')
-    .eq('user_id', userId)
-    .eq('type', tipo)
-    .ilike('name', `%${termoBusca}%`)
-    .limit(1)
+    .eq('id', resolved.categoryId)
     .maybeSingle();
-  
-  if (catUsuario) {
-    console.log('[CATEGORIA] ✅ Encontrada do usuário:', catUsuario.name);
-    return catUsuario;
+
+  if (categoria) {
+    console.log('[CATEGORIA] ✅ Encontrada:', categoria.name);
+    return categoria;
   }
-  
-  // 2. Se não encontrou, buscar categoria GLOBAL (user_id = null)
-  const { data: catGlobal } = await supabase
-    .from('categories')
-    .select('id, name, icon, type')
-    .is('user_id', null)
-    .eq('type', tipo)
-    .ilike('name', `%${termoBusca}%`)
-    .limit(1)
-    .maybeSingle();
-  
-  if (catGlobal) {
-    console.log('[CATEGORIA] ✅ Encontrada global:', catGlobal.name);
-    return catGlobal;
-  }
-  
-  console.log('[CATEGORIA] ❌ Não encontrada:', termoBusca);
+
+  console.log('[CATEGORIA] ❌ ID resolvido sem linha encontrada:', resolved.categoryId);
   return null;
 }
 
@@ -1046,47 +1061,24 @@ export async function processarTransferenciaEntreContas(
     valor, contaOrigemNome, contaDestinoNome, data
   });
   
-  // Buscar categoria "Transferências" ou "Outros"
-  // Primeiro tenta do usuário, depois global
-  let categoriaTransferenciaId: string | null = null;
-  
-  // Tentar categoria "Transferências" do usuário
-  const { data: catTransferUser } = await supabase
-    .from('categories')
-    .select('id')
-    .eq('user_id', userId)
-    .ilike('name', '%transfer%')
-    .limit(1)
-    .single();
-  
-  if (catTransferUser) {
-    categoriaTransferenciaId = catTransferUser.id;
-  } else {
-    // Tentar categoria "Outros" do usuário
-    const { data: catOutrosUser } = await supabase
-      .from('categories')
-      .select('id')
-      .eq('user_id', userId)
-      .ilike('name', '%outros%')
-      .limit(1)
-      .single();
-    
-    if (catOutrosUser) {
-      categoriaTransferenciaId = catOutrosUser.id;
-    } else {
-      // Fallback: buscar categoria global "Outros" (sem user_id)
-      const { data: catOutrosGlobal } = await supabase
-        .from('categories')
-        .select('id')
-        .ilike('name', 'Outros')
-        .limit(1)
-        .single();
-      
-      categoriaTransferenciaId = catOutrosGlobal?.id || null;
-    }
-  }
-  
-  console.log('[TRANSFER-ENTRE-CONTAS] Categoria encontrada:', categoriaTransferenciaId);
+  const resolvedTransferOut = await resolveCanonicalCategory(supabase, {
+    userId,
+    transactionType: 'expense',
+    textSources: ['transferencia entre contas', contaOrigemNome, contaDestinoNome],
+    labelHint: 'transfer',
+    amount: valor,
+  });
+
+  const resolvedTransferIn = await resolveCanonicalCategory(supabase, {
+    userId,
+    transactionType: 'income',
+    textSources: ['transferencia entre contas', contaOrigemNome, contaDestinoNome],
+    labelHint: 'transfer',
+    amount: valor,
+  });
+
+  console.log('[TRANSFER-ENTRE-CONTAS] Categoria saída:', resolvedTransferOut.categoryName, resolvedTransferOut.categoryId);
+  console.log('[TRANSFER-ENTRE-CONTAS] Categoria entrada:', resolvedTransferIn.categoryName, resolvedTransferIn.categoryId);
   
   // Buscar conta de origem
   const { data: contaOrigem } = await supabase
@@ -1142,7 +1134,7 @@ export async function processarTransferenciaEntreContas(
       payment_method: 'transfer',
       description: `Transferência para ${contaDestino.name}`,
       transaction_date: dataTransacao,
-      category_id: categoriaTransferenciaId,
+      category_id: resolvedTransferOut.categoryId,
       notes: `transfer_link:${linkId}:out`  // Vincular transações
     })
     .select('id');
@@ -1166,7 +1158,7 @@ export async function processarTransferenciaEntreContas(
       payment_method: 'transfer',
       description: `Transferência de ${contaOrigem.name}`,
       transaction_date: dataTransacao,
-      category_id: categoriaTransferenciaId,
+      category_id: resolvedTransferIn.categoryId,
       notes: `transfer_link:${linkId}:in`  // Vincular transações
     })
     .select('id');

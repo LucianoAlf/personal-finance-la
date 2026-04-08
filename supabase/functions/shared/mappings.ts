@@ -1,9 +1,11 @@
 /**
  * MAPEAMENTOS CENTRALIZADOS - Personal Finance LA
- * 
- * IMPORTANTE: Este é o ÚNICO local onde mapeamentos devem ser definidos.
- * Todos os outros arquivos DEVEM importar deste arquivo.
- * 
+ *
+ * Heurísticas (palavras-chave, slugs de LLM, labels de Open Finance) vivem aqui.
+ * O `category_id` final para persistência vem sempre de `public.categories`, resolvido por
+ * `supabase/functions/_shared/canonical-categorization.ts` — não use estes mapas como fonte
+ * de verdade para IDs.
+ *
  * Última atualização: 08/12/2025
  * Versão: 1.0.0
  */
@@ -558,7 +560,7 @@ export const LLM_TRANSACTION_CATEGORY_SLUG_TO_CANONICAL_NAME: Record<string, str
   education: 'Educação',
   entertainment: 'Lazer',
   shopping: 'Compras',
-  bills: 'Moradia',
+  bills: 'Contas de Consumo',
   salary: 'Salário',
   investment: 'Investimentos',
   other: 'Outros',
@@ -575,8 +577,12 @@ export const OPEN_FINANCE_CATEGORY_LABEL_MAP: Record<string, string> = {
   transport: 'Transporte',
   transportation: 'Transporte',
   gas_station: 'Transporte',
+  bills: 'Contas de Consumo',
   utilities: 'Contas de Consumo',
   utility: 'Contas de Consumo',
+  water: 'Contas de Consumo',
+  electricity: 'Contas de Consumo',
+  gas: 'Contas de Consumo',
   housing: 'Moradia',
   rent: 'Moradia',
   health: 'Saúde',

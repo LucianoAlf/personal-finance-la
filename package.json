@@ -9,6 +9,8 @@
     "build:prod": "pnpm install --prefer-offline && tsc -b && BUILD_MODE=prod vite build",
     "lint": "pnpm install --prefer-offline && eslint .",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "preview": "pnpm install --prefer-offline && vite preview",
     "install-deps": "pnpm install --prefer-offline",
     "clean": "rimraf node_modules .pnpm-store pnpm-lock.yaml && pnpm store prune"

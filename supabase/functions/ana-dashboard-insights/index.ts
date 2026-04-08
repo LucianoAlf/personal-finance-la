@@ -1,8 +1,10 @@
 // WIDGET ANA CLARA DASHBOARD - Edge Function
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { loadCanonicalTaxonomyContext } from '../_shared/canonical-tag-context.ts';
 import { buildDashboardEducationMentoringEntry } from '../_shared/education-renderers.ts';
 import { getDefaultAIConfig, callChat } from './_shared/ai.ts';
+import { ensureStructuredOutputTokens, usesOpenAIMaxCompletionTokens } from '../_shared/ai-openai-compatible.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-authorization, cache-control',
@@ -24,6 +26,26 @@ function parseDateOnly(value?: string | null): Date | undefined {
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function parseDashboardInsightsResponse(raw: string) {
+  const cleaned = raw
+    .trim()
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  const jsonText = (() => {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start >= 0 && end > start) {
+      return cleaned.slice(start, end + 1);
+    }
+    return cleaned;
+  })();
+
+  return JSON.parse(jsonText);
 }
 
 function getNextCycleDate(day: number, referenceDate: Date) {
@@ -477,9 +499,17 @@ serve(async (req)=>{
     // 3. TRANSAÇÕES (últimos 30 dias)
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgoDate = formatDateOnly(thirtyDaysAgo);
-    const [{ data: transactions }, { data: creditCardTransactions }] = await Promise.all([
+    const todayDateStr = formatDateOnly(now);
+    const [{ data: transactions }, { data: creditCardTransactions }, canonicalTaxonomy] = await Promise.all([
       supabase.from('transactions').select('*').eq('user_id', user.id).gte('transaction_date', thirtyDaysAgoDate),
       supabase.from('credit_card_transactions').select('amount, purchase_date, category_id').eq('user_id', user.id).gte('purchase_date', thirtyDaysAgoDate),
+      loadCanonicalTaxonomyContext({
+        supabase,
+        userId: user.id,
+        startDate: thirtyDaysAgoDate,
+        endDate: todayDateStr,
+        includeRecentCreations: true,
+      }),
     ]);
     const income = transactions?.filter((t)=>t.type === 'income').reduce((sum, t)=>sum + t.amount, 0) || 0;
     const regularExpenses = transactions?.filter((t)=>t.type === 'expense' && (t.is_paid ?? true)).reduce((sum, t)=>sum + t.amount, 0) || 0;
@@ -647,6 +677,7 @@ serve(async (req)=>{
       creditCards: creditCardsContext,
       settings: settingsContext,
       cycles: cyclesContext,
+      canonicalTaxonomy,
       currentMonth: now.toLocaleString('pt-BR', {
         month: 'long',
         year: 'numeric'
@@ -710,6 +741,10 @@ Princípios:
 3. ALERTE com empatia: "Atenção", não "ERRO" ou "PROBLEMA"
 4. SEJA ESPECÍFICA: Use nomes de ativos, valores reais, datas
 5. AÇÃO CLARA: Sempre sugira próximo passo concreto
+
+✅ TAXONOMIA (canonicalTaxonomy no JSON):
+- Use apenas nomes e números desse objeto para categorias e tags; não invente categorias.
+- uncategorizedExpenseSharePercent e fallbackExpenseSharePercent indicam pressão sobre "Sem categoria" / categoria de fallback (ex.: Outros).
 
 ✅ ANÁLISE DE CARTÕES DE CRÉDITO:
 - Alertar se utilização > 70% do limite total (risco de endividamento)
@@ -783,7 +818,7 @@ IMPORTANTE:
         model: aiConfig.model,
         apiKey: aiConfig.apiKey,
         temperature: Math.min(1.5, Math.max(0, aiConfig.temperature || 0.8)),
-        maxTokens: Math.min(2000, aiConfig.maxTokens || 1500),
+        maxTokens: ensureStructuredOutputTokens(aiConfig.maxTokens, 3500),
         systemPrompt: aiConfig.systemPrompt
       }, messages);
     } else {
@@ -812,7 +847,9 @@ IMPORTANTE:
             }
           ],
           temperature: 0.8,
-          max_tokens: 1500
+          ...(usesOpenAIMaxCompletionTokens('gpt-5.4-mini')
+            ? { max_completion_tokens: 3500 }
+            : { max_tokens: 3500 })
         })
       });
       if (!response.ok) {
@@ -829,7 +866,7 @@ IMPORTANTE:
     console.log('[ana-dashboard] Insights recebidos:', insightsText.substring(0, 300));
     let insights;
     try {
-      insights = JSON.parse(insightsText);
+      insights = parseDashboardInsightsResponse(insightsText);
     } catch (parseError) {
       console.error('[ana-dashboard] Erro ao parsear JSON:', parseError);
       throw new Error('Erro ao processar resposta do GPT-4');
@@ -1056,9 +1093,11 @@ IMPORTANTE:
     });
   } catch (error) {
     console.error('[ana-dashboard] Erro:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar insights';
+    const errorDetails = error instanceof Error ? error.toString() : String(error);
     return new Response(JSON.stringify({
-      error: error.message || 'Erro ao gerar insights',
-      details: error.toString()
+      error: errorMessage,
+      details: errorDetails
     }), {
       status: 500,
       headers: {
