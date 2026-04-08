@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 
 export function MainLayout() {
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div data-testid="app-shell" className="flex min-h-screen bg-background text-foreground">
       <Sidebar />
       <main className="flex-1 lg:ml-64">
         <Outlet />
@@ -113,7 +113,7 @@ function QuickCreateTransactionModal({
     }
     const row = await addTransaction(data);
     if (!row?.id) {
-      throw new Error('Não foi possível obter o id da transação criada');
+      throw new Error('NÃ£o foi possÃ­vel obter o id da transaÃ§Ã£o criada');
     }
     return row.id;
   };

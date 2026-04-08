@@ -99,4 +99,13 @@ describe('Header user menu', () => {
       expect(screen.getByTestId('location').textContent).toBe('/login');
     });
   });
+
+  it('keeps shell controls on premium surfaces instead of white shell backgrounds', () => {
+    renderHeader();
+
+    expect(screen.getByRole('banner').className).toContain('bg-surface');
+    expect(screen.getByRole('banner').className).not.toContain('bg-white');
+    expect(screen.getByRole('button', { name: /ativar tema escuro/i }).className).not.toContain('bg-white');
+    expect(screen.getByRole('button', { name: /abrir menu do usuario/i }).className).not.toContain('bg-white');
+  });
 });

@@ -94,40 +94,39 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
+      {sidebarOpen ? (
         <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
           onClick={toggleSidebar}
         />
-      )}
+      ) : null}
 
-      {/* Sidebar */}
       <aside
         className={cn(
-          'fixed top-0 left-0 h-screen bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 z-50 transition-all duration-300 flex flex-col',
+          'fixed left-0 top-0 z-50 flex h-screen w-64 flex-col border-r border-border bg-surface/95 text-foreground shadow-[inset_-1px_0_0_rgba(255,255,255,0.03),0_18px_50px_rgba(3,8,20,0.32)] backdrop-blur supports-[backdrop-filter]:bg-surface/92 transition-all duration-300',
           sidebarOpen ? 'translate-x-0' : '-translate-x-full',
-          'lg:translate-x-0 w-64'
+          'lg:translate-x-0',
         )}
       >
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-border px-6 py-6">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <Wallet size={20} className="text-white" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl border border-primary/20 bg-primary/12 text-primary shadow-sm">
+              <Wallet size={18} className="text-current" />
             </div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">Finance LA</h1>
+            <h1 className="text-xl font-semibold tracking-tight text-foreground">Finance LA</h1>
           </div>
-          <button onClick={toggleSidebar} className="lg:hidden">
-            <X size={24} />
+          <button
+            onClick={toggleSidebar}
+            className="rounded-xl border border-border bg-surface-elevated p-2 text-muted-foreground transition-colors hover:bg-surface-overlay hover:text-foreground lg:hidden"
+          >
+            <X size={20} />
           </button>
         </div>
 
-        {/* New Button */}
         <div className="p-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="w-full bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-md">
+              <Button className="w-full rounded-xl border border-primary/25 bg-primary text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90">
                 <Plus size={20} className="mr-2" />
                 Novo
               </Button>
@@ -153,8 +152,7 @@ export function Sidebar() {
           </DropdownMenu>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 px-3 py-2 overflow-y-auto">
+        <nav className="flex-1 overflow-y-auto px-3 py-2">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -164,15 +162,15 @@ export function Sidebar() {
                 key={item.path}
                 to={item.path}
                 className={cn(
-                  'flex items-center justify-between px-4 py-3 rounded-lg mb-1 transition-all duration-200',
+                  'mb-1 flex items-center justify-between rounded-xl px-4 py-3 transition-all duration-200',
                   isActive
-                    ? 'bg-primary-50 dark:bg-primary-900/20 text-primary dark:text-primary-400 font-semibold'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    ? 'bg-surface-elevated text-foreground shadow-sm ring-1 ring-primary/20'
+                    : 'text-muted-foreground hover:bg-surface-elevated/80 hover:text-foreground',
                 )}
               >
                 <div className="flex items-center space-x-3">
-                  <Icon size={20} />
-                  <span>{item.label}</span>
+                  <Icon size={20} className={cn(isActive ? 'text-primary' : 'text-current')} />
+                  <span className={cn(isActive ? 'font-semibold' : undefined)}>{item.label}</span>
                 </div>
                 {item.path === '/contas-pagar' && location.pathname !== '/contas-pagar' ? (
                   <PayableBillsAlertBadge />
@@ -181,33 +179,31 @@ export function Sidebar() {
             );
           })}
 
-          {/* Mais opções (dropdown) */}
           <div className="mt-2">
             <button
               onClick={() => setMoreOptionsOpen(!moreOptionsOpen)}
               className={cn(
-                'flex items-center justify-between w-full px-4 py-3 rounded-lg mb-1 transition-all duration-200',
+                'mb-1 flex w-full items-center justify-between rounded-xl px-4 py-3 transition-all duration-200',
                 moreOptionsOpen || moreOptionsItems.some(item => location.pathname === item.path)
-                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-white'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  ? 'bg-surface-elevated text-foreground shadow-sm ring-1 ring-primary/15'
+                  : 'text-muted-foreground hover:bg-surface-elevated/80 hover:text-foreground',
               )}
             >
               <div className="flex items-center space-x-3">
-                <MoreHorizontal size={20} />
+                <MoreHorizontal size={20} className="text-current" />
                 <span>Mais opções</span>
               </div>
-              <ChevronDown 
-                size={16} 
+              <ChevronDown
+                size={16}
                 className={cn(
                   'transition-transform duration-200',
-                  moreOptionsOpen && 'rotate-180'
+                  moreOptionsOpen && 'rotate-180',
                 )}
               />
             </button>
 
-            {/* Submenu */}
-            {moreOptionsOpen && (
-              <div className="ml-4 space-y-1">
+            {moreOptionsOpen ? (
+              <div className="ml-4 space-y-1 border-l border-border/70 pl-3">
                 {moreOptionsItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = location.pathname === item.path;
@@ -217,63 +213,60 @@ export function Sidebar() {
                       key={item.path}
                       to={item.path}
                       className={cn(
-                        'flex items-center space-x-3 px-4 py-2 rounded-lg transition-all duration-200',
+                        'flex items-center space-x-3 rounded-xl px-4 py-2.5 transition-all duration-200',
                         isActive
-                          ? 'bg-primary-50 dark:bg-primary-900/20 text-primary dark:text-primary-400 font-semibold'
-                          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                          ? 'bg-surface-elevated text-foreground shadow-sm ring-1 ring-primary/15'
+                          : 'text-muted-foreground hover:bg-surface-elevated/70 hover:text-foreground',
                       )}
                     >
-                      <Icon size={18} />
-                      <span className="text-sm">{item.label}</span>
+                      <Icon size={18} className={cn(isActive ? 'text-primary' : 'text-current')} />
+                      <span className={cn('text-sm', isActive ? 'font-medium' : undefined)}>{item.label}</span>
                     </Link>
                   );
                 })}
               </div>
-            )}
+            ) : null}
           </div>
         </nav>
 
-        {/* Footer com perfil */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-800 mt-auto">
-          <div className="flex items-center space-x-3 px-4 py-3">
+        <div className="mt-auto border-t border-border p-4">
+          <div className="flex items-center space-x-3 rounded-2xl border border-border/70 bg-surface-elevated/70 px-4 py-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage 
+              <AvatarImage
                 key={avatarSrc || 'no-avatar'}
-                src={avatarSrc} 
+                src={avatarSrc}
                 alt="Avatar"
               />
-              <AvatarFallback className="bg-purple-600 text-white">
+              <AvatarFallback className="border border-primary/20 bg-primary/15 text-primary">
                 {getUserInitials(resolvedDisplayName, user?.email)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+              <p className="truncate text-sm font-medium text-foreground">
                 {resolvedDisplayName}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              <p className="truncate text-xs text-muted-foreground">
                 {user?.email}
               </p>
             </div>
           </div>
-          <button className="flex items-center space-x-3 px-4 py-3 w-full text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors mt-3">
+          <button className="mt-3 flex w-full items-center space-x-3 rounded-xl px-4 py-3 text-muted-foreground transition-colors hover:bg-surface-elevated hover:text-foreground">
             <HelpCircle size={20} />
             <span>Ajuda</span>
           </button>
         </div>
       </aside>
 
-      {/* Mobile Menu Button */}
       <button
         onClick={toggleSidebar}
-        className="fixed top-4 left-4 z-30 lg:hidden bg-white p-2 rounded-lg shadow-md"
+        className="fixed left-4 top-4 z-30 rounded-xl border border-border bg-surface-elevated p-2.5 text-foreground shadow-lg lg:hidden"
       >
         <Menu size={24} />
       </button>
 
-      {/* Ana Clara Floating Button */}
       <button
         onClick={() => setAnaCoachOpen(true)}
-        className="fixed bottom-6 right-6 w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full shadow-lg flex items-center justify-center z-30 hover:scale-110 transition-transform"
+        className="fixed bottom-6 right-6 z-30 flex h-16 w-16 items-center justify-center rounded-full border border-primary/30 bg-primary text-primary-foreground shadow-2xl shadow-primary/20 transition-all hover:scale-105 hover:bg-primary/90"
       >
         <Bot size={28} className="text-white" />
       </button>

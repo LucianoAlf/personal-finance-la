@@ -54,32 +54,29 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
     : undefined;
 
   return (
-    <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-8 transition-colors">
-      <div className="flex items-center justify-between">
+    <header className="sticky top-0 z-20 border-b border-border bg-surface/95 px-6 py-6 text-foreground shadow-[0_1px_0_rgba(255,255,255,0.03)] backdrop-blur supports-[backdrop-filter]:bg-surface/85">
+      <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          {/* Ícone da página */}
           {icon && (
-            <div className="text-gray-700 dark:text-gray-300 opacity-80">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm">
               {icon}
             </div>
           )}
 
-          {/* Título e subtitle */}
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{title}</h1>
-            {subtitle && <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{subtitle}</p>}
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
+            {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
           </div>
         </div>
 
-        <div className="flex items-center space-x-4">
-          {/* Actions */}
-          {actions && <div className="flex items-center space-x-4">{actions}</div>}
+        <div className="flex items-center gap-3">
+          {actions ? <div className="flex items-center gap-3">{actions}</div> : null}
 
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="h-10 w-10 rounded-lg"
+            className="h-10 w-10 rounded-xl border border-border/70 bg-surface-elevated/80 text-muted-foreground shadow-sm hover:bg-surface-overlay hover:text-foreground"
             onClick={handleThemeToggle}
             aria-label={
               resolvedTheme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'
@@ -89,27 +86,26 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
             }
           >
             {resolvedTheme === 'dark' ? (
-              <Sun size={20} className="text-gray-600 dark:text-gray-300" />
+              <Sun size={20} className="text-current" />
             ) : (
-              <Moon size={20} className="text-gray-600 dark:text-gray-400" />
+              <Moon size={20} className="text-current" />
             )}
           </Button>
 
-          {/* Menu do Usuário */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="relative h-10 w-10 rounded-full"
+                className="relative h-11 w-11 rounded-full border border-border/70 bg-surface-elevated/80 p-0 shadow-sm hover:bg-surface-overlay"
                 aria-label="Abrir menu do usuario"
               >
                 <Avatar className="h-10 w-10">
-                  <AvatarImage 
+                  <AvatarImage
                     key={avatarSrc || 'no-avatar'}
                     src={avatarSrc}
                     alt="Avatar"
                   />
-                  <AvatarFallback className="bg-purple-600 text-white">
+                  <AvatarFallback className="border border-primary/20 bg-primary/15 text-primary">
                     {getUserInitials(resolvedDisplayName, user?.email)}
                   </AvatarFallback>
                 </Avatar>
@@ -136,7 +132,10 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
                 <span>Configurações</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout} className="text-red-600">
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="text-danger-foreground focus:bg-danger/10 focus:text-danger-foreground"
+              >
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Sair</span>
               </DropdownMenuItem>
