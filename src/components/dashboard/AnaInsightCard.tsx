@@ -1,5 +1,4 @@
 // WIDGET ANA CLARA DASHBOARD - Card de Insight
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,8 +14,6 @@ import {
   PartyPopper,
   TriangleAlert,
   Siren,
-  ThumbsUp,
-  ThumbsDown,
   type LucideIcon
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -48,7 +45,6 @@ export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardP
   const typeLabel = INSIGHT_TYPE_LABELS[insight.type] ?? 'Insight';
   const colors = INSIGHT_COLORS[priority];
   const isLarge = size === 'large';
-  const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
   
   // Selecionar ícone baseado na prioridade
   const iconName = INSIGHT_PRIORITY_ICONS[priority];
@@ -61,12 +57,6 @@ export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardP
     onActionClick?.();
   };
 
-  const handleFeedback = (type: 'up' | 'down') => {
-    setFeedback(type);
-    // TODO: Salvar feedback no backend (FASE 3)
-    console.log(`Feedback ${type} para insight:`, insight.headline);
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -74,13 +64,13 @@ export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardP
       transition={{ duration: 0.3 }}
       className="h-full"
     >
-      <Card className={`h-full ${colors.bg} border-2 ${colors.border} overflow-hidden`}>
+      <Card className={`h-full overflow-hidden ${colors.bg} border ${colors.border}`}>
         <CardContent className={isLarge ? 'p-4 space-y-3' : 'p-4 space-y-2'}>
           {/* Header com ícone, headline e tipo */}
           <div className={isLarge ? 'flex items-start justify-between gap-3' : 'space-y-3'}>
             <div className="flex items-start gap-2 min-w-0">
               <motion.div
-                className={`${colors.text} ${isLarge ? 'p-3' : 'p-2'} bg-white/50 rounded-full shrink-0`}
+                className={`${colors.text} ${colors.iconSurface} ${isLarge ? 'p-3' : 'p-2'} shrink-0 rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]`}
                 animate={{ scale: [1, 1.05, 1] }}
                 transition={{ duration: 0.5, repeat: 0 }}
               >
@@ -92,7 +82,7 @@ export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardP
             </div>
             <Badge
               variant="outline"
-              className={`${colors.text} text-xs shrink-0 self-start whitespace-normal text-left`}
+              className={`${colors.badge} text-xs shrink-0 self-start whitespace-normal text-left`}
             >
               {typeLabel}
             </Badge>
@@ -100,7 +90,7 @@ export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardP
 
           {/* Description (apenas para cards grandes) */}
           {isLarge && (
-            <p className="text-sm text-gray-700 leading-relaxed">
+            <p className={`text-sm leading-relaxed ${colors.mutedText}`}>
               {insight.description}
             </p>
           )}
@@ -108,13 +98,13 @@ export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardP
           {/* Visualization (progress bar) */}
           {isLarge && insight.visualization?.type === 'progress' && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-600">
+              <div className={`flex items-center justify-between text-xs ${colors.mutedText}`}>
                 <span>Progresso</span>
-                <span className="font-semibold">
+                <span className="font-semibold text-foreground">
                   {insight.visualization.data.percentage}%
                 </span>
               </div>
-              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div className={`h-2 rounded-full overflow-hidden ${colors.progressTrack}`}>
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${insight.visualization.data.percentage}%` }}
@@ -133,8 +123,8 @@ export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardP
                 <Button
                   onClick={handleAction}
                   size="sm"
-                  variant="default"
-                  className="w-auto"
+                  variant="outline"
+                  className="w-auto rounded-xl border-border/70 bg-surface-elevated/70 text-foreground hover:bg-surface-overlay"
                 >
                   {insight.action.label}
                   <ArrowRight className="ml-2 h-3 w-3" />
@@ -146,7 +136,7 @@ export function AnaInsightCard({ insight, size, onActionClick }: AnaInsightCardP
 
           {/* Small card: mostrar apenas descrição curta */}
           {!isLarge && (
-            <p className="text-xs text-gray-600 line-clamp-2">
+            <p className={`line-clamp-2 text-xs ${colors.mutedText}`}>
               {insight.description}
             </p>
           )}

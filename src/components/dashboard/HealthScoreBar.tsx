@@ -1,7 +1,6 @@
 // WIDGET ANA CLARA DASHBOARD - Health Score Bar Detalhado
 import { motion } from 'framer-motion';
 import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { 
   Receipt, 
   TrendingUp, 
@@ -42,19 +41,19 @@ export function HealthScoreBar({
 
   // Determinar cor e gradiente baseado no score
   const getScoreColor = (value: number): string => {
-    if (!hasSufficientData) return 'text-gray-500';
-    if (value >= 80) return 'text-green-600';
-    if (value >= 60) return 'text-blue-600';
-    if (value >= 40) return 'text-amber-600';
-    return 'text-red-600';
+    if (!hasSufficientData) return 'text-foreground/70';
+    if (value >= 80) return 'text-emerald-300';
+    if (value >= 60) return 'text-sky-300';
+    if (value >= 40) return 'text-amber-300';
+    return 'text-danger';
   };
 
   const getScoreGradient = (value: number): string => {
-    if (!hasSufficientData) return 'from-gray-300 to-gray-400';
-    if (value >= 80) return 'from-green-500 to-green-600';
-    if (value >= 60) return 'from-blue-500 to-blue-600';
-    if (value >= 40) return 'from-amber-500 to-amber-600';
-    return 'from-red-500 to-red-600';
+    if (!hasSufficientData) return 'from-slate-500 to-slate-400';
+    if (value >= 80) return 'from-emerald-400 to-teal-300';
+    if (value >= 60) return 'from-sky-400 to-violet-400';
+    if (value >= 40) return 'from-amber-300 to-orange-400';
+    return 'from-rose-400 to-red-500';
   };
 
   const getScoreLabel = (value: number): string => {
@@ -65,14 +64,6 @@ export function HealthScoreBar({
     return 'Precisa Atenção';
   };
 
-  const getBgColor = (value: number): string => {
-    if (!hasSufficientData) return 'bg-gray-50';
-    if (value >= 80) return 'bg-green-50';
-    if (value >= 60) return 'bg-blue-50';
-    if (value >= 40) return 'bg-amber-50';
-    return 'bg-red-50';
-  };
-
   // Breakdown items
   const breakdownItems = breakdown ? [
     {
@@ -80,55 +71,59 @@ export function HealthScoreBar({
       label: 'Contas em Dia',
       value: breakdown.bills,
       max: 30,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-100',
+      color: 'text-violet-200',
+      iconSurface: 'bg-violet-500/12 ring-violet-400/20',
+      gradient: 'from-violet-400 to-fuchsia-300',
     },
     {
       icon: TrendingUp,
       label: 'Investimentos',
       value: breakdown.investments,
       max: 30,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100',
+      color: 'text-emerald-200',
+      iconSurface: 'bg-emerald-500/12 ring-emerald-400/20',
+      gradient: 'from-emerald-400 to-teal-300',
     },
     {
       icon: Wallet,
       label: 'Metas de Gasto',
       value: breakdown.budget,
       max: 20,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-100',
+      color: 'text-sky-200',
+      iconSurface: 'bg-sky-500/12 ring-sky-400/20',
+      gradient: 'from-sky-400 to-blue-300',
     },
     {
       icon: PieChart,
       label: 'Planejamento',
       value: breakdown.planning,
       max: 20,
-      color: 'text-amber-600',
-      bgColor: 'bg-amber-100',
+      color: 'text-amber-200',
+      iconSurface: 'bg-amber-500/12 ring-amber-400/20',
+      gradient: 'from-amber-300 to-orange-400',
     },
   ] : [];
 
   return (
-    <Card className={`border-2 ${getBgColor(score)}`}>
+    <Card className="border border-border/70 bg-surface/95 shadow-[0_20px_48px_rgba(3,8,20,0.24)]">
       <CardContent className="p-4 space-y-3">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Info className="h-4 w-4 text-muted-foreground" />
-            <span className="text-sm font-medium text-gray-700">{label}</span>
+            <span className="text-sm font-medium text-foreground/80">{label}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className={`text-2xl font-bold ${getScoreColor(score)}`}>
               {score}
             </span>
-            <span className="text-sm text-muted-foreground">/100</span>
+            <span className="text-sm text-foreground/70">/100</span>
           </div>
         </div>
 
         {/* Progress Bar Principal */}
         <div className="space-y-1">
-          <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+          <div className="h-3 rounded-full overflow-hidden bg-surface-overlay/80">
             <motion.div
               initial={{ width: 0 }}
               animate={{ width: `${score}%` }}
@@ -145,7 +140,7 @@ export function HealthScoreBar({
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="h-6 px-2 text-xs"
+                className="h-6 rounded-lg border border-border/60 bg-surface-elevated/70 px-2 text-xs text-foreground/75 hover:bg-surface-overlay hover:text-foreground"
               >
                 {isExpanded ? (
                   <>
@@ -168,7 +163,7 @@ export function HealthScoreBar({
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.3 }}
-            className="space-y-2 pt-2 border-t"
+            className="space-y-2 border-t border-border/60 pt-2"
           >
             {breakdownItems.map((item, index) => {
               const Icon = item.icon;
@@ -184,23 +179,23 @@ export function HealthScoreBar({
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className={`p-1 rounded ${item.bgColor}`}>
+                      <div className={`rounded-lg p-1.5 ring-1 ${item.iconSurface}`}>
                         <Icon className={`h-3 w-3 ${item.color}`} />
                       </div>
-                      <span className="text-xs font-medium text-gray-700">
+                      <span className="text-xs font-medium text-foreground/80">
                         {item.label}
                       </span>
                     </div>
-                    <span className="text-xs font-semibold text-gray-900">
+                    <span className="text-xs font-semibold text-foreground">
                       {item.value}/{item.max}
                     </span>
                   </div>
-                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-1.5 rounded-full overflow-hidden bg-surface-overlay/80">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${percentage}%` }}
                       transition={{ duration: 0.8, delay: index * 0.1 }}
-                      className={`h-full ${item.bgColor.replace('bg-', 'bg-gradient-to-r from-').replace('-100', '-400 to-' + item.color.replace('text-', '') + '-600')}`}
+                      className={`h-full bg-gradient-to-r ${item.gradient}`}
                     />
                   </div>
                 </motion.div>

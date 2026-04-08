@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CreditCard, AlertCircle, TrendingUp, ChevronRight } from 'lucide-react';
+import { CreditCard, AlertCircle, ChevronRight } from 'lucide-react';
 import { useCreditCardsQuery } from '@/hooks/useCreditCardsQuery';
 import { formatCurrency } from '@/utils/formatters';
 import { useNavigate } from 'react-router-dom';
@@ -32,14 +32,14 @@ export function CreditCardsWidget() {
 
   if (showSkeleton) {
     return (
-      <Card>
+      <Card className="border-border/70 bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
         <CardHeader>
           <CardTitle>Cartões de Crédito</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="animate-pulse space-y-3">
-            <div className="h-4 bg-gray-200 rounded w-3/4" />
-            <div className="h-4 bg-gray-200 rounded w-1/2" />
+            <div className="h-4 w-3/4 rounded bg-surface-elevated" />
+            <div className="h-4 w-1/2 rounded bg-surface-elevated" />
           </div>
         </CardContent>
       </Card>
@@ -64,7 +64,7 @@ export function CreditCardsWidget() {
   // Se não houver cartões
   if (cardsSummary.length === 0) {
     return (
-      <Card>
+      <Card className="border-border/70 bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Cartões de Crédito</CardTitle>
@@ -78,8 +78,10 @@ export function CreditCardsWidget() {
           </div>
         </CardHeader>
         <CardContent className="flex flex-col items-center justify-center py-8">
-          <CreditCard size={48} className="text-gray-300 mb-3" />
-          <p className="text-sm text-gray-500 text-center mb-4">
+          <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-border/70 bg-surface-elevated/80">
+            <CreditCard size={32} className="text-primary/80" />
+          </div>
+          <p className="mb-4 text-center text-sm text-foreground/80">
             Nenhum cartão cadastrado
           </p>
           <Button onClick={() => navigate('/cartoes')}>
@@ -96,17 +98,18 @@ export function CreditCardsWidget() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <Card>
+      <Card className="border-border/70 bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5" />
+              <CreditCard className="h-5 w-5 text-primary" />
               Cartões de Crédito
             </CardTitle>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate('/cartoes')}
+              className="rounded-xl border border-border/70 bg-surface-elevated/70 text-foreground/80 hover:bg-surface-overlay hover:text-foreground"
             >
               Ver Todos
               <ChevronRight className="h-4 w-4 ml-1" />
@@ -117,14 +120,14 @@ export function CreditCardsWidget() {
           {/* Resumo Geral */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <p className="text-xs text-gray-500">Limite Total</p>
-              <p className="text-lg font-bold text-gray-900">
+              <p className="text-xs text-foreground/80">Limite Total</p>
+              <p className="text-lg font-bold text-foreground">
                 {formatCurrency(totalLimit)}
               </p>
             </div>
             <div className="space-y-1">
-              <p className="text-xs text-gray-500">Disponível</p>
-              <p className="text-lg font-bold text-green-600">
+              <p className="text-xs text-foreground/80">Disponível</p>
+              <p className="text-lg font-bold text-emerald-300">
                 {formatCurrency(totalAvailable)}
               </p>
             </div>
@@ -133,45 +136,45 @@ export function CreditCardsWidget() {
           {/* Barra de Uso */}
           <div>
             <div className="flex items-center justify-between text-sm mb-2">
-              <span className="text-gray-600">Uso Total</span>
-              <span className="font-semibold text-gray-900">
+              <span className="text-foreground/80">Uso Total</span>
+              <span className="font-semibold text-foreground">
                 {usagePercentage.toFixed(0)}%
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+            <div className="w-full rounded-full h-2 overflow-hidden bg-surface-overlay/80">
               <motion.div
                 className={`h-2 rounded-full ${
                   usagePercentage > 80
-                    ? 'bg-red-500'
+                    ? 'bg-[linear-gradient(90deg,rgba(248,113,113,0.95),rgba(251,146,60,0.9))]'
                     : usagePercentage > 60
-                    ? 'bg-yellow-500'
-                    : 'bg-blue-500'
+                    ? 'bg-[linear-gradient(90deg,rgba(250,204,21,0.95),rgba(251,146,60,0.88))]'
+                    : 'bg-[linear-gradient(90deg,rgba(96,165,250,0.95),rgba(139,92,246,0.88))]'
                 }`}
                 initial={{ width: 0 }}
                 animate={{ width: `${Math.min(100, usagePercentage)}%` }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}
               />
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="mt-1 text-xs text-foreground/75">
               {formatCurrency(totalUsed)} de {formatCurrency(totalLimit)}
             </p>
           </div>
 
           {/* Alertas de Faturas */}
           {upcomingInvoices.length > 0 && (
-            <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="rounded-xl border border-amber-500/20 bg-surface-elevated/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
               <div className="flex items-start gap-2">
-                <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-yellow-800">
+                  <p className="text-sm font-medium text-foreground">
                     {upcomingInvoices.length} fatura{upcomingInvoices.length > 1 ? 's' : ''} próxima
                     {upcomingInvoices.length > 1 ? 's' : ''} do vencimento
                   </p>
                   <div className="mt-2 space-y-1">
                     {upcomingInvoices.slice(0, 2).map((card) => (
                       <div key={card.id} className="flex items-center justify-between text-xs">
-                        <span className="text-yellow-700">{card.name}</span>
-                        <span className="font-medium text-yellow-800">
+                        <span className="text-foreground/80">{card.name}</span>
+                        <span className="font-medium text-amber-200">
                           {formatCurrency(card.current_invoice_amount || 0)}
                         </span>
                       </div>
@@ -184,7 +187,7 @@ export function CreditCardsWidget() {
 
           {/* Lista de Cartões */}
           <div className="space-y-2">
-            <p className="text-xs font-medium text-gray-500 uppercase">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-foreground/70">
               {cardsSummary.length} Cartão{cardsSummary.length > 1 ? 'es' : ''}
             </p>
             {cardsSummary.slice(0, 3).map((card) => {
@@ -193,12 +196,12 @@ export function CreditCardsWidget() {
               return (
                 <div
                   key={card.id}
-                  className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                  className="flex cursor-pointer items-center justify-between rounded-xl border border-transparent bg-surface-elevated/60 p-3 transition-colors hover:border-border/70 hover:bg-surface-elevated/85"
                   onClick={() => navigate('/cartoes')}
                 >
                   <div className="flex items-center gap-3 flex-1">
                     <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
+                      className="flex h-10 w-10 items-center justify-center rounded-xl ring-1 ring-white/5"
                       style={{ backgroundColor: `${card.color}20` }}
                     >
                       <CreditCard
@@ -207,11 +210,11 @@ export function CreditCardsWidget() {
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="truncate text-sm font-medium text-foreground">
                         {card.name}
                       </p>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <div className="flex-1 bg-gray-200 rounded-full h-1">
+                        <div className="flex-1 rounded-full h-1 bg-surface-overlay/80">
                           <div
                             className={`h-1 rounded-full ${
                               cardUsage > 80
@@ -223,17 +226,17 @@ export function CreditCardsWidget() {
                             style={{ width: `${Math.min(100, cardUsage)}%` }}
                           />
                         </div>
-                        <span className="text-xs text-gray-500 whitespace-nowrap">
+                        <span className="whitespace-nowrap text-xs text-foreground/70">
                           {cardUsage.toFixed(0)}%
                         </span>
                       </div>
                     </div>
                   </div>
                   <div className="text-right ml-3">
-                    <p className="text-sm font-semibold text-gray-900">
+                    <p className="text-sm font-semibold text-foreground">
                       {formatCurrency(card.used_limit || 0)}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-foreground/75">
                       de {formatCurrency(card.credit_limit || 0)}
                     </p>
                   </div>

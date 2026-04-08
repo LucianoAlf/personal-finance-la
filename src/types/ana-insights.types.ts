@@ -48,30 +48,50 @@ export const INSIGHT_COLORS: Record<InsightPriority, {
   bg: string;
   border: string;
   text: string;
+  mutedText: string;
+  iconSurface: string;
+  badge: string;
+  progressTrack: string;
 }> = {
   celebration: {
-    gradient: 'from-purple-500 to-pink-500',
-    bg: 'bg-gradient-to-r from-purple-50 to-pink-50',
-    border: 'border-purple-300',
-    text: 'text-purple-700',
+    gradient: 'from-fuchsia-300 via-violet-400 to-sky-300',
+    bg: 'bg-surface/95 bg-[linear-gradient(135deg,rgba(129,34,183,0.34),rgba(15,23,42,0.96))]',
+    border: 'border-border/70 shadow-[0_20px_46px_rgba(3,8,20,0.24)]',
+    text: 'text-foreground',
+    mutedText: 'text-foreground/80',
+    iconSurface: 'bg-surface-elevated/85 ring-1 ring-fuchsia-400/25',
+    badge: 'border-border/70 bg-surface-elevated/70 text-foreground/80',
+    progressTrack: 'bg-surface-overlay/80',
   },
   warning: {
-    gradient: 'from-amber-400 to-orange-500',
-    bg: 'bg-gradient-to-r from-amber-50 to-orange-50',
-    border: 'border-amber-300',
-    text: 'text-amber-700',
+    gradient: 'from-amber-300 via-orange-300 to-rose-300',
+    bg: 'bg-surface/95 bg-[linear-gradient(135deg,rgba(146,64,14,0.28),rgba(15,23,42,0.96))]',
+    border: 'border-border/70 shadow-[0_20px_46px_rgba(3,8,20,0.24)]',
+    text: 'text-foreground',
+    mutedText: 'text-foreground/80',
+    iconSurface: 'bg-surface-elevated/85 ring-1 ring-amber-400/25',
+    badge: 'border-border/70 bg-surface-elevated/70 text-foreground/80',
+    progressTrack: 'bg-surface-overlay/80',
   },
   critical: {
-    gradient: 'from-red-500 to-red-600',
-    bg: 'bg-gradient-to-r from-red-50 to-red-100',
-    border: 'border-red-300',
-    text: 'text-red-700',
+    gradient: 'from-rose-300 via-red-400 to-orange-300',
+    bg: 'bg-surface/95 bg-[linear-gradient(135deg,rgba(127,29,29,0.32),rgba(15,23,42,0.96))]',
+    border: 'border-border/70 shadow-[0_20px_46px_rgba(3,8,20,0.24)]',
+    text: 'text-foreground',
+    mutedText: 'text-foreground/80',
+    iconSurface: 'bg-surface-elevated/85 ring-1 ring-red-400/25',
+    badge: 'border-border/70 bg-surface-elevated/70 text-foreground/80',
+    progressTrack: 'bg-surface-overlay/80',
   },
   info: {
-    gradient: 'from-blue-500 to-purple-500',
-    bg: 'bg-gradient-to-r from-blue-50 to-purple-50',
-    border: 'border-blue-300',
-    text: 'text-blue-700',
+    gradient: 'from-sky-300 via-violet-400 to-fuchsia-300',
+    bg: 'bg-surface/95 bg-[linear-gradient(135deg,rgba(37,99,235,0.26),rgba(15,23,42,0.96))]',
+    border: 'border-border/70 shadow-[0_20px_46px_rgba(3,8,20,0.24)]',
+    text: 'text-foreground',
+    mutedText: 'text-foreground/80',
+    iconSurface: 'bg-surface-elevated/85 ring-1 ring-sky-400/25',
+    badge: 'border-border/70 bg-surface-elevated/70 text-foreground/80',
+    progressTrack: 'bg-surface-overlay/80',
   },
 };
 

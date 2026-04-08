@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, TrendingUp, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Calendar, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatCurrency } from '@/utils/formatters';
 import { useMemo } from 'react';
@@ -41,27 +41,27 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
   const showSkeleton = loading && budgets.length === 0;
   if (showSkeleton) {
     return (
-      <Card className="p-6 animate-pulse">
-        <div className="h-6 w-32 bg-gray-200 rounded mb-4" />
-        <div className="h-4 w-full bg-gray-200 rounded mb-2" />
-        <div className="h-4 w-3/4 bg-gray-200 rounded" />
+      <Card className="border-border/70 bg-surface/95 p-6 animate-pulse shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
+        <div className="mb-4 h-6 w-32 rounded bg-surface-elevated" />
+        <div className="mb-2 h-4 w-full rounded bg-surface-elevated" />
+        <div className="h-4 w-3/4 rounded bg-surface-elevated" />
       </Card>
     );
   }
 
   if (budgets.length === 0) {
     return (
-      <Card className="p-6">
+      <Card className="border-border/70 bg-surface/95 p-6 shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
         <div className="flex items-center gap-3 mb-4">
-          <div className="h-10 w-10 rounded-lg bg-purple-100 flex items-center justify-center">
-            <Calendar className="h-5 w-5 text-purple-600" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/15 bg-surface-elevated/80">
+            <Calendar className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h3 className="font-semibold text-gray-900">Metas de Gasto do Mês</h3>
-            <p className="text-xs text-gray-500">Nenhum limite mensal definido</p>
+            <h3 className="font-semibold text-foreground">Metas de Gasto do Mês</h3>
+            <p className="text-xs text-foreground/75">Nenhum limite mensal definido</p>
           </div>
         </div>
-        <p className="text-sm text-gray-600 mb-4">
+        <p className="mb-4 text-sm text-foreground/80">
           Defina limites por categoria na aba de metas para acompanhar o planejamento mensal.
         </p>
         <Button size="sm" onClick={() => navigate('/metas?tab=spending')} className="w-full">
@@ -72,8 +72,10 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
   }
 
   const isOverBudget = totalDifference < 0;
-  const statusColor = isOverBudget ? 'text-red-600' : 'text-green-600';
-  const statusBg = isOverBudget ? 'bg-red-50' : 'bg-green-50';
+  const statusColor = isOverBudget ? 'text-danger' : 'text-emerald-300';
+  const statusBg = isOverBudget
+    ? 'border-danger-border bg-danger-subtle'
+    : 'border-emerald-500/20 bg-emerald-500/12';
   const StatusIcon = isOverBudget ? AlertTriangle : CheckCircle2;
 
   return (
@@ -83,18 +85,23 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
       transition={{ duration: 0.4 }}
       className="h-full"
     >
-      <Card className="p-6 h-full flex flex-col">
+      <Card className="border-border/70 bg-surface/95 p-6 h-full flex flex-col shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
-            <div className={`h-10 w-10 rounded-lg ${statusBg} flex items-center justify-center`}>
+            <div className={`flex h-10 w-10 items-center justify-center rounded-xl border ${statusBg}`}>
               <StatusIcon className={`h-5 w-5 ${statusColor}`} />
             </div>
             <div>
-              <h3 className="font-semibold text-gray-900">Metas de Gasto do Mês</h3>
-              <p className="text-xs text-gray-500">{budgets.length} categorias</p>
+              <h3 className="font-semibold text-foreground">Metas de Gasto do Mês</h3>
+              <p className="text-xs text-foreground/75">{budgets.length} categorias</p>
             </div>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => navigate('/metas?tab=spending')}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => navigate('/metas?tab=spending')}
+            className="rounded-xl border border-border/70 bg-surface-elevated/70 text-foreground/80 hover:bg-surface-overlay hover:text-foreground"
+          >
             Ver Detalhes
           </Button>
         </div>
@@ -102,12 +109,12 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
         {/* Barra de Compliance */}
         <div className="mb-4 flex-1">
           <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-gray-600">Conformidade</span>
-            <span className="font-semibold text-gray-900">{compliance}%</span>
+            <span className="text-foreground/80">Conformidade</span>
+            <span className="font-semibold text-foreground">{compliance}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+          <div className="w-full rounded-full h-2 overflow-hidden bg-surface-overlay/80">
             <motion.div
-              className="bg-green-500 h-2 rounded-full"
+              className="h-2 rounded-full bg-[linear-gradient(90deg,rgba(56,189,248,0.92),rgba(52,211,153,0.88))]"
               initial={{ width: 0 }}
               animate={{ width: `${compliance}%` }}
               transition={{ duration: 0.8, ease: 'easeOut' }}
@@ -117,33 +124,33 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
 
         {/* Resumo */}
         <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="p-2 bg-green-50 rounded-lg">
-            <div className="text-lg font-bold text-green-600">{ok}</div>
-            <div className="text-xs text-gray-600">OK</div>
+          <div className="rounded-xl border border-emerald-500/15 bg-surface-elevated/75 p-2">
+            <div className="text-lg font-bold text-emerald-300">{ok}</div>
+            <div className="text-xs text-foreground/75">OK</div>
           </div>
-          <div className="p-2 bg-yellow-50 rounded-lg">
-            <div className="text-lg font-bold text-yellow-600">{warning}</div>
-            <div className="text-xs text-gray-600">Atenção</div>
+          <div className="rounded-xl border border-amber-500/15 bg-surface-elevated/75 p-2">
+            <div className="text-lg font-bold text-amber-300">{warning}</div>
+            <div className="text-xs text-foreground/75">Atenção</div>
           </div>
-          <div className="p-2 bg-red-50 rounded-lg">
-            <div className="text-lg font-bold text-red-600">{exceeded}</div>
-            <div className="text-xs text-gray-600">Excedido</div>
+          <div className="rounded-xl border border-danger-border bg-surface-elevated/75 p-2">
+            <div className="text-lg font-bold text-danger">{exceeded}</div>
+            <div className="text-xs text-foreground/75">Excedido</div>
           </div>
         </div>
 
         {/* Total */}
-        <div className="mt-4 pt-4 border-t border-gray-200">
+        <div className="mt-4 border-t border-border/60 pt-4">
           <div className="flex items-center justify-between text-sm mb-1">
-            <span className="text-gray-600">Gasto / Limite</span>
+            <span className="text-foreground/80">Gasto / Limite</span>
             <span className={`font-semibold ${statusColor}`}>
               {formatCurrency(totalActual)} / {formatCurrency(totalPlanned)}
             </span>
           </div>
           {totalPlanned > 0 && (
-            <div className="text-xs text-right text-gray-500">
+            <div className="text-xs text-right text-foreground/75">
               {((totalActual / totalPlanned) * 100).toFixed(0)}% dos limites
               {totalActual > totalPlanned && (
-                <span className="text-red-600 font-semibold ml-1">
+                <span className="ml-1 font-semibold text-danger">
                   (+{(((totalActual / totalPlanned) * 100) - 100).toFixed(0)}%)
                 </span>
               )}
@@ -155,11 +162,11 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg"
+            className="mt-3 rounded-xl border border-danger-border bg-[linear-gradient(135deg,rgba(127,29,29,0.18),rgba(15,23,42,0.9))] p-3"
           >
             <div className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-red-600 flex-shrink-0" />
-              <p className="text-xs text-red-700">
+              <AlertTriangle className="h-4 w-4 text-danger flex-shrink-0" />
+              <p className="text-xs text-foreground/80">
                 Você ultrapassou os limites do mês em {formatCurrency(Math.abs(totalDifference))}
               </p>
             </div>
