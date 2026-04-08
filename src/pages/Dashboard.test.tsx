@@ -243,7 +243,7 @@ describe('Dashboard premium dark mode regression', () => {
     expect(emptyIconSurface?.className).toContain('ring-1');
   });
 
-  it('uses consistent card, chart, Ana widget, transaction row, and skeleton structure', () => {
+  it('uses consistent premium surfaces across card, chart, Ana widget, transaction row, and skeleton states', () => {
     const { container: chartContainer } = render(
       <ChartCard
         title="Distribuicao"
@@ -301,8 +301,9 @@ describe('Dashboard premium dark mode regression', () => {
     const skeletonRoot = skeletonContainer.querySelector('.min-h-screen');
     const skeletonCard = skeletonContainer.querySelector('.animate-pulse.rounded-lg');
 
-    expect(skeletonRoot?.className).toContain('bg-gray-50');
-    expect(skeletonCard?.className).toContain('bg-card');
-    expect(skeletonCard?.className).toContain('border');
+    expect(skeletonRoot?.className).toContain('bg-background');
+    expect(skeletonRoot?.className).toContain('text-foreground');
+    expect(skeletonCard?.className).toContain('bg-surface');
+    expect(skeletonCard?.className).toContain('border-border');
   });
 });

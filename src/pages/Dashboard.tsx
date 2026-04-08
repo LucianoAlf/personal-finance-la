@@ -271,8 +271,8 @@ export function Dashboard() {
                   <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-elevated ring-1 ring-border/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
                     <FileText size={32} className="text-primary/70" />
                   </div>
-                  <p className="text-gray-900 dark:text-white font-semibold mb-2">Nenhuma transação recente</p>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Crie sua primeira transação para começar!</p>
+                  <p className="mb-2 font-semibold text-foreground">Nenhuma transação recente</p>
+                  <p className="mb-4 text-sm text-muted-foreground">Crie sua primeira transação para começar!</p>
                   <Button 
                     onClick={() => navigate('/transacoes')}
                     size="sm"
