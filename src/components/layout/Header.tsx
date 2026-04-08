@@ -134,7 +134,7 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={handleLogout}
-                className="text-danger-foreground focus:bg-danger/10 focus:text-danger-foreground"
+                className="text-danger focus:bg-danger-subtle focus:text-danger data-[highlighted]:bg-danger-subtle data-[highlighted]:text-danger"
               >
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Sair</span>

@@ -268,7 +268,7 @@ export function Sidebar() {
         onClick={() => setAnaCoachOpen(true)}
         className="fixed bottom-6 right-6 z-30 flex h-16 w-16 items-center justify-center rounded-full border border-primary/30 bg-primary text-primary-foreground shadow-2xl shadow-primary/20 transition-all hover:scale-105 hover:bg-primary/90"
       >
-        <Bot size={28} className="text-white" />
+        <Bot size={28} className="text-current" />
       </button>
     </>
   );

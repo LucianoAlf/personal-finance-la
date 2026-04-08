@@ -108,4 +108,16 @@ describe('Header user menu', () => {
     expect(screen.getByRole('button', { name: /ativar tema escuro/i }).className).not.toContain('bg-white');
     expect(screen.getByRole('button', { name: /abrir menu do usuario/i }).className).not.toContain('bg-white');
   });
+
+  it('keeps the logout action readable on the neutral dropdown surface', async () => {
+    const user = userEvent.setup();
+    renderHeader();
+
+    await user.click(screen.getByRole('button', { name: /abrir menu do usuario/i }));
+
+    const logoutItem = screen.getByRole('menuitem', { name: /sair/i });
+    expect(logoutItem.className).toContain('text-danger');
+    expect(logoutItem.className).toContain('focus:bg-danger-subtle');
+    expect(logoutItem.className).not.toContain('text-danger-foreground');
+  });
 });
