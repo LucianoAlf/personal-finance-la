@@ -16,6 +16,7 @@ import type {
 } from '@/types/investment-goals.types';
 import { formatDateOnly, parseDateOnly } from '@/utils/formatters';
 import type { Investment } from '@/types/database.types';
+import { loadActiveInvestmentsForUser } from '@/hooks/useInvestments';
 
 export function useInvestmentGoals() {
   const [goals, setGoals] = useState<InvestmentGoalWithMetrics[]>([]);
@@ -132,22 +133,16 @@ export function useInvestmentGoals() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuário não autenticado');
 
-      const [{ data: rawGoals, error: fetchGoalsError }, { data: activeInvestments, error: fetchInvestmentsError }] = await Promise.all([
+      const [{ data: rawGoals, error: fetchGoalsError }, activeInvestments] = await Promise.all([
         supabase
           .from('investment_goals')
           .select('*')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false }),
-        supabase
-          .from('investments')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false }),
+        loadActiveInvestmentsForUser(user.id),
       ]);
 
       if (fetchGoalsError) throw fetchGoalsError;
-      if (fetchInvestmentsError) throw fetchInvestmentsError;
 
       const enrichedGoals = await Promise.all(
         (rawGoals || []).map((goal) => enrichGoal(goal, activeInvestments || []))

@@ -146,13 +146,79 @@ export function Investments() {
     setInvestmentDialogOpen(true);
   };
 
+  const headerActions = (
+    <div className="flex items-center gap-3">
+      <MarketStatus />
+      <PriceUpdater
+        onRefresh={refreshPrices}
+        lastUpdate={lastUpdate}
+        loading={quotesLoading}
+      />
+      <InvestmentReportDialog
+        investments={investments}
+        transactions={transactions}
+      />
+      <Button
+        size="sm"
+        onClick={openNewInvestmentDialog}
+      >
+        <Plus size={16} className="mr-1" />
+        Novo Investimento
+      </Button>
+    </div>
+  );
+
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-purple-600 mx-auto mb-4" />
-          <p className="text-gray-600">Carregando investimentos...</p>
+      <div className="min-h-screen bg-gray-50">
+        <Header
+          title="Investimentos"
+          subtitle="Acompanhe sua carteira de investimentos"
+          icon={<TrendingUp size={24} />}
+          actions={headerActions}
+        />
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Card key={index} className="animate-pulse">
+                <CardContent className="p-6 space-y-3">
+                  <div className="h-4 w-28 rounded bg-gray-200" />
+                  <div className="h-8 w-36 rounded bg-gray-200" />
+                  <div className="h-3 w-32 rounded bg-gray-100" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="portfolio">
+                <BarChart3 className="mr-2 h-4 w-4" />
+                Portfólio
+              </TabsTrigger>
+              <TabsTrigger value="transactions">
+                <ArrowLeftRight className="mr-2 h-4 w-4" />
+                Transações
+              </TabsTrigger>
+              <TabsTrigger value="dividends">
+                <DollarSign className="mr-2 h-4 w-4" />
+                Dividendos
+              </TabsTrigger>
+              <TabsTrigger value="alerts">
+                <Bell className="mr-2 h-4 w-4" />
+                Alertas
+              </TabsTrigger>
+              <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+            </TabsList>
+
+            <Card>
+              <CardContent className="p-10 text-center text-gray-500">
+                <Loader2 className="h-8 w-8 animate-spin text-purple-600 mx-auto mb-4" />
+                <p>Carregando investimentos...</p>
+              </CardContent>
+            </Card>
+          </Tabs>
         </div>
       </div>
     );
@@ -162,22 +228,19 @@ export function Investments() {
   if (investments.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <InvestmentDialog
-          open={investmentDialogOpen}
-          onOpenChange={setInvestmentDialogOpen}
-          investment={editingInvestment}
-          onSave={handleSaveInvestment}
-        />
+        {investmentDialogOpen ? (
+          <InvestmentDialog
+            open={investmentDialogOpen}
+            onOpenChange={setInvestmentDialogOpen}
+            investment={editingInvestment}
+            onSave={handleSaveInvestment}
+          />
+        ) : null}
         <Header
           title="Investimentos"
           subtitle="Acompanhe sua carteira de investimentos"
           icon={<TrendingUp size={24} />}
-          actions={
-            <Button size="sm" onClick={openNewInvestmentDialog}>
-              <Plus size={16} className="mr-1" />
-              Novo Investimento
-            </Button>
-          }
+          actions={headerActions}
         />
         <div className="p-6">
           <Card className="p-12 text-center">
@@ -216,46 +279,35 @@ export function Investments() {
         title="Investimentos"
         subtitle="Acompanhe sua carteira de investimentos"
         icon={<TrendingUp size={24} />}
-        actions={
-          <div className="flex items-center gap-3">
-            <MarketStatus />
-            <PriceUpdater
-              onRefresh={refreshPrices}
-              lastUpdate={lastUpdate}
-              loading={quotesLoading}
-            />
-            <InvestmentReportDialog />
-            <Button
-              size="sm"
-              onClick={openNewInvestmentDialog}
-            >
-              <Plus size={16} className="mr-1" />
-              Novo Investimento
-            </Button>
-          </div>
-        }
+        actions={headerActions}
       />
 
       <div className="p-6 space-y-6">
         {/* Dialogs */}
-        <InvestmentDialog
-          open={investmentDialogOpen}
-          onOpenChange={setInvestmentDialogOpen}
-          investment={editingInvestment}
-          onSave={handleSaveInvestment}
-        />
+        {investmentDialogOpen ? (
+          <InvestmentDialog
+            open={investmentDialogOpen}
+            onOpenChange={setInvestmentDialogOpen}
+            investment={editingInvestment}
+            onSave={handleSaveInvestment}
+          />
+        ) : null}
 
-        <TransactionDialog
-          open={transactionDialogOpen}
-          onOpenChange={setTransactionDialogOpen}
-          onSave={handleAddTransaction}
-        />
+        {transactionDialogOpen ? (
+          <TransactionDialog
+            open={transactionDialogOpen}
+            onOpenChange={setTransactionDialogOpen}
+            onSave={handleAddTransaction}
+          />
+        ) : null}
 
-        <AlertDialog
-          open={alertDialogOpen}
-          onOpenChange={setAlertDialogOpen}
-          onSave={addAlert}
-        />
+        {alertDialogOpen ? (
+          <AlertDialog
+            open={alertDialogOpen}
+            onOpenChange={setAlertDialogOpen}
+            onSave={addAlert}
+          />
+        ) : null}
 
         {selectedGoal && (
           <Card className="border-purple-200 bg-purple-50/50">

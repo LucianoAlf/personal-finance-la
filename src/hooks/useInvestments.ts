@@ -6,14 +6,58 @@ import { processGamificationEvent } from '@/lib/gamification';
 import { Investment, CreateInvestmentInput, UpdateInvestmentInput } from '@/types/database.types';
 import { normalizeInvestmentCategory } from '@/utils/investments/contracts';
 
+const investmentsCache = new Map<string, Investment[]>();
+const investmentRequests = new Map<string, Promise<Investment[]>>();
+
+const normalizeInvestments = (rows: Investment[] | null | undefined): Investment[] => rows || [];
+
+const requestActiveInvestmentsForUser = (userId: string): Promise<Investment[]> => {
+  const existingRequest = investmentRequests.get(userId);
+  if (existingRequest) {
+    return existingRequest;
+  }
+
+  const request = (async (): Promise<Investment[]> => {
+    const { data, error: fetchError } = await supabase
+      .from('investments')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      throw fetchError;
+    }
+
+    const normalized = normalizeInvestments(data);
+    investmentsCache.set(userId, normalized);
+    return normalized;
+  })();
+
+  investmentRequests.set(userId, request);
+  request.finally(() => {
+    investmentRequests.delete(userId);
+  });
+
+  return request;
+};
+
+export const getCachedInvestmentsForUser = (userId: string) => investmentsCache.get(userId);
+
+export const loadActiveInvestmentsForUser = (userId: string) => requestActiveInvestmentsForUser(userId);
+
 /**
  * Hook para gerenciar investimentos do usuário
  * CRUD completo com Realtime subscriptions
  */
 export function useInvestments() {
   const { user, loading: authLoading } = useAuth();
-  const [investments, setInvestments] = useState<Investment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [investments, setInvestments] = useState<Investment[]>(() =>
+    user?.id ? getCachedInvestmentsForUser(user.id) ?? [] : []
+  );
+  const [loading, setLoading] = useState(() =>
+    user?.id ? !investmentsCache.has(user.id) : true
+  );
   const [error, setError] = useState<string | null>(null);
 
   // ============================================
@@ -26,28 +70,29 @@ export function useInvestments() {
 
     if (!user?.id) {
       setInvestments([]);
+      setError(null);
       setLoading(false);
-      return;
+      return [];
     }
 
+    const cached = getCachedInvestmentsForUser(user.id);
+
     try {
-      setLoading(true);
+      setLoading(!cached);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('investments')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      if (cached) {
+        setInvestments(cached);
+      }
 
-      if (fetchError) throw fetchError;
-
-      setInvestments(data || []);
+      const resolvedInvestments = await requestActiveInvestmentsForUser(user.id);
+      setInvestments(resolvedInvestments);
+      return resolvedInvestments;
     } catch (err: any) {
       console.error('❌ Erro ao buscar investimentos:', err);
       setError(err.message);
       toast.error('Erro ao carregar investimentos');
+      return [];
     } finally {
       setLoading(false);
     }

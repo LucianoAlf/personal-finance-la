@@ -1,0 +1,6 @@
+# Supabase CLI — https://supabase.com/docs/guides/cli/config
+# Gateway JWT check desligado só para esta função; o handler ainda exige Authorization + getUser().
+project_id = "sbnpmhmvcspwcyjhftlw"
+
+[functions.disconnect-whatsapp]
+verify_jwt = false

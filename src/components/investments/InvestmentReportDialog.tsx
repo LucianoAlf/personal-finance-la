@@ -26,16 +26,27 @@ import { exportReportToPDF } from '@/utils/pdfExport';
 import { formatCurrency } from '@/utils/formatters';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import type { Investment, InvestmentTransaction } from '@/types/database.types';
 
-export function InvestmentReportDialog() {
+interface InvestmentReportDialogProps {
+  investments?: Investment[];
+  transactions?: InvestmentTransaction[];
+}
+
+export function InvestmentReportDialog({
+  investments: providedInvestments,
+  transactions: providedTransactions,
+}: InvestmentReportDialogProps) {
   const [open, setOpen] = useState(false);
   const [period, setPeriod] = useState<ReportPeriod>('monthly');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [exporting, setExporting] = useState(false);
 
-  const { investments } = useInvestments();
-  const { transactions } = useInvestmentTransactions();
+  const investmentsHook = useInvestments();
+  const transactionsHook = useInvestmentTransactions();
+  const investments = providedInvestments ?? investmentsHook.investments;
+  const transactions = providedTransactions ?? transactionsHook.transactions;
   const { toast } = useToast();
 
   const report = useMemo(

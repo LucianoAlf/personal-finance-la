@@ -10,7 +10,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { supabase, SUPABASE_URL } from '@/lib/supabase';
 import type { WhatsAppConnectionStatus } from '@/types/whatsapp.types';
 
 function messageFromFunctionsInvoke(data: unknown, fnError: unknown): string | null {
@@ -200,7 +200,7 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
       const accessToken = await getUserAccessTokenOrThrow();
 
       const { data, error: functionError } = await supabase.functions.invoke('disconnect-whatsapp', {
-        body: {},
+        body: { user_id: userId },
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
@@ -217,8 +217,15 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
             /* ignore */
           }
           if (!invokeErr && status === 401) {
+            let host = SUPABASE_URL;
+            try {
+              host = new URL(SUPABASE_URL).hostname;
+            } catch {
+              /* ignore */
+            }
             invokeErr =
-              'Não autorizado (401). Faça login de novo ou confira se VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY na Vercel são do mesmo projeto.';
+              `Não autorizado (401). Faça logout/login. Se persistir, confira na Vercel se VITE_SUPABASE_URL é o Project URL exato do Supabase e se a anon key é do mesmo projeto. ` +
+              `Erro frequente: URL com …cyjhtlw… em vez de …cyjhftlw… (faltando "f"). Host configurado agora: ${host}`;
           }
         }
       }

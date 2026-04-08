@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { Button } from '@/components/ui/button';
@@ -15,11 +15,11 @@ import { DeleteInvoiceDialog } from '@/components/invoices/DeleteInvoiceDialog';
 import { AnalyticsTab } from '@/components/analytics/AnalyticsTab';
 import { CreditCardAlerts } from '@/components/credit-cards/CreditCardAlerts';
 import { useCreditCards } from '@/hooks/useCreditCards';
-import { useInvoices } from '@/hooks/useInvoices';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { Plus, CreditCard, TrendingUp, Wallet, ShoppingCart, Receipt, BarChart3, History } from 'lucide-react';
 import { CreditCard as CreditCardType, CreditCardInvoice, CreditCardSummary } from '@/types/database.types';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/lib/supabase';
 
 export function CreditCards() {
   const {
@@ -32,8 +32,6 @@ export function CreditCards() {
     fetchCards,
     fetchCardsSummary,
   } = useCreditCards();
-
-  const { invoices, invoicesDetailed, getCurrentMonthInvoicesTotal } = useInvoices();
   const { formatCurrency } = useUserPreferences();
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -50,6 +48,21 @@ export function CreditCards() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
   const invoicesRef = useRef<HTMLDivElement>(null);
+
+  const currentMonthInvoicesSummary = useMemo(() => {
+    const monthNames = [
+      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+    ];
+
+    const cardsWithCurrentInvoice = cardsSummary.filter((card) => card.current_invoice_id);
+
+    return {
+      total: cardsWithCurrentInvoice.reduce((sum, card) => sum + (card.current_invoice_amount || 0), 0),
+      count: cardsWithCurrentInvoice.length,
+      monthName: monthNames[new Date().getMonth()],
+    };
+  }, [cardsSummary]);
 
   const handleEdit = (card: CreditCardSummary) => {
     setSelectedCard(card as any);
@@ -71,16 +84,25 @@ export function CreditCards() {
     setDetailsDialogOpen(true);
   };
 
-  const handlePayInvoice = (invoiceId: string) => {
+  const handlePayInvoice = async (invoiceId: string) => {
     setSelectedInvoiceId(invoiceId);
-    
-    // Buscar invoice e card completos
-    const invoice = invoices.find(inv => inv.id === invoiceId);
-    if (!invoice) {
-      console.error('Invoice não encontrada:', invoiceId);
+
+    const { data: invoice, error } = await supabase
+      .from('credit_card_invoices')
+      .select('*')
+      .eq('id', invoiceId)
+      .single();
+
+    if (error || !invoice) {
+      console.error('Invoice não encontrada:', invoiceId, error);
+      toast({
+        title: 'Fatura não encontrada',
+        description: 'Não foi possível carregar a fatura para pagamento.',
+        variant: 'destructive',
+      });
       return;
     }
-    
+
     const card = cardsSummary.find(c => c.id === invoice.credit_card_id);
     if (!card) {
       console.error('Card não encontrado:', invoice.credit_card_id);
@@ -160,11 +182,11 @@ export function CreditCards() {
             gradient="green"
           />
           <StatCard
-            title={getCurrentMonthInvoicesTotal().count === 1 ? 'Fatura do Mês' : 'Faturas do Mês'}
-            value={formatCurrency(getCurrentMonthInvoicesTotal().total)}
+            title={currentMonthInvoicesSummary.count === 1 ? 'Fatura do Mês' : 'Faturas do Mês'}
+            value={formatCurrency(currentMonthInvoicesSummary.total)}
             icon={Receipt}
             gradient="red"
-            subtitle={`${getCurrentMonthInvoicesTotal().monthName} • ${getCurrentMonthInvoicesTotal().count} ${getCurrentMonthInvoicesTotal().count === 1 ? 'cartão' : 'cartões'}`}
+            subtitle={`${currentMonthInvoicesSummary.monthName} • ${currentMonthInvoicesSummary.count} ${currentMonthInvoicesSummary.count === 1 ? 'cartão' : 'cartões'}`}
           />
         </div>
 
@@ -237,18 +259,20 @@ export function CreditCards() {
       </div>
 
       {/* Dialog Criar/Editar Cartão */}
-      <CreditCardDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        card={selectedCard}
-        onSuccess={() => {
-          setDialogOpen(false);
-          setSelectedCard(undefined);
-          // Atualiza a lista imediatamente após criar/editar
-          fetchCards();
-          fetchCardsSummary();
-        }}
-      />
+      {dialogOpen ? (
+        <CreditCardDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          card={selectedCard}
+          onSuccess={() => {
+            setDialogOpen(false);
+            setSelectedCard(undefined);
+            // Atualiza a lista imediatamente após criar/editar
+            fetchCards();
+            fetchCardsSummary();
+          }}
+        />
+      ) : null}
 
       {/* Dialog Detalhes da Fatura */}
       {selectedInvoiceId && (
@@ -258,7 +282,7 @@ export function CreditCards() {
           invoiceId={selectedInvoiceId}
           onPayInvoice={() => {
             setDetailsDialogOpen(false);
-            setPaymentDialogOpen(true);
+            void handlePayInvoice(selectedInvoiceId);
           }}
         />
       )}
@@ -278,30 +302,32 @@ export function CreditCards() {
       )}
 
       {/* Dialog Nova Compra */}
-      <PurchaseDialog
-        open={purchaseDialogOpen}
-        onOpenChange={setPurchaseDialogOpen}
-        cardId={selectedCardIdForPurchase}
-        onSuccess={(result) => {
-          setPurchaseDialogOpen(false);
-          setSelectedCardIdForPurchase(undefined);
-          // Refetch imediato como fallback ao realtime
-          fetchCards();
-          fetchCardsSummary();
-          
-          // Destacar fatura e fazer scroll
-          if (result?.invoiceId) {
-            setHighlightedInvoiceId(result.invoiceId);
-            setTimeout(() => {
-              invoicesRef.current?.scrollIntoView({ 
-                behavior: 'smooth', 
-                block: 'start' 
-              });
-            }, 100);
-            setTimeout(() => setHighlightedInvoiceId(null), 3000);
-          }
-        }}
-      />
+      {purchaseDialogOpen ? (
+        <PurchaseDialog
+          open={purchaseDialogOpen}
+          onOpenChange={setPurchaseDialogOpen}
+          cardId={selectedCardIdForPurchase}
+          onSuccess={(result) => {
+            setPurchaseDialogOpen(false);
+            setSelectedCardIdForPurchase(undefined);
+            // Refetch imediato como fallback ao realtime
+            fetchCards();
+            fetchCardsSummary();
+            
+            // Destacar fatura e fazer scroll
+            if (result?.invoiceId) {
+              setHighlightedInvoiceId(result.invoiceId);
+              setTimeout(() => {
+                invoicesRef.current?.scrollIntoView({ 
+                  behavior: 'smooth', 
+                  block: 'start' 
+                });
+              }, 100);
+              setTimeout(() => setHighlightedInvoiceId(null), 3000);
+            }
+          }}
+        />
+      ) : null}
 
       {/* Dialog Detalhes do Cartão */}
       {selectedCardForDetails && (
