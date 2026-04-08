@@ -6,7 +6,7 @@
 
 import { getSupabase, getEmojiBanco } from './utils.ts';
 import { detectarCategoriaAutomatica } from './transaction-mapper.ts';
-import { getDefaultAIConfig } from './_shared/ai.ts';
+import { getDefaultAIConfig } from '../_shared/ai.ts';
 import { buildIntentRequest, parseIntentResponse } from './_shared/structured-intent.ts';
 
 // ============================================

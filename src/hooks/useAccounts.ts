@@ -1,49 +1,87 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Account, AccountType } from '@/types/accounts';
+import { useAuth } from '@/hooks/useAuth';
+
+const accountsCache = new Map<string, Account[]>();
+const accountRequests = new Map<string, Promise<Account[]>>();
+
+const normalizeAccounts = (rows: any[] | null | undefined): Account[] =>
+  (rows || []).map((a: any) => ({
+    ...a,
+    current_balance: Number(a.current_balance) || 0,
+    initial_balance: Number(a.initial_balance) || 0,
+  }));
 
 export const useAccounts = () => {
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
+  const [accounts, setAccounts] = useState<Account[]>(() =>
+    user?.id ? accountsCache.get(user.id) ?? [] : []
+  );
+  const [loading, setLoading] = useState(() =>
+    user?.id ? !accountsCache.has(user.id) : true
+  );
   const [error, setError] = useState<string | null>(null);
 
   // Buscar contas ativas do usuário
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
+    if (!user?.id) {
+      setAccounts([]);
+      setError(null);
+      setLoading(false);
+      return [];
+    }
+
+    const cached = accountsCache.get(user.id);
+
     try {
-      setLoading(true);
+      setLoading(!cached);
       setError(null);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        // Usuário ainda não disponível: limpa estado e aguarda onAuthStateChange
-        setAccounts([]);
-        setLoading(false);
-        return;
+      if (cached) {
+        setAccounts(cached);
       }
 
-      const { data, error: fetchError } = await supabase
-        .from('accounts')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (fetchError) {
-        throw fetchError;
+      const existingRequest = accountRequests.get(user.id);
+      if (existingRequest) {
+        const sharedAccounts = await existingRequest;
+        setAccounts(sharedAccounts);
+        return sharedAccounts;
       }
 
-      setAccounts((data || []).map((a: any) => ({
-        ...a,
-        current_balance: Number(a.current_balance) || 0,
-        initial_balance: Number(a.initial_balance) || 0,
-      })));
+      const request = (async (): Promise<Account[]> => {
+        const { data, error: fetchError } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (fetchError) {
+          throw fetchError;
+        }
+
+        const normalized = normalizeAccounts(data);
+        accountsCache.set(user.id, normalized);
+        return normalized;
+      })();
+
+      accountRequests.set(user.id, request);
+
+      const resolvedAccounts = await request;
+      setAccounts(resolvedAccounts);
+      return resolvedAccounts;
     } catch (err) {
       console.error('Erro ao buscar contas:', err);
       setError('Erro ao carregar contas. Tente novamente.');
+      return [];
     } finally {
+      if (user?.id) {
+        accountRequests.delete(user.id);
+      }
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   // Adicionar nova conta - recebe dados do formulário (sem current_balance)
   const addAccount = async (
@@ -73,7 +111,14 @@ export const useAccounts = () => {
         throw insertError;
       }
 
-      setAccounts(prev => [data, ...prev]);
+      const normalizedAccount = normalizeAccounts([data])[0];
+      setAccounts(prev => {
+        const next = [normalizedAccount, ...prev];
+        if (user?.id) {
+          accountsCache.set(user.id, next);
+        }
+        return next;
+      });
       return data;
     } catch (err) {
       console.error('Erro ao adicionar conta:', err);
@@ -108,11 +153,16 @@ export const useAccounts = () => {
         throw updateError;
       }
 
-      setAccounts(prev => 
-        prev.map(account => 
-          account.id === id ? data : account
-        )
-      );
+      const normalizedAccount = normalizeAccounts([data])[0];
+      setAccounts(prev => {
+        const next = prev.map(account =>
+          account.id === id ? normalizedAccount : account
+        );
+        if (user?.id) {
+          accountsCache.set(user.id, next);
+        }
+        return next;
+      });
 
       return data;
     } catch (err) {
@@ -136,7 +186,13 @@ export const useAccounts = () => {
         throw deleteError;
       }
 
-      setAccounts(prev => prev.filter(account => account.id !== id));
+      setAccounts(prev => {
+        const next = prev.filter(account => account.id !== id);
+        if (user?.id) {
+          accountsCache.set(user.id, next);
+        }
+        return next;
+      });
     } catch (err) {
       console.error('Erro ao excluir conta:', err);
       setError(err instanceof Error ? err.message : 'Erro ao excluir conta');
@@ -158,6 +214,17 @@ export const useAccounts = () => {
 
   // Effect para buscar contas e configurar realtime
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!user?.id) {
+      setAccounts([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     fetchAccounts();
 
     // Configurar Realtime subscription
@@ -169,6 +236,7 @@ export const useAccounts = () => {
           event: '*',
           schema: 'public',
           table: 'accounts',
+          filter: `user_id=eq.${user.id}`,
         },
         () => {
           fetchAccounts();
@@ -176,21 +244,11 @@ export const useAccounts = () => {
       )
       .subscribe();
 
-    // Refetch quando sessão/auth mudar (ex.: em páginas que montam antes do user)
-    const { data: auth } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        fetchAccounts();
-      } else {
-        setAccounts([]);
-      }
-    });
-
     // Cleanup
     return () => {
       supabase.removeChannel(channel);
-      auth?.subscription?.unsubscribe?.();
     };
-  }, []);
+  }, [authLoading, fetchAccounts, user?.id]);
 
   return {
     accounts,

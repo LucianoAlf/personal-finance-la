@@ -209,11 +209,13 @@ export function useAIProviders() {
         
         const payload = { provider, api_key: apiKey, model_name: modelName };
 
+        // Não enviar `Content-Type: application/json` aqui: o FunctionsClient só faz
+        // JSON.stringify(body) quando esse header não vem nos headers customizados;
+        // caso contrário o fetch pode mandar o objeto como "[object Object]" e o edge quebra o parse.
         const { data, error } = await supabase.functions.invoke('validate-api-key', {
           body: payload,
           headers: {
             Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
           },
         });
 
@@ -227,6 +229,7 @@ export function useAIProviders() {
         if (!data || (data as any).valid !== true) {
           const errMsg = (data as any)?.error || 'API Key inválida';
           toast.error(errMsg);
+          await fetchProviders();
           return { valid: false, error: errMsg } as any;
         }
 

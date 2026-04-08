@@ -1,7 +1,7 @@
 // FASE 1: Ana Clara com GPT-4 Real - Investment Insights (COM CACHE 24H)
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
-import { getDefaultAIConfig, callChat } from './_shared/ai.ts';
+import { getDefaultAIConfig, callChat } from '../_shared/ai.ts';
 import { buildInvestmentIntelligenceContext } from '../_shared/investment-intelligence.ts';
 import { ensureStructuredOutputTokens, usesOpenAIMaxCompletionTokens } from '../_shared/ai-openai-compatible.ts';
 
@@ -365,18 +365,18 @@ Seja específica e use os dados reais fornecidos. Não use placeholders genéric
 
   } catch (error) {
     console.error('[ana-insights] Erro:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar insights';
-    const errorDetails = error instanceof Error ? error.toString() : String(error);
-    
     return new Response(
       JSON.stringify({
-        error: errorMessage,
-        details: errorDetails,
+        error: {
+          code: 'INVESTMENT_INSIGHTS_FAILED',
+          userMessage:
+            'Não foi possível gerar os insights de investimentos agora. Tente novamente em alguns minutos.',
+        },
       }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      },
     );
   }
 });

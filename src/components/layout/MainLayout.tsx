@@ -27,12 +27,30 @@ export function MainLayout() {
 
 function QuickCreateManager() {
   const { activeQuickCreate, closeQuickCreate } = useUIStore();
+
+  if (!activeQuickCreate) {
+    return null;
+  }
+
+  return (
+    <QuickCreateActiveManager
+      activeQuickCreate={activeQuickCreate}
+      closeQuickCreate={closeQuickCreate}
+    />
+  );
+}
+
+function QuickCreateActiveManager({
+  activeQuickCreate,
+  closeQuickCreate,
+}: {
+  activeQuickCreate: QuickCreateAction;
+  closeQuickCreate: () => void;
+}) {
   const { accounts, loading: accountsLoading } = useAccounts();
   const { cardsSummary, loading: cardsLoading } = useCreditCards();
 
   useEffect(() => {
-    if (!activeQuickCreate) return;
-
     if ((activeQuickCreate === 'expense' || activeQuickCreate === 'income') && !accountsLoading && accounts.length === 0) {
       toast.error('Cadastre uma conta primeiro para registrar uma transacao.');
       closeQuickCreate();
@@ -59,23 +77,19 @@ function QuickCreateManager() {
     }
   }, [activeQuickCreate, accounts, accountsLoading, cardsLoading, cardsSummary.length, closeQuickCreate]);
 
-  if (!activeQuickCreate) {
-    return null;
-  }
-
   if (activeQuickCreate === 'card-expense') {
-    return <QuickCreatePurchaseModal open onOpenChange={closeQuickCreate} />;
+    return <QuickCreatePurchaseModal open onOpenChange={() => closeQuickCreate()} />;
   }
 
   if (activeQuickCreate === 'payable-bill') {
-    return <QuickCreateBillModal open onOpenChange={closeQuickCreate} />;
+    return <QuickCreateBillModal open onOpenChange={() => closeQuickCreate()} />;
   }
 
   return (
     <QuickCreateTransactionModal
       type={activeQuickCreate}
       open
-      onOpenChange={closeQuickCreate}
+      onOpenChange={() => closeQuickCreate()}
     />
   );
 }

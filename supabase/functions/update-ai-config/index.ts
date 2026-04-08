@@ -124,8 +124,8 @@ serve(async (req) => {
       // Extrair últimos 4 dígitos
       configData.api_key_last_4 = body.api_key.slice(-4);
       
-      // IMPORTANTE: Em produção, usar Supabase Vault para criptografar
-      // Por enquanto, armazenar diretamente (TEMPORÁRIO)
+      // IMPORTANTE: Em produção, persistir via Vault/secret store; leitura runtime em `_shared/ai-secrets.ts`.
+      // Por enquanto, armazenar diretamente (TEMPORÁRIO).
       configData.api_key_encrypted = body.api_key;
       
       if (shouldResetValidation) {

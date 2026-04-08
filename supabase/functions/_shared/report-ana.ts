@@ -3,7 +3,7 @@ import type {
   ReportIntelligenceContext,
   ReportSectionQuality,
 } from '../../../src/utils/reports/intelligence-contract.ts';
-import { getDefaultAIConfig, callChat } from '../ana-dashboard-insights/_shared/ai.ts';
+import { getDefaultAIConfig, callChat } from './ai.ts';
 import { buildDeterministicFacts } from './report-renderers.ts';
 
 export async function buildReportAnaNarrative({

@@ -3,7 +3,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { loadCanonicalTaxonomyContext } from '../_shared/canonical-tag-context.ts';
 import { buildDashboardEducationMentoringEntry } from '../_shared/education-renderers.ts';
-import { getDefaultAIConfig, callChat } from './_shared/ai.ts';
+import { getDefaultAIConfig, callChat } from '../_shared/ai.ts';
 import { ensureStructuredOutputTokens, usesOpenAIMaxCompletionTokens } from '../_shared/ai-openai-compatible.ts';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -1093,17 +1093,21 @@ IMPORTANTE:
     });
   } catch (error) {
     console.error('[ana-dashboard] Erro:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Erro ao gerar insights';
-    const errorDetails = error instanceof Error ? error.toString() : String(error);
-    return new Response(JSON.stringify({
-      error: errorMessage,
-      details: errorDetails
-    }), {
-      status: 500,
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'application/json'
-      }
-    });
+    return new Response(
+      JSON.stringify({
+        error: {
+          code: 'DASHBOARD_INSIGHTS_FAILED',
+          userMessage:
+            'Não foi possível gerar os insights do painel agora. Tente novamente em alguns minutos.',
+        },
+      }),
+      {
+        status: 500,
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
   }
 });

@@ -1,7 +1,8 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, User, Settings, Bell, ChevronDown } from 'lucide-react';
+import { LogOut, User, Settings, Sun, Moon } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,8 +28,15 @@ interface HeaderProps {
 
 export function Header({ title, subtitle, icon, actions }: HeaderProps) {
   const { user, profile, signOut } = useAuth();
-  const { userSettings } = useSettings();
+  const { userSettings, setTheme: persistTheme } = useSettings();
+  const { resolvedTheme, setTheme: applyTheme } = useTheme();
   const navigate = useNavigate();
+
+  const handleThemeToggle = () => {
+    const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(nextTheme);
+    void persistTheme(nextTheme, { showSuccessToast: false });
+  };
 
   const handleLogout = async () => {
     try {
@@ -67,11 +75,25 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
           {/* Actions */}
           {actions && <div className="flex items-center space-x-4">{actions}</div>}
 
-          {/* Notifications */}
-          <button className="relative p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors">
-            <Bell size={20} className="text-gray-600 dark:text-gray-400" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-          </button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-10 w-10 rounded-lg"
+            onClick={handleThemeToggle}
+            aria-label={
+              resolvedTheme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'
+            }
+            title={
+              resolvedTheme === 'dark' ? 'Tema claro' : 'Tema escuro'
+            }
+          >
+            {resolvedTheme === 'dark' ? (
+              <Sun size={20} className="text-gray-600 dark:text-gray-300" />
+            ) : (
+              <Moon size={20} className="text-gray-600 dark:text-gray-400" />
+            )}
+          </Button>
 
           {/* Menu do Usuário */}
           <DropdownMenu>

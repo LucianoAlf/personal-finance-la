@@ -13,6 +13,45 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { WhatsAppConnectionStatus } from '@/types/whatsapp.types';
 
+function messageFromFunctionsInvoke(data: unknown, fnError: unknown): string | null {
+  if (fnError && typeof fnError === 'object' && fnError !== null && 'message' in fnError) {
+    const m = (fnError as { message?: string }).message?.trim();
+    if (m) return m;
+  }
+  if (data && typeof data === 'object' && data !== null) {
+    const d = data as Record<string, unknown>;
+    if (typeof d.error === 'string' && d.error.trim()) return d.error.trim();
+    if (d.error && typeof d.error === 'object' && d.error !== null && 'message' in d.error) {
+      const inner = (d.error as { message?: string }).message?.trim();
+      if (inner) return inner;
+    }
+  }
+  return null;
+}
+
+/** JWT do usuário logado (com tentativa de refresh). Edge Functions com verify_jwt rejeitam se só a anon key for enviada. */
+async function getUserAccessTokenOrThrow(): Promise<string> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  let accessToken = sessionData.session?.access_token;
+
+  if (!accessToken) {
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+    accessToken = refreshed.session?.access_token ?? undefined;
+    if (refreshError && !accessToken) {
+      console.warn('[useWhatsAppConnection] refreshSession:', refreshError);
+    }
+  }
+
+  if (!accessToken) {
+    throw new Error(
+      sessionError?.message?.trim() ||
+        'Sessão não encontrada ou expirada. Faça login novamente e tente desconectar.',
+    );
+  }
+
+  return accessToken;
+}
+
 interface UseWhatsAppConnectionReturn {
   connection: WhatsAppConnectionStatus | null;
   isConnected: boolean;
@@ -108,7 +147,7 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
 
   // Connect to WhatsApp (generate QR Code)
   const connect = async () => {
-    if (!userId || !connection) return;
+    if (!userId) return;
 
     try {
       setIsLoading(true);
@@ -117,17 +156,23 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
       // ✅ Chamar Edge Function para gerar QR Code real via UAZAPI
       console.log('[useWhatsAppConnection] Chamando generate-qr-code...');
       
+      const accessToken = await getUserAccessTokenOrThrow();
+
       const { data, error: functionError } = await supabase.functions.invoke('generate-qr-code', {
         body: { user_id: userId },
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
 
-      if (functionError) {
-        console.error('[useWhatsAppConnection] Erro na Edge Function:', functionError);
-        throw functionError;
+      const invokeErr = messageFromFunctionsInvoke(data, functionError);
+      if (invokeErr) {
+        console.error('[useWhatsAppConnection] Erro na Edge Function:', functionError, data);
+        throw new Error(invokeErr);
       }
 
       if (!data?.success || !data?.qrCode) {
-        throw new Error(data?.error || 'Falha ao gerar QR Code');
+        throw new Error(
+          (typeof data?.error === 'string' ? data.error : null) || 'Falha ao gerar QR Code',
+        );
       }
 
       console.log('[useWhatsAppConnection] ✅ QR Code gerado com sucesso');
@@ -152,17 +197,35 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
       setIsLoading(true);
       setError(null);
 
-      const { error: updateError } = await supabase
-        .from('whatsapp_connections')
-        .update({
-          connected: false,
-          status: 'disconnected',
-          phone_number: null,
-          last_disconnect: new Date().toISOString(),
-        })
-        .eq('user_id', userId);
+      const accessToken = await getUserAccessTokenOrThrow();
 
-      if (updateError) throw updateError;
+      const { data, error: functionError } = await supabase.functions.invoke('disconnect-whatsapp', {
+        body: {},
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      let invokeErr = messageFromFunctionsInvoke(data, functionError);
+      if (!invokeErr && functionError && typeof functionError === 'object' && functionError !== null) {
+        const fe = functionError as { name?: string; context?: Response };
+        if (fe.name === 'FunctionsHttpError' && fe.context && typeof fe.context.status === 'number') {
+          const status = fe.context.status;
+          try {
+            const body = await fe.context.clone().json();
+            const parsed = messageFromFunctionsInvoke(body, null);
+            if (parsed) invokeErr = parsed;
+          } catch {
+            /* ignore */
+          }
+          if (!invokeErr && status === 401) {
+            invokeErr =
+              'Não autorizado (401). Faça login de novo ou confira se VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY na Vercel são do mesmo projeto.';
+          }
+        }
+      }
+      if (invokeErr) {
+        console.error('[useWhatsAppConnection] Erro na Edge Function disconnect-whatsapp:', functionError, data);
+        throw new Error(invokeErr);
+      }
 
       setQrCode(null);
       setQrCodeExpiry(null);

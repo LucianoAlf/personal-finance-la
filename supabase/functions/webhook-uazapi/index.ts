@@ -13,6 +13,10 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  buildConnectedUpdate,
+  buildDisconnectedUpdate,
+} from '../_shared/whatsapp-connection-state.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
@@ -46,6 +50,65 @@ interface UazapiPayload {
   status?: string;
 }
 
+interface WhatsAppConnectionRow {
+  user_id: string;
+  instance_token?: string | null;
+}
+
+interface UazapiEnvConfig {
+  UAZAPI_INSTANCE_TOKEN?: string;
+  UAZAPI_TOKEN?: string;
+  UAZAPI_API_KEY?: string;
+}
+
+export function getConnectionLookupToken(
+  payload: Pick<UazapiPayload, 'token'>,
+  fallbackToken?: string | null,
+): string | null {
+  return payload.token || fallbackToken || null;
+}
+
+export function getTranscriptionToken(
+  connection: Pick<WhatsAppConnectionRow, 'instance_token'> | null | undefined,
+  env: UazapiEnvConfig,
+): string | null {
+  return connection?.instance_token ||
+    env.UAZAPI_INSTANCE_TOKEN ||
+    env.UAZAPI_TOKEN ||
+    env.UAZAPI_API_KEY ||
+    null;
+}
+
+async function findConnectionForPayload(
+  supabase: any,
+  payload: UazapiPayload,
+): Promise<WhatsAppConnectionRow | null> {
+  const primaryToken = getConnectionLookupToken(payload, null);
+  const fallbackToken = UAZAPI_INSTANCE_TOKEN || null;
+  const candidateTokens = [primaryToken, fallbackToken]
+    .filter((value, index, array): value is string =>
+      Boolean(value) && array.indexOf(value) === index
+    );
+
+  for (const token of candidateTokens) {
+    const { data, error } = await supabase
+      .from('whatsapp_connections')
+      .select('user_id, instance_token')
+      .eq('instance_token', token)
+      .maybeSingle();
+
+    if (error) {
+      throw error;
+    }
+
+    if (data) {
+      return data;
+    }
+  }
+
+  return null;
+}
+
 // Função robusta para extrair texto (do Copiloto)
 function extrairTextoMensagem(payload: UazapiPayload): string {
   const message = payload.message;
@@ -69,7 +132,7 @@ function extrairTextoMensagem(payload: UazapiPayload): string {
   return "";
 }
 
-serve(async (req) => {
+export async function handleRequest(req: Request) {
   // CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -146,7 +209,11 @@ serve(async (req) => {
       }
     );
   }
-});
+}
+
+if (import.meta.main) {
+  serve(handleRequest);
+}
 
 /**
  * Atualizar status de conexão
@@ -159,28 +226,27 @@ async function handleConnectionUpdate(supabase: any, payload: UazapiPayload) {
   const phoneNumber = payload.chat?.phone || payload.phone || null;
 
   // Buscar qual usuário tem essa instância
-  const { data: connection } = await supabase
-    .from('whatsapp_connections')
-    .select('user_id')
-    .eq('instance_token', UAZAPI_INSTANCE_TOKEN)
-    .single();
+  const connection = await findConnectionForPayload(supabase, payload);
 
   if (!connection) {
     console.warn('[webhook-uazapi] Nenhuma conexão encontrada para esta instância');
     return;
   }
 
-  const updateData: any = {
-    is_connected: isConnected,
-    updated_at: new Date().toISOString(),
-  };
-
-  if (isConnected) {
-    updateData.connected_at = new Date().toISOString();
-    updateData.phone_number = phoneNumber;
-  } else {
-    updateData.disconnected_at = new Date().toISOString();
-  }
+  const now = new Date();
+  const disconnectReason = String(
+    payload.status || eventType || 'connection_update',
+  );
+  const updateData: Record<string, unknown> = isConnected
+    ? (() => {
+        const fragment = buildConnectedUpdate(phoneNumber ?? '', now);
+        const out: Record<string, unknown> = { ...fragment };
+        if (!phoneNumber) {
+          delete out.phone_number;
+        }
+        return out;
+      })()
+    : { ...buildDisconnectedUpdate(disconnectReason, now) };
 
   const { error } = await supabase
     .from('whatsapp_connections')
@@ -269,14 +335,10 @@ async function handleMessageReceived(supabase: any, payload: UazapiPayload) {
   }
 
   // Buscar user_id pela instance_token
-  const { data: connection } = await supabase
-    .from('whatsapp_connections')
-    .select('user_id')
-    .eq('instance_token', UAZAPI_INSTANCE_TOKEN)
-    .single();
+  const connection = await findConnectionForPayload(supabase, payload);
 
   if (!connection) {
-    console.warn('[webhook-uazapi] Usuário não encontrado para token:', UAZAPI_INSTANCE_TOKEN);
+    console.warn('[webhook-uazapi] Usuário não encontrado para token:', getConnectionLookupToken(payload, UAZAPI_INSTANCE_TOKEN));
     return;
   }
 
@@ -304,8 +366,16 @@ async function handleMessageReceived(supabase: any, payload: UazapiPayload) {
     console.log('🎤 Áudio detectado, iniciando transcrição...');
     console.log('🔑 messageId para transcrição:', messageId);
     
-    const UAZAPI_BASE_URL = Deno.env.get('UAZAPI_BASE_URL') || Deno.env.get('UAZAPI_SERVER_URL');
-    const UAZAPI_TOKEN = Deno.env.get('UAZAPI_TOKEN') || Deno.env.get('UAZAPI_INSTANCE_TOKEN');
+    const UAZAPI_BASE_URL = (
+      Deno.env.get('UAZAPI_BASE_URL') ||
+      Deno.env.get('UAZAPI_SERVER_URL') ||
+      'https://api.uazapi.com'
+    ).replace(/\/$/, '');
+    const UAZAPI_TOKEN = getTranscriptionToken(connection, {
+      UAZAPI_INSTANCE_TOKEN: Deno.env.get('UAZAPI_INSTANCE_TOKEN') || undefined,
+      UAZAPI_TOKEN: Deno.env.get('UAZAPI_TOKEN') || undefined,
+      UAZAPI_API_KEY: Deno.env.get('UAZAPI_API_KEY') || undefined,
+    });
     const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
     
     console.log('🔧 Env vars:', { 
@@ -436,11 +506,7 @@ async function handleMessageReceived(supabase: any, payload: UazapiPayload) {
 async function handleConnectionClosed(supabase: any, payload: UazapiPayload) {
   console.log('[webhook-uazapi] Conexão fechada');
 
-  const { data: connection } = await supabase
-    .from('whatsapp_connections')
-    .select('user_id')
-    .eq('instance_token', UAZAPI_INSTANCE_TOKEN)
-    .single();
+  const connection = await findConnectionForPayload(supabase, payload);
 
   if (!connection) {
     console.warn('[webhook-uazapi] Conexão não encontrada');
@@ -450,9 +516,10 @@ async function handleConnectionClosed(supabase: any, payload: UazapiPayload) {
   const { error } = await supabase
     .from('whatsapp_connections')
     .update({
-      is_connected: false,
-      disconnected_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      ...buildDisconnectedUpdate(
+        String(payload.status || payload.EventType || payload.event || 'connection_closed'),
+        new Date(),
+      ),
     })
     .eq('user_id', connection.user_id);
 

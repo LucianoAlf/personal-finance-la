@@ -58,7 +58,7 @@ serve(async (req) => {
         .single(),
       supabase
         .from('whatsapp_connections')
-        .select('phone_number, instance_token')
+        .select('phone_number, instance_token, connected, status')
         .eq('user_id', userId)
         .maybeSingle(),
     ]);
@@ -89,21 +89,35 @@ serve(async (req) => {
       },
     };
 
-    // 4. ENVIAR WHATSAPP (se phone configurado)
-    const whatsappPhone = whatsappConnection?.phone_number || user.phone;
-    const whatsappToken = whatsappConnection?.instance_token || Deno.env.get('UAZAPI_INSTANCE_TOKEN') || Deno.env.get('UAZAPI_API_KEY');
+    // 4. ENVIAR WHATSAPP (somente conexão canônica pronta: connected + status connected)
+    const waReady =
+      whatsappConnection?.connected === true &&
+      whatsappConnection.status === 'connected' &&
+      !!whatsappConnection.phone_number;
 
-    if (whatsappPhone) {
+    if (waReady) {
       try {
-        // Usar mesmos nomes de variáveis que send-bill-reminders
-        const uazapiBaseUrl = (Deno.env.get('UAZAPI_BASE_URL') || Deno.env.get('UAZAPI_SERVER_URL') || 'https://api.uazapi.com').replace(/\/$/, '');
-        const uazapiApiKey = whatsappToken;
+        const uazapiBaseUrl = (
+          Deno.env.get('UAZAPI_BASE_URL') ||
+          Deno.env.get('UAZAPI_SERVER_URL') ||
+          'https://api.uazapi.com'
+        ).replace(/\/$/, '');
+        const uazapiApiKey =
+          whatsappConnection.instance_token ||
+          Deno.env.get('UAZAPI_INSTANCE_TOKEN') ||
+          Deno.env.get('UAZAPI_TOKEN') ||
+          Deno.env.get('UAZAPI_API_KEY');
 
-        if (uazapiApiKey) {
-          delivery.whatsapp.attempted = true;
+        delivery.whatsapp.attempted = true;
+
+        if (!uazapiApiKey?.trim()) {
+          console.error('❌ UAZAPI token ausente para envio WhatsApp');
+          failCount++;
+          delivery.whatsapp.detail = 'missing_uazapi_token';
+        } else {
           const message = formatWhatsAppMessage(userName, context);
-          const phone = cleanPhone(whatsappPhone);
-          
+          const phone = cleanPhone(whatsappConnection.phone_number);
+
           const response = await fetch(`${uazapiBaseUrl}/send/text`, {
             method: 'POST',
             headers: {
@@ -127,10 +141,6 @@ serve(async (req) => {
             failCount++;
             delivery.whatsapp.detail = error;
           }
-        } else {
-          console.log('⚠️ UAZAPI não configurado, pulando WhatsApp');
-          delivery.whatsapp.skipped = true;
-          delivery.whatsapp.detail = 'provider_not_configured';
         }
       } catch (error) {
         console.error('❌ Erro ao enviar WhatsApp:', error);
@@ -139,7 +149,9 @@ serve(async (req) => {
       }
     } else {
       delivery.whatsapp.skipped = true;
-      delivery.whatsapp.detail = 'user_without_phone';
+      delivery.whatsapp.detail = user.phone
+        ? 'whatsapp_not_connected'
+        : 'user_without_phone';
     }
 
     // 5. ENVIAR EMAIL (se email configurado)

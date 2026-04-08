@@ -8,7 +8,6 @@ import { motion, MotionConfig } from 'framer-motion';
 import { useGoals } from '@/hooks/useGoals';
 import { useSearchParams } from 'react-router-dom';
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
-import { useGamification } from '@/hooks/useGamification';
 import { SpendingGoalCard } from '@/components/goals/SpendingGoalCard';
 import { CreateGoalDialog } from '@/components/goals/CreateGoalDialog';
 import { EditGoalDialog } from '@/components/goals/EditGoalDialog';
@@ -27,10 +26,9 @@ import { formatCurrency } from '@/utils/formatters';
 import { MonthSelector } from '@/components/shared/MonthSelector';
 import { BudgetSummaryCards } from '@/components/budget/BudgetSummaryCards';
 import { BudgetInsights } from '@/components/budget/BudgetInsights';
-import { SavingsGoalsManager } from '@/components/settings/goals/SavingsGoalsManager';
+import { SavingsGoalCard } from '@/components/goals/SavingsGoalCard';
 import { FinancialCyclesManager } from '@/components/settings/cycles/FinancialCyclesManager';
 import { FinancialSettingsCard } from '@/components/settings/financial/FinancialSettingsCard';
-import { useSettings } from '@/hooks/useSettings';
 import { useNavigate } from 'react-router-dom';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useInvestmentGoals } from '@/hooks/useInvestmentGoals';
@@ -39,6 +37,8 @@ import { InvestmentGoalDialog } from '@/components/investment-goals/InvestmentGo
 import { ContributionDialog } from '@/components/investment-goals/ContributionDialog';
 import { useSpendingGoalsPlanning } from '@/hooks/useSpendingGoalsPlanning';
 import type { BudgetAllocation, NotificationPreferences, UserSettings } from '@/types/settings.types';
+import { useGamification } from '@/hooks/useGamification';
+import { useSettings } from '@/hooks/useSettings';
 
 const DEFAULT_BUDGET_ALLOCATION: BudgetAllocation = {
   essentials: 50,
@@ -81,73 +81,121 @@ function buildBudgetThresholds(
     .sort((a, b) => a - b);
 }
 
-export function Goals() {
-  const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const { goals, loading, getGoalsByType, deleteGoal, getGoalById, refreshGoals } = useGoals();
-  const { goals: investmentGoals, loading: investmentLoading, activeGoals: activeInvestmentGoals, deleteGoal: deleteInvestmentGoal, createGoal: createInvestmentGoal, updateGoal: updateInvestmentGoal, addContribution } = useInvestmentGoals();
-  const { profile, badges, unlockedBadges, xpForNextLevel, xpProgress, levelTitle, loading: gamificationLoading, celebrationQueue, showCelebration, dismissCelebration } = useGamification();
-  const { toast } = useToast();
-  const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [defaultGoalType, setDefaultGoalType] = useState<'savings' | 'spending_limit'>('savings');
-  const [addValueDialogOpen, setAddValueDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [selectedGoal, setSelectedGoal] = useState<FinancialGoalWithCategory | null>(null);
-  const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'investments' | 'progress' | 'config'>(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam === 'budget') {
-      return 'spending';
-    }
-    if (tabParam === 'spending' || tabParam === 'investments' || tabParam === 'progress' || tabParam === 'config') {
-      return tabParam as 'savings' | 'spending' | 'investments' | 'progress' | 'config';
-    }
-    return 'savings';
-  });
-  const [selectedPlanningDate, setSelectedPlanningDate] = useState<Date>(new Date());
-  const [savingsCreateTick, setSavingsCreateTick] = useState(0);
-  const [createDialogAllowedTypes, setCreateDialogAllowedTypes] = useState<Array<'savings' | 'spending_limit'>>(['savings', 'spending_limit']);
-  const [createDialogSource, setCreateDialogSource] = useState<'default' | 'planning'>('default');
-  const [createDialogExcludedCategoryIds, setCreateDialogExcludedCategoryIds] = useState<string[]>([]);
-  const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
-  const [selectedInvestmentGoal, setSelectedInvestmentGoal] = useState<any>(null);
-  const [contributionDialogOpen, setContributionDialogOpen] = useState(false);
-  const [goalToContribute, setGoalToContribute] = useState<any>(null);
+interface GoalsProgressContentProps {
+  active: boolean;
+  totalGoalCount: number;
+  activeGoalCount: number;
+  successRate: number;
+}
 
-  useEffect(() => {
-    if (searchParams.get('tab') === 'budget') {
-      setSearchParams({ tab: 'spending' }, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
-
-  const selectedMonthStr = useMemo(() => {
-    const y = selectedPlanningDate.getFullYear();
-    const m = String(selectedPlanningDate.getMonth() + 1).padStart(2, '0');
-    return `${y}-${m}`;
-  }, [selectedPlanningDate]);
-
-  const heroPlanningMonthStr = useMemo(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  }, []);
-
+function GoalsProgressContent({
+  active,
+  totalGoalCount,
+  activeGoalCount,
+  successRate,
+}: GoalsProgressContentProps) {
   const {
-    goals: monthlySpendingGoals,
-    planningItems,
-    heroPlanningItems,
-    heroSummaryMonth,
-    heroTotalPlanned,
-    heroTotalActual,
-    totalPlanned,
-    totalActual,
-    totalDifference,
-    copyFromPreviousMonth,
-    applySuggestions,
-  } = useSpendingGoalsPlanning({
-    month: selectedMonthStr,
-    heroSummaryMonth: heroPlanningMonthStr,
-    goals,
-    refreshGoals,
-  });
+    profile,
+    badges,
+    unlockedBadges,
+    xpForNextLevel,
+    xpProgress,
+    levelTitle,
+    loading: gamificationLoading,
+    celebrationQueue,
+    showCelebration,
+    dismissCelebration,
+  } = useGamification();
+
+  const content = (
+    <>
+        {gamificationLoading ? (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Carregando progresso...</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {profile && (
+              <XPProgressBar
+                level={profile.level}
+                xp={profile.xp}
+                xpForNextLevel={xpForNextLevel}
+                levelTitle={levelTitle}
+                totalXP={profile.total_xp}
+              />
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <NextAchievements badges={badges} />
+              </div>
+              <div>
+                <Card className="p-6">
+                  <StreakHeatmap
+                    currentStreak={profile?.current_streak ?? 0}
+                    bestStreak={profile?.best_streak ?? 0}
+                    lastActivityDate={profile?.last_activity_date ?? null}
+                    subtitle="Resumo visual do streak diário baseado na última atividade real registrada no app. Não representa histórico mensal."
+                  />
+                  <div className="my-4 border-t" />
+                  <GamificationStats
+                    profile={profile}
+                    unlockedBadgesCount={unlockedBadges.length}
+                    totalBadges={ACHIEVEMENTS.length}
+                    levelTitle={levelTitle}
+                    xpForNextLevel={xpForNextLevel}
+                    xpProgress={xpProgress}
+                    totalGoals={totalGoalCount}
+                    activeGoals={activeGoalCount}
+                    successRate={successRate}
+                  />
+                </Card>
+              </div>
+            </div>
+
+            <AchievementGrid badges={badges} />
+          </div>
+        )}
+    </>
+  );
+
+  return (
+    <>
+      {active ? (
+        <TabsContent value="progress">{content}</TabsContent>
+      ) : (
+        <div className="hidden" aria-hidden="true">
+          {content}
+        </div>
+      )}
+
+      <GamificationToaster />
+
+      {celebrationQueue && celebrationQueue.length > 0 && (() => {
+        const current = celebrationQueue[0];
+        const achievement = getAchievementById(current.badge_id);
+        if (!achievement) return null;
+        return (
+          <AchievementUnlockedModal
+            open={showCelebration}
+            onOpenChange={(open) => {
+              if (!open) dismissCelebration();
+            }}
+            achievementName={achievement.name}
+            achievementDescription={achievement.description}
+            tier={current.tier}
+            xpReward={Number(current.xp_reward || achievement.tiers.find(t => t.tier === current.tier)?.xp_reward || 0)}
+            icon={achievement.icon}
+          />
+        );
+      })()}
+    </>
+  );
+}
+
+function GoalsConfigContent() {
+  const { toast } = useToast();
   const {
     userSettings,
     notificationPreferences,
@@ -176,29 +224,6 @@ export function Goals() {
     () => JSON.stringify(financialSettingsDraft) !== JSON.stringify(persistedFinancialSettings),
     [financialSettingsDraft, persistedFinancialSettings]
   );
-
-  const handleSavingsGoalChange = (value: number) => {
-    setFinancialSettingsDraft((current) => ({ ...current, savingsGoalPercentage: Math.min(100, Math.max(0, value)) }));
-  };
-
-  const handleClosingDayChange = (value: number) => {
-    setFinancialSettingsDraft((current) => ({ ...current, closingDay: Math.min(28, Math.max(1, value)) }));
-  };
-
-  const handleBudgetAllocationChange = (allocation: BudgetAllocation) => {
-    setFinancialSettingsDraft((current) => ({ ...current, budgetAllocation: allocation }));
-  };
-
-  const handleBudgetAlertThresholdChange = (threshold: number) => {
-    setFinancialSettingsDraft((current) => ({
-      ...current,
-      budgetAlertThreshold: Math.min(100, Math.max(50, threshold)),
-    }));
-  };
-
-  const handleResetFinancialSettings = () => {
-    setFinancialSettingsDraft(persistedFinancialSettings);
-  };
 
   const handleSaveFinancialSettings = async () => {
     const allocationTotal =
@@ -246,12 +271,133 @@ export function Goals() {
         title: 'Configurações financeiras salvas',
         description: 'A Ana Clara, os alertas e o planejamento já usam essas preferências atualizadas.',
       });
-    } catch (error) {
+    } catch {
       await refreshSettings();
     } finally {
       setIsSavingFinancialSettings(false);
     }
   };
+
+  return (
+    <TabsContent value="config">
+      <div className="space-y-6">
+        <FinancialSettingsCard
+          savingsGoal={financialSettingsDraft.savingsGoalPercentage}
+          onSavingsGoalChange={(value) =>
+            setFinancialSettingsDraft((current) => ({
+              ...current,
+              savingsGoalPercentage: Math.min(100, Math.max(0, value)),
+            }))
+          }
+          closingDay={financialSettingsDraft.closingDay}
+          onClosingDayChange={(value) =>
+            setFinancialSettingsDraft((current) => ({
+              ...current,
+              closingDay: Math.min(28, Math.max(1, value)),
+            }))
+          }
+          budgetAllocation={financialSettingsDraft.budgetAllocation}
+          onBudgetAllocationChange={(allocation) =>
+            setFinancialSettingsDraft((current) => ({ ...current, budgetAllocation: allocation }))
+          }
+          budgetAlertThreshold={financialSettingsDraft.budgetAlertThreshold}
+          onBudgetAlertThresholdChange={(threshold) =>
+            setFinancialSettingsDraft((current) => ({
+              ...current,
+              budgetAlertThreshold: Math.min(100, Math.max(50, threshold)),
+            }))
+          }
+          isLoading={settingsLoading && (!userSettings || !notificationPreferences)}
+          isSaving={isSavingFinancialSettings}
+          isDirty={isFinancialSettingsDirty}
+          onSave={handleSaveFinancialSettings}
+          onReset={() => setFinancialSettingsDraft(persistedFinancialSettings)}
+        />
+
+        <FinancialCyclesManager />
+      </div>
+    </TabsContent>
+  );
+}
+
+export function Goals() {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { goals, loading, getGoalsByType, deleteGoal, getGoalById, refreshGoals } = useGoals();
+  const { goals: investmentGoals, loading: investmentLoading, activeGoals: activeInvestmentGoals, deleteGoal: deleteInvestmentGoal, createGoal: createInvestmentGoal, updateGoal: updateInvestmentGoal, addContribution } = useInvestmentGoals();
+  const { toast } = useToast();
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [defaultGoalType, setDefaultGoalType] = useState<'savings' | 'spending_limit'>('savings');
+  const [addValueDialogOpen, setAddValueDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<FinancialGoalWithCategory | null>(null);
+  const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'investments' | 'progress' | 'config'>(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'budget') {
+      return 'spending';
+    }
+    if (tabParam === 'spending' || tabParam === 'investments' || tabParam === 'progress' || tabParam === 'config') {
+      return tabParam as 'savings' | 'spending' | 'investments' | 'progress' | 'config';
+    }
+    return 'savings';
+  });
+  const [selectedPlanningDate, setSelectedPlanningDate] = useState<Date>(new Date());
+  const [createDialogAllowedTypes, setCreateDialogAllowedTypes] = useState<Array<'savings' | 'spending_limit'>>(['savings', 'spending_limit']);
+  const [createDialogSource, setCreateDialogSource] = useState<'default' | 'planning'>('default');
+  const [createDialogExcludedCategoryIds, setCreateDialogExcludedCategoryIds] = useState<string[]>([]);
+  const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
+  const [selectedInvestmentGoal, setSelectedInvestmentGoal] = useState<any>(null);
+  const [contributionDialogOpen, setContributionDialogOpen] = useState(false);
+  const [goalToContribute, setGoalToContribute] = useState<any>(null);
+  const [shouldWarmProgressTab, setShouldWarmProgressTab] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'budget') {
+      setSearchParams({ tab: 'spending' }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (activeTab === 'progress' || shouldWarmProgressTab) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShouldWarmProgressTab(true);
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeTab, shouldWarmProgressTab]);
+
+  const selectedMonthStr = useMemo(() => {
+    const y = selectedPlanningDate.getFullYear();
+    const m = String(selectedPlanningDate.getMonth() + 1).padStart(2, '0');
+    return `${y}-${m}`;
+  }, [selectedPlanningDate]);
+
+  const heroPlanningMonthStr = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
+  const {
+    goals: monthlySpendingGoals,
+    planningItems,
+    heroPlanningItems,
+    heroSummaryMonth,
+    heroTotalPlanned,
+    heroTotalActual,
+    totalPlanned,
+    totalActual,
+    totalDifference,
+    copyFromPreviousMonth,
+    applySuggestions,
+  } = useSpendingGoalsPlanning({
+    month: selectedMonthStr,
+    heroSummaryMonth: heroPlanningMonthStr,
+    goals,
+    refreshGoals,
+  });
 
   // Hook de notificações
   useGoalNotifications({ goals });
@@ -327,7 +473,11 @@ export function Goals() {
   // Ações do Header
   const openSavingsFromHeader = () => {
     setActiveTab('savings');
-    setSavingsCreateTick((t) => t + 1);
+    setDefaultGoalType('savings');
+    setCreateDialogAllowedTypes(['savings']);
+    setCreateDialogSource('default');
+    setCreateDialogExcludedCategoryIds([]);
+    setCreateDialogOpen(true);
   };
 
   const openSpendingFromHeader = () => {
@@ -385,17 +535,7 @@ export function Goals() {
     setActiveTab(normalizedTab as any);
     setSearchParams({ tab: normalizedTab });
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando metas...</p>
-        </div>
-      </div>
-    );
-  }
+  const showPageShell = loading;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -440,81 +580,136 @@ export function Goals() {
       />
 
       <div className="p-6 space-y-6">
-        {/* Hero: visão geral (mês atual para orçamento) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-          <Card className="p-6 h-full">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                  <PiggyBank className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-base text-gray-900">Economia</h3>
-                  <p className="text-sm text-gray-600">Total economizado</p>
-                </div>
-              </div>
+        {showPageShell ? (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <Card key={index} className="p-6 h-full animate-pulse">
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="h-12 w-12 rounded-xl bg-gray-200" />
+                    <div className="space-y-2 flex-1">
+                      <div className="h-4 w-24 rounded bg-gray-200" />
+                      <div className="h-3 w-32 rounded bg-gray-100" />
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="h-8 w-36 rounded bg-gray-200" />
+                    <div className="h-3 w-full rounded bg-gray-100" />
+                    <div className="h-3 w-2/3 rounded bg-gray-100" />
+                  </div>
+                </Card>
+              ))}
             </div>
-            <div className="flex items-baseline gap-2 mb-4">
-              <span className="text-3xl font-bold text-gray-900">{formatCurrency(totalSavingsCurrent)}</span>
-              {totalSavingsTarget > 0 && (
-                <span className="text-sm text-gray-600">/ {formatCurrency(totalSavingsTarget)}</span>
-              )}
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-gray-600">Metas ativas</span>
-                <span className="font-semibold text-gray-900">{savingsGoals.length}</span>
-              </div>
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-gray-600">Progresso médio</span>
-                <span className="font-semibold text-gray-900">{avgSavingsProgress}%</span>
-              </div>
-            </div>
-          </Card>
 
-          <Card className="p-6 h-full">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
-                  <Shield className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-base text-gray-900">Controle de Gastos</h3>
-                  <p className="text-sm text-gray-600">Categorias dentro do limite</p>
-                </div>
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2 mb-4">
-              <span className="text-2xl font-bold text-gray-900">{limitsComplied}</span>
-              <span className="text-gray-600">de {spendingGoals.length}</span>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span className="inline-flex items-center gap-1.5 text-gray-600">
-                  <Flame className="h-4 w-4 text-orange-500" />
-                  Melhor streak
-                </span>
-                <span className="font-semibold text-gray-900">
-                  {spendingGoals.length === 0
-                    ? '—'
-                    : `${spendingGoalsBestStreak} ${spendingGoalsBestStreak === 1 ? 'mês' : 'meses'}`}
-                </span>
-              </div>
-              {attentionCategory && (
-                <div className="flex items-center justify-between gap-3">
-                  <span className="inline-flex items-center gap-1.5 text-gray-600">
-                    <AlertTriangle className="h-4 w-4 text-red-500" />
-                    Atenção
-                  </span>
-                  <span className="font-semibold text-red-700 text-right">
-                    {attentionCategory.category_name || attentionCategory.name} ({attentionCategory.percentage}%)
-                  </span>
-                </div>
-              )}
-            </div>
-          </Card>
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
+              <TabsList className="grid w-full grid-cols-5 mb-6">
+                <TabsTrigger value="savings" className="flex items-center gap-2">
+                  <PiggyBank className="h-4 w-4" />
+                  Economia
+                </TabsTrigger>
+                <TabsTrigger value="spending" className="flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Gastos
+                </TabsTrigger>
+                <TabsTrigger value="investments" className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Investimentos
+                </TabsTrigger>
+                <TabsTrigger value="progress" className="flex items-center gap-2">
+                  <Zap className="h-4 w-4" />
+                  Progresso
+                </TabsTrigger>
+                <TabsTrigger value="config" className="flex items-center gap-2">
+                  <Settings className="h-4 w-4" />
+                  Configurações
+                </TabsTrigger>
+              </TabsList>
 
-          <Card className="p-6 h-full">
+              <Card className="p-10">
+                <div className="flex items-center justify-center gap-3 text-gray-500">
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600" />
+                  <span>Carregando metas...</span>
+                </div>
+              </Card>
+            </Tabs>
+          </>
+        ) : (
+          <>
+            {/* Hero: visão geral (mês atual para orçamento) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+              <Card className="p-6 h-full">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                      <PiggyBank className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-base text-gray-900">Economia</h3>
+                      <p className="text-sm text-gray-600">Total economizado</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-2 mb-4">
+                  <span className="text-3xl font-bold text-gray-900">{formatCurrency(totalSavingsCurrent)}</span>
+                  {totalSavingsTarget > 0 && (
+                    <span className="text-sm text-gray-600">/ {formatCurrency(totalSavingsTarget)}</span>
+                  )}
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-gray-600">Metas ativas</span>
+                    <span className="font-semibold text-gray-900">{savingsGoals.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-gray-600">Progresso médio</span>
+                    <span className="font-semibold text-gray-900">{avgSavingsProgress}%</span>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6 h-full">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
+                      <Shield className="h-6 w-6 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-base text-gray-900">Controle de Gastos</h3>
+                      <p className="text-sm text-gray-600">Categorias dentro do limite</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-2 mb-4">
+                  <span className="text-2xl font-bold text-gray-900">{limitsComplied}</span>
+                  <span className="text-gray-600">de {spendingGoals.length}</span>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-1.5 text-gray-600">
+                      <Flame className="h-4 w-4 text-orange-500" />
+                      Melhor streak
+                    </span>
+                    <span className="font-semibold text-gray-900">
+                      {spendingGoals.length === 0
+                        ? '—'
+                        : `${spendingGoalsBestStreak} ${spendingGoalsBestStreak === 1 ? 'mês' : 'meses'}`}
+                    </span>
+                  </div>
+                  {attentionCategory && (
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="inline-flex items-center gap-1.5 text-gray-600">
+                        <AlertTriangle className="h-4 w-4 text-red-500" />
+                        Atenção
+                      </span>
+                      <span className="font-semibold text-red-700 text-right">
+                        {attentionCategory.category_name || attentionCategory.name} ({attentionCategory.percentage}%)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </Card>
+
+              <Card className="p-6 h-full">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center">
@@ -621,12 +816,58 @@ export function Goals() {
           </TabsList>
 
           {/* Tab: Economia - Sistema Unificado Superior */}
-          <TabsContent value="savings">
-            <SavingsGoalsManager requestCreate={savingsCreateTick} />
-          </TabsContent>
+          {activeTab === 'savings' ? (
+            <TabsContent value="savings">
+              {savingsGoals.length === 0 ? (
+                <div className="text-center py-12">
+                  <PiggyBank className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhuma meta de economia</h3>
+                  <p className="text-gray-600 mb-6">
+                    Crie uma meta para acompanhar aportes, prazo e progresso sem esperar outro carregamento da página.
+                  </p>
+                  <Button onClick={openSavingsFromHeader}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Criar Meta de Economia
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <Card className="p-6">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                      <div className="text-center">
+                        <p className="text-sm text-gray-500">Metas Ativas</p>
+                        <p className="text-3xl font-bold text-gray-900">{savingsGoals.length}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-gray-500">Total Economizado</p>
+                        <p className="text-3xl font-bold text-emerald-600">{formatCurrency(totalSavingsCurrent)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-gray-500">Meta Total</p>
+                        <p className="text-3xl font-bold text-gray-900">{formatCurrency(totalSavingsTarget)}</p>
+                      </div>
+                    </div>
+                  </Card>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {savingsGoals.map((goal) => (
+                      <SavingsGoalCard
+                        key={goal.id}
+                        goal={goal}
+                        onEdit={handleEdit}
+                        onDelete={handleDelete}
+                        onAddValue={handleAddValue}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+          ) : null}
 
           {/* Tab: Gastos */}
-          <TabsContent value="spending">
+          {activeTab === 'spending' ? (
+            <TabsContent value="spending">
             <MotionConfig reducedMotion="never">
               <motion.div
                 key={`spending-${selectedMonthStr}`}
@@ -718,10 +959,12 @@ export function Goals() {
                 )}
               </motion.div>
             </MotionConfig>
-          </TabsContent>
+            </TabsContent>
+          ) : null}
 
           {/* Tab: Investimentos */}
-          <TabsContent value="investments">
+          {activeTab === 'investments' ? (
+            <TabsContent value="investments">
             {investmentLoading ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
@@ -754,178 +997,101 @@ export function Goals() {
                 ))}
               </div>
             )}
-          </TabsContent>
+            </TabsContent>
+          ) : null}
 
           {/* Tab: Progresso (Gamificação) */}
-          <TabsContent value="progress">
-            {gamificationLoading ? (
-              <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-                <p className="mt-4 text-gray-600">Carregando progresso...</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {/* Hero: Barra de XP */}
-                {profile && (
-                  <XPProgressBar
-                    level={profile.level}
-                    xp={profile.xp}
-                    xpForNextLevel={xpForNextLevel}
-                    levelTitle={levelTitle}
-                    totalXP={profile.total_xp}
-                  />
-                )}
-
-                {/* Grid: Próximas Conquistas + Streak */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2">
-                    <NextAchievements badges={badges} />
-                  </div>
-                  <div>
-                    <Card className="p-6">
-                      <StreakHeatmap
-                        currentStreak={profile?.current_streak ?? 0}
-                        bestStreak={profile?.best_streak ?? 0}
-                        lastActivityDate={profile?.last_activity_date ?? null}
-                        subtitle="Resumo visual do streak diário baseado na última atividade real registrada no app. Não representa histórico mensal."
-                      />
-                      <div className="my-4 border-t" />
-                      <GamificationStats
-                        profile={profile}
-                        unlockedBadgesCount={unlockedBadges.length}
-                        totalBadges={ACHIEVEMENTS.length}
-                        levelTitle={levelTitle}
-                        xpForNextLevel={xpForNextLevel}
-                        xpProgress={xpProgress}
-                        totalGoals={totalGoalCount}
-                        activeGoals={activeGoalCount}
-                        successRate={successRate}
-                      />
-                    </Card>
-                  </div>
-                </div>
-
-                {/* Grid de Todas as Conquistas */}
-                <AchievementGrid badges={badges} />
-              </div>
-            )}
-          </TabsContent>
+          {activeTab === 'progress' || shouldWarmProgressTab ? (
+            <GoalsProgressContent
+              active={activeTab === 'progress'}
+              totalGoalCount={totalGoalCount}
+              activeGoalCount={activeGoalCount}
+              successRate={successRate}
+            />
+          ) : null}
 
           {/* Tab: Configurações */}
-          <TabsContent value="config">
-            <div className="space-y-6">
-              {/* Configurações Financeiras */}
-              <FinancialSettingsCard
-                savingsGoal={financialSettingsDraft.savingsGoalPercentage}
-                onSavingsGoalChange={handleSavingsGoalChange}
-                closingDay={financialSettingsDraft.closingDay}
-                onClosingDayChange={handleClosingDayChange}
-                budgetAllocation={financialSettingsDraft.budgetAllocation}
-                onBudgetAllocationChange={handleBudgetAllocationChange}
-                budgetAlertThreshold={financialSettingsDraft.budgetAlertThreshold}
-                onBudgetAlertThresholdChange={handleBudgetAlertThresholdChange}
-                isLoading={settingsLoading && (!userSettings || !notificationPreferences)}
-                isSaving={isSavingFinancialSettings}
-                isDirty={isFinancialSettingsDirty}
-                onSave={handleSaveFinancialSettings}
-                onReset={handleResetFinancialSettings}
-              />
-
-              {/* Ciclos Financeiros */}
-              <FinancialCyclesManager />
-            </div>
-          </TabsContent>
+          {activeTab === 'config' ? <GoalsConfigContent /> : null}
         </Tabs>
+          </>
+        )}
       </div>
 
-      {/* Toaster de Gamificação */}
-      <GamificationToaster />
-
-      {/* Modal de celebração de conquista */}
-      {celebrationQueue && celebrationQueue.length > 0 && (() => {
-        const current = celebrationQueue[0];
-        const achievement = getAchievementById(current.badge_id);
-        if (!achievement) return null;
-        return (
-          <AchievementUnlockedModal
-            open={showCelebration}
-            onOpenChange={(open) => {
-              if (!open) dismissCelebration();
-            }}
-            achievementName={achievement.name}
-            achievementDescription={achievement.description}
-            tier={current.tier}
-            xpReward={Number(current.xp_reward || achievement.tiers.find(t => t.tier === current.tier)?.xp_reward || 0)}
-            icon={achievement.icon}
-          />
-        );
-      })()}
-
       {/* Dialogs */}
-      <CreateGoalDialog
-        key={`${createDialogSource}-${defaultGoalType}-${createDialogAllowedTypes.join(',')}-${createDialogExcludedCategoryIds.join(',')}`}
-        open={createDialogOpen}
-        onOpenChange={(open) => {
-          setCreateDialogOpen(open);
-          if (!open) {
-            setCreateDialogSource('default');
-            setCreateDialogExcludedCategoryIds([]);
-          }
-        }}
-        defaultType={defaultGoalType}
-        allowedTypes={createDialogAllowedTypes}
-        excludedCategoryIds={createDialogExcludedCategoryIds}
-        onCreated={async (goal) => {
-          if (createDialogSource === 'planning') {
-            return;
-          }
-          let created = getGoalById(goal.id);
-          if (!created) {
-            await refreshGoals();
-            created = getGoalById(goal.id);
-          }
-          if (created) {
-            setSelectedGoal(created);
-            setEditDialogOpen(true);
-          }
-        }}
-      />
-      
-      <AddValueDialog
-        open={addValueDialogOpen}
-        onOpenChange={setAddValueDialogOpen}
-        goal={selectedGoal}
-      />
+      {createDialogOpen ? (
+        <CreateGoalDialog
+          key={`${createDialogSource}-${defaultGoalType}-${createDialogAllowedTypes.join(',')}-${createDialogExcludedCategoryIds.join(',')}`}
+          open={createDialogOpen}
+          onOpenChange={(open) => {
+            setCreateDialogOpen(open);
+            if (!open) {
+              setCreateDialogSource('default');
+              setCreateDialogExcludedCategoryIds([]);
+            }
+          }}
+          defaultType={defaultGoalType}
+          allowedTypes={createDialogAllowedTypes}
+          excludedCategoryIds={createDialogExcludedCategoryIds}
+          onCreated={async (goal) => {
+            if (createDialogSource === 'planning') {
+              return;
+            }
+            let created = getGoalById(goal.id);
+            if (!created) {
+              await refreshGoals();
+              created = getGoalById(goal.id);
+            }
+            if (created) {
+              setSelectedGoal(created);
+              setEditDialogOpen(true);
+            }
+          }}
+        />
+      ) : null}
 
-      <EditGoalDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        goal={selectedGoal}
-      />
+      {addValueDialogOpen ? (
+        <AddValueDialog
+          open={addValueDialogOpen}
+          onOpenChange={setAddValueDialogOpen}
+          goal={selectedGoal}
+        />
+      ) : null}
 
-      <InvestmentGoalDialog
-        open={investmentDialogOpen}
-        onOpenChange={(open) => {
-          setInvestmentDialogOpen(open);
-          if (!open) {
-            setSelectedInvestmentGoal(null);
-          }
-        }}
-        goal={selectedInvestmentGoal}
-        onSave={handleSaveInvestmentGoal}
-      />
+      {editDialogOpen ? (
+        <EditGoalDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          goal={selectedGoal}
+        />
+      ) : null}
 
-      <ContributionDialog
-        open={contributionDialogOpen}
-        onOpenChange={(open) => {
-          setContributionDialogOpen(open);
-          if (!open) {
-            setGoalToContribute(null);
-          }
-        }}
-        goal={goalToContribute}
-        onSave={addContribution}
-      />
+      {investmentDialogOpen ? (
+        <InvestmentGoalDialog
+          open={investmentDialogOpen}
+          onOpenChange={(open) => {
+            setInvestmentDialogOpen(open);
+            if (!open) {
+              setSelectedInvestmentGoal(null);
+            }
+          }}
+          goal={selectedInvestmentGoal}
+          onSave={handleSaveInvestmentGoal}
+        />
+      ) : null}
+
+      {contributionDialogOpen ? (
+        <ContributionDialog
+          open={contributionDialogOpen}
+          onOpenChange={(open) => {
+            setContributionDialogOpen(open);
+            if (!open) {
+              setGoalToContribute(null);
+            }
+          }}
+          goal={goalToContribute}
+          onSave={addContribution}
+        />
+      ) : null}
     </div>
   );
 }

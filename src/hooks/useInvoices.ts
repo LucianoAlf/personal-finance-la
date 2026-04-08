@@ -405,7 +405,9 @@ export function useInvoices(cardId?: string) {
         }
       )
       .subscribe((status) => {
-        console.log('📡 [REALTIME] Invoices subscription status:', status);
+        if (status !== 'CLOSED') {
+          console.log('[REALTIME] Invoices subscription status:', status);
+        }
       });
 
     // Subscription para mudanças nas transações (atualiza faturas quando transações mudam)

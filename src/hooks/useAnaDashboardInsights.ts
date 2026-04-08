@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { getPreferences } from '@/hooks/useAnaPreferences';
 import { logInsights } from '@/hooks/useAnaInsightsHistory';
 import type { DashboardInsightsResponse } from '@/types/ana-insights.types';
+import { getUserSafeEdgeErrorMessage } from '@/utils/edgeFunctionError';
 
 interface UseAnaDashboardInsightsReturn {
   insights: DashboardInsightsResponse | null;
@@ -70,9 +71,21 @@ export function useAnaDashboardInsights(
         body: { preferences: getPreferences(), forceRefresh: true },
       });
 
+      if (data && typeof data === 'object' && data !== null) {
+        const errObj = (data as { error?: unknown }).error;
+        if (errObj && typeof errObj === 'object' && errObj !== null && 'userMessage' in errObj) {
+          const um = (errObj as { userMessage: string }).userMessage;
+          if (typeof um === 'string' && um.trim()) {
+            throw new Error(um.trim());
+          }
+        }
+      }
+
       if (fnError) {
-        console.error('[useAnaDashboardInsights] Erro na Edge Function:', fnError);
-        throw new Error(fnError.message || 'Erro ao buscar insights');
+        console.error('[useAnaDashboardInsights] Erro na Edge Function:', fnError, data);
+        throw new Error(
+          getUserSafeEdgeErrorMessage(data, fnError, 'Erro ao buscar insights'),
+        );
       }
 
       if (!data) {

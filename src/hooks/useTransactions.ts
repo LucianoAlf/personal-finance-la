@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import { processGamificationEvent } from '@/lib/gamification';
 import type { CanonicalTaggableEntityType } from '@/types/categories';
 import type { Transaction, TransactionType } from '@/types/transactions';
@@ -27,146 +28,194 @@ interface TransactionFilters {
   isPaid?: boolean;
 }
 
+const transactionsCache = new Map<string, Transaction[]>();
+const transactionRequests = new Map<string, Promise<Transaction[]>>();
+
+const hasActiveFilters = (filters?: TransactionFilters) =>
+  Boolean(
+    filters?.type ||
+      filters?.accountId ||
+      filters?.categoryId ||
+      filters?.startDate ||
+      filters?.endDate ||
+      filters?.isPaid !== undefined
+  );
+
 export const useTransactions = () => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user, loading: authLoading } = useAuth();
+  const [transactions, setTransactions] = useState<Transaction[]>(() =>
+    user?.id ? transactionsCache.get(user.id) ?? [] : []
+  );
+  const [loading, setLoading] = useState(() =>
+    user?.id ? !transactionsCache.has(user.id) : true
+  );
   const [error, setError] = useState<string | null>(null);
   const realtimeChannelNameRef = useRef(`all_transactions_realtime_${crypto.randomUUID()}`);
 
   // Buscar todas as transações com relacionamentos
-  const fetchTransactions = async (filters?: TransactionFilters) => {
+  const fetchTransactions = useCallback(async (filters?: TransactionFilters) => {
+    if (!user?.id) {
+      setTransactions([]);
+      setLoading(false);
+      setError(null);
+      return [];
+    }
+
+    const shouldUseCache = !hasActiveFilters(filters);
+    const cached = shouldUseCache ? transactionsCache.get(user.id) : undefined;
+
     try {
-      setLoading(true);
+      setLoading(!cached);
       setError(null);
 
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setLoading(false);
-        return;
+      if (cached) {
+        setTransactions(cached);
       }
 
-      // ✅ OTIMIZADO: Buscar transações COM tags em 1 query (elimina N+1)
-      let query = supabase
-        .from('transactions')
-        .select(`
-          *,
-          category:categories(id, name, icon, color),
-          account:accounts!account_id(id, name),
-          transaction_tags(
-            tag:tags(id, name, color)
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .order('transaction_date', { ascending: false });
-
-      // Aplicar filtros se fornecidos
-      if (filters?.type) {
-        query = query.eq('type', filters.type);
-      }
-      if (filters?.accountId) {
-        query = query.eq('account_id', filters.accountId);
-      }
-      if (filters?.categoryId) {
-        query = query.eq('category_id', filters.categoryId);
-      }
-      if (filters?.startDate) {
-        query = query.gte('transaction_date', filters.startDate);
-      }
-      if (filters?.endDate) {
-        query = query.lte('transaction_date', filters.endDate);
-      }
-      if (filters?.isPaid !== undefined) {
-        query = query.eq('is_paid', filters.isPaid);
+      const existingRequest = shouldUseCache ? transactionRequests.get(user.id) : undefined;
+      if (existingRequest) {
+        const sharedTransactions = await existingRequest;
+        setTransactions(sharedTransactions);
+        return sharedTransactions;
       }
 
-      const { data, error: fetchError } = await query;
+      const request = (async (): Promise<Transaction[]> => {
+        // ✅ OTIMIZADO: Buscar transações COM tags em 1 query (elimina N+1)
+        let query = supabase
+          .from('transactions')
+          .select(`
+            *,
+            category:categories(id, name, icon, color),
+            account:accounts!account_id(id, name),
+            transaction_tags(
+              tag:tags(id, name, color)
+            )
+          `)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .order('transaction_date', { ascending: false });
 
-      if (fetchError) {
-        console.error('❌ Erro ao buscar transações:', fetchError);
-        throw fetchError;
-      }
-
-      // ✅ OTIMIZADO: Tags já vêm na query principal
-      const transactionsWithTags = (data || []).map(transaction => ({
-        ...transaction,
-        tags: transaction.transaction_tags?.map((tt: any) => tt.tag).filter(Boolean) || []
-      }));
-
-      // Se filtro é 'income', não incluir transações de cartão
-      if (filters?.type === 'income') {
-        setTransactions(transactionsWithTags);
-        return;
-      }
-
-      // Buscar transações de cartão e hidratar tags reais para a lista unificada.
-      const { data: ccData, error: ccError } = await supabase
-        .from('credit_card_transactions')
-        .select(`
-          id,
-          user_id,
-          category_id,
-          amount,
-          description,
-          purchase_date,
-          created_at,
-          credit_card_id,
-          invoice_id,
-          is_installment,
-          is_parent_installment,
-          installment_number,
-          total_installments,
-          installment_group_id,
-          total_amount,
-          category:categories(id, name, icon, color),
-          credit_card:credit_cards(id, name, color),
-          invoice:credit_card_invoices(reference_month)
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (ccError) {
-        console.error('Erro ao buscar transações de cartão:', ccError);
-        setTransactions(transactionsWithTags);
-        return;
-      }
-
-      const creditCardIds = (ccData || []).map((cc: any) => cc.id);
-      let creditCardTagsByTransactionId: Record<string, LedgerTag[]> = {};
-
-      if (creditCardIds.length > 0) {
-        const { data: ccTagRows, error: ccTagError } = await supabase
-          .from('credit_card_transaction_tags')
-          .select('credit_card_transaction_id, tag:tags(id, name, color)')
-          .in('credit_card_transaction_id', creditCardIds);
-
-        if (ccTagError) {
-          console.error('Erro ao buscar tags das transações de cartão:', ccTagError);
-        } else {
-          creditCardTagsByTransactionId = buildCreditCardTransactionTagMap(
-            ((ccTagRows ?? []) as unknown) as CreditCardTagRow[],
-          );
+        // Aplicar filtros se fornecidos
+        if (filters?.type) {
+          query = query.eq('type', filters.type);
         }
+        if (filters?.accountId) {
+          query = query.eq('account_id', filters.accountId);
+        }
+        if (filters?.categoryId) {
+          query = query.eq('category_id', filters.categoryId);
+        }
+        if (filters?.startDate) {
+          query = query.gte('transaction_date', filters.startDate);
+        }
+        if (filters?.endDate) {
+          query = query.lte('transaction_date', filters.endDate);
+        }
+        if (filters?.isPaid !== undefined) {
+          query = query.eq('is_paid', filters.isPaid);
+        }
+
+        const { data, error: fetchError } = await query;
+
+        if (fetchError) {
+          console.error('❌ Erro ao buscar transações:', fetchError);
+          throw fetchError;
+        }
+
+        // ✅ OTIMIZADO: Tags já vêm na query principal
+        const transactionsWithTags = (data || []).map(transaction => ({
+          ...transaction,
+          tags: transaction.transaction_tags?.map((tt: any) => tt.tag).filter(Boolean) || []
+        }));
+
+        // Se filtro é 'income', não incluir transações de cartão
+        if (filters?.type === 'income') {
+          return transactionsWithTags;
+        }
+
+        // Buscar transações de cartão e hidratar tags reais para a lista unificada.
+        const { data: ccData, error: ccError } = await supabase
+          .from('credit_card_transactions')
+          .select(`
+            id,
+            user_id,
+            category_id,
+            amount,
+            description,
+            purchase_date,
+            created_at,
+            credit_card_id,
+            invoice_id,
+            is_installment,
+            is_parent_installment,
+            installment_number,
+            total_installments,
+            installment_group_id,
+            total_amount,
+            category:categories(id, name, icon, color),
+            credit_card:credit_cards(id, name, color),
+            invoice:credit_card_invoices(reference_month)
+          `)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (ccError) {
+          console.error('Erro ao buscar transações de cartão:', ccError);
+          return transactionsWithTags;
+        }
+
+        const creditCardIds = (ccData || []).map((cc: any) => cc.id);
+        let creditCardTagsByTransactionId: Record<string, LedgerTag[]> = {};
+
+        if (creditCardIds.length > 0) {
+          const { data: ccTagRows, error: ccTagError } = await supabase
+            .from('credit_card_transaction_tags')
+            .select('credit_card_transaction_id, tag:tags(id, name, color)')
+            .in('credit_card_transaction_id', creditCardIds);
+
+          if (ccTagError) {
+            console.error('Erro ao buscar tags das transações de cartão:', ccTagError);
+          } else {
+            creditCardTagsByTransactionId = buildCreditCardTransactionTagMap(
+              ((ccTagRows ?? []) as unknown) as CreditCardTagRow[],
+            );
+          }
+        }
+
+        const creditCardTransactions = (ccData || []).map((cc: any) =>
+          mapCreditCardTransactionRow(cc as CreditCardLedgerRow, creditCardTagsByTransactionId),
+        );
+
+        // Combinar e ordenar
+        const allTransactions = [...transactionsWithTags, ...creditCardTransactions];
+        allTransactions.sort((a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+        return allTransactions;
+      })();
+
+      if (shouldUseCache) {
+        transactionRequests.set(user.id, request);
       }
 
-      const creditCardTransactions = (ccData || []).map((cc: any) =>
-        mapCreditCardTransactionRow(cc as CreditCardLedgerRow, creditCardTagsByTransactionId),
-      );
-
-      // Combinar e ordenar
-      const allTransactions = [...transactionsWithTags, ...creditCardTransactions];
-      allTransactions.sort((a, b) => 
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      );
-
-      setTransactions(allTransactions);
+      const resolvedTransactions = await request;
+      if (shouldUseCache) {
+        transactionsCache.set(user.id, resolvedTransactions);
+      }
+      setTransactions(resolvedTransactions);
+      return resolvedTransactions;
     } catch (err) {
       console.error('Erro ao buscar transações:', err);
       setError('Erro ao carregar transações. Tente novamente.');
+      return [];
     } finally {
+      if (shouldUseCache) {
+        transactionRequests.delete(user.id);
+      }
       setLoading(false);
     }
-  };
+  }, [user?.id]);
 
   // Criar transação
   const addTransaction = async (
@@ -175,8 +224,7 @@ export const useTransactions = () => {
     try {
       setError(null);
 
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
+      if (!user?.id) {
         console.error('❌ Usuário não autenticado ao criar transação');
         throw new Error('Usuário não autenticado');
       }
@@ -412,21 +460,26 @@ export const useTransactions = () => {
     await saveTagsForCanonicalEntity('transaction', transactionId, tagIds);
   };
 
-  // Effect para buscar transações e configurar realtime
+  // Effect para buscar transações e configurar realtime (após sessão pronta — evita fetch duplicado/corrida com Strict Mode)
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!user?.id) {
+      setTransactions([]);
+      setError(null);
+      setLoading(false);
+      return;
+    }
+
     let isActive = true;
     let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 
     const setupRealtime = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      await fetchTransactions();
 
       if (!isActive) return;
-
-      fetchTransactions();
-
-      if (!user) return;
 
       realtimeChannel = supabase
         .channel(realtimeChannelNameRef.current)
@@ -469,7 +522,7 @@ export const useTransactions = () => {
         supabase.removeChannel(realtimeChannel);
       }
     };
-  }, []);
+  }, [authLoading, user?.id, fetchTransactions]);
 
   return {
     transactions,

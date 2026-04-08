@@ -1,6 +1,8 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { PayableBill } from '@/types/payable-bills.types';
+import type { Category } from '@/types/categories';
+import type { Account } from '@/types/accounts';
 import { BillCard } from './BillCard';
 import { InstallmentGroupCard, groupInstallments } from './InstallmentGroupCard';
 import { Inbox } from 'lucide-react';
@@ -8,6 +10,9 @@ import { Inbox } from 'lucide-react';
 interface BillListProps {
   bills: PayableBill[];
   allBills?: PayableBill[];
+  categories: Category[];
+  accounts: Account[];
+  categoriesLoading: boolean;
   onPay?: (bill: PayableBill) => void;
   onEdit?: (bill: PayableBill) => void;
   onDelete?: (bill: PayableBill) => void;
@@ -21,6 +26,9 @@ interface BillListProps {
 export function BillList({
   bills,
   allBills,
+  categories,
+  accounts,
+  categoriesLoading,
   onPay,
   onEdit,
   onDelete,
@@ -95,6 +103,9 @@ export function BillList({
               <InstallmentGroupCard
                 key={group.groupId}
                 group={group}
+                categories={categories}
+                accounts={accounts}
+                categoriesLoading={categoriesLoading}
                 onPayInstallment={onPay}
                 onEditInstallment={onEdit}
                 onDeleteGroup={onDeleteInstallmentGroup}
@@ -120,6 +131,8 @@ export function BillList({
               <BillCard
                 key={bill.id}
                 bill={bill}
+                categories={categories}
+                accounts={accounts}
                 onPay={onPay}
                 onEdit={onEdit}
                 onDelete={onDelete}

@@ -82,19 +82,19 @@ export function AIProviderCard({ provider, config, isDefault, onClick, onUpdateM
 
   const handleTestConnection = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!config?.api_key_encrypted || !config?.model_name) return;
-    
+    if (!config?.model_name) {
+      toast.error('Selecione um modelo antes de testar.');
+      return;
+    }
+    if (!config?.api_key_encrypted) {
+      toast.error('Não há chave salva. Abra Configurar e salve a API Key.');
+      return;
+    }
+
     try {
       setTesting(true);
-      const result = await onTestConnection(provider, config.api_key_encrypted, config.model_name);
-      
-      if (result.valid) {
-        const respondedModel = result.responded_model || result.tested_model || config.model_name;
-        toast.success(`Conexão real validada com ${respondedModel}`);
-      } else {
-        toast.error(result.error || 'Falha ao testar conexão');
-      }
-    } catch (error) {
+      await onTestConnection(provider, config.api_key_encrypted, config.model_name);
+    } catch {
       toast.error('Erro ao testar conexão');
     } finally {
       setTesting(false);
@@ -186,6 +186,11 @@ export function AIProviderCard({ provider, config, isDefault, onClick, onUpdateM
                       hour: '2-digit',
                       minute: '2-digit'
                     })}
+                  </p>
+                )}
+                {!isValidated && config.validation_error && (
+                  <p className="text-xs text-destructive break-words max-h-24 overflow-y-auto rounded border border-destructive/30 bg-destructive/5 p-2 mt-1">
+                    {config.validation_error}
                   </p>
                 )}
               </div>

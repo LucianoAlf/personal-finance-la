@@ -23,6 +23,8 @@ import {
   Undo2,
 } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
+import type { Category } from '@/types/categories';
+import type { Account } from '@/types/accounts';
 import {
   formatCurrency,
   formatDueDateWithContext,
@@ -30,8 +32,6 @@ import {
   getBillCategoryName,
 } from '@/utils/billCalculations';
 import { PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
-import { useCategories } from '@/hooks/useCategories';
-import { useAccounts } from '@/hooks/useAccounts';
 import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -59,6 +59,9 @@ export interface InstallmentGroup {
 
 interface InstallmentGroupCardProps {
   group: InstallmentGroup;
+  categories: Category[];
+  accounts: Account[];
+  categoriesLoading: boolean;
   onPayInstallment?: (bill: PayableBill) => void;
   onEditInstallment?: (bill: PayableBill) => void;
   onDeleteGroup?: (groupId: string) => void;
@@ -67,12 +70,14 @@ interface InstallmentGroupCardProps {
 
 export function InstallmentGroupCard({
   group,
+  categories,
+  accounts,
+  categoriesLoading,
   onPayInstallment,
   onEditInstallment,
   onDeleteGroup,
   onRevertInstallmentPayment,
 }: InstallmentGroupCardProps) {
-  const { accounts } = useAccounts();
   const summarySourceInstallment =
     group.installments.find((installment) => installment.payment_method || installment.payment_account_id) ||
     group.nextInstallment ||
@@ -89,7 +94,6 @@ export function InstallmentGroupCard({
     paymentAccount?.name || null,
   ].filter(Boolean).join(' • ');
 
-  const { categories, loading: categoriesLoading } = useCategories();
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Buscar categoria pelo ID ou usar fallback

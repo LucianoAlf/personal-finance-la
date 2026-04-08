@@ -77,9 +77,6 @@ export function Sidebar() {
   const { profile, user } = useAuth();
   const { userSettings } = useSettings();
   const [moreOptionsOpen, setMoreOptionsOpen] = useState(false);
-  
-  // Buscar alertas de contas a pagar
-  const { summary } = usePayableBills({ status: ['pending', 'overdue'] });
 
   const resolvedDisplayName = resolveUserDisplayName(profile, userSettings, user);
   const resolvedAvatarUrl = resolveUserAvatarUrl(profile, userSettings);
@@ -161,11 +158,6 @@ export function Sidebar() {
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
-            
-            // Badge de alertas para Contas a Pagar
-            const alertCount = item.path === '/contas-pagar' 
-              ? summary.overdue_count 
-              : 0;
 
             return (
               <Link
@@ -182,11 +174,9 @@ export function Sidebar() {
                   <Icon size={20} />
                   <span>{item.label}</span>
                 </div>
-                {alertCount > 0 && (
-                  <Badge variant="danger" className="ml-auto">
-                    {alertCount}
-                  </Badge>
-                )}
+                {item.path === '/contas-pagar' && location.pathname !== '/contas-pagar' ? (
+                  <PayableBillsAlertBadge />
+                ) : null}
               </Link>
             );
           })}
@@ -288,5 +278,19 @@ export function Sidebar() {
         <Bot size={28} className="text-white" />
       </button>
     </>
+  );
+}
+
+function PayableBillsAlertBadge() {
+  const { summary } = usePayableBills({ status: ['pending', 'overdue'] });
+
+  if (summary.overdue_count <= 0) {
+    return null;
+  }
+
+  return (
+    <Badge variant="danger" className="ml-auto">
+      {summary.overdue_count}
+    </Badge>
   );
 }

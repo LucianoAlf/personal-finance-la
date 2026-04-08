@@ -170,6 +170,13 @@ export function MessageHistory() {
                           {INTENT_LABELS[message.intent]}
                         </Badge>
                       )}
+                      {message.intent === 'quick_command' &&
+                        typeof message.metadata?.command === 'string' &&
+                        message.metadata.command.trim() !== '' && (
+                          <Badge variant="outline" className="text-xs font-mono">
+                            {message.metadata.command}
+                          </Badge>
+                        )}
                     </div>
                     <span className="text-xs text-muted-foreground whitespace-nowrap">
                       {formatDistanceToNow(new Date(message.received_at), {

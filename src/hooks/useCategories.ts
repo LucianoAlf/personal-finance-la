@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import type { Category, CategoryType } from '@/types/categories';
 
 export const useCategories = () => {
+  const { user, loading: authLoading } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -135,11 +137,20 @@ export const useCategories = () => {
     }
   };
 
-  // Effect para buscar categorias e configurar realtime
+  // Effect para buscar categorias e configurar realtime (após sessão pronta)
   useEffect(() => {
+    if (authLoading) {
+      return;
+    }
+
+    if (!user) {
+      setCategories([]);
+      setLoading(false);
+      return;
+    }
+
     fetchCategories();
 
-    // Configurar Realtime subscription
     const channel = supabase
       .channel('categories_changes')
       .on(
@@ -156,11 +167,10 @@ export const useCategories = () => {
       )
       .subscribe();
 
-    // Cleanup
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [authLoading, user?.id]);
 
   return {
     categories,

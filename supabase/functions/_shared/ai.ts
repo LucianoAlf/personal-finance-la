@@ -7,6 +7,7 @@ import {
   extractOpenAIResponsesText,
   usesOpenAIResponsesAPI,
 } from './ai-openai-compatible.ts';
+import { resolveApiKeyFromProviderConfigRow } from './ai-secrets.ts';
 
 export interface NormalizedAIConfig {
   provider: 'openai' | 'gemini' | 'claude' | 'openrouter';
@@ -33,7 +34,7 @@ export async function getDefaultAIConfig(supabase: any, userId: string): Promise
   return {
     provider: data.provider,
     model: data.model_name,
-    apiKey: data.api_key_encrypted,
+    apiKey: resolveApiKeyFromProviderConfigRow(data),
     temperature: typeof data.temperature === 'number' ? data.temperature : 0.7,
     maxTokens: typeof data.max_tokens === 'number' ? data.max_tokens : 1000,
     systemPrompt: data.system_prompt || undefined,

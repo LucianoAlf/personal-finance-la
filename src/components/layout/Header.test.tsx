@@ -5,6 +5,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Header } from './Header';
 
 const signOutMock = vi.fn();
@@ -34,19 +35,21 @@ function LocationProbe() {
 
 function renderHeader() {
   return render(
-    <MemoryRouter initialEntries={['/dashboard']}>
-      <Routes>
-        <Route
-          path="*"
-          element={
-            <>
-              <Header title="Teste" />
-              <LocationProbe />
-            </>
-          }
-        />
-      </Routes>
-    </MemoryRouter>,
+    <ThemeProvider defaultTheme="light">
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <Routes>
+          <Route
+            path="*"
+            element={
+              <>
+                <Header title="Teste" />
+                <LocationProbe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    </ThemeProvider>,
   );
 }
 

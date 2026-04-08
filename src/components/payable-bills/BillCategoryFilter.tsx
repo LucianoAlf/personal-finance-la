@@ -5,6 +5,7 @@
  * Atualizado em: 16/12/2025 - Corrigido para usar banco de dados
  */
 
+import type { Category } from '@/types/categories';
 import {
   Select,
   SelectContent,
@@ -16,18 +17,16 @@ import {
 } from '@/components/ui/select';
 import { Layers } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
-import { useCategories } from '@/hooks/useCategories';
 
 export type CategoryFilter = string | 'all';
 
 interface BillCategoryFilterProps {
+  categories: Category[];
   value: CategoryFilter;
   onChange: (value: CategoryFilter) => void;
 }
 
-export function BillCategoryFilter({ value, onChange }: BillCategoryFilterProps) {
-  const { categories } = useCategories();
-  
+export function BillCategoryFilter({ categories, value, onChange }: BillCategoryFilterProps) {
   // Separar por tipo
   const expenseCategories = categories.filter(cat => cat.type === 'expense');
   const incomeCategories = categories.filter(cat => cat.type === 'income');

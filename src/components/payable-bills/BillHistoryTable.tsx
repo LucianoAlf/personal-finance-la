@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Search, FileText, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PayableBill } from '@/types/payable-bills.types';
+import type { Category } from '@/types/categories';
 import {
   formatCurrency,
   formatDate,
@@ -21,18 +22,17 @@ import {
 } from '@/utils/billCalculations';
 import { PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
 import { getBillCategoryName } from '@/utils/billCalculations';
-import { useCategories } from '@/hooks/useCategories';
 import { HistoryDateFilter, DateRange } from './HistoryDateFilter';
 import { HistorySummaryCards } from './HistorySummaryCards';
 import { BillCategoryFilter, CategoryFilter } from './BillCategoryFilter';
 
 interface BillHistoryTableProps {
   bills: PayableBill[];
+  categories: Category[];
   onDelete?: (bill: PayableBill) => void;
 }
 
-export function BillHistoryTable({ bills, onDelete }: BillHistoryTableProps) {
-  const { categories } = useCategories();
+export function BillHistoryTable({ bills, categories, onDelete }: BillHistoryTableProps) {
   const [search, setSearch] = useState('');
   
   // Buscar categoria pelo ID ou usar fallback
@@ -129,7 +129,11 @@ export function BillHistoryTable({ bills, onDelete }: BillHistoryTableProps) {
             className="pl-9"
           />
         </div>
-        <BillCategoryFilter value={categoryFilter} onChange={setCategoryFilter} />
+        <BillCategoryFilter
+          categories={categories}
+          value={categoryFilter}
+          onChange={setCategoryFilter}
+        />
       </div>
 
       {/* Tabela */}

@@ -19,6 +19,7 @@ import { Plus, Receipt, BarChart3, History, Trash2, AlertTriangle, ChevronLeft, 
 import { Header } from '@/components/layout/Header';
 import { usePayableBills } from '@/hooks/usePayableBills';
 import { useCategories } from '@/hooks/useCategories';
+import { useAccounts } from '@/hooks/useAccounts';
 import { BillSummaryCards } from '@/components/payable-bills/BillSummaryCards';
 import { BillList } from '@/components/payable-bills/BillList';
 import { BillDialog } from '@/components/payable-bills/BillDialog';
@@ -63,7 +64,8 @@ export default function PayableBills() {
   const { alerts: variationAlerts } = useRecurringTrend();
 
   // Hook de Categorias (para mapeamento no filtro)
-  const { categories } = useCategories();
+  const { categories, loading: categoriesLoading } = useCategories();
+  const { accounts } = useAccounts();
 
   // Preferências de formatação do usuário
   const { formatCurrency, formatDate } = useUserPreferences();
@@ -86,6 +88,8 @@ export default function PayableBills() {
   const [selectedMonthDate, setSelectedMonthDate] = useState(new Date());
   const [monthModalOpen, setMonthModalOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
+  /** Só monta Relatórios (RPC + useBillReports) quando a aba está ativa — melhora abertura da página. */
+  const [billsMainTab, setBillsMainTab] = useState<'bills' | 'history' | 'reports'>('bills');
 
   const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
   const isAllAccountsMode = periodFilter === 'all';
@@ -504,7 +508,11 @@ export default function PayableBills() {
         </Card>
 
         {/* Tabs */}
-        <Tabs defaultValue="bills" className="space-y-6">
+        <Tabs
+          value={billsMainTab}
+          onValueChange={(v) => setBillsMainTab(v as 'bills' | 'history' | 'reports')}
+          className="space-y-6"
+        >
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="bills">
               <Receipt className="h-4 w-4 mr-1" />
@@ -532,18 +540,6 @@ export default function PayableBills() {
               </div>
             )}
 
-            {/* Seção de Atenção Necessária */}
-            {!loading && viewMode !== 'calendar' && (
-              <AttentionSection
-                bills={filteredBills}
-                onPay={handlePay}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                onCopy={handleCopy}
-                onConfigReminders={handleConfigReminders}
-              />
-            )}
-
             {/* Barra de Controles */}
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
               <div className="relative w-full lg:max-w-sm">
@@ -557,7 +553,11 @@ export default function PayableBills() {
               </div>
               <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
                 <PeriodFilter value={periodFilter} onChange={setPeriodFilter} />
-                <BillCategoryFilter value={categoryFilter} onChange={setCategoryFilter} />
+                <BillCategoryFilter
+                  categories={categories}
+                  value={categoryFilter}
+                  onChange={setCategoryFilter}
+                />
                 {periodFilter === 'recurring' && (
                   <RecurrenceTypeFilter value={recurrenceTypeFilter} onChange={setRecurrenceTypeFilter} />
                 )}
@@ -565,6 +565,21 @@ export default function PayableBills() {
                 <ViewToggle value={viewMode} onChange={setViewMode} />
               </div>
             </div>
+
+            {/* Destaque: vencidas / vence hoje / vence amanhã (abaixo dos filtros) */}
+            {!loading && viewMode !== 'calendar' && (
+              <AttentionSection
+                bills={filteredBills}
+                categories={categories}
+                accounts={accounts}
+                categoriesLoading={categoriesLoading}
+                onPay={handlePay}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onCopy={handleCopy}
+                onConfigReminders={handleConfigReminders}
+              />
+            )}
 
             <motion.div
               initial={{ opacity: 0 }}
@@ -627,6 +642,9 @@ export default function PayableBills() {
                 <BillList
                   bills={filteredBills}
                   allBills={bills}
+                  categories={categories}
+                  accounts={accounts}
+                  categoriesLoading={categoriesLoading}
                   onPay={handlePay}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
@@ -642,49 +660,63 @@ export default function PayableBills() {
 
           {/* ABA 2: HISTÓRICO */}
           <TabsContent value="history" className="space-y-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.1 }}
-            >
-              {loading ? (
-                <div className="h-96 bg-muted animate-pulse rounded-lg"></div>
-              ) : (
-                <BillHistoryTable bills={monthAwarePaidBills} onDelete={handleDelete} />
-              )}
-            </motion.div>
+            {billsMainTab === 'history' ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.1 }}
+              >
+                {loading ? (
+                  <div className="h-96 bg-muted animate-pulse rounded-lg"></div>
+                ) : (
+                  <BillHistoryTable
+                    bills={monthAwarePaidBills}
+                    categories={categories}
+                    onDelete={handleDelete}
+                  />
+                )}
+              </motion.div>
+            ) : null}
           </TabsContent>
 
-          {/* ABA 3: RELATÓRIOS (UNIFICADA) */}
+          {/* ABA 3: RELATÓRIOS — montagem sob demanda (evita get_bill_analytics na abertura) */}
           <TabsContent value="reports" className="space-y-6">
-            <BillReportsDashboard />
+            {billsMainTab === 'reports' ? (
+              <BillReportsDashboard bills={bills} />
+            ) : null}
           </TabsContent>
         </Tabs>
       </div>
 
       {/* Dialogs */}
-      <BillDialog
-        key="create-bill-dialog"
-        open={createDialogOpen}
-        onOpenChange={handleCreateDialogChange}
-        onSubmit={handleCreate}
-      />
+      {createDialogOpen ? (
+        <BillDialog
+          key="create-bill-dialog"
+          open={createDialogOpen}
+          onOpenChange={handleCreateDialogChange}
+          onSubmit={handleCreate}
+        />
+      ) : null}
 
-      <BillDialog
-        open={editDialogOpen}
-        onOpenChange={setEditDialogOpen}
-        onSubmit={handleUpdate}
-        bill={selectedBill || undefined}
-      />
+      {editDialogOpen ? (
+        <BillDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          onSubmit={handleUpdate}
+          bill={selectedBill || undefined}
+        />
+      ) : null}
 
-      <ReminderConfigDialog
-        open={reminderDialogOpen}
-        onOpenChange={setReminderDialogOpen}
-        bill={selectedBill}
-        onSuccess={() => {
-          toast.success('Lembretes configurados com sucesso!');
-        }}
-      />
+      {reminderDialogOpen ? (
+        <ReminderConfigDialog
+          open={reminderDialogOpen}
+          onOpenChange={setReminderDialogOpen}
+          bill={selectedBill}
+          onSuccess={() => {
+            toast.success('Lembretes configurados com sucesso!');
+          }}
+        />
+      ) : null}
 
       {/* Dialog de Confirmação - Deletar Conta */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

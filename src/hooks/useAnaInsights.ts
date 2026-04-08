@@ -1,6 +1,7 @@
 // FASE 1: Ana Clara com GPT-4 Real - Hook atualizado
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { getUserSafeEdgeErrorMessage } from '@/utils/edgeFunctionError';
 import { usePortfolioMetrics } from './usePortfolioMetrics';
 import { useAllocationTargets } from './useAllocationTargets';
 import { useInvestmentGoals } from './useInvestmentGoals';
@@ -100,17 +101,28 @@ export function useAnaInsights(investments: Investment[]): AnaInsights {
 
         if (!isMounted) return;
 
+        if (data && typeof data === 'object' && data !== null) {
+          const errObj = (data as { error?: unknown }).error;
+          if (errObj && typeof errObj === 'object' && errObj !== null && 'userMessage' in errObj) {
+            const um = (errObj as { userMessage: string }).userMessage;
+            if (typeof um === 'string' && um.trim()) {
+              throw new Error(um.trim());
+            }
+          }
+        }
+
         if (invokeError) {
-          throw new Error(invokeError.message || 'Erro ao buscar insights');
+          throw new Error(
+            getUserSafeEdgeErrorMessage(data, invokeError, 'Erro ao buscar insights'),
+          );
         }
 
         if (!data) {
           throw new Error('Nenhum dado retornado');
         }
 
-        // Se a resposta contém um erro
         if (data.error) {
-          throw new Error(data.error);
+          throw new Error(getUserSafeEdgeErrorMessage(data, null, 'Erro ao buscar insights'));
         }
 
         setGptInsights(data as AnaInsightsGPT);

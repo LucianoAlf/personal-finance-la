@@ -25,6 +25,8 @@ import {
   Undo2,
 } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
+import type { Category } from '@/types/categories';
+import type { Account } from '@/types/accounts';
 import {
   formatCurrency,
   formatDueDateWithContext,
@@ -36,11 +38,11 @@ import {
 } from '@/utils/billCalculations';
 import { BILL_STATUS_LABELS, PAYMENT_METHOD_LABELS } from '@/types/payable-bills.types';
 import { getBillCategoryName } from '@/utils/billCalculations';
-import { useCategories } from '@/hooks/useCategories';
-import { useAccounts } from '@/hooks/useAccounts';
 
 interface BillCardProps {
   bill: PayableBill;
+  categories: Category[];
+  accounts: Account[];
   onPay?: (bill: PayableBill) => void;
   onEdit?: (bill: PayableBill) => void;
   onDelete?: (bill: PayableBill) => void;
@@ -50,9 +52,18 @@ interface BillCardProps {
   highlight?: boolean;
 }
 
-export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigReminders, onRevertPayment, highlight }: BillCardProps) {
-  const { categories } = useCategories();
-  const { accounts } = useAccounts();
+export function BillCard({
+  bill,
+  categories,
+  accounts,
+  onPay,
+  onEdit,
+  onDelete,
+  onCopy,
+  onConfigReminders,
+  onRevertPayment,
+  highlight,
+}: BillCardProps) {
   const statusColor = getStatusColor(bill.status);
   // Passar status para não mostrar alerta vermelho em contas pagas
   const dueDateColor = getDueDateColor(bill.due_date, bill.status);

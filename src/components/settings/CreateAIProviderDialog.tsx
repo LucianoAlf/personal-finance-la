@@ -126,8 +126,11 @@ export function CreateAIProviderDialog({
       setSaving(true);
       
       if (isEditing) {
-        // Atualizar configuração existente (sem API key)
+        // Atualizar configuração existente (sem API key).
+        // update-ai-config exige sempre `model_name` no body; no modo edição o usuário pode estar só no passo 3,
+        // mas o modelo continua em `selectedModel` (hidratado de existingConfig no mount).
         await updateProvider(provider, {
+          model_name: selectedModel,
           temperature,
           max_tokens: maxTokens,
           response_style: responseStyle,

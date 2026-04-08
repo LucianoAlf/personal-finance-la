@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
-import { Loader2, RefreshCw, Download, FileText } from 'lucide-react';
+import { Loader2, RefreshCw, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useBillReports } from '@/hooks/useBillReports';
-import { usePayableBills } from '@/hooks/usePayableBills';
+import type { PayableBill } from '@/types/payable-bills.types';
 import { ReportsPeriodFilter } from './ReportsPeriodFilter';
 import { ReportsSummaryCards } from './ReportsSummaryCards';
 import { BehaviorAlerts } from './BehaviorAlerts';
@@ -13,7 +13,12 @@ import { PotentialSavings } from './PotentialSavings';
 import { MonthlyEvolutionChart } from './MonthlyEvolutionChart';
 import { ExportButton } from '../ExportButton';
 
-export function BillReportsDashboard() {
+interface BillReportsDashboardProps {
+  /** Lista já carregada pela página (evita segundo fetch + Realtime duplicado). */
+  bills: PayableBill[];
+}
+
+export function BillReportsDashboard({ bills }: BillReportsDashboardProps) {
   const {
     data,
     loading,
@@ -25,8 +30,6 @@ export function BillReportsDashboard() {
     setCustomDateRange,
     periodLabel
   } = useBillReports();
-
-  const { bills } = usePayableBills();
 
   if (loading) {
     return (

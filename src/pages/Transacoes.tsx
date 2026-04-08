@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Plus, TrendingUp, TrendingDown, Wallet, X, List, Search, Filter, ChevronLeft, ChevronRight, ArrowLeftRight, Landmark } from 'lucide-react';
@@ -51,7 +51,7 @@ export const Transacoes = () => {
   } = useTransactions();
 
   const { accounts } = useAccounts();
-  const { getCategoryById, fetchCategories } = useCategories();
+  const { getCategoryById } = useCategories();
   const { formatCurrency, formatDate, formatRelativeDate } = useUserPreferences();
 
   // ESTADOS
@@ -63,12 +63,6 @@ export const Transacoes = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [filtersModalOpen, setFiltersModalOpen] = useState(false);
   const [activeFilters, setActiveFilters] = useState<FilterConfig | null>(null);
-
-  // Forçar refetch ao carregar a página
-  useEffect(() => {
-    fetchTransactions();
-    fetchCategories();
-  }, []);
 
   // FILTRO POR CONTA (vindo da URL)
   const selectedAccountForFilter = accountIdFromUrl 
@@ -344,11 +338,55 @@ export const Transacoes = () => {
     return <IconComponent size={20} style={{ color: category?.color || '#6B7280' }} />;
   };
 
+  const headerActions = (
+    <>
+      <Button
+        className="bg-green-600 hover:bg-green-700"
+        onClick={() => handleNewTransaction('income')}
+      >
+        <Plus className="mr-2" size={16} />
+        Nova Receita
+      </Button>
+      <Button
+        className="bg-red-600 hover:bg-red-700"
+        onClick={() => handleNewTransaction('expense')}
+      >
+        <Plus className="mr-2" size={16} />
+        Nova Despesa
+      </Button>
+    </>
+  );
+
   // LOADING STATE
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Carregando transações...</div>
+      <div className="min-h-screen bg-gray-50">
+        <Header
+          title="Transações"
+          subtitle="Gerencie suas receitas, despesas e transferências"
+          icon={<List size={24} />}
+          actions={headerActions}
+        />
+
+        <div className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Card key={index} className="border-l-4 animate-pulse">
+                <CardContent className="p-6 space-y-3">
+                  <div className="h-4 w-24 rounded bg-gray-200" />
+                  <div className="h-8 w-32 rounded bg-gray-200" />
+                  <div className="h-3 w-40 rounded bg-gray-100" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Card>
+            <CardContent className="p-10 text-center text-gray-500">
+              Carregando transações...
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -360,24 +398,7 @@ export const Transacoes = () => {
         title="Transações"
         subtitle="Gerencie suas receitas, despesas e transferências"
         icon={<List size={24} />}
-        actions={
-          <>
-            <Button
-              className="bg-green-600 hover:bg-green-700"
-              onClick={() => handleNewTransaction('income')}
-            >
-              <Plus className="mr-2" size={16} />
-              Nova Receita
-            </Button>
-            <Button
-              className="bg-red-600 hover:bg-red-700"
-              onClick={() => handleNewTransaction('expense')}
-            >
-              <Plus className="mr-2" size={16} />
-              Nova Despesa
-            </Button>
-          </>
-        }
+        actions={headerActions}
       />
 
       {/* CONTEÚDO */}
@@ -744,24 +765,26 @@ export const Transacoes = () => {
         </Card>
       </div>
 
-      {/* DIALOG - CONECTADO */}
-      <TransactionDialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          setDialogOpen(open);
-          if (!open) {
-            setSelectedTransaction(undefined);
-            setPreSelectedType(undefined);
-          }
-        }}
-        transaction={selectedTransaction}
-        onSave={handleSave}
-        onSaveComplete={async () => {
-          await fetchTransactions();
-        }}
-        onDelete={handleDelete}
-        defaultType={preSelectedType}
-      />
+      {/* Dialogs pesados ficam sob demanda para não disparar hooks/rede no primeiro paint da rota. */}
+      {dialogOpen ? (
+        <TransactionDialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            setDialogOpen(open);
+            if (!open) {
+              setSelectedTransaction(undefined);
+              setPreSelectedType(undefined);
+            }
+          }}
+          transaction={selectedTransaction}
+          onSave={handleSave}
+          onSaveComplete={async () => {
+            await fetchTransactions();
+          }}
+          onDelete={handleDelete}
+          defaultType={preSelectedType}
+        />
+      ) : null}
 
       {/* MODAL DE SELEÇÃO DE MÊS */}
       <Dialog open={monthModalOpen} onOpenChange={setMonthModalOpen}>
@@ -841,16 +864,18 @@ export const Transacoes = () => {
         </DialogContent>
       </Dialog>
 
-      {/* MODAL DE FILTROS AVANÇADOS */}
-      <AdvancedFiltersModal
-        open={filtersModalOpen}
-        onOpenChange={setFiltersModalOpen}
-        onApplyFilters={(filters) => {
-          setActiveFilters(filters);
-          toast.success('Filtros aplicados com sucesso!');
-        }}
-        currentFilters={activeFilters || undefined}
-      />
+      {/* Modal com hooks de tags/contas/filtros salvos só precisa montar ao abrir. */}
+      {filtersModalOpen ? (
+        <AdvancedFiltersModal
+          open={filtersModalOpen}
+          onOpenChange={setFiltersModalOpen}
+          onApplyFilters={(filters) => {
+            setActiveFilters(filters);
+            toast.success('Filtros aplicados com sucesso!');
+          }}
+          currentFilters={activeFilters || undefined}
+        />
+      ) : null}
     </div>
   );
 };

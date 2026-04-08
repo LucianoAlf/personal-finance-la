@@ -4,7 +4,7 @@
 // ============================================
 
 import { getSupabase } from './utils.ts';
-import { callVision, getDefaultAIConfig, type NormalizedAIConfig } from './_shared/ai.ts';
+import { callVision, getDefaultAIConfig, type NormalizedAIConfig } from '../_shared/ai.ts';
 
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 const UAZAPI_BASE_URL = Deno.env.get('UAZAPI_BASE_URL');

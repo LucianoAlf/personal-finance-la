@@ -16,16 +16,6 @@ interface ValidateRequest {
   model_name?: string;
 }
 
-function normalizeRequestedModel(provider: ValidateRequest["provider"], model?: string) {
-  if (!model) return undefined;
-
-  if (provider === "gemini" && model === "gemini-3.1-flash-preview") {
-    return "gemini-3.1-flash-lite-preview";
-  }
-
-  return model;
-}
-
 async function parseErrorMessage(response: Response, fallback: string) {
   let msg = fallback;
   try {
@@ -213,7 +203,8 @@ serve(async (req) => {
       );
     }
 
-    const normalizedModelName = normalizeRequestedModel(body.provider, body.model_name);
+    /** Sem renomeação silenciosa; catálogo em `AI_MODELS` (frontend). */
+    const resolvedModelName = body.model_name;
 
     let result: {
       valid: boolean;
@@ -226,16 +217,16 @@ serve(async (req) => {
 
     switch (body.provider) {
       case "openai":
-        result = await validateOpenAI(body.api_key, normalizedModelName);
+        result = await validateOpenAI(body.api_key, resolvedModelName);
         break;
       case "gemini":
-        result = await validateGemini(body.api_key, normalizedModelName);
+        result = await validateGemini(body.api_key, resolvedModelName);
         break;
       case "claude":
-        result = await validateClaude(body.api_key, normalizedModelName);
+        result = await validateClaude(body.api_key, resolvedModelName);
         break;
       case "openrouter":
-        result = await validateOpenRouter(body.api_key, normalizedModelName);
+        result = await validateOpenRouter(body.api_key, resolvedModelName);
         break;
       default:
         throw new Error("Provedor não suportado");
@@ -252,7 +243,7 @@ serve(async (req) => {
       .maybeSingle();
 
     const modelNameToPersist =
-      result.tested_model || normalizedModelName || existingConfig?.model_name || "default";
+      result.tested_model || resolvedModelName || existingConfig?.model_name || "default";
 
     if (existingConfig?.id) {
       // Update direto na linha mais recente
@@ -293,10 +284,17 @@ serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify(result), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    return new Response(
+      JSON.stringify({
+        ...result,
+        requested_model: body.model_name ?? null,
+        resolved_model: resolvedModelName ?? null,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      },
+    );
   } catch (error: any) {
     console.error("Error in validate-api-key:", error);
 

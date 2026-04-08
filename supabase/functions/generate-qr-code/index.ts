@@ -11,20 +11,41 @@
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildConnectingUpdate } from '../_shared/whatsapp-connection-state.ts';
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const UAZAPI_SERVER_URL = Deno.env.get('UAZAPI_SERVER_URL')!;
 const UAZAPI_BASE_URL = Deno.env.get('UAZAPI_BASE_URL');
 // Tentar múltiplos nomes de token (compatibilidade)
-const UAZAPI_TOKEN = Deno.env.get('UAZAPI_TOKEN') || Deno.env.get('UAZAPI_INSTANCE_TOKEN') || Deno.env.get('UAZAPI_API_KEY');
+const UAZAPI_TOKEN =
+  Deno.env.get('UAZAPI_INSTANCE_TOKEN') ||
+  Deno.env.get('UAZAPI_TOKEN') ||
+  Deno.env.get('UAZAPI_API_KEY');
 const UAZAPI_INSTANCE_ID = Deno.env.get('UAZAPI_INSTANCE_ID')!;
 
 interface GenerateQRRequest {
   user_id: string;
 }
 
-serve(async (req) => {
+interface UazapiEnvConfig {
+  UAZAPI_INSTANCE_TOKEN?: string;
+  UAZAPI_TOKEN?: string;
+  UAZAPI_API_KEY?: string;
+}
+
+export function resolveGenerateQrToken(
+  connectionToken?: string | null,
+  env?: UazapiEnvConfig,
+): string | null {
+  return connectionToken ||
+    env?.UAZAPI_INSTANCE_TOKEN ||
+    env?.UAZAPI_TOKEN ||
+    env?.UAZAPI_API_KEY ||
+    null;
+}
+
+export async function handleRequest(req: Request) {
   // CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -50,10 +71,6 @@ serve(async (req) => {
       throw new Error('user_id é obrigatório');
     }
     
-    if (!UAZAPI_TOKEN) {
-      throw new Error('UAZAPI_TOKEN não configurado');
-    }
-
     console.log(`[generate-qr-code] Gerando QR Code para usuário: ${request.user_id}`);
 
     // 1. Buscar ou criar registro de conexão
@@ -85,6 +102,15 @@ serve(async (req) => {
 
     console.log('[generate-qr-code] Registro de conexão obtido');
 
+    const resolvedToken = resolveGenerateQrToken(connection?.instance_token, {
+      UAZAPI_INSTANCE_TOKEN: Deno.env.get('UAZAPI_INSTANCE_TOKEN') || undefined,
+      UAZAPI_TOKEN: Deno.env.get('UAZAPI_TOKEN') || undefined,
+      UAZAPI_API_KEY: Deno.env.get('UAZAPI_API_KEY') || undefined,
+    });
+    if (!resolvedToken) {
+      throw new Error('UAZAPI_TOKEN não configurado');
+    }
+
     // 2. Chamar UAZAPI para gerar QR Code
     console.log('[generate-qr-code] Chamando UAZAPI...');
 
@@ -99,7 +125,7 @@ serve(async (req) => {
       {
         label: 'token',
         headers: {
-          token: String(UAZAPI_TOKEN),
+          token: resolvedToken,
           'Content-Type': 'application/json',
         },
       },
@@ -241,11 +267,10 @@ serve(async (req) => {
     const { error: updateError } = await supabase
       .from('whatsapp_connections')
       .update({
+        ...buildConnectingUpdate(new Date()),
         qr_code: qrPayload,
         qr_code_expires_at: expiresAt.toISOString(),
         instance_id: UAZAPI_INSTANCE_ID,
-        status: 'connecting',
-        updated_at: new Date().toISOString(),
       })
       .eq('user_id', request.user_id);
 
@@ -291,4 +316,8 @@ serve(async (req) => {
       }
     );
   }
-});
+}
+
+if (import.meta.main) {
+  serve(handleRequest);
+}

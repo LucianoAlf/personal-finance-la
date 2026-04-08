@@ -129,16 +129,27 @@ serve(async (req) => {
 
       const { data: whatsappConnection } = await supabase
         .from('whatsapp_connections')
-        .select('phone_number, instance_token')
+        .select('phone_number, instance_token, connected, status')
         .eq('user_id', user.user_id)
         .maybeSingle();
 
-      const destinationPhone = whatsappConnection?.phone_number || userdata?.phone;
+      if (
+        !whatsappConnection?.connected ||
+        whatsappConnection.status !== 'connected' ||
+        !whatsappConnection.phone_number
+      ) {
+        continue;
+      }
 
-      if (!destinationPhone) continue;
+      const destinationPhone = whatsappConnection.phone_number;
 
       // Enviar resumo
-      const message = formatInvestmentSummary(context, frequency, userdata.full_name, totalDividends);
+      const message = formatInvestmentSummary(
+        context,
+        frequency,
+        userdata?.full_name ?? '',
+        totalDividends,
+      );
       
       const sent = await sendWhatsAppNotification(
         supabase,
@@ -246,15 +257,27 @@ async function sendWhatsAppNotification(
       .eq('user_id', userId)
       .maybeSingle();
 
-    const UAZAPI_BASE_URL = (Deno.env.get('UAZAPI_BASE_URL') || Deno.env.get('UAZAPI_SERVER_URL') || 'https://api.uazapi.com').replace(/\/$/, '');
-    const UAZAPI_TOKEN = connection?.instance_token || Deno.env.get('UAZAPI_INSTANCE_TOKEN') || Deno.env.get('UAZAPI_API_KEY');
+    const UAZAPI_BASE_URL = (
+      Deno.env.get('UAZAPI_BASE_URL') ||
+      Deno.env.get('UAZAPI_SERVER_URL') ||
+      'https://api.uazapi.com'
+    ).replace(/\/$/, '');
+    const UAZAPI_TOKEN =
+      connection?.instance_token ||
+      Deno.env.get('UAZAPI_INSTANCE_TOKEN') ||
+      Deno.env.get('UAZAPI_TOKEN') ||
+      Deno.env.get('UAZAPI_API_KEY');
+    if (!UAZAPI_TOKEN?.trim()) {
+      console.error('[sendWhatsAppNotification] UAZAPI token ausente');
+      return false;
+    }
     const destinationPhone = connection?.phone_number || phone;
 
     const response = await fetch(`${UAZAPI_BASE_URL}/send/text`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'token': UAZAPI_TOKEN!,
+        'token': UAZAPI_TOKEN,
       },
       body: JSON.stringify({
         number: destinationPhone,

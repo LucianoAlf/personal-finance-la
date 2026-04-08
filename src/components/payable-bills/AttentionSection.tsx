@@ -1,11 +1,20 @@
 import { motion } from 'framer-motion';
 import { AlertTriangle, Clock, Calendar } from 'lucide-react';
 import { PayableBill } from '@/types/payable-bills.types';
+import type { Category } from '@/types/categories';
+import type { Account } from '@/types/accounts';
 import { BillCard } from './BillCard';
-import { differenceInDays, parseISO, isToday, isTomorrow } from 'date-fns';
+import { getDaysUntilDue, isBillOverdue, isDueToday } from '@/utils/billCalculations';
+
+function isOpenForAttention(bill: PayableBill): boolean {
+  return bill.status !== 'paid' && bill.status !== 'cancelled';
+}
 
 interface AttentionSectionProps {
   bills: PayableBill[];
+  categories: Category[];
+  accounts: Account[];
+  categoriesLoading: boolean;
   onPay: (bill: PayableBill) => void;
   onEdit: (bill: PayableBill) => void;
   onDelete: (bill: PayableBill) => void;
@@ -15,21 +24,25 @@ interface AttentionSectionProps {
 
 export function AttentionSection({
   bills,
+  categories,
+  accounts,
+  categoriesLoading,
   onPay,
   onEdit,
   onDelete,
   onCopy,
   onConfigReminders,
 }: AttentionSectionProps) {
-  const today = new Date();
-  
-  // Filtrar contas que precisam de atenção
-  const overdueBills = bills.filter((b) => b.status === 'overdue');
+  // Alinhar com o resumo da página e usePayableBills: vencimento pela data, não só status === 'overdue'
+  // (parcelas e outras linhas podem ficar como pending no banco mesmo após o vencimento).
+  const overdueBills = bills.filter(
+    (b) => isOpenForAttention(b) && isBillOverdue(b.due_date)
+  );
   const dueTodayBills = bills.filter(
-    (b) => b.status === 'pending' && isToday(parseISO(b.due_date))
+    (b) => isOpenForAttention(b) && isDueToday(b.due_date)
   );
   const dueTomorrowBills = bills.filter(
-    (b) => b.status === 'pending' && isTomorrow(parseISO(b.due_date))
+    (b) => isOpenForAttention(b) && getDaysUntilDue(b.due_date) === 1
   );
   
   const attentionBills = [...overdueBills, ...dueTodayBills, ...dueTomorrowBills];
@@ -87,6 +100,8 @@ export function AttentionSection({
           >
             <BillCard
               bill={bill}
+              categories={categories}
+              accounts={accounts}
               onPay={onPay}
               onEdit={onEdit}
               onDelete={onDelete}
