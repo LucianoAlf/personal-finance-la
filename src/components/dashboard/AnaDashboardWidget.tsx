@@ -41,27 +41,30 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
 
   if (error || !insights) {
     return (
-      <Card className="border-red-200">
-        <CardHeader>
+      <Card className="border-danger-border bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)]">
+        <CardHeader className="border-b border-border/70">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-red-100 rounded-full">
-                <Sparkles className="h-6 w-6 text-red-600" />
+              <div className="rounded-2xl border border-danger-border bg-danger-subtle p-2">
+                <Sparkles className="h-6 w-6 text-danger" />
               </div>
               <div>
-                <h3 className="font-semibold">Ana Clara</h3>
+                <h3 className="font-semibold text-foreground">Ana Clara</h3>
                 <p className="text-sm text-muted-foreground">Sua Coach Financeira</p>
               </div>
             </div>
-            <Button variant="ghost" size="icon" onClick={refresh}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={refresh}
+              className="rounded-xl border border-border/70 bg-surface-elevated/80 text-muted-foreground hover:bg-surface-overlay hover:text-foreground"
+            >
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-red-600">
-            Erro ao carregar insights. Tente novamente.
-          </p>
+          <p className="text-sm text-danger">Erro ao carregar insights. Tente novamente.</p>
         </CardContent>
       </Card>
     );
@@ -73,13 +76,16 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <Card className="border-l-4 border-l-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20">
-        <CardHeader>
+      <Card className="relative overflow-hidden border border-primary/20 bg-surface/95 shadow-[0_26px_60px_rgba(3,8,20,0.32)] backdrop-blur-sm">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top_left,rgba(151,117,250,0.24),transparent_58%)]" />
+        <div className="pointer-events-none absolute right-0 top-12 h-24 w-24 rounded-full bg-primary/10 blur-3xl" />
+
+        <CardHeader className="relative border-b border-border/70">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="relative">
                 <motion.div
-                  className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full"
+                  className="rounded-2xl border border-primary/20 bg-[linear-gradient(135deg,rgba(145,110,255,0.95),rgba(104,76,201,0.92))] p-2 shadow-[0_18px_34px_rgba(66,34,132,0.4)]"
                   animate={{ scale: [1, 1.05, 1] }}
                   transition={{ duration: 2, repeat: Infinity }}
                 >
@@ -87,8 +93,8 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
                 </motion.div>
               </div>
               <div className="space-y-1">
-                <h3 className="font-semibold text-lg text-gray-900 dark:text-white">Ana Clara</h3>
-                <p className="text-sm text-muted-foreground dark:text-gray-400">Sua Coach Financeira</p>
+                <h3 className="text-lg font-semibold text-foreground">Ana Clara</h3>
+                <p className="text-sm text-muted-foreground">Sua Coach Financeira</p>
                 <GamificationBadges meta={meta} />
               </div>
             </div>
@@ -97,32 +103,36 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
                 variant="ghost"
                 size="icon"
                 onClick={refresh}
-                className="hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                className="rounded-xl border border-border/70 bg-surface-elevated/70 text-muted-foreground hover:bg-surface-overlay hover:text-foreground"
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="hover:bg-purple-100 dark:hover:bg-purple-900/30">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="rounded-xl border border-border/70 bg-surface-elevated/70 text-muted-foreground hover:bg-surface-overlay hover:text-foreground"
+                  >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuLabel>Opções</DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="w-48 border-border/70 bg-surface-overlay text-foreground">
+                  <DropdownMenuLabel>OpÃ§Ãµes</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={() => setOpenHistory(true)}>
                     <History className="mr-2 h-4 w-4" />
-                    Ver Histórico
+                    Ver HistÃ³rico
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setOpenPrefs(true)}>
                     <Download className="mr-2 h-4 w-4" />
-                    Exportar/Preferências
+                    Exportar/PreferÃªncias
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
                     <Settings className="mr-2 h-4 w-4" />
-                    Configurações
+                    ConfiguraÃ§Ãµes
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -130,21 +140,18 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4">
-          {/* Primary Insight */}
+        <CardContent className="relative space-y-4">
           <AnaInsightCard insight={insights.primary} size="large" />
 
-          {/* Secondary Insights Grid */}
-          {insights.secondary.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {insights.secondary.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {insights.secondary.map((insight, index) => (
                 <AnaInsightCard key={index} insight={insight} size="small" />
               ))}
             </div>
-          )}
+          ) : null}
 
-          {/* Health Score Bar Detalhado */}
-          <HealthScoreBar 
+          <HealthScoreBar
             score={healthScore}
             breakdown={insights.healthBreakdown || {
               bills: Math.round(healthScore * 0.3),
@@ -153,16 +160,13 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
               planning: Math.round(healthScore * 0.2),
             }}
             showBreakdown={true}
-            label="Saúde Financeira"
+            label="SaÃºde Financeira"
             defaultExpanded={false}
             hasSufficientData={hasSufficientData}
           />
 
-          {/* Motivational Quote */}
-          <div className="text-center pt-2">
-            <p className="text-sm italic text-purple-700 dark:text-purple-300">
-              "{insights.motivationalQuote}"
-            </p>
+          <div className="pt-2 text-center">
+            <p className="text-sm italic text-primary/90">"{insights.motivationalQuote}"</p>
           </div>
         </CardContent>
       </Card>
@@ -174,30 +178,28 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
 
 function WidgetSkeleton() {
   return (
-    <Card className="border-l-4 border-l-purple-500">
-      <CardHeader>
+    <Card className="border border-primary/20 bg-surface/95 shadow-[0_26px_60px_rgba(3,8,20,0.32)]">
+      <CardHeader className="border-b border-border/70">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Skeleton className="h-12 w-12 rounded-full" />
+            <Skeleton className="h-12 w-12 rounded-2xl bg-surface-elevated" />
             <div className="space-y-2">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-4 w-24 bg-surface-elevated" />
+              <Skeleton className="h-3 w-32 bg-surface-elevated" />
             </div>
           </div>
-          <Skeleton className="h-8 w-8 rounded" />
+          <Skeleton className="h-8 w-8 rounded-xl bg-surface-elevated" />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <Skeleton className="h-32 w-full rounded-lg" />
+        <Skeleton className="h-32 w-full rounded-2xl bg-surface-elevated" />
         <div className="grid grid-cols-3 gap-3">
-          <Skeleton className="h-24 w-full rounded-lg" />
-          <Skeleton className="h-24 w-full rounded-lg" />
-          <Skeleton className="h-24 w-full rounded-lg" />
+          <Skeleton className="h-24 w-full rounded-2xl bg-surface-elevated" />
+          <Skeleton className="h-24 w-full rounded-2xl bg-surface-elevated" />
+          <Skeleton className="h-24 w-full rounded-2xl bg-surface-elevated" />
         </div>
-        <Skeleton className="h-2 w-full rounded-full" />
+        <Skeleton className="h-2 w-full rounded-full bg-surface-elevated" />
       </CardContent>
     </Card>
   );
 }
-
-// Funções auxiliares removidas (agora estão no HealthScoreBar)

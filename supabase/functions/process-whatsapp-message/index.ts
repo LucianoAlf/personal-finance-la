@@ -26,6 +26,8 @@ import {
 } from './context-manager.ts';
 import { processarBotao } from './button-handler.ts';
 import { isComandoRapido, processarComandoRapido } from './quick-commands.ts';
+import { isCalendarIntent } from './calendar-intent-parser.ts';
+import { processarComandoAgenda } from './calendar-handler.ts';
 import { templateErroGenerico, templateComandoNaoReconhecido } from './response-templates.ts';
 import { isPrimeiraInteracaoDia } from './humanization.ts';
 import { 
@@ -695,6 +697,24 @@ serve(async (req: Request) => {
       }).eq('id', message.id);
       
       return new Response(JSON.stringify({ success: true, type: 'quick_command', command }), { 
+        headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+    
+    // ============================================
+    // 6.35 CALENDAR / AGENDA
+    // ============================================
+    if (isCalendarIntent(command)) {
+      console.log('📅 Comando de agenda detectado:', command);
+      await processarComandoAgenda(command, user.id, phone);
+      
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'calendar_command',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+      
+      return new Response(JSON.stringify({ success: true, type: 'calendar_command', command }), { 
         headers: { 'Content-Type': 'application/json' } 
       });
     }

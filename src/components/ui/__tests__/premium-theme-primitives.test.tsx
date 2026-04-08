@@ -173,12 +173,15 @@ describe('premium dark-mode primitives', () => {
       </ThemeProvider>,
     );
 
-    const overlay = document.querySelector('[class*="backdrop-blur"]');
+    // Overlay do Dialog: combinar backdrop-blur com tinta do overlay (evita outro elemento com blur na árvore).
+    const overlay = [...document.querySelectorAll('[class*="backdrop-blur"]')].find((el) =>
+      el.className.includes('bg-slate-950'),
+    );
 
     expect(screen.getByText('Info').className).toContain('bg-info-subtle');
     expect(screen.getByText('Info').className).toContain('border-info-border');
     expect(screen.getByText('Info').className).toContain('text-info');
-    expect(overlay).not.toBeNull();
+    expect(overlay).toBeDefined();
     expect(overlay?.className).toContain('bg-slate-950/48');
   });
 });

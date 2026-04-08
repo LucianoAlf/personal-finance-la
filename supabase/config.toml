@@ -8,3 +8,10 @@ verify_jwt = false
 # Webhook é chamado pela UAZAPI (sem JWT do usuário Supabase).
 [functions.webhook-uazapi]
 verify_jwt = false
+
+# Calendar workers triggered by pg_cron (no user JWT).
+[functions.calendar-dispatch-reminders]
+verify_jwt = false
+
+[functions.calendar-sync-ticktick]
+verify_jwt = false

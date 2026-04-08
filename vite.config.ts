@@ -32,7 +32,7 @@ export default defineConfig({
   base: '/',
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'e2e/**/*.unit.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'e2e/**/*.unit.test.ts', 'supabase/functions/**/__tests__/*.test.ts'],
     exclude: ['src/services/__tests__/api-services.test.ts'],
   },
 })

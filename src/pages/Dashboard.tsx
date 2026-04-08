@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { TransactionItem } from '@/components/dashboard/TransactionItem';
-import { DashboardSkeleton } from '@/components/dashboard/DashboardSkeleton';
 import { MonthSelector } from '@/components/shared/MonthSelector';
 import { ExpensesByCategoryChart } from '@/components/dashboard/charts/ExpensesByCategoryChart';
 import { MonthlyTrendChart } from '@/components/dashboard/charts/MonthlyTrendChart';
@@ -114,7 +113,9 @@ export function Dashboard() {
 
   // ✅ RENDERIZAR TUDO IMEDIATAMENTE (sem bloqueio)
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[26rem] bg-[radial-gradient(circle_at_top,rgba(130,92,255,0.16),transparent_60%)]" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-[24rem] bg-[radial-gradient(circle_at_center,rgba(71,85,255,0.08),transparent_70%)] lg:block" />
       <Header
         title={`Olá, ${displayName.split(' ')[0]}!`}
         subtitle="Bem-vindo ao seu painel financeiro"
@@ -127,7 +128,7 @@ export function Dashboard() {
         }
       />
 
-      <div className="p-6 space-y-6">
+      <div className="relative mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
         {/* Stat Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
           <StatCard
@@ -224,13 +225,14 @@ export function Dashboard() {
         {/* Transações Recentes + Cartões */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in animation-delay-300">
           {/* Transações Recentes */}
-          <Card>
-            <CardHeader>
+          <Card className="border-border/70 bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
+            <CardHeader className="border-b border-border/70">
               <div className="flex items-center justify-between">
                 <CardTitle>Transações Recentes</CardTitle>
                 <Button 
                   variant="ghost" 
                   size="sm"
+                  className="rounded-xl border border-border/70 bg-surface-elevated/70 text-muted-foreground hover:bg-surface-overlay hover:text-foreground"
                   onClick={() => navigate('/transacoes')}
                 >
                   Ver Todas
@@ -265,15 +267,16 @@ export function Dashboard() {
                 );
                 })
               ) : (
-                <div className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
-                    <FileText size={32} className="text-gray-400 dark:text-gray-500" />
+                <div className="flex flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-surface-elevated/40 py-12 text-center">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-elevated ring-1 ring-border/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+                    <FileText size={32} className="text-primary/70" />
                   </div>
                   <p className="text-gray-900 dark:text-white font-semibold mb-2">Nenhuma transação recente</p>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Crie sua primeira transação para começar!</p>
                   <Button 
                     onClick={() => navigate('/transacoes')}
                     size="sm"
+                    className="rounded-xl"
                   >
                     Adicionar Transação
                   </Button>

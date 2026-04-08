@@ -16,6 +16,7 @@ const COMANDOS_RAPIDOS = [
   'cartoes', '/cartoes', 'cartões',
   'metas', '/metas', 'meta',
   'investimentos', '/investimentos', 'investimento',
+  'agenda', '/agenda',
   'ajuda', '/ajuda', 'help'
 ];
 
@@ -65,6 +66,12 @@ export async function processarComandoRapido(
       responseText = await comandoInvestimentos(userId);
       break;
       
+    case 'agenda': {
+      const { processarComandoAgenda } = await import('./calendar-handler.ts');
+      responseText = await processarComandoAgenda(texto, userId, phone);
+      return responseText;
+    }
+
     case 'ajuda':
     case 'help':
       responseText = comandoAjuda();
@@ -523,7 +530,8 @@ function comandoAjuda(): string {
     `📋 contas - Contas a pagar\n` +
     `💳 cartões - Limites dos cartões\n` +
     `🎯 metas - Progresso das metas\n` +
-    `💼 investimentos - Portfólio\n\n` +
+    `💼 investimentos - Portfólio\n` +
+    `📅 agenda - Compromissos da semana\n\n` +
     `*Para registrar:*\n` +
     `"Gastei 50 no mercado"\n` +
     `"Recebi 1000 de salário"\n` +

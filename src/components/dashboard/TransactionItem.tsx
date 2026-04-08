@@ -4,7 +4,6 @@ import { cn } from '@/lib/cn';
 import { Badge } from '@/components/ui/badge';
 import { useCategories } from '@/hooks/useCategories';
 import * as LucideIcons from 'lucide-react';
-import { TYPE_COLORS } from '@/constants/categories';
 
 interface TransactionTagChip {
   id: string;
@@ -23,10 +22,31 @@ interface TransactionItemProps {
   extraBadgeText?: string;
   /** Linha extra abaixo do valor (ex.: total da compra parcelada). */
   amountFootnote?: string;
-  /** Tags canônicas (conta ou cartão), quando existirem. */
+  /** Tags canÃ´nicas (conta ou cartÃ£o), quando existirem. */
   tags?: TransactionTagChip[];
   onClick?: () => void;
 }
+
+const toneByType = {
+  income: {
+    border: 'border-l-success',
+    iconWrap: 'border-success-border bg-success-subtle/90',
+    icon: 'text-success',
+    amount: 'text-success',
+  },
+  expense: {
+    border: 'border-l-danger',
+    iconWrap: 'border-danger-border bg-danger-subtle/90',
+    icon: 'text-danger',
+    amount: 'text-danger',
+  },
+  transfer: {
+    border: 'border-l-info',
+    iconWrap: 'border-info-border bg-info-subtle/90',
+    icon: 'text-info',
+    amount: 'text-info',
+  },
+} as const;
 
 export function TransactionItem({
   type,
@@ -43,8 +63,7 @@ export function TransactionItem({
 }: TransactionItemProps) {
   const { getCategoryById } = useCategories();
   const category = getCategoryById(category_id);
-  const typeColors = TYPE_COLORS[type];
-  
+
   const IconComponent =
     type === 'transfer'
       ? LucideIcons.ArrowLeftRight
@@ -57,7 +76,6 @@ export function TransactionItem({
       return date;
     }
 
-    // Garantir que datas (YYYY-MM-DD) sejam interpretadas no timezone local
     return new Date(`${date}T00:00:00`);
   }, [date]);
 
@@ -66,70 +84,52 @@ export function TransactionItem({
   return (
     <div
       className={cn(
-        'flex items-center justify-between p-4 rounded-lg border-l-4 hover:translate-x-1 transition-all duration-200 cursor-pointer bg-white dark:bg-gray-800 hover:shadow-md',
-        type === 'income'
-          ? 'border-green-500'
-          : type === 'transfer'
-            ? 'border-blue-500'
-            : 'border-red-500'
+        'flex cursor-pointer items-center justify-between rounded-2xl border border-border/70 border-l-4 bg-surface/90 p-4 shadow-[0_14px_36px_rgba(3,8,20,0.18)] transition-all duration-200 hover:translate-x-1 hover:bg-surface-elevated/85 hover:shadow-[0_18px_40px_rgba(3,8,20,0.24)]',
+        toneByType[type].border
       )}
       onClick={onClick}
     >
-      <div className="flex items-center space-x-3 flex-1 min-w-0">
+      <div className="flex min-w-0 flex-1 items-center space-x-3">
         <div
           className={cn(
-            'w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0',
-            typeColors.bg,
-            type === 'income'
-              ? 'dark:bg-green-900/30'
-              : type === 'transfer'
-                ? 'dark:bg-blue-900/30'
-                : 'dark:bg-red-900/30'
+            'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]',
+            toneByType[type].iconWrap
           )}
         >
           {IconComponent ? (
-            <IconComponent
-              size={20}
-              className={cn(
-                typeColors.icon,
-                type === 'income'
-                  ? 'dark:text-green-400'
-                  : type === 'transfer'
-                    ? 'dark:text-blue-400'
-                    : 'dark:text-red-400'
-              )}
-            />
+            <IconComponent size={20} className={toneByType[type].icon} />
           ) : (
-            <span className="text-lg">{category?.icon || '💰'}</span>
+            <span className="text-lg">{category?.icon || 'ðŸ’°'}</span>
           )}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-gray-900 dark:text-white truncate">{description}</p>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <p className="text-sm text-gray-600 dark:text-gray-400 truncate">{category?.name || 'Sem categoria'}</p>
-            {is_recurring && (
-              <Badge variant="info" className="text-xs whitespace-nowrap">
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-semibold text-foreground">{description}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="truncate text-sm text-muted-foreground">{category?.name || 'Sem categoria'}</p>
+            {is_recurring ? (
+              <Badge variant="info" className="whitespace-nowrap text-xs">
                 Recorrente
               </Badge>
-            )}
-            {!is_paid && (
-              <Badge variant="warning" className="text-xs whitespace-nowrap">
+            ) : null}
+            {!is_paid ? (
+              <Badge variant="warning" className="whitespace-nowrap text-xs">
                 Pendente
               </Badge>
-            )}
-            {extraBadgeText && (
-              <Badge variant="info" className="text-xs whitespace-nowrap">
+            ) : null}
+            {extraBadgeText ? (
+              <Badge variant="info" className="whitespace-nowrap text-xs">
                 {extraBadgeText}
               </Badge>
-            )}
+            ) : null}
             {tags?.map((tag) => (
               <Badge
                 key={tag.id}
                 variant="outline"
-                className="text-xs font-normal whitespace-nowrap border-muted-foreground/30 gap-1"
+                className="gap-1 whitespace-nowrap border-border/70 bg-surface-elevated/70 text-xs font-normal text-foreground"
               >
                 <span
-                  className="inline-block size-2 rounded-full shrink-0"
+                  className="inline-block size-2 shrink-0 rounded-full"
                   style={{ backgroundColor: tag.color || '#a855f7' }}
                   aria-hidden
                 />
@@ -140,22 +140,13 @@ export function TransactionItem({
         </div>
       </div>
 
-      <div className="text-right flex-shrink-0 ml-4">
-        <p
-          className={cn(
-            'font-bold text-lg',
-            type === 'income'
-              ? 'text-green-600 dark:text-green-400'
-              : type === 'transfer'
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-red-600 dark:text-red-400'
-          )}
-        >
+      <div className="ml-4 flex-shrink-0 text-right">
+        <p className={cn('text-lg font-bold', toneByType[type].amount)}>
           {type === 'income' ? '+' : type === 'transfer' ? '+' : '-'} {formatCurrency(amount)}
         </p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">{displayDate}</p>
+        <p className="text-sm text-muted-foreground">{displayDate}</p>
         {amountFootnote ? (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 max-w-[11rem] ml-auto text-right">
+          <p className="mt-0.5 ml-auto max-w-[11rem] text-right text-xs text-muted-foreground">
             {amountFootnote}
           </p>
         ) : null}
