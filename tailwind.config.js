@@ -62,10 +62,10 @@ module.exports = {
 					600: '#d97706',
 				},
 				info: {
-					500: '#3b82f6',
-					600: '#2563eb',
-					DEFAULT: '#3b82f6',
-					foreground: '#ffffff',
+					DEFAULT: 'hsl(var(--info))',
+					foreground: 'hsl(var(--info-foreground))',
+					subtle: 'hsl(var(--info-subtle))',
+					border: 'hsl(var(--info-border))',
 				},
 				secondary: {
 					DEFAULT: 'hsl(var(--secondary))',

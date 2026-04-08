@@ -17,7 +17,7 @@ function Badge({ className, variant = 'default', style, onClick, children }: Bad
     warning: 'border border-warning-border bg-warning-subtle text-warning',
     danger: 'border border-danger-border bg-danger-subtle text-danger',
     destructive: 'border border-danger-border bg-danger-subtle text-danger',
-    info: 'border border-primary/20 bg-primary/10 text-primary',
+    info: 'border border-info-border bg-info-subtle text-info',
     outline: 'border border-border bg-transparent text-foreground',
   };
 
