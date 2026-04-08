@@ -197,11 +197,17 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
       setIsLoading(true);
       setError(null);
 
-      const accessToken = await getUserAccessTokenOrThrow();
+      let authHeaders: Record<string, string> = {};
+      try {
+        const accessToken = await getUserAccessTokenOrThrow();
+        authHeaders = { Authorization: `Bearer ${accessToken}` };
+      } catch {
+        // Session unavailable — edge function falls back to service_role + body.user_id
+      }
 
       const { data, error: functionError } = await supabase.functions.invoke('disconnect-whatsapp', {
         body: { user_id: userId },
-        headers: { Authorization: `Bearer ${accessToken}` },
+        headers: authHeaders,
       });
 
       let invokeErr = messageFromFunctionsInvoke(data, functionError);
