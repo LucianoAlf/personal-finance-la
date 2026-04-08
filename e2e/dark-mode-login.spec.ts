@@ -36,4 +36,33 @@ test.describe('login dark mode smoke', () => {
     expect(outlineButtonBackground).not.toBe('rgb(255, 255, 255)');
     expect(outlineButtonBorder).not.toBe('rgb(255, 255, 255)');
   });
+
+  test('contas route renders the premium dark shell through the dev auth bypass', async ({ page }) => {
+    await page.goto('/contas');
+    await page.locator('html').evaluate((node) => node.classList.add('dark'));
+
+    await expect(page).toHaveURL(/\/contas/);
+    await expect(page.locator('html')).toHaveClass(/dark/);
+    await expect(page.locator('html')).toHaveCSS('color-scheme', 'dark');
+
+    const appShell = page.getByTestId('app-shell');
+    const sidebar = page.locator('aside').filter({
+      has: page.getByRole('heading', { name: /finance la/i }),
+    });
+    const header = page.locator('main header').first();
+    const activeContasLink = page.locator('aside a[href="/contas"]').first();
+
+    await expect(appShell).toBeVisible();
+    await expect(sidebar).toBeVisible();
+    await expect(header).toBeVisible();
+    await expect(page.getByRole('button', { name: /^novo$/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /ativar tema/i })).toBeVisible();
+    await expect(page.getByRole('button', { name: /abrir menu do usuario/i })).toBeVisible();
+
+    await expect(appShell).toHaveClass(/bg-background/);
+    await expect(sidebar).toHaveClass(/bg-surface/);
+    await expect(header).toHaveClass(/bg-surface/);
+    await expect(activeContasLink).toHaveClass(/bg-surface-elevated/);
+    await expect(activeContasLink).toHaveClass(/ring-primary\/20/);
+  });
 });
