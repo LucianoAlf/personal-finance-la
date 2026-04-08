@@ -83,18 +83,18 @@ export function InvestmentsWidget() {
             </div>
 
             {/* Retorno */}
-            <div className="flex items-center justify-between rounded-xl border border-border/60 bg-surface-elevated/80 p-3">
+            <div className="flex items-center justify-between rounded-xl border border-border/60 bg-surface-elevated/80 dark:bg-surface-elevated/80 p-3">
               <div className="flex items-center gap-1.5">
                 {isPositive ? (
-                  <TrendingUp className="h-4 w-4 text-emerald-300" />
+                  <TrendingUp className="h-4 w-4 text-success dark:text-emerald-300" />
                 ) : (
                   <TrendingDown className="h-4 w-4 text-danger" />
                 )}
-                <span className={`text-sm font-semibold ${isPositive ? 'text-emerald-300' : 'text-danger'}`}>
+                <span className={`text-sm font-semibold ${isPositive ? 'text-success dark:text-emerald-300' : 'text-danger'}`}>
                   {isPositive ? '+' : ''}{returnPercentage.toFixed(2)}%
                 </span>
               </div>
-              <span className={`text-sm font-medium ${isPositive ? 'text-emerald-300' : 'text-danger'}`}>
+              <span className={`text-sm font-medium ${isPositive ? 'text-success dark:text-emerald-300' : 'text-danger'}`}>
                 {isPositive ? '+' : ''}{formatCurrency(totalReturn)}
               </span>
             </div>

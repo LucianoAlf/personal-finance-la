@@ -127,7 +127,7 @@ export function CreditCardsWidget() {
             </div>
             <div className="space-y-1">
               <p className="text-xs text-foreground/80">Disponível</p>
-              <p className="text-lg font-bold text-emerald-300">
+              <p className="text-lg font-bold text-success dark:text-emerald-300">
                 {formatCurrency(totalAvailable)}
               </p>
             </div>
@@ -162,9 +162,9 @@ export function CreditCardsWidget() {
 
           {/* Alertas de Faturas */}
           {upcomingInvoices.length > 0 && (
-            <div className="rounded-xl border border-amber-500/20 bg-surface-elevated/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="rounded-xl border border-amber-500/20 bg-warning-subtle/75 dark:bg-surface-elevated/80 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
               <div className="flex items-start gap-2">
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-300" />
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-warning dark:text-amber-300" />
                 <div className="flex-1">
                   <p className="text-sm font-medium text-foreground">
                     {upcomingInvoices.length} fatura{upcomingInvoices.length > 1 ? 's' : ''} próxima
@@ -174,7 +174,7 @@ export function CreditCardsWidget() {
                     {upcomingInvoices.slice(0, 2).map((card) => (
                       <div key={card.id} className="flex items-center justify-between text-xs">
                         <span className="text-foreground/80">{card.name}</span>
-                        <span className="font-medium text-amber-200">
+                        <span className="font-medium text-warning dark:text-amber-200">
                           {formatCurrency(card.current_invoice_amount || 0)}
                         </span>
                       </div>

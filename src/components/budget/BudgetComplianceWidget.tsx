@@ -72,7 +72,7 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
   }
 
   const isOverBudget = totalDifference < 0;
-  const statusColor = isOverBudget ? 'text-danger' : 'text-emerald-300';
+  const statusColor = isOverBudget ? 'text-danger' : 'text-success dark:text-emerald-300';
   const statusBg = isOverBudget
     ? 'border-danger-border bg-danger-subtle'
     : 'border-emerald-500/20 bg-emerald-500/12';
@@ -109,7 +109,7 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
         {/* Barra de Compliance */}
         <div className="mb-4 flex-1">
           <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-foreground/80">Conformidade</span>
+            <span className="text-foreground/80 dark:text-foreground/80">Conformidade</span>
             <span className="font-semibold text-foreground">{compliance}%</span>
           </div>
           <div className="w-full rounded-full h-2 overflow-hidden bg-surface-overlay/80">
@@ -124,15 +124,15 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
 
         {/* Resumo */}
         <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="rounded-xl border border-emerald-500/15 bg-surface-elevated/75 p-2">
-            <div className="text-lg font-bold text-emerald-300">{ok}</div>
+          <div className="rounded-xl border border-emerald-500/15 bg-surface-elevated/75 dark:bg-surface-elevated/75 p-2">
+            <div className="text-lg font-bold text-success dark:text-emerald-300">{ok}</div>
             <div className="text-xs text-foreground/75">OK</div>
           </div>
-          <div className="rounded-xl border border-amber-500/15 bg-surface-elevated/75 p-2">
-            <div className="text-lg font-bold text-amber-300">{warning}</div>
+          <div className="rounded-xl border border-amber-500/15 bg-surface-elevated/75 dark:bg-surface-elevated/75 p-2">
+            <div className="text-lg font-bold text-warning dark:text-amber-300">{warning}</div>
             <div className="text-xs text-foreground/75">Atenção</div>
           </div>
-          <div className="rounded-xl border border-danger-border bg-surface-elevated/75 p-2">
+          <div className="rounded-xl border border-danger-border bg-surface-elevated/75 dark:bg-surface-elevated/75 p-2">
             <div className="text-lg font-bold text-danger">{exceeded}</div>
             <div className="text-xs text-foreground/75">Excedido</div>
           </div>
@@ -141,7 +141,7 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
         {/* Total */}
         <div className="mt-4 border-t border-border/60 pt-4">
           <div className="flex items-center justify-between text-sm mb-1">
-            <span className="text-foreground/80">Gasto / Limite</span>
+            <span className="text-foreground/80 dark:text-foreground/80">Gasto / Limite</span>
             <span className={`font-semibold ${statusColor}`}>
               {formatCurrency(totalActual)} / {formatCurrency(totalPlanned)}
             </span>
@@ -162,7 +162,7 @@ export function BudgetComplianceWidget({ monthKey }: BudgetComplianceWidgetProps
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
-            className="mt-3 rounded-xl border border-danger-border bg-[linear-gradient(135deg,rgba(127,29,29,0.18),rgba(15,23,42,0.9))] p-3"
+            className="mt-3 rounded-xl border border-danger-border bg-danger-subtle dark:bg-[linear-gradient(135deg,rgba(127,29,29,0.18),rgba(15,23,42,0.9))] p-3"
           >
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-danger flex-shrink-0" />

@@ -42,9 +42,9 @@ export function HealthScoreBar({
   // Determinar cor e gradiente baseado no score
   const getScoreColor = (value: number): string => {
     if (!hasSufficientData) return 'text-foreground/70';
-    if (value >= 80) return 'text-emerald-300';
-    if (value >= 60) return 'text-sky-300';
-    if (value >= 40) return 'text-amber-300';
+    if (value >= 80) return 'text-success dark:text-emerald-300';
+    if (value >= 60) return 'text-info dark:text-sky-300';
+    if (value >= 40) return 'text-warning dark:text-amber-300';
     return 'text-danger';
   };
 
@@ -71,8 +71,8 @@ export function HealthScoreBar({
       label: 'Contas em Dia',
       value: breakdown.bills,
       max: 30,
-      color: 'text-violet-200',
-      iconSurface: 'bg-violet-500/12 ring-violet-400/20',
+      color: 'text-primary dark:text-violet-200',
+      iconSurface: 'bg-primary/10 ring-primary/15 dark:bg-violet-500/12 dark:ring-violet-400/20',
       gradient: 'from-violet-400 to-fuchsia-300',
     },
     {
@@ -80,8 +80,8 @@ export function HealthScoreBar({
       label: 'Investimentos',
       value: breakdown.investments,
       max: 30,
-      color: 'text-emerald-200',
-      iconSurface: 'bg-emerald-500/12 ring-emerald-400/20',
+      color: 'text-success dark:text-emerald-200',
+      iconSurface: 'bg-success-subtle ring-success-border dark:bg-emerald-500/12 dark:ring-emerald-400/20',
       gradient: 'from-emerald-400 to-teal-300',
     },
     {
@@ -89,8 +89,8 @@ export function HealthScoreBar({
       label: 'Metas de Gasto',
       value: breakdown.budget,
       max: 20,
-      color: 'text-sky-200',
-      iconSurface: 'bg-sky-500/12 ring-sky-400/20',
+      color: 'text-info dark:text-sky-200',
+      iconSurface: 'bg-info-subtle ring-info-border dark:bg-sky-500/12 dark:ring-sky-400/20',
       gradient: 'from-sky-400 to-blue-300',
     },
     {
@@ -98,8 +98,8 @@ export function HealthScoreBar({
       label: 'Planejamento',
       value: breakdown.planning,
       max: 20,
-      color: 'text-amber-200',
-      iconSurface: 'bg-amber-500/12 ring-amber-400/20',
+      color: 'text-warning dark:text-amber-200',
+      iconSurface: 'bg-warning-subtle ring-warning-border dark:bg-amber-500/12 dark:ring-amber-400/20',
       gradient: 'from-amber-300 to-orange-400',
     },
   ] : [];

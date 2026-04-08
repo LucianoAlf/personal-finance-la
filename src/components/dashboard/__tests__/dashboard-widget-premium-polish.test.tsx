@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import { GoalsSummaryWidget } from '@/components/goals/GoalsSummaryWidget';
@@ -11,6 +11,8 @@ import { CreditCardsWidget } from '@/components/creditcards/CreditCardsWidget';
 import { InvestmentsWidget } from '@/components/dashboard/InvestmentsWidget';
 import { HealthScoreBar } from '@/components/dashboard/HealthScoreBar';
 import { AnaInsightCard } from '@/components/dashboard/AnaInsightCard';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { INSIGHT_COLORS } from '@/types/ana-insights.types';
 
 const {
   navigateMock,
@@ -64,8 +66,18 @@ vi.mock('@/utils/spendingGoalPlanning', () => ({
   summarizeBudgetItems: () => budgetSummaryMock(),
 }));
 
+function renderInTheme(ui: React.ReactElement, theme: 'light' | 'dark' = 'dark') {
+  return render(
+    <ThemeProvider defaultTheme={theme} storageKey={`dashboard-widget-premium-polish-${theme}`}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </ThemeProvider>,
+  );
+}
+
 describe('Dashboard widget premium polish regression', () => {
   beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.className = '';
     const upcomingDate = new Date();
     upcomingDate.setDate(upcomingDate.getDate() + 3);
     const upcomingDateIso = upcomingDate.toISOString().slice(0, 10);
@@ -163,12 +175,12 @@ describe('Dashboard widget premium polish regression', () => {
     budgetSummaryMock.mockReset();
   });
 
-  it('keeps goals and budget widgets on premium dark surfaces with darker rails and readable support labels', () => {
-    const { container: goalsContainer } = render(
-      <MemoryRouter>
-        <GoalsSummaryWidget />
-      </MemoryRouter>,
-    );
+  it('keeps goals and budget widgets on premium dark surfaces with darker rails and readable support labels', async () => {
+    const { container: goalsContainer } = renderInTheme(<GoalsSummaryWidget />);
+
+    await waitFor(() => {
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+    });
 
     const goalsCard = goalsContainer.firstElementChild as HTMLElement | null;
     const savingsPanel = screen.getByText(/meta de economia ativa|metas de economia ativas/i).closest('div[class*="rounded"]') as HTMLElement | null;
@@ -190,11 +202,7 @@ describe('Dashboard widget premium polish regression', () => {
 
     cleanup();
 
-    render(
-      <MemoryRouter>
-        <BudgetComplianceWidget monthKey="2026-04" />
-      </MemoryRouter>,
-    );
+    renderInTheme(<BudgetComplianceWidget monthKey="2026-04" />);
 
     const budgetCard = screen.getByText(/Metas de Gasto do M[eê]s/i).closest('.rounded-lg') as HTMLElement | null;
     const complianceLabel = screen.getByText(/Conformidade/i);
@@ -210,14 +218,15 @@ describe('Dashboard widget premium polish regression', () => {
     expect(okTile?.className).toContain('bg-surface-elevated');
     expect(okTile?.className).not.toMatch(/bg-green-50|bg-yellow-50|bg-red-50/);
     expect(totalLabel.className).toContain('text-foreground/80');
+    expect(totalLabel.className).toContain('dark:text-foreground/80');
   });
 
-  it('removes bright progress rails and washed support text from the credit cards widget', () => {
-    const { container } = render(
-      <MemoryRouter>
-        <CreditCardsWidget />
-      </MemoryRouter>,
-    );
+  it('removes bright progress rails and washed support text from the credit cards widget', async () => {
+    const { container } = renderInTheme(<CreditCardsWidget />);
+
+    await waitFor(() => {
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+    });
 
     const root = container.firstElementChild?.firstElementChild as HTMLElement | null;
     const usageLabel = screen.getByText(/Uso Total/i);
@@ -237,9 +246,10 @@ describe('Dashboard widget premium polish regression', () => {
     expect(dueAlert?.className).not.toContain('bg-yellow-50');
     expect(cardRow?.className).toContain('bg-surface-elevated');
     expect(cardRail?.className).toContain('bg-surface-overlay');
+    expect(dueAlert?.className).toContain('dark:bg-surface-elevated');
   });
 
-  it('keeps ana cards and health score bars inside the premium dark system', () => {
+  it('keeps ana cards and health score bars inside the premium dark system without forcing dark slabs into light mode', async () => {
     const insight = {
       priority: 'celebration' as const,
       type: 'goal_achievement' as const,
@@ -257,11 +267,11 @@ describe('Dashboard widget premium polish regression', () => {
       },
     };
 
-    const { container: insightContainer } = render(
-      <MemoryRouter>
-        <AnaInsightCard insight={insight} size="large" />
-      </MemoryRouter>,
-    );
+    const { container: insightContainer } = renderInTheme(<AnaInsightCard insight={insight} size="large" />);
+
+    await waitFor(() => {
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+    });
 
     const insightCard = insightContainer.querySelector('.rounded-lg') as HTMLElement | null;
     const insightIconPill = screen.getByText('Reserva blindada').previousElementSibling as HTMLElement | null;
@@ -275,10 +285,12 @@ describe('Dashboard widget premium polish regression', () => {
     expect(insightDescription.className).toContain('text-foreground/80');
     expect(insightProgressRail?.className).toContain('bg-surface-overlay');
     expect(insightProgressRail?.className).not.toContain('bg-gray-200');
+    expect(insightCard?.className).toContain('dark:bg-[');
+    expect(insightCard?.className).toContain('dark:shadow-[');
 
     cleanup();
 
-    const { container: healthContainer } = render(
+    const { container: healthContainer } = renderInTheme(
       <HealthScoreBar
         score={72}
         label="Health Score"
@@ -306,14 +318,26 @@ describe('Dashboard widget premium polish regression', () => {
     expect(breakdownLabel.className).toContain('text-foreground/80');
     expect(breakdownRail?.className).toContain('bg-surface-overlay');
     expect(breakdownRail?.className).not.toContain('bg-gray-200');
+
+    cleanup();
+
+    renderInTheme(<AnaInsightCard insight={insight} size="large" />, 'light');
+
+    const lightInsightCard = screen.getByText('Reserva blindada').closest('.rounded-lg') as HTMLElement | null;
+    expect(document.documentElement.classList.contains('light')).toBe(true);
+    expect(INSIGHT_COLORS.celebration.bg).toContain('dark:bg-[');
+    expect(INSIGHT_COLORS.celebration.bg).toContain('rgba(255,255,255,0.96)');
+    expect(INSIGHT_COLORS.celebration.bg).toContain('dark:bg-[linear-gradient');
+    expect(lightInsightCard?.className).toContain('rgba(255,255,255,0.96)');
+    expect(lightInsightCard?.className).toContain('dark:bg-[linear-gradient');
   });
 
-  it('improves investment support-text contrast without reintroducing light cards', () => {
-    const { container } = render(
-      <MemoryRouter>
-        <InvestmentsWidget />
-      </MemoryRouter>,
-    );
+  it('improves investment support-text contrast without reintroducing light cards', async () => {
+    const { container } = renderInTheme(<InvestmentsWidget />);
+
+    await waitFor(() => {
+      expect(document.documentElement.classList.contains('dark')).toBe(true);
+    });
 
     const root = container.firstElementChild as HTMLElement | null;
     const supportLabel = screen.getByText(/Valor Atual/i);
@@ -326,5 +350,6 @@ describe('Dashboard widget premium polish regression', () => {
     expect(returnStrip?.className).toContain('bg-surface-elevated');
     expect(returnStrip?.className).not.toContain('bg-gray-50');
     expect(investedSupport.className).toContain('text-foreground/75');
+    expect(returnStrip?.className).toContain('dark:bg-surface-elevated');
   });
 });

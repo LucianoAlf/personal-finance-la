@@ -134,7 +134,7 @@ export function GoalsSummaryWidget() {
                     : 'bg-emerald-500/12 ring-emerald-500/20'
                 }`}
               >
-                <AlertCircle className={`h-4 w-4 ${limitsExceeded > 0 ? 'text-danger' : 'text-emerald-300'}`} />
+                <AlertCircle className={`h-4 w-4 ${limitsExceeded > 0 ? 'text-danger' : 'text-success dark:text-emerald-300'}`} />
               </div>
               <span className="text-sm font-semibold text-foreground">
                 {limitsComplied} de {totalSpendingGoals} limites cumpridos neste mês
