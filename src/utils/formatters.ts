@@ -1,5 +1,11 @@
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import {
+  formatCompactNumber as formatCompactNumberIntl,
+  formatCurrency as formatCurrencyIntl,
+  formatDate as formatDateIntl,
+  formatPercentage as formatPercentageIntl,
+  formatRelativeDate as formatRelativeDateIntl,
+} from '@/lib/formatters';
+import { getAppliedUserPreferences } from './appliedUserPreferences';
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -24,34 +30,30 @@ export const formatDateOnly = (date: string | Date): string => {
 };
 
 export const formatCurrency = (value: number): string => {
-  // Validar valor antes de formatar
-  if (value === null || value === undefined || isNaN(value)) {
-    return 'R$ 0,00';
-  }
-  
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-  }).format(value);
+  const preferences = getAppliedUserPreferences();
+  return formatCurrencyIntl(value, preferences.currency, preferences.numberFormat);
 };
 
 export const formatDate = (date: Date | string, pattern: string = 'dd/MM/yyyy'): string => {
-  const dateObj = parseDateOnly(date);
-  return format(dateObj, pattern, { locale: ptBR });
+  const preferences = getAppliedUserPreferences();
+  const normalizedPattern =
+    pattern === 'MM/dd/yyyy'
+      ? 'MM/DD/YYYY'
+      : pattern === 'yyyy-MM-dd'
+        ? 'YYYY-MM-DD'
+        : preferences.dateFormat;
+
+  return formatDateIntl(date, normalizedPattern, preferences.language, preferences.timezone);
 };
 
 export const formatPercentage = (value: number): string => {
-  return `${value.toFixed(1)}%`;
+  const preferences = getAppliedUserPreferences();
+  return formatPercentageIntl(value, preferences.numberFormat, false);
 };
 
 export const formatCompactNumber = (value: number): string => {
-  if (value >= 1000000) {
-    return `${(value / 1000000).toFixed(1)}M`;
-  }
-  if (value >= 1000) {
-    return `${(value / 1000).toFixed(1)}K`;
-  }
-  return value.toString();
+  const preferences = getAppliedUserPreferences();
+  return formatCompactNumberIntl(value, preferences.numberFormat);
 };
 
 export const getInitials = (name: string): string => {
@@ -69,31 +71,6 @@ export const formatDateForInput = (date: string | Date): string => {
 
 // Formatar data relativa (hoje, ontem, etc)
 export const formatRelativeDate = (date: string | Date): string => {
-  // Se for string no formato YYYY-MM-DD, adicionar T12:00:00 para evitar problema de timezone
-  // Isso garante que a data seja interpretada corretamente independente do fuso horário
-  let d: Date;
-  if (typeof date === 'string') {
-    d = parseDateOnly(date);
-  } else {
-    d = date;
-  }
-  
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-
-  // Comparar apenas ano, mês e dia (ignorar horário)
-  const isSameDay = (d1: Date, d2: Date) => 
-    d1.getFullYear() === d2.getFullYear() &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getDate() === d2.getDate();
-
-  if (isSameDay(d, today)) {
-    return 'Hoje';
-  }
-  if (isSameDay(d, yesterday)) {
-    return 'Ontem';
-  }
-  
-  return format(d, 'dd/MM/yyyy', { locale: ptBR });
+  const preferences = getAppliedUserPreferences();
+  return formatRelativeDateIntl(date, preferences.language, preferences.timezone);
 };

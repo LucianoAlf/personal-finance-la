@@ -47,6 +47,9 @@ export function TagMultiSelect({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[300px] p-0" align="start">
+        <p className="text-xs text-muted-foreground px-3 pt-2 pb-0">
+          Inclui lançamentos em conta e no cartão com a tag.
+        </p>
         <div className="max-h-[200px] overflow-y-auto p-2">
           {tags.length === 0 ? (
             <div className="text-center py-4 text-sm text-gray-500">

@@ -137,21 +137,21 @@ export interface AIModel {
 
 export const AI_MODELS: Record<AIProviderType, AIModel[]> = {
   openai: [
-    { id: 'gpt-4.1-mini', name: 'GPT-4.1 Mini', description: 'Mais recente, rápido e econômico', contextWindow: 128000, costPer1kTokens: 0.00015, isFree: false },
-    { id: 'gpt-4o', name: 'GPT-4o', description: 'Poderoso e versátil', contextWindow: 128000, costPer1kTokens: 0.005, isFree: false },
-    { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: 'Balanceado e eficiente', contextWindow: 128000, costPer1kTokens: 0.00015, isFree: false },
+    { id: 'gpt-5-mini', name: 'GPT-5 mini', description: 'Mais econômico para alto volume e baixa latência', contextWindow: 400000, costPer1kTokens: 0.00025, isFree: false },
+    { id: 'gpt-5.4-mini', name: 'GPT-5.4 mini', description: 'Mini mais forte da OpenAI para agentes, código e tarefas complexas', contextWindow: 400000, costPer1kTokens: 0.00075, isFree: false },
   ],
   gemini: [
-    { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', description: 'Ultra rápido e eficiente', contextWindow: 1000000, costPer1kTokens: 0.000075, isFree: false },
-    { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', description: 'Mais avançado e poderoso', contextWindow: 2000000, costPer1kTokens: 0.00125, isFree: false },
+    { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash Preview', description: 'Preview agentic multimodal de maior capacidade da linha Flash', contextWindow: 1048576, costPer1kTokens: 0.0005, isFree: false },
+    { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash-Lite Preview', description: 'Versão mais barata e rápida para alto volume; substitui o nome informal "3.1 Flash Preview"', contextWindow: 1048576, costPer1kTokens: 0.00025, isFree: false },
   ],
   claude: [
-    { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', description: 'Mais rápido para respostas rápidas', contextWindow: 200000, costPer1kTokens: 0.0008, isFree: false },
-    { id: 'claude-sonnet-4-5-20250929', name: 'Sonnet 4.5', description: 'Mais inteligente para tarefas do dia a dia', contextWindow: 200000, costPer1kTokens: 0.003, isFree: false },
+    { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', description: 'Combinação atual de velocidade, inteligência e contexto longo da Anthropic', contextWindow: 1000000, costPer1kTokens: 0.003, isFree: false },
   ],
   openrouter: [
-    { id: 'z-ai/glm-4.6', name: 'GLM 4.6', description: 'MoE 355B params, 93.9% AIME, 82.8% LiveCodeBench', contextWindow: 202800, costPer1kTokens: 0.0004, isFree: false },
-    { id: 'moonshot/kimi-k2', name: 'Kimi K2', description: 'MoE 1.04T params, 256K context, 90.6% tool-calling', contextWindow: 256000, costPer1kTokens: 0.0006, isFree: false },
+    { id: 'minimax/minimax-m2.7', name: 'MiniMax M2.7', description: 'Modelo agentic forte para produtividade e execução longa', contextWindow: 204800, costPer1kTokens: 0.0003, isFree: false },
+    { id: 'z-ai/glm-5.1', name: 'GLM 5.1', description: 'Upgrade oficial da Z.ai para tarefas long-horizon e coding', contextWindow: 202752, costPer1kTokens: 0.00126, isFree: false },
+    { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5', description: 'Modelo multimodal com forte performance em raciocínio e tool-calling', contextWindow: 262144, costPer1kTokens: 0.0003827, isFree: false },
+    { id: 'xiaomi/mimo-v2-pro', name: 'MiMo-V2-Pro', description: 'Flagship agentic de 1M de contexto para fluxos extensos', contextWindow: 1048576, costPer1kTokens: 0.001, isFree: false },
   ],
 };
 

@@ -547,6 +547,64 @@ PAGAMENTO_CONFIGS.forEach(pagamento => {
 // 4. CATEGORIAS NLP (inglês → português)
 // ============================================
 
+/**
+ * Slugs returned by LLM prompts (categorize-transaction, etc.) → display names in public.categories.
+ * Income slugs map to canonical income category names; resolution still filters by transaction type.
+ */
+export const LLM_TRANSACTION_CATEGORY_SLUG_TO_CANONICAL_NAME: Record<string, string> = {
+  food: 'Alimentação',
+  transport: 'Transporte',
+  health: 'Saúde',
+  education: 'Educação',
+  entertainment: 'Lazer',
+  shopping: 'Compras',
+  bills: 'Moradia',
+  salary: 'Salário',
+  investment: 'Investimentos',
+  other: 'Outros',
+};
+
+/**
+ * Open Finance / bank feed category labels (often English or enum-like) → Portuguese canonical names.
+ * Importers should pass the raw label through mapOpenFinanceCategoryLabel before DB resolution.
+ */
+export const OPEN_FINANCE_CATEGORY_LABEL_MAP: Record<string, string> = {
+  food: 'Alimentação',
+  groceries: 'Alimentação',
+  restaurant: 'Alimentação',
+  transport: 'Transporte',
+  transportation: 'Transporte',
+  gas_station: 'Transporte',
+  utilities: 'Contas de Consumo',
+  utility: 'Contas de Consumo',
+  housing: 'Moradia',
+  rent: 'Moradia',
+  health: 'Saúde',
+  healthcare: 'Saúde',
+  pharmacy: 'Saúde',
+  education: 'Educação',
+  entertainment: 'Lazer',
+  leisure: 'Lazer',
+  shopping: 'Compras',
+  clothing: 'Vestuário',
+  beauty: 'Beleza',
+  pets: 'Pets',
+  technology: 'Tecnologia',
+  electronics: 'Tecnologia',
+  subscriptions: 'Assinaturas',
+  subscription: 'Assinaturas',
+  travel: 'Viagens',
+  sports: 'Esportes',
+  investments: 'Investimentos',
+  investment: 'Investimentos',
+  income: 'Outras Receitas',
+  salary: 'Salário',
+  wage: 'Salário',
+  transfer: 'Transferência entre Contas',
+  other: 'Outros',
+  others: 'Outros',
+};
+
 export const NLP_CATEGORIA_MAP: Record<string, string> = {
   'transport': 'Transporte',
   'transportation': 'Transporte',
@@ -569,6 +627,9 @@ export const NLP_CATEGORIA_MAP: Record<string, string> = {
   'travel': 'Viagens',
   'sports': 'Esportes',
   'investments': 'Investimentos',
+  'salary': 'Salário',
+  'wage': 'Salário',
+  'payroll': 'Salário',
   'other': 'Outros',
   'others': 'Outros',
   'transporte': 'Transporte',

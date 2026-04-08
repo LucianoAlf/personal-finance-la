@@ -1,7 +1,7 @@
 // src/contexts/ThemeContext.tsx
 // Context para gerenciar tema dark/light/auto do sistema
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from 'react';
 
 type Theme = 'light' | 'dark' | 'auto';
 type ResolvedTheme = 'light' | 'dark';
@@ -10,6 +10,7 @@ interface ThemeContextType {
   theme: Theme;
   resolvedTheme: ResolvedTheme;
   setTheme: (theme: Theme) => void;
+  hydrateTheme: (theme: Theme) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -34,15 +35,15 @@ export function ThemeProvider({
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('light');
 
   // Função para resolver tema (auto -> light/dark baseado em SO)
-  const resolveTheme = (themeValue: Theme): ResolvedTheme => {
+  const resolveTheme = useCallback((themeValue: Theme): ResolvedTheme => {
     if (themeValue === 'auto') {
       return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
     return themeValue;
-  };
+  }, []);
 
   // Aplicar tema no HTML
-  const applyTheme = (themeValue: Theme) => {
+  const applyTheme = useCallback((themeValue: Theme) => {
     const resolved = resolveTheme(themeValue);
     const root = window.document.documentElement;
 
@@ -62,19 +63,30 @@ export function ThemeProvider({
     }
 
     setResolvedTheme(resolved);
-  };
+  }, [resolveTheme]);
+
+  const updateTheme = useCallback((newTheme: Theme, persist: boolean) => {
+    setThemeState(newTheme);
+    if (persist) {
+      localStorage.setItem(storageKey, newTheme);
+    }
+    applyTheme(newTheme);
+  }, [applyTheme, storageKey]);
 
   // Setar tema (salva no localStorage e aplica)
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-    localStorage.setItem(storageKey, newTheme);
-    applyTheme(newTheme);
-  };
+  const setTheme = useCallback((newTheme: Theme) => {
+    updateTheme(newTheme, true);
+  }, [updateTheme]);
+
+  // Hidratar tema vindo do backend e alinhar cache local
+  const hydrateTheme = useCallback((newTheme: Theme) => {
+    updateTheme(newTheme, true);
+  }, [updateTheme]);
 
   // Aplicar tema inicial
   useEffect(() => {
     applyTheme(theme);
-  }, []);
+  }, [applyTheme, theme]);
 
   // Listener para mudanças de preferência do SO (quando tema = auto)
   useEffect(() => {
@@ -92,10 +104,10 @@ export function ThemeProvider({
     return () => {
       mediaQuery.removeEventListener('change', handleChange);
     };
-  }, [theme]);
+  }, [applyTheme, theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme, hydrateTheme }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -108,3 +120,5 @@ export function useTheme() {
   }
   return context;
 }
+
+export type { Theme, ResolvedTheme };

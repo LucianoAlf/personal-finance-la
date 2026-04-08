@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Tag, CreateTagInput, UpdateTagInput } from '@/types/tags';
+import { replaceCanonicalTagAssignments } from '@/utils/tags/tag-assignment';
 
 export function useCreditCardTags() {
   const [tags, setTags] = useState<Tag[]>([]);
@@ -178,28 +179,13 @@ export function useCreditCardTags() {
     }
   };
 
-  // Atualizar tags de uma transação de cartão (substitui todas)
   const updateCreditCardTransactionTags = async (transactionId: string, tagIds: string[]): Promise<void> => {
     try {
-      // Remover todas as tags existentes
-      await supabase
-        .from('credit_card_transaction_tags')
-        .delete()
-        .eq('credit_card_transaction_id', transactionId);
-
-      // Adicionar novas tags
-      if (tagIds.length > 0) {
-        const { error: insertError } = await supabase
-          .from('credit_card_transaction_tags')
-          .insert(
-            tagIds.map((tagId) => ({
-              credit_card_transaction_id: transactionId,
-              tag_id: tagId,
-            }))
-          );
-
-        if (insertError) throw insertError;
-      }
+      await replaceCanonicalTagAssignments(supabase, {
+        entityType: 'credit_card_transaction',
+        entityId: transactionId,
+        tagIds,
+      });
     } catch (err) {
       console.error('Erro ao atualizar tags da transação de cartão:', err);
       throw err;

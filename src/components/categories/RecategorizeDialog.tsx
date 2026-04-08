@@ -20,6 +20,7 @@ interface RecategorizeDialogProps {
   transaction: {
     id: string;
     description: string;
+    ledgerEntity: 'transaction' | 'credit_card_transaction';
   };
   currentCategory: Category;
   onSuccess: () => void;
@@ -36,6 +37,11 @@ export function RecategorizeDialog({
   const { recategorizeTransaction, recategorizeBulk, loading } = useRecategorize();
   const [newCategoryId, setNewCategoryId] = useState('');
   const [applyToSimilar, setApplyToSimilar] = useState(false);
+  const allowedCategoryType =
+    transaction.ledgerEntity === 'credit_card_transaction' ? 'expense' : currentCategory.type;
+  const availableCategories = categories.filter(
+    (cat) => cat.id !== currentCategory.id && cat.type === allowedCategoryType,
+  );
 
   const handleRecategorize = async () => {
     if (!newCategoryId) return;
@@ -43,9 +49,17 @@ export function RecategorizeDialog({
     let success = false;
 
     if (applyToSimilar) {
-      success = await recategorizeBulk(transaction.description, newCategoryId);
+      success = await recategorizeBulk(
+        transaction.ledgerEntity,
+        transaction.description,
+        newCategoryId,
+      );
     } else {
-      success = await recategorizeTransaction(transaction.id, newCategoryId);
+      success = await recategorizeTransaction(
+        transaction.ledgerEntity,
+        transaction.id,
+        newCategoryId,
+      );
     }
 
     if (success) {
@@ -79,13 +93,11 @@ export function RecategorizeDialog({
                 <SelectValue placeholder="Selecione uma categoria" />
               </SelectTrigger>
               <SelectContent>
-                {categories
-                  .filter(cat => cat.id !== currentCategory.id)
-                  .map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
+                {availableCategories.map(cat => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

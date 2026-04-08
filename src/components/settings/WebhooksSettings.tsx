@@ -25,6 +25,11 @@ import { WebhookFormDialog } from './WebhookFormDialog';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { WebhookEndpoint } from '@/types/settings.types';
+import {
+  mapWebhookFormToCreateInput,
+  mapWebhookFormToUpdateInput,
+  type WebhookFormPayload,
+} from '@/utils/webhookPayload';
 
 export function WebhooksSettings() {
   const { webhooks, logs, loading, testWebhook, deleteWebhook, createWebhook, updateWebhook, fetchLogs } = useWebhooks();
@@ -47,11 +52,11 @@ export function WebhooksSettings() {
     setDialogOpen(true);
   };
 
-  const handleSaveWebhook = async (data: any) => {
+  const handleSaveWebhook = async (data: WebhookFormPayload) => {
     if (editingWebhook) {
-      await updateWebhook(editingWebhook.id, data);
+      await updateWebhook(editingWebhook.id, mapWebhookFormToUpdateInput(data, editingWebhook));
     } else {
-      await createWebhook(data);
+      await createWebhook(mapWebhookFormToCreateInput(data));
     }
     setDialogOpen(false);
     setEditingWebhook(null);
@@ -271,7 +276,7 @@ export function WebhooksSettings() {
               <div>
                 <CardTitle className="text-base">Logs Recentes</CardTitle>
                 <CardDescription>
-                  Últimas 10 chamadas do webhook selecionado
+                  Últimas 20 chamadas do webhook selecionado
                 </CardDescription>
               </div>
               <Button variant="outline" size="sm" onClick={() => setSelectedWebhook(null)}>
@@ -321,7 +326,7 @@ export function WebhooksSettings() {
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="font-mono">
-                          {log.status_code}
+                          {log.response_status_code ?? log.status_code ?? '-'}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">

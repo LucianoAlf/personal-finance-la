@@ -71,11 +71,19 @@ export interface ReportSpendingChange {
   changePercentage: number | null;
 }
 
+/** Tag usage across bank + card expense lines in the report window (canonical `tags` table). */
+export interface ReportSpendingTagStat {
+  tagId: string;
+  tagName: string;
+  useCount: number;
+}
+
 export interface ReportSpendingSection {
   categoryBreakdown: ReportSpendingCategory[];
   topCategories: ReportSpendingCategory[];
   monthOverMonthChanges: ReportSpendingChange[];
   uncategorizedShare: number;
+  topTags: ReportSpendingTagStat[];
 }
 
 export interface ReportBalanceSheetBucket {

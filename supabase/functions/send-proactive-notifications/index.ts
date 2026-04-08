@@ -30,14 +30,13 @@ serve(async (req)=>{
     const expectedSecret = Deno.env.get('CRON_SECRET');
     console.log('[send-proactive-notifications] 🔐 Secret recebido:', cronSecret ? 'presente' : 'ausente');
     console.log('[send-proactive-notifications] 🔐 Secret esperado:', expectedSecret ? 'presente' : 'ausente');
-    // TEMPORARIAMENTE COMENTADO PARA DEBUG
-    // if (cronSecret !== expectedSecret) {
-    //   console.error('[send-proactive-notifications] ❌ Cron secret inválido');
-    //   return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-    //     status: 401,
-    //     headers: { 'Content-Type': 'application/json' },
-    //   });
-    // }
+    if (expectedSecret && cronSecret !== expectedSecret) {
+      console.error('[send-proactive-notifications] ❌ Cron secret inválido');
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
     console.log('[send-proactive-notifications] 🚀 Iniciando envio de notificações...');
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const results = [];
@@ -120,14 +119,7 @@ serve(async (req)=>{
     // Verificar se hoje é um dia de DND
     const isDNDDay = dndDays.length === 0 || dndDays.includes(currentDay);
     // Verificar se está no horário de DND
-    let isInDNDTime = false;
-    if (dndStart < dndEnd) {
-      // Período normal (ex: 22:00 - 08:00 do dia seguinte)
-      isInDNDTime = currentTime >= dndStart || currentTime < dndEnd;
-    } else {
-      // Período que cruza meia-noite (ex: 08:00 - 22:00)
-      isInDNDTime = currentTime >= dndStart && currentTime < dndEnd;
-    }
+    const isInDNDTime = isTimeWithinWindow(currentTime, dndStart, dndEnd);
     if (isDNDDay && isInDNDTime) {
       console.log(`[processUserNotifications] ⏸️ Usuário ${userId} em DND (${dndStart}-${dndEnd}, dias: ${dndDays})`);
       return [];
@@ -153,6 +145,18 @@ serve(async (req)=>{
     await sendWhatsAppNotification(supabase, userId, notif.message);
   }
   return notifications;
+}
+
+function isTimeWithinWindow(currentTime, startTime, endTime) {
+  if (startTime === endTime) {
+    return true;
+  }
+
+  if (startTime < endTime) {
+    return currentTime >= startTime && currentTime < endTime;
+  }
+
+  return currentTime >= startTime || currentTime < endTime;
 }
 /**
  * 1. Verificar contas vencendo em 3 dias

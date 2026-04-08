@@ -150,7 +150,7 @@ export async function detectarTipoImagem(messageId: string): Promise<DeteccaoTip
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-5-mini",
         messages: [
           {
             role: "system",
@@ -225,7 +225,7 @@ export async function lerNotaFiscal(messageId: string): Promise<LeituraNotaFisca
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-5-mini",
         messages: [
           {
             role: "system",
@@ -325,7 +325,7 @@ export async function lerComprovantePix(messageId: string): Promise<LeituraCompr
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-5-mini",
         messages: [
           {
             role: "system",
@@ -421,7 +421,7 @@ export async function lerPedidoIFood(messageId: string): Promise<LeituraIFood> {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-5-mini",
         messages: [
           {
             role: "system",
@@ -515,7 +515,7 @@ export async function lerComprovantePagamento(messageId: string): Promise<Leitur
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-5-mini",
         messages: [
           {
             role: "system",

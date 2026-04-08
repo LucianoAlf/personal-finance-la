@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { formatCurrency } from '@/utils/formatters';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -13,55 +14,117 @@ interface CategoryTransactionsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   category: Category;
+  onRecategorizeSuccess?: () => void | Promise<void>;
 }
 
-interface Transaction {
+type LedgerEntity = 'transaction' | 'credit_card_transaction';
+
+interface LedgerRow {
   id: string;
   description: string;
   amount: number;
-  created_at: string;
+  sortAt: string;
+  ledgerEntity: LedgerEntity;
+}
+
+const SOURCE_LABEL: Record<LedgerEntity, string> = {
+  transaction: 'Conta',
+  credit_card_transaction: 'Cartão',
+};
+
+function parseSortDate(iso: string | null | undefined): string {
+  if (!iso) return new Date(0).toISOString();
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? new Date(0).toISOString() : d.toISOString();
 }
 
 export function CategoryTransactionsDialog({
   open,
   onOpenChange,
   category,
+  onRecategorizeSuccess,
 }: CategoryTransactionsDialogProps) {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [rows, setRows] = useState<LedgerRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [selectedRow, setSelectedRow] = useState<LedgerRow | null>(null);
   const [recategorizeOpen, setRecategorizeOpen] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      fetchTransactions();
-    }
-  }, [open, category.id]);
-
-  const fetchTransactions = async () => {
+  const fetchRows = useCallback(async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('credit_card_transactions')
-        .select('id, description, amount, created_at')
-        .eq('category_id', category.id)
-        .order('created_at', { ascending: false });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setRows([]);
+        return;
+      }
 
-      if (error) throw error;
-      setTransactions(data || []);
+      const [bankRes, cardRes] = await Promise.all([
+        supabase
+          .from('transactions')
+          .select('id, description, amount, transaction_date, created_at')
+          .eq('user_id', user.id)
+          .eq('category_id', category.id),
+        supabase
+          .from('credit_card_transactions')
+          .select('id, description, amount, purchase_date, created_at')
+          .eq('user_id', user.id)
+          .eq('category_id', category.id),
+      ]);
+
+      if (bankRes.error) throw bankRes.error;
+      if (cardRes.error) throw cardRes.error;
+
+      const bankMapped: LedgerRow[] = (bankRes.data ?? []).map((t: any) => {
+        const sortRaw = t.transaction_date || t.created_at;
+        return {
+          id: t.id,
+          description: t.description ?? '',
+          amount: Number(t.amount) || 0,
+          sortAt: parseSortDate(sortRaw),
+          ledgerEntity: 'transaction' as const,
+        };
+      });
+
+      const cardMapped: LedgerRow[] = (cardRes.data ?? []).map((t: any) => {
+        const sortRaw = t.purchase_date || t.created_at;
+        return {
+          id: t.id,
+          description: t.description ?? '',
+          amount: Number(t.amount) || 0,
+          sortAt: parseSortDate(sortRaw),
+          ledgerEntity: 'credit_card_transaction' as const,
+        };
+      });
+
+      const merged = [...bankMapped, ...cardMapped].sort((a, b) =>
+        a.sortAt < b.sortAt ? 1 : a.sortAt > b.sortAt ? -1 : 0,
+      );
+
+      setRows(merged);
     } catch (error) {
       console.error('Erro ao buscar transações:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [category.id]);
 
-  const handleRecategorize = (transaction: Transaction) => {
-    setSelectedTransaction(transaction);
+  useEffect(() => {
+    if (open) {
+      void fetchRows();
+    }
+  }, [open, fetchRows]);
+
+  const handleRecategorize = (row: LedgerRow) => {
+    setSelectedRow(row);
     setRecategorizeOpen(true);
   };
 
-  const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
+  const handleRecategorizeSuccess = async () => {
+    await fetchRows();
+    await onRecategorizeSuccess?.();
+  };
+
+  const totalAmount = rows.reduce((sum, t) => sum + t.amount, 0);
 
   return (
     <>
@@ -74,11 +137,10 @@ export function CategoryTransactionsDialog({
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Resumo */}
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">
-                  {transactions.length} {transactions.length === 1 ? 'transação' : 'transações'}
+                  {rows.length} {rows.length === 1 ? 'lançamento' : 'lançamentos'} (conta + cartão)
                 </span>
                 <span className="text-lg font-semibold text-gray-900">
                   {formatCurrency(totalAmount)}
@@ -86,42 +148,45 @@ export function CategoryTransactionsDialog({
               </div>
             </div>
 
-            {/* Lista de Transações */}
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map(i => (
                   <Skeleton key={i} className="h-20 w-full" />
                 ))}
               </div>
-            ) : transactions.length === 0 ? (
+            ) : rows.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
-                Nenhuma transação nesta categoria
+                Nenhum lançamento nesta categoria
               </div>
             ) : (
               <div className="space-y-3">
-                {transactions.map(transaction => (
+                {rows.map(row => (
                   <div
-                    key={transaction.id}
+                    key={`${row.ledgerEntity}-${row.id}`}
                     className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
                           <span className="text-sm text-gray-500">
-                            📅 {format(new Date(transaction.created_at), 'dd/MM/yyyy', { locale: ptBR })}
+                            {format(new Date(row.sortAt), 'dd/MM/yyyy', { locale: ptBR })}
                           </span>
+                          <Badge variant="secondary" className="text-xs">
+                            {SOURCE_LABEL[row.ledgerEntity]}
+                          </Badge>
                         </div>
-                        <p className="font-medium text-gray-900 mb-1">
-                          {transaction.description}
+                        <p className="font-medium text-gray-900 mb-1 break-words">
+                          {row.description}
                         </p>
                         <p className="text-lg font-semibold text-gray-900">
-                          {formatCurrency(transaction.amount)}
+                          {formatCurrency(row.amount)}
                         </p>
                       </div>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleRecategorize(transaction)}
+                        className="shrink-0"
+                        onClick={() => handleRecategorize(row)}
                       >
                         Recategorizar
                       </Button>
@@ -131,7 +196,6 @@ export function CategoryTransactionsDialog({
               </div>
             )}
 
-            {/* Botão Fechar */}
             <div className="flex justify-end pt-4 border-t">
               <Button onClick={() => onOpenChange(false)}>
                 Fechar
@@ -141,14 +205,17 @@ export function CategoryTransactionsDialog({
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Recategorizar */}
-      {selectedTransaction && (
+      {selectedRow && (
         <RecategorizeDialog
           open={recategorizeOpen}
           onOpenChange={setRecategorizeOpen}
-          transaction={selectedTransaction}
+          transaction={{
+            id: selectedRow.id,
+            description: selectedRow.description,
+            ledgerEntity: selectedRow.ledgerEntity,
+          }}
           currentCategory={category}
-          onSuccess={fetchTransactions}
+          onSuccess={handleRecategorizeSuccess}
         />
       )}
     </>

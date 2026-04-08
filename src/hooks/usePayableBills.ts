@@ -12,6 +12,15 @@ import {
   BillsSummary,
 } from '@/types/payable-bills.types';
 import { addDays, parseISO, isWithinInterval } from 'date-fns';
+import { normalizePayableBillTags } from '@/utils/payableBillTags';
+
+async function replaceBillTagsRpc(billId: string, tagIds: string[]) {
+  const { error } = await supabase.rpc('replace_bill_tags', {
+    p_bill_id: billId,
+    p_tag_ids: tagIds,
+  });
+  if (error) throw error;
+}
 
 export function usePayableBills(initialFilters?: BillFilters) {
   const { user } = useAuth();
@@ -116,10 +125,10 @@ export function usePayableBills(initialFilters?: BillFilters) {
 
       if (error) throw error;
 
-      // Transformar dados para incluir tags
+      // Transformar dados para incluir tags como objetos do domínio
       const billsWithTags = (data || []).map((bill: any) => ({
         ...bill,
-        tags: bill.bill_tags?.map((bt: any) => bt.tags).filter(Boolean) || [],
+        tags: normalizePayableBillTags(bill),
       }));
 
       // Busca local (search)
@@ -180,12 +189,13 @@ export function usePayableBills(initialFilters?: BillFilters) {
     if (!user?.id) return null;
 
     try {
+      const { tags, ...rowPayload } = input;
       const { data, error } = await supabase
         .from('payable_bills')
         .insert([
           {
             user_id: user.id,
-            ...input,
+            ...rowPayload,
             status: 'pending',
           },
         ])
@@ -193,6 +203,10 @@ export function usePayableBills(initialFilters?: BillFilters) {
         .single();
 
       if (error) throw error;
+
+      if (data?.id) {
+        await replaceBillTagsRpc(data.id, tags ?? []);
+      }
 
       if (input.is_recurring) {
         await syncRecurringBillsHorizon();
@@ -243,7 +257,6 @@ export function usePayableBills(initialFilters?: BillFilters) {
           reminder_days_before: input.reminder_days_before ?? 3,
           reminder_channels: input.reminder_channels ?? ['app'],
           priority: input.priority ?? 'medium',
-          tags: input.tags,
           notes: input.notes,
           status: 'pending',
         });
@@ -255,6 +268,15 @@ export function usePayableBills(initialFilters?: BillFilters) {
         .select();
 
       if (error) throw error;
+
+      const tagIds = input.tags ?? [];
+      if (data?.length) {
+        for (const row of data) {
+          if (row.id) {
+            await replaceBillTagsRpc(row.id, tagIds);
+          }
+        }
+      }
 
       toast.success(
         `Parcelamento criado com sucesso! ${input.installment_total} parcelas.`
@@ -275,6 +297,8 @@ export function usePayableBills(initialFilters?: BillFilters) {
     if (!user?.id) return null;
 
     try {
+      const { tags: nextTagIds, ...inputWithoutTags } = input;
+
       // 1. Buscar conta atual para verificar status e valores
       const { data: currentBill, error: fetchError } = await supabase
         .from('payable_bills')
@@ -285,7 +309,7 @@ export function usePayableBills(initialFilters?: BillFilters) {
       if (fetchError) throw fetchError;
 
       // 2. Limpar dados para evitar violação de constraints
-      const cleanInput: Record<string, unknown> = { ...input };
+      const cleanInput: Record<string, unknown> = { ...inputWithoutTags };
 
       // 3. Constraint valid_paid_status: Se a conta está PAGA e o valor foi alterado
       if (currentBill.status === 'paid' && cleanInput.amount !== undefined) {
@@ -315,39 +339,59 @@ export function usePayableBills(initialFilters?: BillFilters) {
         }
       });
 
-      const { data, error } = await supabase
-        .from('payable_bills')
-        .update(cleanInput)
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .select()
-        .single();
+      const rowPatchKeys = Object.keys(cleanInput);
+      let data: PayableBill | null = null;
 
-      if (error) throw error;
-
-      const willRemainRecurringTemplate =
-        !currentBill.parent_bill_id &&
-        (cleanInput.is_recurring === true || (cleanInput.is_recurring === undefined && currentBill.is_recurring));
-
-      if (willRemainRecurringTemplate) {
-        const effectiveDueDate = String(cleanInput.due_date ?? currentBill.due_date);
-
-        await supabase
+      if (rowPatchKeys.length > 0) {
+        const { data: updated, error } = await supabase
           .from('payable_bills')
-          .delete()
-          .eq('parent_bill_id', id)
-          .in('status', ['pending', 'scheduled'])
-          .gt('due_date', effectiveDueDate);
-
-        await supabase
-          .from('payable_bills')
-          .update({
-            next_occurrence_date: effectiveDueDate,
-          })
+          .update(cleanInput)
           .eq('id', id)
-          .eq('user_id', user.id);
+          .eq('user_id', user.id)
+          .select()
+          .single();
 
-        await syncRecurringBillsHorizon();
+        if (error) throw error;
+        data = updated as PayableBill;
+
+        const willRemainRecurringTemplate =
+          !currentBill.parent_bill_id &&
+          (cleanInput.is_recurring === true ||
+            (cleanInput.is_recurring === undefined && currentBill.is_recurring));
+
+        if (willRemainRecurringTemplate) {
+          const effectiveDueDate = String(cleanInput.due_date ?? currentBill.due_date);
+
+          await supabase
+            .from('payable_bills')
+            .delete()
+            .eq('parent_bill_id', id)
+            .in('status', ['pending', 'scheduled'])
+            .gt('due_date', effectiveDueDate);
+
+          await supabase
+            .from('payable_bills')
+            .update({
+              next_occurrence_date: effectiveDueDate,
+            })
+            .eq('id', id)
+            .eq('user_id', user.id);
+
+          await syncRecurringBillsHorizon();
+        }
+      } else {
+        const { data: currentRow, error: readError } = await supabase
+          .from('payable_bills')
+          .select('*')
+          .eq('id', id)
+          .eq('user_id', user.id)
+          .single();
+        if (readError) throw readError;
+        data = currentRow as PayableBill;
+      }
+
+      if (nextTagIds !== undefined) {
+        await replaceBillTagsRpc(id, nextTagIds);
       }
 
       toast.success('Conta atualizada com sucesso!');

@@ -93,6 +93,7 @@ describe('reports pdf export helpers', () => {
         ],
         monthOverMonthChanges: [],
         uncategorizedShare: 5,
+        topTags: [],
       },
       ana: {
         summary: 'Narrativa não canônica.',

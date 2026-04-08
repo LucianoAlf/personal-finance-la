@@ -18,6 +18,19 @@
 
 ---
 
+## Fonte de verdade: categorias e tags (atualização 2026-04-07)
+
+- **Categorias em tempo de execução:** `public.categories` é a tabela canônica. Os campos `category_id` em `transactions`, `credit_card_transactions`, `payable_bills` e `financial_goals` apontam para esta tabela. Não existe, neste desenho, uma segunda tabela paralela de categorias operacionais.
+- **Tags em tempo de execução:** `public.tags` é o catálogo canônico (por usuário). Constantes estáticas no código (listas mestras, seeds) são **material de referência / seed apenas**; não substituem linhas reais em `public.categories` nem em `public.tags` em runtime.
+- **Atribuição de tags:** o armazenamento depende da entidade, via tabela de junção:
+  - transações (`transactions`) → `public.transaction_tags`
+  - transações de cartão (`credit_card_transactions`) → `public.credit_card_transaction_tags`
+  - contas a pagar (`payable_bills`) → `public.bill_tags`
+
+A migração `supabase/migrations/20260407_canonical_tags_categories.sql` reforça isso com índices, unicidade case-insensitive de nome de tag por usuário e RPCs opcionais para substituir o conjunto de tags de um único registro de forma atômica: `replace_transaction_tags`, `replace_credit_card_transaction_tags`, `replace_bill_tags`.
+
+---
+
 ## 1. LISTA DE TODAS AS TABELAS (58 tabelas)
 
 ### Core (7 tabelas)

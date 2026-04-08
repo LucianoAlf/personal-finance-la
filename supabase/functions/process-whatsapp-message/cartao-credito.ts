@@ -343,7 +343,7 @@ export async function classificarIntencaoCartaoIA(
         'Authorization': `Bearer ${OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'gpt-5-mini',
         temperature: 0.1,
         max_tokens: 200,
         messages: [

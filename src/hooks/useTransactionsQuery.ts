@@ -2,6 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { Transaction, TransactionType } from '@/types/transactions';
+import {
+  buildCreditCardTransactionTagMap,
+  mapCreditCardTransactionRow,
+  type CreditCardLedgerRow,
+  type CreditCardTagRow,
+} from '@/utils/transactions/creditCardLedgerMapping';
 
 interface TransactionFilters {
   type?: TransactionType;
@@ -99,49 +105,27 @@ const fetchTransactions = async (filters?: TransactionFilters): Promise<Transact
     return normalTransactions;
   }
 
-  // Mapear transações de cartão para o formato de Transaction
-  let creditCardTransactions: Transaction[] = (ccData || []).map((cc: any) => {
-    const ref = cc.invoice?.reference_month as string | undefined;
-    const competenceMonth = ref ? ref.slice(0, 7) : (cc.purchase_date || '').slice(0, 7);
-    return {
-    id: cc.id,
-    user_id: cc.user_id,
-    account_id: null,
-    category_id: cc.category_id,
-    type: 'expense' as const,
-    amount: cc.amount,
-    description: cc.description,
-    transaction_date: cc.purchase_date,
-    competence_month: competenceMonth,
-    is_paid: false, // Compras de cartão são pagas quando a fatura é paga
-    is_recurring: false,
-    recurrence_type: null,
-    recurrence_end_date: null,
-    attachment_url: null,
-    notes: null,
-    source: 'manual' as const, // Transações de cartão aparecem como manual
-    whatsapp_message_id: null,
-    transfer_to_account_id: null,
-    created_at: cc.created_at,
-    updated_at: cc.created_at,
-    status: 'completed',
-    temp_id: null,
-    confirmed_at: null,
-    payment_method: 'credit',
-    category: cc.category,
-    account: cc.credit_card ? { id: cc.credit_card.id, name: `💳 ${cc.credit_card.name}` } : null,
-    tags: [],
-    // Campos extras para identificar como cartão
-    credit_card_id: cc.credit_card_id,
-    credit_card_name: cc.credit_card?.name,
-    is_installment: cc.is_installment || false,
-    is_parent_installment: cc.is_parent_installment || false,
-    installment_number: cc.installment_number,
-    total_installments: cc.total_installments,
-    installment_group_id: cc.installment_group_id,
-    total_amount: cc.total_amount,
-  };
-  });
+  const creditCardIds = (ccData || []).map((cc: { id: string }) => cc.id);
+  let creditCardTagsByTransactionId: Record<string, NonNullable<Transaction['tags']>> = {};
+
+  if (creditCardIds.length > 0) {
+    const { data: ccTagRows, error: ccTagError } = await supabase
+      .from('credit_card_transaction_tags')
+      .select('credit_card_transaction_id, tag:tags(id, name, color)')
+      .in('credit_card_transaction_id', creditCardIds);
+
+    if (ccTagError) {
+      console.error('Erro ao buscar tags das transações de cartão:', ccTagError);
+    } else {
+      creditCardTagsByTransactionId = buildCreditCardTransactionTagMap(
+        (ccTagRows ?? []) as unknown as CreditCardTagRow[],
+      );
+    }
+  }
+
+  let creditCardTransactions: Transaction[] = (ccData || []).map((cc: unknown) =>
+    mapCreditCardTransactionRow(cc as CreditCardLedgerRow, creditCardTagsByTransactionId),
+  );
 
   if (filters?.startDate || filters?.endDate) {
     const startYm = filters.startDate ? filters.startDate.slice(0, 7) : null;

@@ -13,11 +13,15 @@ interface CategoryCardProps {
   stats: {
     transactionCount: number;
     totalAmount: number;
+    payableBillsCount: number;
+    financialGoalsCount: number;
+    legacyBudgetsCount: number;
   };
   isDefault: boolean;
+  onTransactionsChanged?: () => void | Promise<void>;
 }
 
-export function CategoryCard({ category, stats, isDefault }: CategoryCardProps) {
+export function CategoryCard({ category, stats, isDefault, onTransactionsChanged }: CategoryCardProps) {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [transactionsDialogOpen, setTransactionsDialogOpen] = useState(false);
@@ -117,6 +121,7 @@ export function CategoryCard({ category, stats, isDefault }: CategoryCardProps) 
       <CreateCategoryDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
+        categoryType={category.type}
         editCategory={category}
       />
 
@@ -124,13 +129,19 @@ export function CategoryCard({ category, stats, isDefault }: CategoryCardProps) 
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
         category={category}
-        transactionCount={stats.transactionCount}
+        dependencies={{
+          ledgerTransactionCount: stats.transactionCount,
+          payableBillsCount: stats.payableBillsCount,
+          financialGoalsCount: stats.financialGoalsCount,
+          legacyBudgetsCount: stats.legacyBudgetsCount,
+        }}
       />
 
       <CategoryTransactionsDialog
         open={transactionsDialogOpen}
         onOpenChange={setTransactionsDialogOpen}
         category={category}
+        onRecategorizeSuccess={onTransactionsChanged}
       />
     </>
   );

@@ -64,7 +64,7 @@ export function useGoals(): UseGoalsReturn {
         .from('financial_goals')
         .select(`
           *,
-          category:categories(name, icon)
+          category:categories(id, name, icon)
         `)
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
@@ -137,6 +137,9 @@ export function useGoals(): UseGoalsReturn {
         fetchGoals();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_goal_contributions', filter: `user_id=eq.${user.id}` }, () => {
+        fetchGoals();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payable_bills', filter: `user_id=eq.${user.id}` }, () => {
         fetchGoals();
       })
       .subscribe();

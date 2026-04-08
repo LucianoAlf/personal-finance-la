@@ -1,7 +1,7 @@
 // src/components/settings/NotificationsSettings.tsx
 // Tab de preferências de notificações
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -84,6 +84,66 @@ export function NotificationsSettings() {
   const [investmentSummaryFreq, setInvestmentSummaryFreq] = useState(notificationPreferences?.investment_summary_frequency || 'weekly');
   const [investmentSummaryDay, setInvestmentSummaryDay] = useState(notificationPreferences?.investment_summary_day_of_week || 5);
   const [investmentSummaryTime, setInvestmentSummaryTime] = useState(notificationPreferences?.investment_summary_time || '18:00');
+
+  useEffect(() => {
+    if (!notificationPreferences) {
+      return;
+    }
+
+    setPushEnabled(notificationPreferences.push_enabled ?? true);
+    setEmailEnabled(notificationPreferences.email_enabled ?? true);
+    setWhatsappEnabled(notificationPreferences.whatsapp_enabled ?? false);
+
+    setDndEnabled(notificationPreferences.do_not_disturb_enabled ?? false);
+    setDndStartTime(notificationPreferences.do_not_disturb_start_time || '22:00');
+    setDndEndTime(notificationPreferences.do_not_disturb_end_time || '08:00');
+    setDndDaysOfWeek(notificationPreferences.do_not_disturb_days_of_week || [0, 1, 2, 3, 4, 5, 6]);
+
+    setDailySummaryEnabled(notificationPreferences.daily_summary_enabled ?? false);
+    setDailySummaryTime(notificationPreferences.daily_summary_time || '20:00');
+    setDailySummaryDays(notificationPreferences.daily_summary_days_of_week || [1, 2, 3, 4, 5]);
+
+    setWeeklySummaryEnabled(notificationPreferences.weekly_summary_enabled ?? false);
+    setWeeklySummaryDay(notificationPreferences.weekly_summary_day_of_week || 0);
+    setWeeklySummaryDays(notificationPreferences.weekly_summary_days_of_week || [0]);
+    setWeeklySummaryTime(notificationPreferences.weekly_summary_time || '09:00');
+
+    setMonthlySummaryEnabled(notificationPreferences.monthly_summary_enabled ?? false);
+    setMonthlySummaryDay(notificationPreferences.monthly_summary_day_of_month || 1);
+    setMonthlySummaryDays(notificationPreferences.monthly_summary_days_of_month || [1]);
+    setMonthlySummaryTime(notificationPreferences.monthly_summary_time || '09:00');
+
+    setBillRemindersEnabled(notificationPreferences.bill_reminders_enabled ?? true);
+    setBillReminderDays(notificationPreferences.bill_reminders_days_before || 3);
+    setBillReminderDaysArray(notificationPreferences.bill_reminders_days_before_array || [3, 1, 0]);
+    setBillReminderTime(notificationPreferences.bill_reminders_time || '09:00');
+
+    setBudgetAlertsEnabled(notificationPreferences.budget_alerts_enabled ?? true);
+    setBudgetAlertThreshold(notificationPreferences.budget_alert_threshold_percentage || 80);
+    setBudgetThresholds(notificationPreferences.budget_alert_thresholds || [80, 100]);
+    setBudgetCooldown(notificationPreferences.budget_alert_cooldown_hours || 24);
+
+    setGoalMilestonesEnabled(notificationPreferences.goal_milestones_enabled ?? true);
+    setGoalPercentages(notificationPreferences.goal_milestone_percentages || [25, 50, 75, 100]);
+    setAchievementsEnabled(notificationPreferences.achievements_enabled ?? true);
+
+    setAnaTipsEnabled(notificationPreferences.ana_tips_enabled ?? true);
+    setAnaTipsFrequency(notificationPreferences.ana_tips_frequency || 'daily');
+    setAnaTipsTime(notificationPreferences.ana_tips_time || '10:00');
+    setAnaTipsDayOfWeek(notificationPreferences.ana_tips_day_of_week || 1);
+    setAnaTipsDayOfMonth(notificationPreferences.ana_tips_day_of_month || 1);
+
+    setOverdueAlertsEnabled(notificationPreferences.overdue_bill_alerts_enabled ?? true);
+    setOverdueDays(notificationPreferences.overdue_bill_alert_days || [1, 3, 7]);
+    setLowBalanceEnabled(notificationPreferences.low_balance_alerts_enabled ?? false);
+    setLowBalanceThreshold(notificationPreferences.low_balance_threshold || 100);
+    setLargeTransactionEnabled(notificationPreferences.large_transaction_alerts_enabled ?? false);
+    setLargeTransactionThreshold(notificationPreferences.large_transaction_threshold || 1000);
+    setInvestmentSummaryEnabled(notificationPreferences.investment_summary_enabled ?? false);
+    setInvestmentSummaryFreq(notificationPreferences.investment_summary_frequency || 'weekly');
+    setInvestmentSummaryDay(notificationPreferences.investment_summary_day_of_week || 5);
+    setInvestmentSummaryTime(notificationPreferences.investment_summary_time || '18:00');
+  }, [notificationPreferences]);
 
   const handleSave = async () => {
     await updateNotificationPreferences({
@@ -183,6 +243,11 @@ export function NotificationsSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            Os agendamentos automáticos desta versão usam principalmente a conexão do WhatsApp.
+            As preferências de Push e E-mail já ficam salvas, mas ainda não dirigem todos os envios automatizados.
+          </div>
+
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">
               <Label htmlFor="push">Notificações Push</Label>
@@ -422,7 +487,7 @@ export function NotificationsSettings() {
             <CardTitle>Alertas Específicos</CardTitle>
           </div>
           <CardDescription>
-            Configure alertas para eventos importantes
+            Configure alertas para eventos importantes. Onde o backend ainda não consome a preferência diretamente, a interface indica o escopo atual.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -8,8 +8,10 @@
  * 3. Usa LLM para extrair/validar dados da transação
  * 4. Cria transação no Supabase
  * 5. Retorna confirmação formatada
- */ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+ */
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { resolveCanonicalCategory } from '../_shared/canonical-categorization.ts';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 serve(async (req)=>{
@@ -57,40 +59,24 @@ serve(async (req)=>{
         }
       });
     }
-    // Mapear slug da IA para nome em português
-    const categorySlugMap: Record<string, string> = {
-      'food': 'Alimentação',
-      'transport': 'Transporte',
-      'health': 'Saúde',
-      'education': 'Educação',
-      'entertainment': 'Lazer',
-      'shopping': 'Outros', // Compras gerais
-      'bills': 'Moradia', // Contas fixas
-      'salary': 'Salário',
-      'investment': 'Investimentos',
-      'other': 'Outros'
-    };
-    
     const categorySlug = extractedData.data.category;
-    const categoryName = categorySlugMap[categorySlug] || 'Outros';
-    const transactionType = extractedData.data.type;
-    
-    console.log(`🔍 Mapeando categoria: slug="${categorySlug}" → name="${categoryName}", type="${transactionType}"`);
-    
-    // Buscar category_id pelo nome E tipo
-    const { data: category } = await supabase
-      .from('categories')
-      .select('id, name')
-      .eq('name', categoryName)
-      .eq('type', transactionType)
-      .eq('is_default', true)
-      .single();
-    
-    if (category) {
-      console.log(`✅ Categoria encontrada: ${category.name} (${category.id})`);
-    } else {
-      console.warn(`⚠️ Categoria "${categoryName}" (${transactionType}) não encontrada, usando "Outros"`);
-    }
+    const transactionType = extractedData.data.type as 'income' | 'expense';
+
+    const textSources = [data.raw_text, extractedData.data.description].filter(
+      (s): s is string => typeof s === 'string' && s.trim().length > 0,
+    );
+
+    const resolved = await resolveCanonicalCategory(supabase, {
+      userId: user_id,
+      transactionType,
+      textSources,
+      labelHint: categorySlug,
+      amount: extractedData.data.amount,
+    });
+
+    console.log(
+      `🔍 Categoria resolvida: hint="${categorySlug}" → name="${resolved.categoryName}" id=${resolved.categoryId ?? 'null'} path=${resolved.resolutionPath} fallback=${resolved.usedFallback}`,
+    );
     
     // ✅ CRÍTICO: Buscar account_id se não fornecido
     let accountId = data.account_id;
@@ -123,7 +109,7 @@ serve(async (req)=>{
       account_id: accountId, // ✅ Sempre preenchido
       amount: extractedData.data.amount,
       type: extractedData.data.type,
-      category_id: category?.id || null, // UUID da categoria ou null
+      category_id: resolved.categoryId,
       description: extractedData.data.description,
       transaction_date: transactionDate, // ✅ Sempre data atual
       is_paid: true,
@@ -448,33 +434,72 @@ async function callOpenAI(apiKey, model, prompt, config) {
 /**
  * Cria transação sem LLM (fallback)
  */ async function createTransactionFallback(supabase, userId, data) {
-  // Usar dados fornecidos diretamente
   const amount = data.amount || 0;
   const description = data.description || data.merchant_name || 'Transação via WhatsApp';
-  const category = data.category || 'other';
-  const type = data.type || 'expense';
-  const { data: transaction, error } = await supabase.from('transactions').insert({
-    user_id: userId,
+  const type = data.type === 'income' ? 'income' : 'expense';
+  const textSources = [data.raw_text, description].filter(
+    (s: unknown): s is string => typeof s === 'string' && s.trim().length > 0,
+  );
+  const resolved = await resolveCanonicalCategory(supabase, {
+    userId,
+    transactionType: type,
+    textSources,
+    labelHint: typeof data.category === 'string' ? data.category : undefined,
     amount,
-    type,
-    category,
-    description,
-    date: data.date || new Date().toISOString(),
-    metadata: {
-      source: 'whatsapp',
-      fallback: true
-    }
-  }).select().single();
-  if (error) throw error;
-  return new Response(JSON.stringify({
-    success: true,
-    message: formatConfirmationMessage(transaction),
-    transaction_id: transaction.id
-  }), {
-    headers: {
-      'Content-Type': 'application/json'
-    }
   });
+
+  let accountId = data.account_id;
+  if (!accountId) {
+    const { data: account } = await supabase
+      .from('accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    accountId = account?.id;
+  }
+
+  const transactionDate =
+    typeof data.date === 'string' && data.date.length >= 8
+      ? data.date.split('T')[0]
+      : new Date().toISOString().split('T')[0];
+
+  const { data: transaction, error } = await supabase
+    .from('transactions')
+    .insert({
+      user_id: userId,
+      account_id: accountId,
+      amount,
+      type,
+      category_id: resolved.categoryId,
+      description,
+      transaction_date: transactionDate,
+      is_paid: true,
+      source: 'whatsapp',
+      whatsapp_message_id: data.message_id,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return new Response(
+    JSON.stringify({
+      success: true,
+      message: formatConfirmationMessage(transaction, {
+        amount,
+        type,
+        description,
+        category: data.category || 'other',
+      }),
+      transaction_id: transaction.id,
+    }),
+    {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    },
+  );
 }
 /**
  * Formata mensagem de confirmação

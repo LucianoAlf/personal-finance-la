@@ -4,6 +4,19 @@
 
 ---
 
+## Persistência canônica (atualização 2026-04-07)
+
+O problema descrito abaixo envolve **lógica de aplicação** (NLP, mapeamentos duplicados). Separado disso, a **fonte de verdade no banco** para taxonomia e etiquetas é:
+
+- **Categorias em runtime:** `public.categories`. Todo `category_id` operacional em `transactions`, `credit_card_transactions`, `payable_bills` e `financial_goals` deve resolver para esta tabela.
+- **Tags em runtime:** `public.tags`. Definições de tags ficam aqui; **não** há um segundo catálogo paralelo no schema público para o mesmo papel.
+- **Ligação tag ↔ entidade:** feita só nas junções por tipo de entidade — `transaction_tags`, `credit_card_transaction_tags`, `bill_tags` — e não embutida como substituto do catálogo.
+- **Constantes estáticas no frontend** (por exemplo categorias mestras): servem como **referência / seed** (UX, importação, hints de NLP), não como substituto da linha persistida em `public.categories`.
+
+Alinhar código NLP e edge functions a isso significa: após detectar um nome, **resolver o UUID em `public.categories`** (e o tipo receita/despesa correto), em vez de manter mapas concorrentes como verdade final.
+
+---
+
 ## 📋 PROBLEMA REPORTADO
 
 O usuário reporta que:
@@ -140,6 +153,8 @@ Esse mapa é para converter categorias do NLP em inglês, não para categorias j
 ---
 
 ## 📊 ARQUITETURA IDEAL (FONTE ÚNICA DE VERDADE)
+
+A fonte única de verdade **persistida** para nomes/ícones/cores de categoria é **`public.categories`**. Funções de detecção (palavra-chave, NLP) podem sugerir um **nome**; o passo obrigatório é resolver esse nome para o `id` correto na tabela canônica antes de gravar `category_id`.
 
 ```
 WhatsApp: "TV 2000 em 10x no Nubank"

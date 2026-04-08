@@ -9,12 +9,21 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User, Save, Moon, Sun, Monitor, Globe, Upload } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
+import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import {
+  getUserInitials,
+  resolveUserAvatarUrl,
+  resolveUserDisplayName,
+} from '@/utils/profileIdentity';
 
 export function GeneralSettings() {
-  const { userSettings, updateUserSettings, setTheme, loading } = useSettings();
+  const { userSettings, updateUserSettings, setTheme: persistTheme, loading } = useSettings();
+  const { setTheme: applyTheme } = useTheme();
+  const { user, profile, updateProfile } = useAuth();
   const [userEmail, setUserEmail] = useState<string>('');
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -34,33 +43,30 @@ export function GeneralSettings() {
 
   // Buscar email do usuário autenticado
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        setUserEmail(user.email || '');
-        if (!displayName && user.user_metadata?.full_name) {
-          setDisplayName(user.user_metadata.full_name);
-        }
-      }
-    });
-  }, []);
+    if (!user) {
+      return;
+    }
+
+    setUserEmail(user.email || '');
+    if (!displayName && user.user_metadata?.full_name) {
+      setDisplayName(user.user_metadata.full_name);
+    }
+  }, [displayName, user]);
 
   // Sincronizar estado local quando userSettings mudar
   useEffect(() => {
-    if (userSettings) {
-      setDisplayName(userSettings.display_name || '');
-      setLanguage(userSettings.language || 'pt-BR');
-      setTimezone(userSettings.timezone || 'America/Sao_Paulo');
-      setCurrency(userSettings.currency || 'BRL');
-      setDateFormat(userSettings.date_format || 'DD/MM/YYYY');
-      setNumberFormat(userSettings.number_format || 'pt-BR');
-      setThemeState(userSettings.theme || 'auto');
+    if (userSettings || profile || user) {
+      setDisplayName(resolveUserDisplayName(profile, userSettings, user));
+      setLanguage(userSettings?.language || 'pt-BR');
+      setTimezone(userSettings?.timezone || 'America/Sao_Paulo');
+      setCurrency(userSettings?.currency || 'BRL');
+      setDateFormat(userSettings?.date_format || 'DD/MM/YYYY');
+      setNumberFormat(userSettings?.number_format || 'pt-BR');
+      setThemeState(userSettings?.theme || 'auto');
     }
-  }, [userSettings]);
+  }, [profile, user, userSettings]);
 
   const [isSaving, setIsSaving] = useState(false);
-
-  // Derivar locale do language (para o SettingsPreview)
-  const locale = language;
 
   // Validação em tempo real para displayName
   const validateDisplayName = (value: string) => {
@@ -97,15 +103,18 @@ export function GeneralSettings() {
 
     try {
       setIsSaving(true);
-      await updateUserSettings({
-        display_name: displayName,
-        language,
-        timezone,
-        currency,
-        date_format: dateFormat,
-        number_format: numberFormat,
-        theme: theme as 'light' | 'dark' | 'auto',
-      });
+      await Promise.all([
+        updateProfile({ full_name: displayName }),
+        updateUserSettings({
+          display_name: displayName,
+          language,
+          timezone,
+          currency,
+          date_format: dateFormat,
+          number_format: numberFormat,
+          theme: theme as 'light' | 'dark' | 'auto',
+        }),
+      ]);
     } catch (error) {
       console.error('Error saving settings:', error);
     } finally {
@@ -115,12 +124,14 @@ export function GeneralSettings() {
 
   const handleThemeChange = (newTheme: 'light' | 'dark' | 'auto') => {
     setThemeState(newTheme);
-    setTheme(newTheme);
+    applyTheme(newTheme);
+    void persistTheme(newTheme, { showSuccessToast: false });
   };
 
   // Avatar cache-busting
-  const avatarSrc = userSettings?.avatar_url
-    ? `${userSettings.avatar_url}?v=${encodeURIComponent(userSettings.updated_at || '')}`
+  const resolvedAvatarUrl = resolveUserAvatarUrl(profile, userSettings);
+  const avatarSrc = resolvedAvatarUrl
+    ? `${resolvedAvatarUrl}?v=${encodeURIComponent(userSettings?.updated_at || '')}`
     : undefined;
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,8 +157,8 @@ export function GeneralSettings() {
       if (!user) throw new Error('Usuário não autenticado');
 
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      const fileName = `profile-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${user.id}/${fileName}`;
 
       // Upload para o Supabase Storage
       const { error: uploadError } = await supabase.storage
@@ -162,7 +173,10 @@ export function GeneralSettings() {
         .getPublicUrl(filePath);
 
       // Atualizar no banco
-      await updateUserSettings({ avatar_url: publicUrl });
+      await Promise.all([
+        updateProfile({ avatar_url: publicUrl }),
+        updateUserSettings({ avatar_url: publicUrl }),
+      ]);
 
       toast.success('Foto atualizada com sucesso!');
     } catch (err: any) {
@@ -207,7 +221,7 @@ export function GeneralSettings() {
                 alt="Foto do perfil"
               />
               <AvatarFallback className="bg-gradient-to-br from-purple-500 to-purple-600 text-white text-2xl">
-                {displayName?.charAt(0)?.toUpperCase() || 'U'}
+                {getUserInitials(displayName, userEmail)}
               </AvatarFallback>
             </Avatar>
             <div>
@@ -280,7 +294,7 @@ export function GeneralSettings() {
             <CardTitle>Preferências Gerais</CardTitle>
           </div>
           <CardDescription>
-            Idioma, fuso horário e formatos
+            Idioma para datas e textos relativos, com formatos regionais aplicados no app
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

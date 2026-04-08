@@ -15,6 +15,8 @@ import {
   type ReportSectionQuality,
   type ReportSpendingCategory,
   type ReportSpendingSection,
+  type ReportSpendingTagStat,
+  type ReportAnaSection,
 } from '../../../src/utils/reports/intelligence-contract.ts';
 import {
   buildInvestmentIntelligenceContext,
@@ -41,6 +43,7 @@ interface TransactionRow {
   payment_method?: string | null;
   credit_card_id?: string | null;
   category?: { name?: string | null } | null;
+  transaction_tags?: Array<{ tag?: { id?: string | null; name?: string | null } | null }> | null;
 }
 
 interface CreditCardTransactionRow {
@@ -50,6 +53,7 @@ interface CreditCardTransactionRow {
   category_id: string | null;
   invoice?: { reference_month?: string | null } | null;
   category?: { name?: string | null } | null;
+  credit_card_transaction_tags?: Array<{ tag?: { id?: string | null; name?: string | null } | null }> | null;
 }
 
 interface CreditCardRow {
@@ -202,7 +206,7 @@ export async function buildReportIntelligenceContext({
     billAnalytics,
     payableBills,
   });
-  const ana = null;
+  const ana = buildAnaTaxonomyHintsFromSpending(spending);
   const hasOverviewData = Boolean(
     cashflow ||
       spending ||
@@ -235,7 +239,9 @@ export async function buildReportIntelligenceContext({
     ),
     goals: buildGoalsQuality(goalsSection),
     investments: buildInvestmentsQuality(investmentsSection),
-    ana: createQuality('unavailable', SECTION_UNAVAILABLE),
+    ana: ana
+      ? createQuality('internal_calculation', SECTION_PARTIAL)
+      : createQuality('unavailable', SECTION_UNAVAILABLE),
   };
 
   return context;
@@ -262,7 +268,7 @@ async function fetchTransactions(
   const { data, error } = await supabase
     .from('transactions')
     .select(
-      'id, type, amount, transaction_date, category_id, description, is_paid, payment_method, credit_card_id, category:categories(name)',
+      'id, type, amount, transaction_date, category_id, description, is_paid, payment_method, credit_card_id, category:categories(name), transaction_tags(tag:tags(id, name))',
     )
     .eq('user_id', userId)
     .gte('transaction_date', startDate)
@@ -282,7 +288,7 @@ async function fetchCardTransactions(
   const { data, error } = await supabase
     .from('credit_card_transactions')
     .select(
-      'id, amount, purchase_date, category_id, category:categories(name), invoice:credit_card_invoices(reference_month)',
+      'id, amount, purchase_date, category_id, category:categories(name), invoice:credit_card_invoices(reference_month), credit_card_transaction_tags(tag:tags(id, name))',
     )
     .eq('user_id', userId)
     .lte('purchase_date', endDate)
@@ -453,6 +459,34 @@ function buildCashflowSection(
   };
 }
 
+function extractTagsFromBankLedgerRow(transaction: TransactionRow): Array<{ id: string; name: string }> {
+  const rows = transaction.transaction_tags;
+  if (!rows?.length) return [];
+  const out: Array<{ id: string; name: string }> = [];
+  for (const row of rows) {
+    const t = row?.tag;
+    if (t?.id) {
+      out.push({ id: t.id, name: (t.name ?? '').trim() || 'Tag' });
+    }
+  }
+  return out;
+}
+
+function extractTagsFromCardLedgerRow(
+  transaction: CreditCardTransactionRow,
+): Array<{ id: string; name: string }> {
+  const rows = transaction.credit_card_transaction_tags;
+  if (!rows?.length) return [];
+  const out: Array<{ id: string; name: string }> = [];
+  for (const row of rows) {
+    const t = row?.tag;
+    if (t?.id) {
+      out.push({ id: t.id, name: (t.name ?? '').trim() || 'Tag' });
+    }
+  }
+  return out;
+}
+
 function buildSpendingSection(
   transactions: TransactionRow[],
   cardTransactions: CreditCardTransactionRow[],
@@ -531,11 +565,53 @@ function buildSpendingSection(
       };
     });
 
+  const tagCounts = new Map<string, ReportSpendingTagStat>();
+  const bumpTagUsage = (tags: Array<{ id: string; name: string }>) => {
+    for (const tag of tags) {
+      const cur = tagCounts.get(tag.id) ?? {
+        tagId: tag.id,
+        tagName: tag.name,
+        useCount: 0,
+      };
+      cur.useCount += 1;
+      tagCounts.set(tag.id, cur);
+    }
+  };
+
+  for (const t of transactions) {
+    if (!shouldIncludeTransactionInSpending(t)) continue;
+    const ledgerTags = extractTagsFromBankLedgerRow(t);
+    if (ledgerTags.length) bumpTagUsage(ledgerTags);
+  }
+  for (const t of cardTransactions) {
+    if (toNumber(t.amount) <= 0) continue;
+    const ledgerTags = extractTagsFromCardLedgerRow(t);
+    if (ledgerTags.length) bumpTagUsage(ledgerTags);
+  }
+
+  const topTags = [...tagCounts.values()].sort((a, b) => b.useCount - a.useCount).slice(0, 10);
+
   return {
     categoryBreakdown,
     topCategories: categoryBreakdown.slice(0, 5),
     monthOverMonthChanges,
     uncategorizedShare: round((uncategorizedTotal / totalExpenses) * 100),
+    topTags,
+  };
+}
+
+function buildAnaTaxonomyHintsFromSpending(spending: ReportSpendingSection | null): ReportAnaSection | null {
+  const top = spending?.topTags?.filter((t) => t.useCount > 0) ?? [];
+  if (top.length === 0) return null;
+  return {
+    summary: null,
+    insights: top.slice(0, 5).map(
+      (t) =>
+        `Tag "${t.tagName}" em ${t.useCount} despesa${t.useCount === 1 ? '' : 's'} no período (conta e cartão).`,
+    ),
+    risks: [],
+    recommendations: [],
+    nextBestActions: [],
   };
 }
 

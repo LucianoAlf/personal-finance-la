@@ -168,8 +168,11 @@ export function useSettings() {
 
   // Alterar tema (atalho)
   const setTheme = useCallback(
-    async (theme: 'light' | 'dark' | 'auto') => {
-      return updateUserSettings({ theme });
+    async (
+      theme: 'light' | 'dark' | 'auto',
+      options: UpdateSettingsOptions = { showSuccessToast: false }
+    ) => {
+      return updateUserSettings({ theme }, options);
     },
     [updateUserSettings]
   );

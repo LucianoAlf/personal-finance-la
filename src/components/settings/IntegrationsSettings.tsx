@@ -20,6 +20,9 @@ import { MessageHistory } from '@/components/whatsapp/MessageHistory';
 import { WhatsAppStats } from '@/components/whatsapp/WhatsAppStats';
 import { WhatsAppOnboarding } from '@/components/whatsapp/WhatsAppOnboarding';
 
+const COMING_SOON_COPY =
+  'Esta integração ainda não está conectada ao backend real nesta versão. Quando estiver pronta, o status e as ações daqui passarão a refletir a conexão real.';
+
 export function IntegrationsSettings() {
   // WhatsApp hooks
   const { connection, isConnected, qrCode, connect, disconnect } = useWhatsAppConnection();
@@ -30,18 +33,6 @@ export function IntegrationsSettings() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [whatsappTab, setWhatsappTab] = useState('overview');
 
-  // Google Calendar state
-  const [googleConnected, setGoogleConnected] = useState(false);
-  const [googleEmail, setGoogleEmail] = useState('');
-  const [syncFrequency, setSyncFrequency] = useState('30');
-  const [lastSync, setLastSync] = useState<Date | null>(null);
-
-  // Tick Tick state
-  const [tickTickConnected, setTickTickConnected] = useState(false);
-  const [tickTickApiKey, setTickTickApiKey] = useState('');
-  const [tickTickProject, setTickTickProject] = useState('');
-  const [testingTickTick, setTestingTickTick] = useState(false);
-
   const handleWhatsAppConnect = async () => {
     setShowQRModal(true);
     await connect();
@@ -49,37 +40,6 @@ export function IntegrationsSettings() {
 
   const handleWhatsAppDisconnect = async () => {
     await disconnect();
-  };
-
-  const handleGoogleConnect = () => {
-    // OAuth flow (simulado)
-    setGoogleConnected(true);
-    setGoogleEmail('usuario@gmail.com');
-    setLastSync(new Date());
-  };
-
-  const handleGoogleDisconnect = () => {
-    setGoogleConnected(false);
-    setGoogleEmail('');
-    setLastSync(null);
-  };
-
-  const handleGoogleSync = () => {
-    setLastSync(new Date());
-  };
-
-  const handleTickTickTest = async () => {
-    setTestingTickTick(true);
-    // Simular teste de conexão
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setTickTickConnected(true);
-    setTestingTickTick(false);
-  };
-
-  const handleTickTickDisconnect = () => {
-    setTickTickConnected(false);
-    setTickTickApiKey('');
-    setTickTickProject('');
   };
 
   return (
@@ -237,7 +197,7 @@ export function IntegrationsSettings() {
       <WhatsAppOnboarding
         open={showOnboarding}
         onOpenChange={setShowOnboarding}
-        onComplete={() => console.log('Onboarding completo')}
+        onComplete={() => setShowOnboarding(false)}
       />
 
       {/* Google Calendar */}
@@ -248,88 +208,36 @@ export function IntegrationsSettings() {
             <CardTitle>Google Calendar</CardTitle>
           </div>
           <CardDescription>
-            Sincronize seus eventos financeiros com o Google Calendar
+            Status transparente: a integração com Google Calendar ainda não está disponível nesta versão
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Alert>
+            <Clock className="h-4 w-4" />
+            <AlertDescription>{COMING_SOON_COPY}</AlertDescription>
+          </Alert>
+
           {/* Status */}
           <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
             <div className="space-y-1">
               <p className="font-semibold text-sm">Status da Sincronização</p>
-              {googleConnected ? (
-                <>
-                  <p className="text-sm text-muted-foreground">Conta: {googleEmail}</p>
-                  {lastSync && (
-                    <p className="text-xs text-muted-foreground flex items-center gap-1">
-                      <Clock className="h-3 w-3" />
-                      Última sincronização: {lastSync.toLocaleString('pt-BR')}
-                    </p>
-                  )}
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Conecte sua conta Google para sincronizar eventos
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                OAuth e sincronização automática ainda não foram implementados.
+              </p>
             </div>
             <div className="flex items-center gap-2">
-              {googleConnected ? (
-                <>
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <Badge className="bg-green-100 text-green-700 border-green-200">
-                    Conectado
-                  </Badge>
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-5 w-5 text-gray-400" />
-                  <Badge variant="outline">
-                    Desconectado
-                  </Badge>
-                </>
-              )}
+              <XCircle className="h-5 w-5 text-amber-600" />
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                Em planejamento
+              </Badge>
             </div>
           </div>
-
-          {/* Configurações (se conectado) */}
-          {googleConnected && (
-            <div className="space-y-4 pt-2">
-              <div className="space-y-2">
-                <Label htmlFor="syncFreq">Frequência de Sincronização</Label>
-                <Select value={syncFrequency} onValueChange={setSyncFrequency}>
-                  <SelectTrigger id="syncFreq">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="15">A cada 15 minutos</SelectItem>
-                    <SelectItem value="30">A cada 30 minutos</SelectItem>
-                    <SelectItem value="60">A cada 1 hora</SelectItem>
-                    <SelectItem value="120">A cada 2 horas</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
 
           {/* Ações */}
-          <div className="flex gap-2">
-            {googleConnected ? (
-              <>
-                <Button variant="outline" onClick={handleGoogleDisconnect}>
-                  Desconectar
-                </Button>
-                <Button variant="outline" onClick={handleGoogleSync}>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Sincronizar Agora
-                </Button>
-              </>
-            ) : (
-              <Button onClick={handleGoogleConnect} className="bg-blue-600 hover:bg-blue-700">
-                <CalendarIcon className="h-4 w-4 mr-2" />
-                Conectar Google Calendar
-              </Button>
-            )}
-          </div>
+          <Button disabled variant="outline">
+            <CalendarIcon className="h-4 w-4 mr-2" />
+            Em breve
+          </Button>
         </CardContent>
       </Card>
 
@@ -341,99 +249,60 @@ export function IntegrationsSettings() {
             <CardTitle>Tick Tick</CardTitle>
           </div>
           <CardDescription>
-            Integre suas tarefas financeiras com o Tick Tick
+            Status transparente: a integração com Tick Tick ainda não está disponível nesta versão
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <Alert>
+            <Clock className="h-4 w-4" />
+            <AlertDescription>{COMING_SOON_COPY}</AlertDescription>
+          </Alert>
+
           {/* Status */}
           <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
             <div className="space-y-1">
               <p className="font-semibold text-sm">Status da Conexão</p>
-              {tickTickConnected ? (
-                <>
-                  <p className="text-sm text-muted-foreground">Projeto: {tickTickProject}</p>
-                  <p className="text-xs text-muted-foreground">API Key: ****{tickTickApiKey.slice(-4)}</p>
-                </>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  Configure sua API Key do Tick Tick
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                API Key, projeto padrão e testes de conexão ainda não têm persistência nem validação reais.
+              </p>
             </div>
             <div className="flex items-center gap-2">
-              {tickTickConnected ? (
-                <>
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <Badge className="bg-green-100 text-green-700 border-green-200">
-                    Conectado
-                  </Badge>
-                </>
-              ) : (
-                <>
-                  <XCircle className="h-5 w-5 text-gray-400" />
-                  <Badge variant="outline">
-                    Desconectado
-                  </Badge>
-                </>
-              )}
+              <XCircle className="h-5 w-5 text-amber-600" />
+              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                Em planejamento
+              </Badge>
             </div>
           </div>
 
           {/* Configuração */}
-          {!tickTickConnected && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="tickTickKey">API Key</Label>
-                <Input
-                  id="tickTickKey"
-                  type="password"
-                  value={tickTickApiKey}
-                  onChange={(e) => setTickTickApiKey(e.target.value)}
-                  placeholder="Sua API Key do Tick Tick"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Obtenha sua API Key em: Settings → Integrations no Tick Tick
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="tickTickProject">Projeto Padrão</Label>
-                <Input
-                  id="tickTickProject"
-                  value={tickTickProject}
-                  onChange={(e) => setTickTickProject(e.target.value)}
-                  placeholder="Nome do projeto"
-                />
-              </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="tickTickKey">API Key</Label>
+              <Input
+                id="tickTickKey"
+                type="password"
+                value=""
+                disabled
+                placeholder="Disponível quando a integração real for liberada"
+              />
             </div>
-          )}
+
+            <div className="space-y-2">
+              <Label htmlFor="tickTickProject">Projeto Padrão</Label>
+              <Input
+                id="tickTickProject"
+                value=""
+                disabled
+                placeholder="Disponível quando a integração real for liberada"
+              />
+            </div>
+          </div>
 
           {/* Ações */}
-          <div className="flex gap-2">
-            {tickTickConnected ? (
-              <Button variant="outline" onClick={handleTickTickDisconnect}>
-                Desconectar
-              </Button>
-            ) : (
-              <Button
-                onClick={handleTickTickTest}
-                disabled={!tickTickApiKey || !tickTickProject || testingTickTick}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                {testingTickTick ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Testando...
-                  </>
-                ) : (
-                  <>
-                    <CheckSquare className="h-4 w-4 mr-2" />
-                    Testar Conexão
-                  </>
-                )}
-              </Button>
-            )}
-          </div>
+          <Button disabled variant="outline">
+            <CheckSquare className="h-4 w-4 mr-2" />
+            Em breve
+          </Button>
         </CardContent>
       </Card>
 
@@ -447,10 +316,10 @@ export function IntegrationsSettings() {
             <strong>WhatsApp:</strong> Receba notificações, lembretes e interaja com a Ana Clara via mensagens
           </p>
           <p>
-            <strong>Google Calendar:</strong> Sincronize automaticamente vencimentos de contas e eventos financeiros
+            <strong>Google Calendar:</strong> Planejado, ainda sem OAuth e sem sincronização backend nesta versão
           </p>
           <p>
-            <strong>Tick Tick:</strong> Crie tarefas automáticas para suas obrigações financeiras
+            <strong>Tick Tick:</strong> Planejado, ainda sem validação de credenciais nem persistência backend nesta versão
           </p>
         </CardContent>
       </Card>

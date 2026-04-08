@@ -1,7 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { processGamificationEvent } from '@/lib/gamification';
+import type { CanonicalTaggableEntityType } from '@/types/categories';
 import type { Transaction, TransactionType } from '@/types/transactions';
+import { replaceCanonicalTagAssignments } from '@/utils/tags/tag-assignment';
+import {
+  buildCreditCardTransactionTagMap,
+  mapCreditCardTransactionRow,
+  type CreditCardLedgerRow,
+  type CreditCardTagRow,
+} from '@/utils/transactions/creditCardLedgerMapping';
+
+type LedgerTag = NonNullable<Transaction['tags']>[number];
+
+export {
+  buildCreditCardTransactionTagMap,
+  mapCreditCardTransactionRow,
+} from '@/utils/transactions/creditCardLedgerMapping';
 
 interface TransactionFilters {
   type?: TransactionType;
@@ -31,8 +46,6 @@ export const useTransactions = () => {
       }
 
       // ✅ OTIMIZADO: Buscar transações COM tags em 1 query (elimina N+1)
-      // Adicionar timestamp para evitar cache
-      const timestamp = new Date().getTime();
       let query = supabase
         .from('transactions')
         .select(`
@@ -86,7 +99,7 @@ export const useTransactions = () => {
         return;
       }
 
-      // ✅ BUSCAR TRANSAÇÕES DE CARTÃO EM PARALELO (já iniciou acima)
+      // Buscar transações de cartão e hidratar tags reais para a lista unificada.
       const { data: ccData, error: ccError } = await supabase
         .from('credit_card_transactions')
         .select(`
@@ -118,49 +131,27 @@ export const useTransactions = () => {
         return;
       }
 
-      // Mapear transações de cartão para o formato de Transaction
-      const creditCardTransactions = (ccData || []).map((cc: any) => {
-        const ref = cc.invoice?.reference_month as string | undefined;
-        const competenceMonth = ref ? ref.slice(0, 7) : (cc.purchase_date || '').slice(0, 7);
-        return {
-        id: cc.id,
-        user_id: cc.user_id,
-        account_id: null,
-        category_id: cc.category_id,
-        type: 'expense' as const,
-        amount: cc.amount,
-        description: cc.description,
-        transaction_date: cc.purchase_date,
-        competence_month: competenceMonth,
-        is_paid: false,
-        is_recurring: false,
-        recurrence_type: null,
-        recurrence_end_date: null,
-        attachment_url: null,
-        notes: null,
-        source: 'manual' as const,
-        whatsapp_message_id: null,
-        transfer_to_account_id: null,
-        created_at: cc.created_at,
-        updated_at: cc.created_at,
-        status: 'completed',
-        temp_id: null,
-        confirmed_at: null,
-        payment_method: 'credit',
-        category: cc.category,
-        account: cc.credit_card ? { id: cc.credit_card.id, name: `💳 ${cc.credit_card.name}` } : null,
-        tags: [],
-        credit_card_id: cc.credit_card_id,
-        credit_card_name: cc.credit_card?.name,
-        // Campos de parcelamento
-        is_installment: cc.is_installment || false,
-        is_parent_installment: cc.is_parent_installment || false,
-        installment_number: cc.installment_number,
-        total_installments: cc.total_installments,
-        installment_group_id: cc.installment_group_id,
-        total_amount: cc.total_amount,
-      };
-      });
+      const creditCardIds = (ccData || []).map((cc: any) => cc.id);
+      let creditCardTagsByTransactionId: Record<string, LedgerTag[]> = {};
+
+      if (creditCardIds.length > 0) {
+        const { data: ccTagRows, error: ccTagError } = await supabase
+          .from('credit_card_transaction_tags')
+          .select('credit_card_transaction_id, tag:tags(id, name, color)')
+          .in('credit_card_transaction_id', creditCardIds);
+
+        if (ccTagError) {
+          console.error('Erro ao buscar tags das transações de cartão:', ccTagError);
+        } else {
+          creditCardTagsByTransactionId = buildCreditCardTransactionTagMap(
+            ((ccTagRows ?? []) as unknown) as CreditCardTagRow[],
+          );
+        }
+      }
+
+      const creditCardTransactions = (ccData || []).map((cc: any) =>
+        mapCreditCardTransactionRow(cc as CreditCardLedgerRow, creditCardTagsByTransactionId),
+      );
 
       // Combinar e ordenar
       const allTransactions = [...transactionsWithTags, ...creditCardTransactions];
@@ -399,32 +390,26 @@ export const useTransactions = () => {
     return transactions.filter((t) => !t.is_paid);
   };
 
-  // Salvar tags de uma transação
-  const saveTransactionTags = async (transactionId: string, tagIds: string[]) => {
+  const saveTagsForCanonicalEntity = async (
+    entityType: CanonicalTaggableEntityType,
+    entityId: string,
+    tagIds: string[],
+  ) => {
     try {
-      // Remover todas as tags existentes
-      await supabase
-        .from('transaction_tags')
-        .delete()
-        .eq('transaction_id', transactionId);
-
-      // Adicionar novas tags
-      if (tagIds.length > 0) {
-        const { error: insertError } = await supabase
-          .from('transaction_tags')
-          .insert(
-            tagIds.map((tagId) => ({
-              transaction_id: transactionId,
-              tag_id: tagId,
-            }))
-          );
-
-        if (insertError) throw insertError;
-      }
+      await replaceCanonicalTagAssignments(supabase, {
+        entityType,
+        entityId,
+        tagIds,
+      });
     } catch (err) {
-      console.error('Erro ao salvar tags da transação:', err);
+      console.error('Erro ao salvar tags da entidade:', err);
       throw err;
     }
+  };
+
+  /** @deprecated Use {@link saveTagsForCanonicalEntity} with `entityType: 'transaction'`. */
+  const saveTransactionTags = async (transactionId: string, tagIds: string[]) => {
+    await saveTagsForCanonicalEntity('transaction', transactionId, tagIds);
   };
 
   // Effect para buscar transações e configurar realtime
@@ -504,5 +489,6 @@ export const useTransactions = () => {
     getTransactionsByType,
     getPendingTransactions,
     saveTransactionTags,
+    saveTagsForCanonicalEntity,
   };
 };

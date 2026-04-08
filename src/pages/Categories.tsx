@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Categories() {
   const { categories, loading: loadingCategories } = useCategories();
-  const { stats, loading: loadingStats } = useCategoryStats();
+  const { stats, loading: loadingStats, refetch: refetchCategoryStats } = useCategoryStats();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense');
 
@@ -29,6 +29,9 @@ export default function Categories() {
     return stats.find(s => s.categoryId === categoryId) || {
       transactionCount: 0,
       totalAmount: 0,
+      payableBillsCount: 0,
+      financialGoalsCount: 0,
+      legacyBudgetsCount: 0,
     };
   };
 
@@ -101,6 +104,7 @@ export default function Categories() {
                   category={category}
                   stats={getCategoryStats(category.id)}
                   isDefault={true}
+                  onTransactionsChanged={refetchCategoryStats}
                 />
               ))}
             </div>
@@ -123,6 +127,7 @@ export default function Categories() {
                     category={category}
                     stats={getCategoryStats(category.id)}
                     isDefault={false}
+                    onTransactionsChanged={refetchCategoryStats}
                   />
                 ))}
               </div>
@@ -165,6 +170,7 @@ export default function Categories() {
                   category={category}
                   stats={getCategoryStats(category.id)}
                   isDefault={true}
+                  onTransactionsChanged={refetchCategoryStats}
                 />
               ))}
             </div>
@@ -187,6 +193,7 @@ export default function Categories() {
                     category={category}
                     stats={getCategoryStats(category.id)}
                     isDefault={false}
+                    onTransactionsChanged={refetchCategoryStats}
                   />
                 ))}
               </div>
@@ -216,6 +223,7 @@ export default function Categories() {
       <CreateCategoryDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
+        categoryType={activeTab}
       />
       </div>
     </>

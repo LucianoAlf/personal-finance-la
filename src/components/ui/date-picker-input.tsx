@@ -1,12 +1,13 @@
 import * as React from 'react';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { Calendar as CalendarIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/cn';
+import { getAppliedUserPreferences } from '@/utils/appliedUserPreferences';
+import { getDateFnsLocale } from '@/utils/dateLocale';
 import { formatDateOnly, parseDateOnly } from '@/utils/formatters';
 
 interface DatePickerInputProps {
@@ -40,6 +41,8 @@ export function DatePickerInput({
 }: DatePickerInputProps) {
   const [open, setOpen] = React.useState(false);
   const selectedDate = value ? parseDateOnly(value) : undefined;
+  const { language } = getAppliedUserPreferences();
+  const dateLocale = getDateFnsLocale(language);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -82,11 +85,12 @@ export function DatePickerInput({
           disabled={disabled}
         >
           <CalendarIcon className="mr-2 h-4 w-4" />
-          {selectedDate ? format(selectedDate, 'P', { locale: ptBR }) : placeholder}
+          {selectedDate ? format(selectedDate, 'P', { locale: dateLocale }) : placeholder}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
+          locale={dateLocale}
           mode="single"
           selected={selectedDate}
           onSelect={handleSelect}

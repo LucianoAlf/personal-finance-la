@@ -6,6 +6,12 @@ import { useCategories } from '@/hooks/useCategories';
 import * as LucideIcons from 'lucide-react';
 import { TYPE_COLORS } from '@/constants/categories';
 
+interface TransactionTagChip {
+  id: string;
+  name: string;
+  color?: string | null;
+}
+
 interface TransactionItemProps {
   type: 'income' | 'expense' | 'transfer';
   description: string;
@@ -17,6 +23,8 @@ interface TransactionItemProps {
   extraBadgeText?: string;
   /** Linha extra abaixo do valor (ex.: total da compra parcelada). */
   amountFootnote?: string;
+  /** Tags canônicas (conta ou cartão), quando existirem. */
+  tags?: TransactionTagChip[];
   onClick?: () => void;
 }
 
@@ -30,6 +38,7 @@ export function TransactionItem({
   is_recurring,
   extraBadgeText,
   amountFootnote,
+  tags,
   onClick,
 }: TransactionItemProps) {
   const { getCategoryById } = useCategories();
@@ -113,6 +122,20 @@ export function TransactionItem({
                 {extraBadgeText}
               </Badge>
             )}
+            {tags?.map((tag) => (
+              <Badge
+                key={tag.id}
+                variant="outline"
+                className="text-xs font-normal whitespace-nowrap border-muted-foreground/30 gap-1"
+              >
+                <span
+                  className="inline-block size-2 rounded-full shrink-0"
+                  style={{ backgroundColor: tag.color || '#a855f7' }}
+                  aria-hidden
+                />
+                {tag.name}
+              </Badge>
+            ))}
           </div>
         </div>
       </div>

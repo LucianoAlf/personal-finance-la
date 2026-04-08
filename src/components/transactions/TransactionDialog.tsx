@@ -44,6 +44,7 @@ import { useCategories } from '@/hooks/useCategories';
 import { useTags } from '@/hooks/useTags';
 import { useTransactions } from '@/hooks/useTransactions';
 import type { Transaction } from '@/types/transactions';
+import { getTransactionWriteTarget } from '@/utils/tags/tag-assignment';
 import { TRANSACTION_TYPES } from '@/constants/categories';
 import { X, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
@@ -100,7 +101,10 @@ interface TransactionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   transaction?: Transaction;
-  onSave: (data: any) => Promise<void>;
+  /** Persist main row; return the entity id used for tag junction writes (bank or card). */
+  onSave: (data: any, options?: { existingEntityId?: string }) => Promise<string>;
+  /** Runs after row + tags succeed (e.g. query invalidation). Toast is shown by this dialog. */
+  onSaveComplete?: () => void | Promise<void>;
   onDelete?: (id: string) => Promise<void>;
   defaultType?: 'income' | 'expense' | 'transfer';
 }
@@ -110,19 +114,21 @@ export const TransactionDialog = ({
   onOpenChange,
   transaction,
   onSave,
+  onSaveComplete,
   onDelete,
   defaultType,
 }: TransactionDialogProps) => {
   const { accounts } = useAccounts();
   const { categories, getCategoriesByType } = useCategories();
   const { tags, createTag } = useTags();
-  const { saveTransactionTags } = useTransactions();
+  const { saveTagsForCanonicalEntity } = useTransactions();
   const [loading, setLoading] = useState(false);
   const [selectedType, setSelectedType] = useState<'income' | 'expense' | 'transfer'>('expense');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [showTagInput, setShowTagInput] = useState(false);
   const [newTagName, setNewTagName] = useState('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [pendingCreatedEntityId, setPendingCreatedEntityId] = useState<string | null>(null);
 
   // Renderizar ícone Lucide dinamicamente
   const renderCategoryIcon = (iconName: string, color: string) => {
@@ -164,6 +170,7 @@ export const TransactionDialog = ({
       });
       // Carregar tags da transação
       setSelectedTags(transaction.tags?.map(t => t.id) || []);
+      setPendingCreatedEntityId(null);
     } else {
       // MODO CRIAÇÃO: usar defaultType se fornecido, senão 'expense'
       const typeToUse = defaultType || 'expense';
@@ -180,6 +187,7 @@ export const TransactionDialog = ({
         notes: '',
         transfer_to_account_id: '',
       });
+      setPendingCreatedEntityId(null);
     }
   }, [transaction, defaultType, form]);
 
@@ -194,6 +202,13 @@ export const TransactionDialog = ({
   const filteredCategories = selectedType === 'transfer' 
     ? [] 
     : getCategoriesByType(selectedType);
+
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setPendingCreatedEntityId(null);
+    }
+    onOpenChange(nextOpen);
+  };
 
   const onSubmit = async (data: TransactionFormData) => {
     try {
@@ -213,19 +228,27 @@ export const TransactionDialog = ({
         is_recurring: false,
       };
 
-      await onSave(payload);
-      
-      // Salvar tags se estiver editando (já temos o ID)
-      if (transaction?.id) {
-        await saveTransactionTags(transaction.id, selectedTags);
+      const writeTarget = getTransactionWriteTarget(transaction, pendingCreatedEntityId);
+      const entityId = await onSave(payload, {
+        existingEntityId: writeTarget.mode === 'update' ? writeTarget.entityId : undefined,
+      });
+      if (!transaction) {
+        setPendingCreatedEntityId(entityId);
       }
-      // Para novas transações, as tags serão salvas após o refresh automático
+      await saveTagsForCanonicalEntity(writeTarget.entityType, entityId, selectedTags);
 
-      onOpenChange(false);
+      toast.success(
+        transaction ? 'Transação atualizada com sucesso!' : 'Transação criada com sucesso!',
+      );
+      await onSaveComplete?.();
+
+      setPendingCreatedEntityId(null);
+      handleDialogOpenChange(false);
       form.reset();
       setSelectedTags([]);
     } catch (error) {
       console.error('Error saving transaction:', error);
+      toast.error('Erro ao salvar transação. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -267,7 +290,7 @@ export const TransactionDialog = ({
       setLoading(true);
       await onDelete(transaction.id);
       setDeleteDialogOpen(false);
-      onOpenChange(false);
+      handleDialogOpenChange(false);
     } catch (error) {
       console.error('Error deleting transaction:', error);
     } finally {
@@ -277,7 +300,7 @@ export const TransactionDialog = ({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>
@@ -599,7 +622,7 @@ export const TransactionDialog = ({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => onOpenChange(false)}
+                  onClick={() => handleDialogOpenChange(false)}
                   disabled={loading}
                 >
                   Cancelar

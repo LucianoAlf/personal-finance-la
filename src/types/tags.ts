@@ -1,3 +1,5 @@
+import type { CanonicalTaggableEntityType } from './categories';
+
 export interface Tag {
   id: string;
   user_id: string;
@@ -31,4 +33,11 @@ export interface CreateTagInput {
 export interface UpdateTagInput {
   name?: string;
   color?: string;
+}
+
+/** Payload for tag writes routed to the correct junction table for {@link CanonicalTaggableEntityType}. */
+export interface CanonicalTagAssignmentInput {
+  entityType: CanonicalTaggableEntityType;
+  entityId: string;
+  tagIds: string[];
 }

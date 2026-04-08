@@ -99,7 +99,7 @@ Se algum campo não estiver disponível, use null.`;
         content = await callVision(
           {
             provider: 'openai',
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
             apiKey: OPENAI_API_KEY,
             temperature: 0.2,
             maxTokens: 1500,
@@ -116,7 +116,7 @@ Se algum campo não estiver disponível, use null.`;
         const fallback = await callVision(
           {
             provider: 'openai',
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
             apiKey: OPENAI_API_KEY,
             temperature: 0.2,
             maxTokens: 1500,

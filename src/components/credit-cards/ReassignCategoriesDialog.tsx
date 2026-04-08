@@ -25,7 +25,6 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Loader2, Search, RefreshCw } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useRecategorize } from '@/hooks/useRecategorize';
 import { useCategoryRules } from '@/hooks/useCategoryRules';
 import { useAuth } from '@/hooks/useAuth';
 import { formatCurrency } from '@/utils/formatters';
@@ -75,7 +74,6 @@ export function ReassignCategoriesDialog({
   cardName,
 }: ReassignCategoriesDialogProps) {
   const { user } = useAuth();
-  const { recategorizeTransaction, loading: recategorizing } = useRecategorize();
   const { createBulkRules } = useCategoryRules();
   const { categories } = useCategories();
   
@@ -85,6 +83,7 @@ export function ReassignCategoriesDialog({
   const [selectedMerchants, setSelectedMerchants] = useState<Set<string>>(new Set());
   const [newCategoryId, setNewCategoryId] = useState<string>('');
   const [createRule, setCreateRule] = useState(false);
+  const [applying, setApplying] = useState(false);
 
   // Buscar transações agrupadas por estabelecimento
   const fetchMerchantGroups = async () => {
@@ -200,6 +199,7 @@ export function ReassignCategoriesDialog({
     }
 
     try {
+      setApplying(true);
       // Mapear billCategoryId para category_id do banco
       const dbCategoryId = getBillCategoryDbId(newCategoryId);
       if (!dbCategoryId) {
@@ -252,6 +252,8 @@ export function ReassignCategoriesDialog({
     } catch (err) {
       console.error('Erro ao recategorizar:', err);
       toast.error('Erro ao recategorizar transações');
+    } finally {
+      setApplying(false);
     }
   };
 
@@ -401,9 +403,9 @@ export function ReassignCategoriesDialog({
           </Button>
           <Button
             onClick={handleApply}
-            disabled={selectedMerchants.size === 0 || !newCategoryId || recategorizing}
+            disabled={selectedMerchants.size === 0 || !newCategoryId || applying}
           >
-            {recategorizing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {applying && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Aplicar Alterações
           </Button>
         </DialogFooter>

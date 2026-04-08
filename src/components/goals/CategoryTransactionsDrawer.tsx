@@ -58,7 +58,12 @@ export function CategoryTransactionsDrawer({
   periodStart,
   periodEnd,
 }: CategoryTransactionsDrawerProps) {
-  const { transactions: regularTransactions, addTransaction, updateTransaction } = useTransactions();
+  const {
+    transactions: regularTransactions,
+    addTransaction,
+    updateTransaction,
+    fetchTransactions: fetchRegularTransactions,
+  } = useTransactions();
   const { transactions: creditCardTransactions, updateTransaction: updateCreditCardTransaction } = useCreditCardTransactions();
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodType | 'goal_period'>(
     periodStart && periodEnd ? 'goal_period' : 'current_month'
@@ -416,12 +421,23 @@ export function CategoryTransactionsDrawer({
         open={regularDialogOpen}
         onOpenChange={setRegularDialogOpen}
         transaction={selectedRegular || undefined}
-        onSave={async (data) => {
+        onSave={async (data, options?: { existingEntityId?: string }) => {
           if (selectedRegular) {
             await updateTransaction(selectedRegular.id, data);
-          } else {
-            await addTransaction(data);
+            return selectedRegular.id;
           }
+          if (options?.existingEntityId) {
+            await updateTransaction(options.existingEntityId, data);
+            return options.existingEntityId;
+          }
+          const row = await addTransaction(data);
+          if (!row?.id) {
+            throw new Error('Não foi possível obter o id da transação criada');
+          }
+          return row.id;
+        }}
+        onSaveComplete={async () => {
+          await fetchRegularTransactions();
         }}
         defaultType="expense"
       />

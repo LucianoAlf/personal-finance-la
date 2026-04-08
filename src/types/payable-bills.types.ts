@@ -1,3 +1,5 @@
+import type { Tag } from './tags';
+
 // ============================================
 // TIPOS: Contas a Pagar
 // ============================================
@@ -115,7 +117,7 @@ export interface PayableBill {
   
   // Outros
   priority: Priority;
-  tags?: string[];
+  tags?: Tag[];
   notes?: string;
   
   // Auditoria

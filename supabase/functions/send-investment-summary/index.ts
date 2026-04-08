@@ -62,12 +62,7 @@ serve(async (req) => {
           const dndStart = user.do_not_disturb_start_time || '22:00';
           const dndEnd = user.do_not_disturb_end_time || '08:00';
           
-          let isInDNDTime = false;
-          if (dndStart < dndEnd) {
-            isInDNDTime = currentTime >= dndStart || currentTime < dndEnd;
-          } else {
-            isInDNDTime = currentTime >= dndStart && currentTime < dndEnd;
-          }
+          const isInDNDTime = isTimeWithinWindow(currentTime, dndStart, dndEnd);
 
           if (isInDNDTime) {
             console.log(`[send-investment-summary] ⏸️ Usuário ${user.user_id} em DND`);
@@ -181,6 +176,18 @@ serve(async (req) => {
     );
   }
 });
+
+function isTimeWithinWindow(currentTime: string, startTime: string, endTime: string) {
+  if (startTime === endTime) {
+    return true;
+  }
+
+  if (startTime < endTime) {
+    return currentTime >= startTime && currentTime < endTime;
+  }
+
+  return currentTime >= startTime || currentTime < endTime;
+}
 
 function formatInvestmentSummary(
   context: Awaited<ReturnType<typeof buildInvestmentIntelligenceContext>>,

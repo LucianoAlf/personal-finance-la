@@ -10,7 +10,7 @@ const fetchGoals = async (): Promise<any[]> => {
     .from('financial_goals')
     .select(`
       *,
-      category:categories(name, icon)
+      category:categories(id, name, icon)
     `)
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
@@ -49,6 +49,17 @@ export const useGoalsQuery = () => {
           event: '*',
           schema: 'public',
           table: 'financial_goal_contributions',
+        },
+        () => {
+          query.refetch();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'payable_bills',
         },
         () => {
           query.refetch();

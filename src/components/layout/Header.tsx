@@ -12,6 +12,11 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import {
+  getUserInitials,
+  resolveUserAvatarUrl,
+  resolveUserDisplayName,
+} from '@/utils/profileIdentity';
 
 interface HeaderProps {
   title: string;
@@ -34,16 +39,11 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
     }
   };
 
-  // Pegar iniciais do nome para avatar
-  const getInitials = (name: string | null) => {
-    if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  const resolvedDisplayName = resolveUserDisplayName(profile, userSettings, user);
+  const resolvedAvatarUrl = resolveUserAvatarUrl(profile, userSettings);
+  const avatarSrc = resolvedAvatarUrl
+    ? `${resolvedAvatarUrl}?v=${encodeURIComponent(userSettings?.updated_at || '')}`
+    : undefined;
 
   return (
     <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-8 transition-colors">
@@ -76,15 +76,19 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
           {/* Menu do Usuário */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+              <Button
+                variant="ghost"
+                className="relative h-10 w-10 rounded-full"
+                aria-label="Abrir menu do usuario"
+              >
                 <Avatar className="h-10 w-10">
                   <AvatarImage 
-                    key={userSettings?.avatar_url || 'no-avatar'}
-                    src={userSettings?.avatar_url ? `${userSettings.avatar_url}?v=${encodeURIComponent(userSettings.updated_at || '')}` : (profile?.avatar_url || undefined)}
+                    key={avatarSrc || 'no-avatar'}
+                    src={avatarSrc}
                     alt="Avatar"
                   />
                   <AvatarFallback className="bg-purple-600 text-white">
-                    {getInitials(userSettings?.display_name || profile?.full_name)}
+                    {getUserInitials(resolvedDisplayName, user?.email)}
                   </AvatarFallback>
                 </Avatar>
               </Button>
@@ -93,7 +97,7 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
               <DropdownMenuLabel>
                 <div className="flex flex-col space-y-1">
                   <p className="text-sm font-medium leading-none">
-                    {userSettings?.display_name || profile?.full_name || 'Usuário'}
+                    {resolvedDisplayName}
                   </p>
                   <p className="text-xs leading-none text-muted-foreground">
                     {user?.email}

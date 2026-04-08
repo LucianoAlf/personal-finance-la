@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PurchaseForm } from './PurchaseForm';
 import { useCreditCardTransactions } from '@/hooks/useCreditCardTransactions';
-import { useCreditCardTags } from '@/hooks/useCreditCardTags';
 import { useToast } from '@/hooks/use-toast';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { useInvoices } from '@/hooks/useInvoices';
+import { supabase } from '@/lib/supabase';
+import { replaceCanonicalTagAssignments } from '@/utils/tags/tag-assignment';
 
 interface PurchaseDialogProps {
   open: boolean;
@@ -15,38 +17,78 @@ interface PurchaseDialogProps {
 
 export function PurchaseDialog({ open, onOpenChange, cardId, onSuccess }: PurchaseDialogProps) {
   const { createPurchase } = useCreditCardTransactions();
-  const { updateCreditCardTransactionTags } = useCreditCardTags();
   const { toast } = useToast();
   const { fetchCards, fetchCardsSummary } = useCreditCards();
   const { fetchInvoices } = useInvoices();
+  const [pendingCreatedPurchase, setPendingCreatedPurchase] = useState<{
+    invoiceId?: string;
+    transactionIds: string[];
+  } | null>(null);
+
+  const handleDialogOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setPendingCreatedPurchase(null);
+    }
+    onOpenChange(nextOpen);
+  };
 
   const handleSubmit = async (data: any, selectedTags: string[]) => {
-    const result = await createPurchase(data);
+    const result =
+      pendingCreatedPurchase === null
+        ? await createPurchase(data)
+        : {
+            success: true as const,
+            invoiceId: pendingCreatedPurchase.invoiceId,
+            transactionIds: pendingCreatedPurchase.transactionIds,
+          };
 
     if (result.success) {
-      // Salvar tags nas transações criadas
-      if (selectedTags.length > 0 && result.transactionIds && result.transactionIds.length > 0) {
+      const transactionIds = result.transactionIds || [];
+
+      if (!pendingCreatedPurchase) {
+        setPendingCreatedPurchase({
+          invoiceId: result.invoiceId,
+          transactionIds,
+        });
+      }
+
+      let tagsFailed = false;
+      if (selectedTags.length > 0 && transactionIds.length > 0) {
         try {
           await Promise.all(
-            result.transactionIds.map(txId => 
-              updateCreditCardTransactionTags(txId, selectedTags)
-            )
+            transactionIds.map((txId) =>
+              replaceCanonicalTagAssignments(supabase, {
+                entityType: 'credit_card_transaction',
+                entityId: txId,
+                tagIds: selectedTags,
+              }),
+            ),
           );
         } catch (err) {
           console.error('Erro ao salvar tags:', err);
-          // Não bloqueia o fluxo se falhar ao salvar tags
+          tagsFailed = true;
         }
       }
 
+      if (tagsFailed) {
+        toast({
+          title: 'Compra criada, mas as tags falharam',
+          description:
+            'Revise e tente salvar novamente. A compra ja criada sera reutilizada no retry.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      setPendingCreatedPurchase(null);
       toast({
         title: 'Compra lançada com sucesso!',
         description: `${data.installments}x de R$ ${(data.amount / data.installments).toFixed(2)}`,
       });
-      // Fallback agressivo: refetch imediato para refletir na UI
       fetchCards();
       fetchCardsSummary();
       fetchInvoices();
-      onOpenChange(false);
+      handleDialogOpenChange(false);
       onSuccess?.(result);
     } else {
       toast({
@@ -58,7 +100,7 @@ export function PurchaseDialog({ open, onOpenChange, cardId, onSuccess }: Purcha
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleDialogOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nova Compra no Cartão</DialogTitle>
@@ -66,7 +108,7 @@ export function PurchaseDialog({ open, onOpenChange, cardId, onSuccess }: Purcha
         <PurchaseForm
           preSelectedCardId={cardId}
           onSubmit={handleSubmit}
-          onCancel={() => onOpenChange(false)}
+          onCancel={() => handleDialogOpenChange(false)}
         />
       </DialogContent>
     </Dialog>

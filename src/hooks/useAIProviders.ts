@@ -207,12 +207,10 @@ export function useAIProviders() {
 
         const token = sessionData.session.access_token;
         
-        console.log('Validating API key with token:', token ? 'present' : 'missing');
-
         const payload = { provider, api_key: apiKey, model_name: modelName };
 
         const { data, error } = await supabase.functions.invoke('validate-api-key', {
-          body: JSON.stringify(payload),
+          body: payload,
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -226,14 +224,18 @@ export function useAIProviders() {
         }
 
         // Respeita o resultado vindo da função
-        console.log('Validation result:', data);
         if (!data || (data as any).valid !== true) {
           const errMsg = (data as any)?.error || 'API Key inválida';
           toast.error(errMsg);
           return { valid: false, error: errMsg } as any;
         }
 
-        toast.success('API Key validada com sucesso!');
+        const respondedModel = (data as any)?.responded_model || (data as any)?.tested_model || modelName;
+        toast.success(
+          respondedModel
+            ? `API Key validada com teste real em ${respondedModel}!`
+            : 'API Key validada com sucesso!'
+        );
         
         // Otimista: marcar como validado imediatamente
         setProviders((prev) => prev.map((p) =>

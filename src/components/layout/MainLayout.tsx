@@ -89,12 +89,22 @@ function QuickCreateTransactionModal({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { addTransaction } = useTransactions();
+  const { addTransaction, updateTransaction } = useTransactions();
   const queryClient = useQueryClient();
 
-  const handleSave = async (data: any) => {
-    await addTransaction(data);
-    toast.success('Transacao criada com sucesso!');
+  const handleSave = async (data: any, options?: { existingEntityId?: string }) => {
+    if (options?.existingEntityId) {
+      await updateTransaction(options.existingEntityId, data);
+      return options.existingEntityId;
+    }
+    const row = await addTransaction(data);
+    if (!row?.id) {
+      throw new Error('Não foi possível obter o id da transação criada');
+    }
+    return row.id;
+  };
+
+  const handleSaveComplete = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['transactions'] }),
       queryClient.invalidateQueries({ queryKey: ['accounts'] }),
@@ -106,6 +116,7 @@ function QuickCreateTransactionModal({
       open={open}
       onOpenChange={onOpenChange}
       onSave={handleSave}
+      onSaveComplete={handleSaveComplete}
       defaultType={type}
     />
   );

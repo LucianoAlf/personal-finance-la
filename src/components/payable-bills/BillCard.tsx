@@ -228,7 +228,7 @@ export function BillCard({ bill, onPay, onEdit, onDelete, onCopy, onConfigRemind
                 Alta
               </Badge>
             )}
-            {bill.tags && bill.tags.length > 0 && bill.tags.slice(0, 3).map((tag: any) => (
+            {bill.tags && bill.tags.length > 0 && bill.tags.slice(0, 3).map((tag) => (
               <Badge key={tag.id} variant="outline" className="text-xs">
                 <TagIcon className="h-3 w-3 mr-1" />
                 {tag.name}

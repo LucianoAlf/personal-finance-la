@@ -62,6 +62,27 @@ export function ExpensesByCategoryChart({ transactions, selectedDate }: Expenses
     return { chartData: arr, total: t };
   }, [grouped]);
 
+  /** Tags canônicas nas despesas do período (conta + cartão), por frequência. */
+  const topExpenseTags = useMemo(() => {
+    const counts = new Map<string, { name: string; color: string; count: number }>();
+    for (const t of expenses) {
+      for (const tag of t.tags ?? []) {
+        if (!tag?.id) continue;
+        const cur = counts.get(tag.id) ?? {
+          name: tag.name,
+          color: tag.color || '#a855f7',
+          count: 0,
+        };
+        cur.count += 1;
+        counts.set(tag.id, cur);
+      }
+    }
+    return [...counts.entries()]
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [expenses]);
+
   // Tooltip customizado
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null;
@@ -131,6 +152,30 @@ export function ExpensesByCategoryChart({ transactions, selectedDate }: Expenses
           <p className="text-sm text-gray-600 dark:text-gray-400">Total de Despesas</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatCurrency(total)}</p>
         </div>
+
+        {topExpenseTags.length > 0 ? (
+          <div className="mt-4 pt-3 border-t dark:border-gray-700">
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 text-center">
+              Tags mais frequentes no mês
+            </p>
+            <ul className="flex flex-wrap justify-center gap-2">
+              {topExpenseTags.map((row) => (
+                <li
+                  key={row.id}
+                  className="inline-flex items-center gap-1.5 text-xs rounded-full px-2 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+                >
+                  <span
+                    className="size-2 rounded-full shrink-0"
+                    style={{ backgroundColor: row.color }}
+                    aria-hidden
+                  />
+                  {row.name}
+                  <span className="text-gray-500 dark:text-gray-500">({row.count})</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </ChartCard>
   );

@@ -26,14 +26,16 @@ import {
   isInvoicePaymentExpense,
   isCashOutExpenseInBankMonth,
 } from '@/utils/transactionCompetence';
+import { transactionMatchesBankAccountIds } from '@/utils/transactions/bankAccountFilter';
+import { getUrlTransactionFilters, matchesUrlTransactionFilters } from '@/utils/transactions/urlTransactionFilters';
 
 export const Transacoes = () => {
   // HOOKS E NAVEGAÇÃO
   const location = useLocation();
   const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
-  const accountIdFromUrl = searchParams.get('account');
-  const categoryIdFromUrl = searchParams.get('category');
+  const { accountId: accountIdFromUrl, categoryId: categoryIdFromUrl, type: typeFromUrl } =
+    getUrlTransactionFilters(searchParams);
 
   // HOOKS REAIS - SEM MOCK DATA
   const {
@@ -75,6 +77,7 @@ export const Transacoes = () => {
   const selectedCategoryForFilter = categoryIdFromUrl
     ? getCategoryById(categoryIdFromUrl)
     : null;
+  const selectedTypeForFilter = typeFromUrl;
 
   // FUNÇÃO PARA NORMALIZAR TEXTO (remove acentos e lowercase)
   const normalizeText = (text: string) => {
@@ -91,12 +94,14 @@ export const Transacoes = () => {
     (t) => competenceMonthFromTransaction(t) === selectedCalendarYearMonth
   );
 
-  // FILTRAR POR CONTA (se filtro ativo na URL)
-  if (accountIdFromUrl) {
-    filteredTransactions = filteredTransactions.filter(t => t.account_id === accountIdFromUrl);
-  }
-  if (categoryIdFromUrl) {
-    filteredTransactions = filteredTransactions.filter(t => t.category_id === categoryIdFromUrl);
+  if (typeFromUrl || accountIdFromUrl || categoryIdFromUrl) {
+    filteredTransactions = filteredTransactions.filter((transaction) =>
+      matchesUrlTransactionFilters(transaction, {
+        type: typeFromUrl,
+        accountId: accountIdFromUrl,
+        categoryId: categoryIdFromUrl,
+      }),
+    );
   }
 
   // FILTRAR POR PESQUISA (em tempo real)
@@ -155,9 +160,9 @@ export const Transacoes = () => {
         }
       }
 
-      // 3. FILTRO DE CONTAS
+      // 3. FILTRO DE CONTAS (somente ledger bancário; compras no cartão ficam de fora)
       if (activeFilters.accounts.length > 0) {
-        if (!transaction.account_id || !activeFilters.accounts.includes(transaction.account_id)) {
+        if (!transactionMatchesBankAccountIds(transaction, activeFilters.accounts)) {
           return false;
         }
       }
@@ -263,7 +268,16 @@ export const Transacoes = () => {
 
   // Handler para remover filtro de conta
   const handleRemoveAccountFilter = () => {
-    navigate('/transacoes');
+    const params = new URLSearchParams(location.search);
+    params.delete('account');
+    const query = params.toString();
+    navigate(`/transacoes${query ? `?${query}` : ''}`);
+  };
+  const handleRemoveTypeFilter = () => {
+    const params = new URLSearchParams(location.search);
+    params.delete('type');
+    const query = params.toString();
+    navigate(`/transacoes${query ? `?${query}` : ''}`);
   };
   const handleRemoveCategoryFilter = () => {
     // Mantém filtro de conta, se existir
@@ -291,24 +305,23 @@ export const Transacoes = () => {
     }
   };
 
-  const handleSave = async (data: any) => {
-    try {
-      if (selectedTransaction) {
-        // MODO EDIÇÃO - ATUALIZAR
-        await updateTransaction(selectedTransaction.id, data);
-        toast.success('Transação atualizada com sucesso!');
-      } else {
-        // MODO CRIAÇÃO - ADICIONAR
-        await addTransaction(data);
-        toast.success('Transação criada com sucesso!');
-      }
-      setDialogOpen(false);
-      setSelectedTransaction(undefined);
-      setPreSelectedType(undefined);
-    } catch (error) {
-      console.error('❌ Erro ao salvar:', error);
-      toast.error('Erro ao salvar transação. Tente novamente.');
+  const handleSave = async (
+    data: any,
+    options?: { existingEntityId?: string },
+  ): Promise<string> => {
+    if (selectedTransaction) {
+      await updateTransaction(selectedTransaction.id, data);
+      return selectedTransaction.id;
     }
+    if (options?.existingEntityId) {
+      await updateTransaction(options.existingEntityId, data);
+      return options.existingEntityId;
+    }
+    const row = await addTransaction(data);
+    if (!row?.id) {
+      throw new Error('Não foi possível obter o id da transação criada');
+    }
+    return row.id;
   };
 
   // ACEITA TIPO OPCIONAL PARA PRÉ-SELECIONAR (income/expense)
@@ -501,13 +514,13 @@ export const Transacoes = () => {
                 </h2>
                 
                 {/* Botão Limpar Filtros */}
-                {(selectedAccountForFilter || selectedCategoryForFilter || activeFilters) && (
+                {(selectedAccountForFilter || selectedCategoryForFilter || selectedTypeForFilter || activeFilters) && (
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
                       setActiveFilters(null);
-                      if (selectedAccountForFilter || selectedCategoryForFilter) navigate('/transacoes');
+                      if (selectedAccountForFilter || selectedCategoryForFilter || selectedTypeForFilter) navigate('/transacoes');
                     }}
                     className="text-gray-600 hover:text-gray-900"
                   >
@@ -518,8 +531,25 @@ export const Transacoes = () => {
               </div>
 
               {/* BADGES DE FILTROS ATIVOS */}
-              {(selectedAccountForFilter || selectedCategoryForFilter || activeFilters) && (
+              {(selectedAccountForFilter || selectedCategoryForFilter || selectedTypeForFilter || activeFilters) && (
                 <div className="flex flex-wrap gap-2">
+                  {/* Filtro de Tipo (da URL) */}
+                  {selectedTypeForFilter && (
+                    <Badge 
+                      className="flex items-center gap-2 bg-indigo-100 text-indigo-700 hover:bg-indigo-200 cursor-pointer px-3 py-1.5"
+                      onClick={handleRemoveTypeFilter}
+                    >
+                      <span className="font-medium">
+                        {selectedTypeForFilter === 'income'
+                          ? 'Receitas'
+                          : selectedTypeForFilter === 'expense'
+                            ? 'Despesas'
+                            : 'Transferências'}
+                      </span>
+                      <X size={14} className="hover:text-indigo-900" />
+                    </Badge>
+                  )}
+
                   {/* Filtro de Conta (da URL) */}
                   {selectedAccountForFilter && (
                     <Badge 
@@ -717,9 +747,18 @@ export const Transacoes = () => {
       {/* DIALOG - CONECTADO */}
       <TransactionDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) {
+            setSelectedTransaction(undefined);
+            setPreSelectedType(undefined);
+          }
+        }}
         transaction={selectedTransaction}
         onSave={handleSave}
+        onSaveComplete={async () => {
+          await fetchTransactions();
+        }}
         onDelete={handleDelete}
         defaultType={preSelectedType}
       />

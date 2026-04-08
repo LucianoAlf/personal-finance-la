@@ -19,7 +19,11 @@ interface AIProviderCardProps {
   onClick: () => void;
   onUpdateModel: (provider: AIProviderType, newModel: string) => Promise<void>;
   onSetDefault: (id: string) => Promise<void>;
-  onTestConnection: (provider: AIProviderType, apiKey: string, modelName?: string) => Promise<{ valid: boolean; error?: string } | any>;
+  onTestConnection: (
+    provider: AIProviderType,
+    apiKey: string,
+    modelName?: string,
+  ) => Promise<{ valid: boolean; error?: string; tested_model?: string; responded_model?: string } | any>;
 }
 
 const PROVIDER_COLORS = {
@@ -46,11 +50,24 @@ export function AIProviderCard({ provider, config, isDefault, onClick, onUpdateM
   const icon = PROVIDER_ICONS[provider];
   const label = LABELS.aiProvider[provider];
   const models = AI_MODELS[provider];
+  const modelOptions = config?.model_name && !models.some((model) => model.id === config.model_name)
+    ? [
+        {
+          id: config.model_name,
+          name: `Atual (legado): ${config.model_name}`,
+          description: 'Modelo salvo antes da atualização do catálogo. Troque para um modelo oficial suportado.',
+          contextWindow: 0,
+          costPer1kTokens: 0,
+          isFree: false,
+        },
+        ...models,
+      ]
+    : models;
 
   const handleModelChange = async (newModel: string) => {
     if (!config || !config.api_key_encrypted) return;
     
-    const modelName = models.find(m => m.id === newModel)?.name || newModel;
+    const modelName = modelOptions.find(m => m.id === newModel)?.name || newModel;
     
     try {
       setChangingModel(true);
@@ -72,7 +89,8 @@ export function AIProviderCard({ provider, config, isDefault, onClick, onUpdateM
       const result = await onTestConnection(provider, config.api_key_encrypted, config.model_name);
       
       if (result.valid) {
-        toast.success('Conexão testada com sucesso!');
+        const respondedModel = result.responded_model || result.tested_model || config.model_name;
+        toast.success(`Conexão real validada com ${respondedModel}`);
       } else {
         toast.error(result.error || 'Falha ao testar conexão');
       }
@@ -178,7 +196,7 @@ export function AIProviderCard({ provider, config, isDefault, onClick, onUpdateM
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {models.map((model) => (
+                    {modelOptions.map((model) => (
                       <SelectItem key={model.id} value={model.id}>
                         {model.name}
                       </SelectItem>

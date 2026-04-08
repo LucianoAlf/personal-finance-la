@@ -32,6 +32,52 @@ export function formatCurrency(
   }
 }
 
+function toDateObject(date: Date | string | number): Date {
+  if (date instanceof Date) {
+    return new Date(date.getTime());
+  }
+
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return new Date(`${date}T12:00:00`);
+  }
+
+  return new Date(date);
+}
+
+function getZonedParts(date: Date, locale: string, timezone: string) {
+  const formatter = new Intl.DateTimeFormat(locale, {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
+  const mapped = Object.fromEntries(
+    formatter
+      .formatToParts(date)
+      .filter((part) => part.type !== 'literal')
+      .map((part) => [part.type, part.value]),
+  );
+
+  return {
+    year: mapped.year,
+    month: mapped.month,
+    day: mapped.day,
+    hour: mapped.hour,
+    minute: mapped.minute,
+    second: mapped.second,
+  };
+}
+
+function getZonedDateEpoch(date: Date, locale: string, timezone: string) {
+  const parts = getZonedParts(date, locale, timezone);
+  return Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day));
+}
+
 /**
  * Formata data de acordo com o formato e locale especificados
  * @param date - Data a ser formatada (Date, string ou timestamp)
@@ -42,25 +88,16 @@ export function formatCurrency(
 export function formatDate(
   date: Date | string | number,
   format: string = 'DD/MM/YYYY',
-  locale: string = 'pt-BR'
+  locale: string = 'pt-BR',
+  timezone: string = 'America/Sao_Paulo'
 ): string {
-  let dateObj: Date;
-
-  if (date instanceof Date) {
-    dateObj = date;
-  } else if (typeof date === 'string') {
-    dateObj = new Date(date);
-  } else {
-    dateObj = new Date(date);
-  }
+  const dateObj = toDateObject(date);
 
   if (isNaN(dateObj.getTime())) {
     return 'Data inválida';
   }
 
-  const day = String(dateObj.getDate()).padStart(2, '0');
-  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
-  const year = dateObj.getFullYear();
+  const { day, month, year } = getZonedParts(dateObj, locale, timezone);
 
   // Formatos customizados
   switch (format) {
@@ -89,47 +126,23 @@ export function formatDate(
  */
 export function formatRelativeDate(
   date: Date | string | number,
-  locale: string = 'pt-BR'
+  locale: string = 'pt-BR',
+  timezone: string = 'America/Sao_Paulo'
 ): string {
-  let dateObj: Date;
-
-  if (date instanceof Date) {
-    dateObj = date;
-  } else if (typeof date === 'string') {
-    // Se for string no formato YYYY-MM-DD, adicionar T12:00:00 para evitar problema de timezone
-    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      dateObj = new Date(date + 'T12:00:00');
-    } else {
-      dateObj = new Date(date);
-    }
-  } else {
-    dateObj = new Date(date);
-  }
+  const dateObj = toDateObject(date);
 
   if (isNaN(dateObj.getTime())) {
     return 'Data inválida';
   }
 
   const now = new Date();
-  
-  // Comparar apenas ano, mês e dia (ignorar horário)
-  const isSameDay = (d1: Date, d2: Date) => 
-    d1.getFullYear() === d2.getFullYear() &&
-    d1.getMonth() === d2.getMonth() &&
-    d1.getDate() === d2.getDate();
-  
-  const yesterday = new Date(now);
-  yesterday.setDate(yesterday.getDate() - 1);
-  
-  // Calcular diferença em dias de forma mais precisa
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const startOfDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate());
-  const diffTime = startOfToday.getTime() - startOfDate.getTime();
-  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  const todayEpoch = getZonedDateEpoch(now, locale, timezone);
+  const dateEpoch = getZonedDateEpoch(dateObj, locale, timezone);
+  const diffDays = Math.round((todayEpoch - dateEpoch) / (1000 * 60 * 60 * 24));
 
   if (locale === 'pt-BR') {
-    if (isSameDay(dateObj, now)) return 'Hoje';
-    if (isSameDay(dateObj, yesterday)) return 'Ontem';
+    if (diffDays === 0) return 'Hoje';
+    if (diffDays === 1) return 'Ontem';
     if (diffDays < 7) return `Há ${diffDays} dias`;
     if (diffDays < 30) {
       const weeks = Math.floor(diffDays / 7);
@@ -268,17 +281,10 @@ export function formatCompactNumber(
 export function formatTime(
   date: Date | string | number,
   locale: string = 'pt-BR',
+  timezone: string = 'America/Sao_Paulo',
   includeSeconds: boolean = false
 ): string {
-  let dateObj: Date;
-
-  if (date instanceof Date) {
-    dateObj = date;
-  } else if (typeof date === 'string') {
-    dateObj = new Date(date);
-  } else {
-    dateObj = new Date(date);
-  }
+  const dateObj = toDateObject(date);
 
   if (isNaN(dateObj.getTime())) {
     return 'Hora inválida';
@@ -286,19 +292,18 @@ export function formatTime(
 
   try {
     return new Intl.DateTimeFormat(locale, {
+      timeZone: timezone,
       hour: '2-digit',
       minute: '2-digit',
       second: includeSeconds ? '2-digit' : undefined,
     }).format(dateObj);
   } catch (error) {
     console.error('Error formatting time:', error);
-    const hours = String(dateObj.getHours()).padStart(2, '0');
-    const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+    const { hour, minute, second } = getZonedParts(dateObj, locale, timezone);
     if (includeSeconds) {
-      const seconds = String(dateObj.getSeconds()).padStart(2, '0');
-      return `${hours}:${minutes}:${seconds}`;
+      return `${hour}:${minute}:${second}`;
     }
-    return `${hours}:${minutes}`;
+    return `${hour}:${minute}`;
   }
 }
 
@@ -312,9 +317,10 @@ export function formatTime(
 export function formatDateTime(
   date: Date | string | number,
   dateFormat: string = 'DD/MM/YYYY',
-  locale: string = 'pt-BR'
+  locale: string = 'pt-BR',
+  timezone: string = 'America/Sao_Paulo'
 ): string {
-  const formattedDate = formatDate(date, dateFormat, locale);
-  const formattedTime = formatTime(date, locale, false);
+  const formattedDate = formatDate(date, dateFormat, locale, timezone);
+  const formattedTime = formatTime(date, locale, timezone, false);
   return `${formattedDate} ${formattedTime}`;
 }

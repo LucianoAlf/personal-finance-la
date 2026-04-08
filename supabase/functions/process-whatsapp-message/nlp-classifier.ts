@@ -1461,7 +1461,7 @@ export async function classificarIntencaoNLP(
 
   // Usar configuração do usuário ou fallback para env
   const apiKey = configIA?.api_key || Deno.env.get('OPENAI_API_KEY');
-  const model = configIA?.model || 'gpt-4o-mini';
+  const model = configIA?.model || 'gpt-5-mini';
   const temperature = configIA?.temperature || 0.3;
   const provider = configIA?.provider || 'openai';
   

@@ -169,7 +169,7 @@ Responda APENAS com JSON:
         'Authorization': `Bearer ${OPENAI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini', // 10x mais barato que GPT-4!
+        model: 'gpt-5-mini', // fallback econômico atualizado da OpenAI
         messages: [{ role: 'user', content: prompt }],
         temperature: 0.1,
         max_tokens: 200, // Suficiente para JSON

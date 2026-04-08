@@ -12,7 +12,18 @@ import type { AIProviderType } from '@/types/settings.types';
 import { LABELS } from '@/types/settings.types';
 
 export function AIProviderSettings() {
-  const { providers, defaultProvider, validatedProviders, loading, updateProvider, setDefaultProvider, validateApiKey, refresh } = useAIProviders();
+  const {
+    providers,
+    defaultProvider,
+    validatedProviders,
+    loading,
+    validating,
+    createProvider,
+    updateProvider,
+    setDefaultProvider,
+    validateApiKey,
+    refresh,
+  } = useAIProviders();
   const [selectedProvider, setSelectedProvider] = useState<AIProviderType | null>(null);
 
   const providersList: AIProviderType[] = ['openai', 'gemini', 'claude', 'openrouter'];
@@ -138,7 +149,7 @@ export function AIProviderSettings() {
             <strong>4.</strong> Marque um provedor como padrão para ser usado automaticamente
           </p>
           <p className="pt-2 border-t">
-            <strong>Dica:</strong> Provedores com modelos gratuitos (Gemini Pro, Open Router) são ótimos para começar!
+            <strong>Dica:</strong> O botão de validação agora testa a chamada real do modelo selecionado e confirma qual modelo respondeu.
           </p>
         </CardContent>
       </Card>
@@ -148,6 +159,10 @@ export function AIProviderSettings() {
         <CreateAIProviderDialog
           provider={selectedProvider}
           open={!!selectedProvider}
+          createProvider={createProvider}
+          updateProvider={updateProvider}
+          validateApiKey={validateApiKey}
+          validating={validating}
           onOpenChange={(open) => {
             if (!open) {
               setSelectedProvider(null);

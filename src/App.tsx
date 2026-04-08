@@ -1,11 +1,12 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
-import { ThemeProvider } from './contexts/ThemeContext';
+import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { MainLayout } from './components/layout/MainLayout';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
-import { Toaster } from './components/ui/toaster';
+import { Toaster } from './components/ui/sonner';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Contas } from './pages/Contas';
@@ -17,10 +18,16 @@ import { Reports } from './pages/Reports';
 import { Education } from './pages/Education';
 import LessonViewer from './pages/LessonViewer';
 import { Settings } from './pages/Settings';
+import { Profile } from './pages/Profile';
 import { Tags } from './pages/Tags';
 import Categories from './pages/Categories';
 import PayableBills from './pages/PayableBills';
 import TestEmail from './pages/TestEmail';
+import { useSettings } from './hooks/useSettings';
+import {
+  mapUserSettingsToAppliedUserPreferences,
+  setAppliedUserPreferences,
+} from './utils/appliedUserPreferences';
 
 // ✅ Configurar React Query com CACHE PERSISTENTE (localStorage)
 const queryClient = new QueryClient({
@@ -41,6 +48,27 @@ const persister = createSyncStoragePersister({
   key: 'PERSONAL_FINANCE_CACHE', // Chave única
 });
 
+function AppliedUserPreferencesBridge() {
+  const { userSettings } = useSettings();
+  const { hydrateTheme } = useTheme();
+
+  useEffect(() => {
+    if (userSettings?.theme) {
+      hydrateTheme(userSettings.theme);
+    }
+  }, [hydrateTheme, userSettings?.theme]);
+
+  useEffect(() => {
+    if (!userSettings) {
+      return;
+    }
+
+    setAppliedUserPreferences(mapUserSettingsToAppliedUserPreferences(userSettings));
+  }, [userSettings]);
+
+  return null;
+}
+
 function App() {
   return (
     <ThemeProvider defaultTheme="auto" storageKey="pf-theme">
@@ -54,6 +82,7 @@ function App() {
             v7_relativeSplatPath: true,
           }}
         >
+      <AppliedUserPreferencesBridge />
       <Routes>
         {/* Rota de Login (sem layout) */}
         <Route path="/login" element={<Login />} />
@@ -75,6 +104,7 @@ function App() {
           <Route path="relatorios" element={<Reports />} />
           <Route path="educacao/licao/:lessonId" element={<LessonViewer />} />
           <Route path="educacao" element={<Education />} />
+          <Route path="perfil" element={<Profile />} />
           <Route path="configuracoes" element={<Settings />} />
           <Route path="tags" element={<Tags />} />
           <Route path="categorias" element={<Categories />} />

@@ -48,6 +48,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { CategorySelect } from '@/components/ui/category-select';
 import { BILL_TYPE_TO_CATEGORY } from '@/utils/billCalculations';
+import { getPayableBillTagIds } from '@/utils/payableBillTags';
 
 const billSchema = z.object({
   description: z.string().min(3, 'Mínimo 3 caracteres'),
@@ -232,7 +233,7 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
         bill_type: bill.bill_type,
         provider_name: bill.provider_name || '',
         category_id: bill.category_id || fallbackCategory?.id || '',
-        tags: bill.tags || [],
+        tags: getPayableBillTagIds(bill.tags),
         payment_account_id: bill.payment_account_id || '',
         payment_method: bill.payment_method || '',
         barcode: bill.barcode || '',
@@ -791,6 +792,7 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
                         <TagSelector
                           selectedTags={field.value || []}
                           onChange={field.onChange}
+                          persistenceHint="As tags são salvas em bill_tags (vínculo canônico com esta conta a pagar)."
                         />
                       </FormControl>
                       <FormMessage />

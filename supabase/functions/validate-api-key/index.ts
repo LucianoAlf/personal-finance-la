@@ -16,33 +16,59 @@ interface ValidateRequest {
   model_name?: string;
 }
 
-async function validateOpenAI(apiKey: string, _model?: string) {
-  // Validação simples e robusta: lista modelos para checar a API Key
-  const response = await fetch("https://api.openai.com/v1/models", {
-    method: "GET",
+function normalizeRequestedModel(provider: ValidateRequest["provider"], model?: string) {
+  if (!model) return undefined;
+
+  if (provider === "gemini" && model === "gemini-3.1-flash-preview") {
+    return "gemini-3.1-flash-lite-preview";
+  }
+
+  return model;
+}
+
+async function parseErrorMessage(response: Response, fallback: string) {
+  let msg = fallback;
+  try {
+    const raw = await response.text();
+    try {
+      const error = JSON.parse(raw);
+      msg = error.error?.message || error.message || msg;
+    } catch (_) {
+      msg = raw || msg;
+    }
+  } catch (_) {}
+  return msg;
+}
+
+async function validateOpenAI(apiKey: string, model: string = "gpt-5-mini") {
+  const response = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({
+      model,
+      input: "Responda apenas com OK",
+      max_output_tokens: 16,
+    }),
   });
 
   if (!response.ok) {
-    let msg = "API Key inválida";
-    try {
-      const raw = await response.text();
-      try {
-        const error = JSON.parse(raw);
-        msg = error.error?.message || error.message || msg;
-      } catch (_) {
-        msg = raw || msg;
-      }
-    } catch (_) {}
+    const msg = await parseErrorMessage(response, "Falha ao validar OpenAI");
     return { valid: false, error: msg } as const;
   }
 
-  return { valid: true, message: "API Key válida" } as const;
+  const data = await response.json();
+  return {
+    valid: true,
+    message: "API Key válida",
+    tested_model: model,
+    responded_model: data.model || model,
+  } as const;
 }
 
-async function validateGemini(apiKey: string, model: string = "gemini-2.5-flash") {
+async function validateGemini(apiKey: string, model: string = "gemini-3-flash-preview") {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -55,23 +81,20 @@ async function validateGemini(apiKey: string, model: string = "gemini-2.5-flash"
   );
 
   if (!response.ok) {
-    let msg = "API Key inválida";
-    try {
-      const raw = await response.text();
-      try {
-        const error = JSON.parse(raw);
-        msg = error.error?.message || error.message || msg;
-      } catch (_) {
-        msg = raw || msg;
-      }
-    } catch (_) {}
+    const msg = await parseErrorMessage(response, "Falha ao validar Gemini");
     return { valid: false, error: msg } as const;
   }
 
-  return { valid: true, message: "API Key válida" } as const;
+  const data = await response.json();
+  return {
+    valid: true,
+    message: "API Key válida",
+    tested_model: model,
+    responded_model: data.modelVersion || model,
+  } as const;
 }
 
-async function validateClaude(apiKey: string, model: string = "claude-haiku-4-5-20251001") {
+async function validateClaude(apiKey: string, model: string = "claude-sonnet-4-6") {
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -87,39 +110,45 @@ async function validateClaude(apiKey: string, model: string = "claude-haiku-4-5-
   });
 
   if (!response.ok) {
-    let msg = "API Key inválida";
-    try {
-      const raw = await response.text();
-      try {
-        const error = JSON.parse(raw);
-        msg = error.error?.message || error.message || msg;
-      } catch (_) {
-        msg = raw || msg;
-      }
-    } catch (_) {}
+    const msg = await parseErrorMessage(response, "Falha ao validar Claude");
     return { valid: false, error: msg } as const;
   }
 
-  return { valid: true, message: "API Key válida" } as const;
+  const data = await response.json();
+  return {
+    valid: true,
+    message: "API Key válida",
+    tested_model: model,
+    responded_model: data.model || model,
+  } as const;
 }
 
-async function validateOpenRouter(apiKey: string) {
-  const response = await fetch("https://openrouter.ai/api/v1/auth/key", {
-    method: "GET",
+async function validateOpenRouter(apiKey: string, model: string = "minimax/minimax-m2.7") {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: "Responda apenas com OK" }],
+      max_tokens: 16,
+    }),
   });
 
   if (!response.ok) {
-    return { valid: false, error: "API Key inválida" } as const;
+    const msg = await parseErrorMessage(response, "Falha ao validar OpenRouter");
+    return { valid: false, error: msg } as const;
   }
 
   const data = await response.json();
   return { 
     valid: true, 
     message: "API Key válida",
-    credits: data.data?.limit || 0
+    tested_model: model,
+    responded_model: data.model || model,
+    credits: data.usage?.total_tokens || 0,
   } as const;
 }
 
@@ -184,20 +213,29 @@ serve(async (req) => {
       );
     }
 
-    let result: { valid: boolean; message?: string; error?: string; credits?: number };
+    const normalizedModelName = normalizeRequestedModel(body.provider, body.model_name);
+
+    let result: {
+      valid: boolean;
+      message?: string;
+      error?: string;
+      credits?: number;
+      tested_model?: string;
+      responded_model?: string;
+    };
 
     switch (body.provider) {
       case "openai":
-        result = await validateOpenAI(body.api_key, body.model_name);
+        result = await validateOpenAI(body.api_key, normalizedModelName);
         break;
       case "gemini":
-        result = await validateGemini(body.api_key, body.model_name);
+        result = await validateGemini(body.api_key, normalizedModelName);
         break;
       case "claude":
-        result = await validateClaude(body.api_key, body.model_name);
+        result = await validateClaude(body.api_key, normalizedModelName);
         break;
       case "openrouter":
-        result = await validateOpenRouter(body.api_key);
+        result = await validateOpenRouter(body.api_key, normalizedModelName);
         break;
       default:
         throw new Error("Provedor não suportado");
@@ -213,7 +251,8 @@ serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
-    const modelNameToPersist = body.model_name || existingConfig?.model_name || "default";
+    const modelNameToPersist =
+      result.tested_model || normalizedModelName || existingConfig?.model_name || "default";
 
     if (existingConfig?.id) {
       // Update direto na linha mais recente

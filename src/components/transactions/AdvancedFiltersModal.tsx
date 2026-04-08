@@ -33,6 +33,35 @@ export interface FilterConfig {
   };
 }
 
+function createEmptyFilterConfig(): FilterConfig {
+  return {
+    dateRange: { from: null, to: null },
+    categories: [],
+    accounts: [],
+    tags: [],
+    statuses: [],
+    types: [],
+  };
+}
+
+function cloneFilterConfig(filters?: FilterConfig): FilterConfig {
+  const source = filters ?? createEmptyFilterConfig();
+
+  return {
+    ...source,
+    dateRange: {
+      from: source.dateRange.from ? new Date(source.dateRange.from) : null,
+      to: source.dateRange.to ? new Date(source.dateRange.to) : null,
+    },
+    categories: [...source.categories],
+    accounts: [...source.accounts],
+    tags: [...source.tags],
+    statuses: [...source.statuses],
+    types: [...source.types],
+    saved: source.saved ? { ...source.saved } : undefined,
+  };
+}
+
 interface AdvancedFiltersModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -47,16 +76,7 @@ export function AdvancedFiltersModal({
   currentFilters,
 }: AdvancedFiltersModalProps) {
   // ESTADO DO FILTRO
-  const [filters, setFilters] = useState<FilterConfig>(
-    currentFilters || {
-      dateRange: { from: null, to: null },
-      categories: [],
-      accounts: [],
-      tags: [],
-      statuses: [],
-      types: [],
-    }
-  );
+  const [filters, setFilters] = useState<FilterConfig>(() => cloneFilterConfig(currentFilters));
 
   // ESTADO PARA SALVAR FILTRO
   const [saveFilter, setSaveFilter] = useState(false);
@@ -64,6 +84,14 @@ export function AdvancedFiltersModal({
 
   // HOOK PARA FILTROS SALVOS (Supabase)
   const { savedFilters, createSavedFilter, deleteSavedFilter } = useSavedFilters();
+
+  useEffect(() => {
+    if (!open) return;
+
+    setFilters(cloneFilterConfig(currentFilters));
+    setSaveFilter(false);
+    setFilterName('');
+  }, [currentFilters, open]);
 
   // HANDLERS
   const handleApply = async () => {
@@ -105,18 +133,14 @@ export function AdvancedFiltersModal({
   };
 
   const handleCancel = () => {
+    setFilters(cloneFilterConfig(currentFilters));
+    setSaveFilter(false);
+    setFilterName('');
     onOpenChange(false);
   };
 
   const handleClearFilters = () => {
-    setFilters({
-      dateRange: { from: null, to: null },
-      categories: [],
-      accounts: [],
-      tags: [],
-      statuses: [],
-      types: [],
-    });
+    setFilters(createEmptyFilterConfig());
     setSaveFilter(false);
     setFilterName('');
   };
@@ -230,9 +254,12 @@ export function AdvancedFiltersModal({
               />
             </div>
 
-            {/* CONTAS */}
+            {/* CONTAS: apenas contas em `accounts`; lançamentos de cartão não têm account_id correspondente. */}
             <div className="space-y-2">
               <Label className="text-sm text-gray-600">Contas</Label>
+              <p className="text-xs text-muted-foreground">
+                Somente lançamentos da conta bancária. Compras no cartão não entram neste filtro.
+              </p>
               <AccountMultiSelect
                 selectedIds={filters.accounts}
                 onSelectionChange={(ids) =>
@@ -241,7 +268,7 @@ export function AdvancedFiltersModal({
               />
             </div>
 
-            {/* TAGS */}
+            {/* TAGS: mesmas tags canônicas em conta e em cartão */}
             <div className="space-y-2">
               <Label className="text-sm text-gray-600">Tags</Label>
               <TagMultiSelect

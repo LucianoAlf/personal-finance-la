@@ -9,9 +9,11 @@ import { toast } from 'sonner';
 interface TagSelectorProps {
   selectedTags: string[];
   onChange: (tagIds: string[]) => void;
+  /** Shown under the control; use to clarify canonical persistence (e.g. bill_tags). */
+  persistenceHint?: string;
 }
 
-export function TagSelector({ selectedTags, onChange }: TagSelectorProps) {
+export function TagSelector({ selectedTags, onChange, persistenceHint }: TagSelectorProps) {
   const { tags, createTag, loading } = useTags();
   const [searchQuery, setSearchQuery] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -85,6 +87,9 @@ export function TagSelector({ selectedTags, onChange }: TagSelectorProps) {
 
   return (
     <div className="space-y-3">
+      {persistenceHint ? (
+        <p className="text-xs text-muted-foreground">{persistenceHint}</p>
+      ) : null}
       {selectedTagObjects.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {selectedTagObjects.map((tag) => (

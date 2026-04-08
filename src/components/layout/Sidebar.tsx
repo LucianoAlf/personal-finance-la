@@ -39,6 +39,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  getUserInitials,
+  resolveUserAvatarUrl,
+  resolveUserDisplayName,
+} from '@/utils/profileIdentity';
 
 const quickCreateItems = [
   { icon: TrendingDown, label: 'Despesa', action: 'expense' as const },
@@ -76,15 +81,11 @@ export function Sidebar() {
   // Buscar alertas de contas a pagar
   const { summary } = usePayableBills({ status: ['pending', 'overdue'] });
 
-  const getInitials = (name: string | null) => {
-    if (!name) return user?.email?.charAt(0).toUpperCase() || 'U';
-    return name
-      .split(' ')
-      .map((n) => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  const resolvedDisplayName = resolveUserDisplayName(profile, userSettings, user);
+  const resolvedAvatarUrl = resolveUserAvatarUrl(profile, userSettings);
+  const avatarSrc = resolvedAvatarUrl
+    ? `${resolvedAvatarUrl}?v=${encodeURIComponent(userSettings?.updated_at || '')}`
+    : undefined;
 
   const handleQuickCreate = (action: (typeof quickCreateItems)[number]['action']) => {
     openQuickCreate(action);
@@ -247,17 +248,17 @@ export function Sidebar() {
           <div className="flex items-center space-x-3 px-4 py-3">
             <Avatar className="h-10 w-10">
               <AvatarImage 
-                key={userSettings?.avatar_url || 'no-avatar'}
-                src={userSettings?.avatar_url ? `${userSettings.avatar_url}?v=${encodeURIComponent(userSettings.updated_at || '')}` : (profile?.avatar_url || undefined)} 
+                key={avatarSrc || 'no-avatar'}
+                src={avatarSrc} 
                 alt="Avatar"
               />
               <AvatarFallback className="bg-purple-600 text-white">
-                {getInitials(userSettings?.display_name || profile?.full_name)}
+                {getUserInitials(resolvedDisplayName, user?.email)}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                {userSettings?.display_name || profile?.full_name || 'Carregando...'}
+                {resolvedDisplayName}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                 {user?.email}

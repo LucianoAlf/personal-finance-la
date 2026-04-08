@@ -157,7 +157,7 @@ RETORNE APENAS JSON VÁLIDO (sem markdown):
 
 async function callOpenAI(prompt: string): Promise<IntentResponse> {
   const apiKey = Deno.env.get('OPENAI_API_KEY');
-  const model = Deno.env.get('LLM_MODEL') || 'gpt-4o-mini';
+  const model = Deno.env.get('LLM_MODEL') || 'gpt-5-mini';
 
   if (!apiKey) {
     return {

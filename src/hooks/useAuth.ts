@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
-interface UserProfile {
+export interface UserProfile {
   id: string;
   email: string;
   full_name: string | null;
@@ -29,15 +29,15 @@ export const useAuth = () => {
   const [loading, setLoading] = useState(true);
 
   // Buscar perfil do usuário
-  const fetchProfile = async (currentUser: User) => {
+  const fetchProfile = useCallback(async (currentUser: User, forceRefresh = false) => {
     const cached = profileCache.get(currentUser.id);
-    if (cached) {
+    if (cached && !forceRefresh) {
       setProfile(cached);
       return cached;
     }
 
     const existingRequest = profileRequests.get(currentUser.id);
-    if (existingRequest) {
+    if (existingRequest && !forceRefresh) {
       const existingProfile = await existingRequest;
       setProfile(existingProfile);
       return existingProfile;
@@ -76,7 +76,7 @@ export const useAuth = () => {
     } catch {
       return null;
     }
-  };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -109,7 +109,41 @@ export const useAuth = () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile]);
+
+  const refreshProfile = useCallback(async () => {
+    if (!user) {
+      return null;
+    }
+
+    profileCache.delete(user.id);
+    profileRequests.delete(user.id);
+    return fetchProfile(user, true);
+  }, [fetchProfile, user]);
+
+  const updateProfile = useCallback(
+    async (input: Partial<Pick<UserProfile, 'full_name' | 'avatar_url' | 'phone'>>) => {
+      if (!user) {
+        throw new Error('Usuário não autenticado');
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(input)
+        .eq('id', user.id)
+        .select('id, email, full_name, avatar_url, phone')
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      profileCache.set(user.id, data);
+      setProfile(data);
+      return data;
+    },
+    [user],
+  );
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
@@ -127,5 +161,7 @@ export const useAuth = () => {
     profile,
     loading,
     signOut,
+    refreshProfile,
+    updateProfile,
   };
 };

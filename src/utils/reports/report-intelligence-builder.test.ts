@@ -433,6 +433,62 @@ describe('report intelligence builder', () => {
     ]);
   });
 
+  it('aggregates canonical tags on bank and card expense lines into spending.topTags and Ana hints', async () => {
+    const context = await buildReportIntelligenceContext({
+      supabase: createSupabaseStub({
+        accounts: [],
+        transactions: [
+          {
+            id: 'tx-debit',
+            user_id: 'user-1',
+            type: 'expense',
+            amount: 40,
+            transaction_date: '2026-04-05',
+            category_id: 'cat-1',
+            category: { name: 'Mercado' },
+            description: 'Padaria',
+            is_paid: true,
+            payment_method: 'pix',
+            credit_card_id: null,
+            transaction_tags: [{ tag: { id: 'tag-a', name: 'Essencial' } }],
+          },
+        ],
+        credit_card_transactions: [
+          {
+            id: 'cc-tagged',
+            user_id: 'user-1',
+            amount: 60,
+            purchase_date: '2026-04-08',
+            category_id: 'cat-2',
+            category: { name: 'Lazer' },
+            invoice: { reference_month: '2026-04-01' },
+            credit_card_transaction_tags: [
+              { tag: { id: 'tag-a', name: 'Essencial' } },
+              { tag: { id: 'tag-b', name: 'Viagem' } },
+            ],
+          },
+        ],
+        credit_cards: [],
+        credit_card_invoices: [],
+        financial_goals: [],
+        payable_bills: [],
+        portfolio_snapshots: [],
+      }),
+      userId: 'user-1',
+      startDate: '2026-04-01',
+      endDate: '2026-04-30',
+      dataAsOfDate: '2026-04-30',
+      supabaseUrl: 'https://example.supabase.co',
+    });
+
+    expect(context.spending?.topTags).toEqual([
+      expect.objectContaining({ tagId: 'tag-a', tagName: 'Essencial', useCount: 2 }),
+      expect.objectContaining({ tagId: 'tag-b', tagName: 'Viagem', useCount: 1 }),
+    ]);
+    expect(context.ana?.insights?.some((line) => line.includes('Essencial'))).toBe(true);
+    expect(context.quality.ana.completeness).toBe('partial');
+  });
+
   it('keeps credit card purchases out of bank-month cashflow and counts invoice payments instead', async () => {
     const context = await buildReportIntelligenceContext({
       supabase: createSupabaseStub({

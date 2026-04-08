@@ -45,7 +45,7 @@ describe('reports view model', () => {
 
     expect(buildReportsOverviewCards(context)).toEqual([
       expect.objectContaining({ title: 'Score Financeiro', value: '82' }),
-      expect.objectContaining({ title: 'Taxa de Economia', value: '24.5%' }),
+      expect.objectContaining({ title: 'Taxa de Economia', value: '24,5%' }),
       expect.objectContaining({ title: 'Patrimônio Líquido', value: 'R$ 15.619,00' }),
       expect.objectContaining({ title: 'Metas Alcançadas', value: '1' }),
     ]);

@@ -5,11 +5,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import * as LucideIcons from 'lucide-react';
 import { useCategories } from '@/hooks/useCategories';
-import type { Category } from '@/types/categories';
+import type { Category, CategoryType } from '@/types/categories';
 
 interface CreateCategoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Type for new categories; when editing, `editCategory.type` is used instead. */
+  categoryType: CategoryType;
   editCategory?: Category;
 }
 
@@ -24,7 +26,12 @@ const COMMON_ICONS = [
   'Coffee', 'Plane', 'Gift', 'Music', 'Film',
 ];
 
-export function CreateCategoryDialog({ open, onOpenChange, editCategory }: CreateCategoryDialogProps) {
+export function CreateCategoryDialog({
+  open,
+  onOpenChange,
+  categoryType,
+  editCategory,
+}: CreateCategoryDialogProps) {
   const { addCategory, updateCategory } = useCategories();
   const [loading, setLoading] = useState(false);
 
@@ -57,12 +64,14 @@ export function CreateCategoryDialog({ open, onOpenChange, editCategory }: Creat
         .map(k => k.trim().toLowerCase())
         .filter(k => k.length > 0);
 
+      const typeForPayload: CategoryType = editCategory?.type ?? categoryType;
+
       const categoryData = {
         name,
         color,
         icon,
         keywords: keywordsArray,
-        type: 'expense' as const,
+        type: typeForPayload,
         parent_id: null,
       };
 

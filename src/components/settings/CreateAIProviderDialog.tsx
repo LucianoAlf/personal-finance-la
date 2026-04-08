@@ -13,20 +13,41 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Eye, EyeOff, CheckCircle, XCircle, Loader2, ArrowLeft, ArrowRight } from 'lucide-react';
-import { useAIProviders } from '@/hooks/useAIProviders';
 import type { AIProviderType, AIModel } from '@/types/settings.types';
 import { AI_MODELS, LABELS } from '@/types/settings.types';
+import type {
+  CreateAIProviderInput,
+  UpdateAIProviderInput,
+} from '@/types/settings.types';
 
 interface CreateAIProviderDialogProps {
   provider: AIProviderType;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   existingConfig?: any; // Config existente para edição
+  createProvider: (input: CreateAIProviderInput) => Promise<unknown>;
+  updateProvider: (provider: AIProviderType, input: UpdateAIProviderInput) => Promise<unknown>;
+  validateApiKey: (
+    provider: AIProviderType,
+    apiKey: string,
+    modelName?: string,
+  ) => Promise<{ valid: boolean; error?: string; tested_model?: string; responded_model?: string }>;
+  validating: boolean;
 }
 
-export function CreateAIProviderDialog({ provider, open, onOpenChange, existingConfig }: CreateAIProviderDialogProps) {
-  const { createProvider, validateApiKey, validating, updateProvider } = useAIProviders();
-  
+const DEFAULT_SYSTEM_PROMPT =
+  'Você é Ana Clara, uma assistente financeira especializada em educação financeira pessoal. Seu objetivo é ajudar os usuários a entenderem melhor suas finanças, oferecendo dicas práticas e acessíveis.';
+
+export function CreateAIProviderDialog({
+  provider,
+  open,
+  onOpenChange,
+  existingConfig,
+  createProvider,
+  updateProvider,
+  validateApiKey,
+  validating,
+}: CreateAIProviderDialogProps) {
   // Se já existe config, iniciar no step 3 (configurações avançadas)
   const isEditing = !!existingConfig;
   
@@ -40,16 +61,30 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange, existingC
   const [showApiKey, setShowApiKey] = useState(false);
   const [isKeyValid, setIsKeyValid] = useState<boolean | null>(existingConfig?.is_validated || null);
   const [validationError, setValidationError] = useState<string>('');
+  const [validatedModel, setValidatedModel] = useState<string>('');
   const [temperature, setTemperature] = useState(existingConfig?.temperature || 0.7);
   const [maxTokens, setMaxTokens] = useState(existingConfig?.max_tokens || 1000);
   const [responseStyle, setResponseStyle] = useState<'short' | 'medium' | 'long'>(existingConfig?.response_style || 'medium');
   const [responseTone, setResponseTone] = useState<'formal' | 'friendly' | 'casual'>(existingConfig?.response_tone || 'friendly');
-  const [systemPrompt, setSystemPrompt] = useState(existingConfig?.system_prompt || 'Você é Ana Clara, uma assistente financeira especializada em educação financeira pessoal. Seu objetivo é ajudar os usuários a entenderem melhor suas finanças, oferecendo dicas práticas e acessíveis.');
+  const [systemPrompt, setSystemPrompt] = useState(existingConfig?.system_prompt || DEFAULT_SYSTEM_PROMPT);
   const [isDefault, setIsDefault] = useState(existingConfig?.is_default || false);
   const [saving, setSaving] = useState(false);
 
   const models = AI_MODELS[provider];
-  const selectedModelData = models.find((m) => m.id === selectedModel);
+  const modelOptions = existingConfig?.model_name && !models.some((model) => model.id === existingConfig.model_name)
+    ? [
+        {
+          id: existingConfig.model_name,
+          name: `Atual (legado): ${existingConfig.model_name}`,
+          description: 'Modelo salvo antes da atualização do catálogo. Troque para um modelo oficial suportado.',
+          contextWindow: 0,
+          costPer1kTokens: 0,
+          isFree: false,
+        },
+        ...models,
+      ]
+    : models;
+  const selectedModelData = modelOptions.find((m) => m.id === selectedModel);
 
   // Handlers
   const handleValidateApiKey = async () => {
@@ -57,11 +92,13 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange, existingC
 
     setIsKeyValid(null);
     setValidationError('');
+    setValidatedModel('');
 
     const result = await validateApiKey(provider, apiKey, selectedModel);
 
     if (result.valid) {
       setIsKeyValid(true);
+      setValidatedModel(result.responded_model || result.tested_model || selectedModel);
     } else {
       setIsKeyValid(false);
       setValidationError(result.error || 'API Key inválida');
@@ -134,11 +171,12 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange, existingC
       setShowApiKey(false);
       setIsKeyValid(null);
       setValidationError('');
+      setValidatedModel('');
       setTemperature(0.7);
       setMaxTokens(1000);
       setResponseStyle('medium');
       setResponseTone('friendly');
-      setSystemPrompt('Você é Ana Clara...');
+      setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
       setIsDefault(false);
     }
   };
@@ -178,7 +216,7 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange, existingC
                   <SelectValue placeholder="Selecione um modelo" />
                 </SelectTrigger>
                 <SelectContent>
-                  {models.map((model) => (
+                  {modelOptions.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
                       <div className="flex items-center gap-2">
                         <span>{model.name}</span>
@@ -254,7 +292,7 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange, existingC
               <Alert className="border-green-200 bg-green-50">
                 <CheckCircle className="h-4 w-4 text-green-600" />
                 <AlertDescription className="text-green-700">
-                  API Key validada com sucesso!
+                  API Key validada com sucesso. Modelo respondendo: <strong>{validatedModel || selectedModel}</strong>
                 </AlertDescription>
               </Alert>
             )}
@@ -269,7 +307,7 @@ export function CreateAIProviderDialog({ provider, open, onOpenChange, existingC
             )}
 
             <p className="text-sm text-muted-foreground">
-              A API Key é armazenada de forma segura e criptografada. Apenas os últimos 4 dígitos serão exibidos.
+              A API Key fica salva para uso da Ana Clara. Ao editar, deixe o campo em branco se quiser manter a chave atual.
             </p>
           </div>
         )}

@@ -25,11 +25,7 @@ export const useCategories = () => {
         .select('*')
         .or(`is_default.eq.true,user_id.eq.${user.id}`)
         .order('type', { ascending: false }) // income primeiro
-        .order('name', { ascending: true })
-        .then(result => {
-          // Forçar revalidação
-          return result;
-        });
+        .order('name', { ascending: true });
 
       if (fetchError) {
         throw fetchError;

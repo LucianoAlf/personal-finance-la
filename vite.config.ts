@@ -32,7 +32,7 @@ export default defineConfig({
   base: '/',
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
     exclude: ['src/services/__tests__/api-services.test.ts'],
   },
 })

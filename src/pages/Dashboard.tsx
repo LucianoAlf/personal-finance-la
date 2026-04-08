@@ -21,6 +21,7 @@ import { useAccountsQuery } from '@/hooks/useAccountsQuery';
 import { useCreditCardsQuery } from '@/hooks/useCreditCardsQuery';
 import { useInvoicesQuery } from '@/hooks/useInvoicesQuery';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
+import { useSettings } from '@/hooks/useSettings';
 import { useGoalsQuery } from '@/hooks/useGoalsQuery';
 import type { FinancialGoalWithCategory } from '@/types/database.types';
 import {
@@ -34,14 +35,17 @@ import {
 import { groupTransactionsForDisplay } from '@/utils/groupTransactionsForDisplay';
 import { competenceMonthFromTransaction, isInvoicePaymentExpense } from '@/utils/transactionCompetence';
 import { summarizeBudgetItems, toBudgetItemsFromSpendingGoals } from '@/utils/spendingGoalPlanning';
+import { resolveUserDisplayName } from '@/utils/profileIdentity';
 
 export function Dashboard() {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const { userSettings } = useSettings();
 
   // Preferências de formatação do usuário
   const { formatCurrency } = useUserPreferences();
+  const displayName = resolveUserDisplayName(profile, userSettings, user);
 
   // ✅ HOOKS COM REACT QUERY (CACHE INSTANTÂNEO) - Todos com cache local!
   const monthKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
@@ -112,7 +116,7 @@ export function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <Header
-        title={`Olá, ${profile?.full_name?.split(' ')[0] || user?.email?.split('@')[0] || 'Usuário'}!`}
+        title={`Olá, ${displayName.split(' ')[0]}!`}
         subtitle="Bem-vindo ao seu painel financeiro"
         icon={<Home size={24} />}
         actions={
@@ -256,6 +260,7 @@ export function Dashboard() {
                     is_recurring={transaction.is_recurring}
                     extraBadgeText={transaction.groupedInstallments?.length ? `Parcelado ${transaction.total_installments || transaction.groupedInstallmentCount}x` : undefined}
                     amountFootnote={amountFootnote}
+                    tags={transaction.tags}
                   />
                 );
                 })
