@@ -4,3 +4,7 @@ project_id = "sbnpmhmvcspwcyjhftlw"
 
 [functions.disconnect-whatsapp]
 verify_jwt = false
+
+# Webhook é chamado pela UAZAPI (sem JWT do usuário Supabase).
+[functions.webhook-uazapi]
+verify_jwt = false

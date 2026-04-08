@@ -1,5 +1,5 @@
 // SPRINT 5: Dialog para Gerar Relatórios de Investimentos
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -19,8 +19,6 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { FileText, Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
-import { useInvestments } from '@/hooks/useInvestments';
-import { useInvestmentTransactions } from '@/hooks/useInvestmentTransactions';
 import { generateInvestmentReport, type ReportPeriod } from '@/utils/investmentReports';
 import { exportReportToPDF } from '@/utils/pdfExport';
 import { formatCurrency } from '@/utils/formatters';
@@ -29,13 +27,16 @@ import { cn } from '@/lib/utils';
 import type { Investment, InvestmentTransaction } from '@/types/database.types';
 
 interface InvestmentReportDialogProps {
-  investments?: Investment[];
-  transactions?: InvestmentTransaction[];
+  investments: Investment[];
+  transactions: InvestmentTransaction[];
+  /** Dispara carregamento de transações antes do usuário usar o relatório (ex.: página com autoLoad desligado). */
+  onPrefetchTransactions?: () => void;
 }
 
 export function InvestmentReportDialog({
-  investments: providedInvestments,
-  transactions: providedTransactions,
+  investments,
+  transactions,
+  onPrefetchTransactions,
 }: InvestmentReportDialogProps) {
   const [open, setOpen] = useState(false);
   const [period, setPeriod] = useState<ReportPeriod>('monthly');
@@ -43,11 +44,17 @@ export function InvestmentReportDialog({
   const [month, setMonth] = useState(new Date().getMonth() + 1);
   const [exporting, setExporting] = useState(false);
 
-  const investmentsHook = useInvestments();
-  const transactionsHook = useInvestmentTransactions();
-  const investments = providedInvestments ?? investmentsHook.investments;
-  const transactions = providedTransactions ?? transactionsHook.transactions;
   const { toast } = useToast();
+
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      setOpen(next);
+      if (next) {
+        onPrefetchTransactions?.();
+      }
+    },
+    [onPrefetchTransactions],
+  );
 
   const report = useMemo(
     () => generateInvestmentReport(investments, transactions, period, year, month),
@@ -91,7 +98,7 @@ export function InvestmentReportDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <FileText className="mr-2 h-4 w-4" />

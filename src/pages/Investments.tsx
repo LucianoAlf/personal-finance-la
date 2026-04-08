@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useInvestments } from '@/hooks/useInvestments';
 import { useInvestmentGoals } from '@/hooks/useInvestmentGoals';
 import { useInvestmentPrices } from '@/hooks/useInvestmentPrices';
@@ -51,8 +51,9 @@ export function Investments() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { investments, loading, refresh, addInvestment, updateInvestment, deleteInvestment } = useInvestments();
-  const { goals: investmentGoals } = useInvestmentGoals();
-  const { transactions, addTransaction, deleteTransaction } = useInvestmentTransactions();
+  const { goals: investmentGoals } = useInvestmentGoals({ lightweight: true });
+  const { transactions, addTransaction, deleteTransaction, refresh: refreshTransactions } =
+    useInvestmentTransactions({ autoLoad: false });
   const { alerts, addAlert, deleteAlert, toggleAlert } = useInvestmentAlerts();
   const { formatCurrency } = useUserPreferences();
   
@@ -62,6 +63,12 @@ export function Investments() {
   const [editingInvestment, setEditingInvestment] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('portfolio');
   const selectedGoalId = searchParams.get('goalId');
+
+  useEffect(() => {
+    if (activeTab === 'transactions' || activeTab === 'dividends' || activeTab === 'overview') {
+      void refreshTransactions();
+    }
+  }, [activeTab, refreshTransactions]);
 
   const relatedGoalsByInvestment = useMemo(() => {
     const map = new Map<string, typeof investmentGoals>();
@@ -157,6 +164,7 @@ export function Investments() {
       <InvestmentReportDialog
         investments={investments}
         transactions={transactions}
+        onPrefetchTransactions={() => void refreshTransactions()}
       />
       <Button
         size="sm"
@@ -361,8 +369,8 @@ export function Investments() {
             <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           </TabsList>
 
-          {/* Aba Portfólio */}
-          <TabsContent value="portfolio" className="space-y-4">
+          {activeTab === 'portfolio' ? (
+          <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-portfolio">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold">Minha Carteira</h2>
               <Button
@@ -451,10 +459,11 @@ export function Investments() {
             </div>
           </CardContent>
         </Card>
-          </TabsContent>
+          </div>
+          ) : null}
 
-          {/* Aba Transações */}
-          <TabsContent value="transactions" className="space-y-4">
+          {activeTab === 'transactions' ? (
+          <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-transactions">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold">Histórico de Transações</h2>
               <Button
@@ -470,10 +479,11 @@ export function Investments() {
               transactions={transactions}
               onDelete={handleDeleteTransaction}
             />
-          </TabsContent>
+          </div>
+          ) : null}
 
-          {/* Aba Dividendos */}
-          <TabsContent value="dividends" className="space-y-6">
+          {activeTab === 'dividends' ? (
+          <div className="mt-2 space-y-6" role="tabpanel" aria-labelledby="tab-dividends">
             <div className="space-y-6">
               <DividendCalendar
                 monthlyBreakdown={dividendCalendar.monthlyBreakdown}
@@ -489,10 +499,11 @@ export function Investments() {
                 count={dividendHistory.count}
               />
             </div>
-          </TabsContent>
+          </div>
+          ) : null}
 
-          {/* Aba Alertas */}
-          <TabsContent value="alerts" className="space-y-4">
+          {activeTab === 'alerts' ? (
+          <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-alerts">
             <div className="flex justify-between items-center">
               <h2 className="text-lg font-semibold">Alertas de Preço</h2>
               <Button
@@ -509,10 +520,11 @@ export function Investments() {
               onDelete={deleteAlert}
               onToggle={toggleAlert}
             />
-          </TabsContent>
+          </div>
+          ) : null}
 
-          {/* Aba Visão Geral */}
-          <TabsContent value="overview" className="space-y-6">
+          {activeTab === 'overview' ? (
+          <div className="mt-2 space-y-6" role="tabpanel" aria-labelledby="tab-overview">
             {/* Ana Clara Insights Widget - Destaque no topo */}
             <AnaInvestmentInsights investments={investmentsWithMarketData} />
 
@@ -561,7 +573,8 @@ export function Investments() {
 
             {/* Badges - Gamificação */}
             <BadgesDisplay />
-          </TabsContent>
+          </div>
+          ) : null}
         </Tabs>
       </div>
     </div>

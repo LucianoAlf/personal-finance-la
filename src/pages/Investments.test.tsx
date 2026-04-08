@@ -87,6 +87,7 @@ vi.mock('@/hooks/useInvestmentTransactions', () => ({
     transactions: [],
     addTransaction: vi.fn(),
     deleteTransaction: vi.fn(),
+    refresh: vi.fn(),
   }),
 }));
 

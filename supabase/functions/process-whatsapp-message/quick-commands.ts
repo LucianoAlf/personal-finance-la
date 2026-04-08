@@ -75,7 +75,7 @@ export async function processarComandoRapido(
   }
   
   // Enviar resposta
-  await enviarViaEdgeFunction(phone, responseText);
+  await enviarViaEdgeFunction(phone, responseText, userId);
   
   return responseText;
 }

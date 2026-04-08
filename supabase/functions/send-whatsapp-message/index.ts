@@ -119,7 +119,23 @@ async function findCanonicalConnection(
     .maybeSingle();
 
   if (error) throw error;
-  return data;
+  if (data) return data;
+
+  // phone_number na tabela é o número da *instância* (linha do WhatsApp), não o do remetente.
+  // Chamadas internas costumam mandar só o telefone de quem escreveu — aí a linha acima não acha nada.
+  // Se existir exatamente uma conexão conectada, usamos ela (caso típico single-tenant / uma Ana por projeto).
+  const { data: connectedList, error: listErr } = await supabase
+    .from("whatsapp_connections")
+    .select("user_id, phone_number, instance_token, connected, status")
+    .eq("connected", true)
+    .eq("status", "connected");
+
+  if (listErr) throw listErr;
+  if (connectedList?.length === 1) {
+    return connectedList[0];
+  }
+
+  return null;
 }
 
 export async function handleRequest(req: Request): Promise<Response> {

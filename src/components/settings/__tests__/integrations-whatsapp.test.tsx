@@ -345,4 +345,43 @@ describe('IntegrationsSettings WhatsApp QR modal shares parent connection state'
       expect(qrCalls.length).toBe(1);
     });
   });
+
+  it('shows the edge function response body when generate-qr-code returns FunctionsHttpError', async () => {
+    const user = userEvent.setup();
+    supabaseMockStore.invokeMock.mockImplementation((name: string) => {
+      if (name === 'generate-qr-code') {
+        return Promise.resolve({
+          data: null,
+          error: {
+            name: 'FunctionsHttpError',
+            context: new Response(
+              JSON.stringify({
+                error: 'Token UAZAPI invalido para lamusic.uazapi.com. Atualize o secret.',
+              }),
+              {
+                status: 500,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            ),
+          },
+        });
+      }
+      return Promise.resolve({ data: { ok: true }, error: null });
+    });
+
+    render(<IntegrationsSettings />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /conectar whatsapp/i })).toBeTruthy();
+    });
+
+    await user.click(screen.getByRole('button', { name: /conectar whatsapp/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(/token uazapi invalido para lamusic\.uazapi\.com\. atualize o secret\./i)
+          .length,
+      ).toBeGreaterThan(0);
+    });
+  });
 });

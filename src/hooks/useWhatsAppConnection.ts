@@ -29,6 +29,30 @@ function messageFromFunctionsInvoke(data: unknown, fnError: unknown): string | n
   return null;
 }
 
+async function resolveFunctionsInvokeError(
+  data: unknown,
+  functionError: unknown,
+): Promise<{ message: string | null; status: number | null }> {
+  let message = messageFromFunctionsInvoke(data, functionError);
+  let status: number | null = null;
+
+  if (!message && functionError && typeof functionError === 'object' && functionError !== null) {
+    const fe = functionError as { name?: string; context?: Response };
+    if (fe.name === 'FunctionsHttpError' && fe.context && typeof fe.context.status === 'number') {
+      status = fe.context.status;
+      try {
+        const body = await fe.context.clone().json();
+        const parsed = messageFromFunctionsInvoke(body, null);
+        if (parsed) message = parsed;
+      } catch {
+        /* ignore non-JSON bodies */
+      }
+    }
+  }
+
+  return { message, status };
+}
+
 /** JWT do usuário logado (com tentativa de refresh). Edge Functions com verify_jwt rejeitam se só a anon key for enviada. */
 async function getUserAccessTokenOrThrow(): Promise<string> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
@@ -163,7 +187,7 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
 
-      const invokeErr = messageFromFunctionsInvoke(data, functionError);
+      const { message: invokeErr } = await resolveFunctionsInvokeError(data, functionError);
       if (invokeErr) {
         console.error('[useWhatsAppConnection] Erro na Edge Function:', functionError, data);
         throw new Error(invokeErr);
@@ -210,30 +234,17 @@ export function useWhatsAppConnection(): UseWhatsAppConnectionReturn {
         headers: authHeaders,
       });
 
-      let invokeErr = messageFromFunctionsInvoke(data, functionError);
-      if (!invokeErr && functionError && typeof functionError === 'object' && functionError !== null) {
-        const fe = functionError as { name?: string; context?: Response };
-        if (fe.name === 'FunctionsHttpError' && fe.context && typeof fe.context.status === 'number') {
-          const status = fe.context.status;
-          try {
-            const body = await fe.context.clone().json();
-            const parsed = messageFromFunctionsInvoke(body, null);
-            if (parsed) invokeErr = parsed;
-          } catch {
-            /* ignore */
-          }
-          if (!invokeErr && status === 401) {
-            let host = SUPABASE_URL;
-            try {
-              host = new URL(SUPABASE_URL).hostname;
-            } catch {
-              /* ignore */
-            }
-            invokeErr =
-              `Não autorizado (401). Faça logout/login. Se persistir, confira na Vercel se VITE_SUPABASE_URL é o Project URL exato do Supabase e se a anon key é do mesmo projeto. ` +
-              `Erro frequente: URL com …cyjhtlw… em vez de …cyjhftlw… (faltando "f"). Host configurado agora: ${host}`;
-          }
+      let { message: invokeErr, status } = await resolveFunctionsInvokeError(data, functionError);
+      if (!invokeErr && status === 401) {
+        let host = SUPABASE_URL;
+        try {
+          host = new URL(SUPABASE_URL).hostname;
+        } catch {
+          /* ignore */
         }
+        invokeErr =
+          `Não autorizado (401). Faça logout/login. Se persistir, confira na Vercel se VITE_SUPABASE_URL é o Project URL exato do Supabase e se a anon key é do mesmo projeto. ` +
+          `Erro frequente: URL com …cyjhtlw… em vez de …cyjhftlw… (faltando "f"). Host configurado agora: ${host}`;
       }
       if (invokeErr) {
         console.error('[useWhatsAppConnection] Erro na Edge Function disconnect-whatsapp:', functionError, data);

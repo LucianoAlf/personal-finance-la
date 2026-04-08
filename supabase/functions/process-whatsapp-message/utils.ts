@@ -183,7 +183,11 @@ export async function enviarTexto(numero: string, texto: string): Promise<unknow
   return response.json();
 }
 
-export async function enviarViaEdgeFunction(phone: string, content: string): Promise<void> {
+export async function enviarViaEdgeFunction(
+  phone: string,
+  content: string,
+  userId?: string,
+): Promise<void> {
   console.log('📤 Enviando via Edge Function para:', phone);
   console.log('📝 Conteúdo:', content.substring(0, 100) + '...');
   
@@ -195,6 +199,7 @@ export async function enviarViaEdgeFunction(phone: string, content: string): Pro
         'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
       },
       body: JSON.stringify({
+        ...(userId ? { user_id: userId } : {}),
         phone_number: phone,
         message_type: 'text',
         content

@@ -53,7 +53,7 @@ export interface AnaInsights {
 export function useAnaInsights(investments: Investment[]): AnaInsights {
   const metrics = usePortfolioMetrics(investments);
   const { targets } = useAllocationTargets();
-  const { goals: investmentGoals } = useInvestmentGoals();
+  const { goals: investmentGoals } = useInvestmentGoals({ lightweight: true });
   const lastFingerprintRef = useRef<string | null>(null);
   const requestFingerprint = useMemo(
     () =>

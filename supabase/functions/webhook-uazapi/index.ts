@@ -183,7 +183,7 @@ export async function handleRequest(req: Request) {
     }
 
     return new Response(
-      JSON.stringify({ success: true, processed: payload.event }),
+      JSON.stringify({ success: true, processed: eventType }),
       {
         headers: {
           'Content-Type': 'application/json',
