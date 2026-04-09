@@ -27,12 +27,12 @@ import {
 import { PayableBill } from '@/types/payable-bills.types';
 import type { Category } from '@/types/categories';
 import type { Account } from '@/types/accounts';
+import { cn } from '@/lib/utils';
 import {
   formatCurrency,
   formatDueDateWithContext,
   getStatusColor,
   getDueDateColor,
-  getPriorityColor,
   canMarkAsPaid,
   formatInstallment,
 } from '@/utils/billCalculations';
@@ -76,7 +76,6 @@ export function BillCard({
     }
     return getBillCategoryName(bill.bill_type);
   };
-  const priorityColor = getPriorityColor(bill.priority);
   const paymentAccount = bill.payment_account_id
     ? accounts.find((account) => account.id === bill.payment_account_id)
     : null;
@@ -84,6 +83,15 @@ export function BillCard({
     PAYMENT_METHOD_LABELS[bill.payment_method || 'pix'] || bill.payment_method || 'PIX',
     paymentAccount?.name || null,
   ].filter(Boolean).join(' • ');
+
+  const accentLineClass =
+    bill.status === 'paid'
+      ? 'from-transparent via-emerald-400/80 to-transparent'
+      : dueDateColor === 'danger'
+        ? 'from-transparent via-red-400/85 to-transparent'
+        : dueDateColor === 'warning'
+          ? 'from-transparent via-amber-400/85 to-transparent'
+          : 'from-transparent via-primary/80 to-transparent';
 
   const getStatusBadgeVariant = (color: string) => {
     switch (color) {
@@ -106,23 +114,30 @@ export function BillCard({
       whileHover={{ scale: 1.02 }}
       transition={{ duration: 0.2 }}
     >
-      <Card className={`overflow-hidden hover:shadow-lg transition-shadow ${highlight ? 'ring-2 ring-red-500 ring-offset-2' : ''}`}>
-        <div className="p-6">
+      <Card
+        className={cn(
+          'group relative overflow-hidden rounded-[1.7rem] border-border/70 bg-card/95 shadow-[0_20px_48px_rgba(15,23,42,0.1)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/20 hover:bg-card hover:shadow-[0_24px_56px_rgba(2,6,23,0.2)]',
+          highlight && 'ring-2 ring-red-500/70 ring-offset-2 ring-offset-background'
+        )}
+      >
+        <div className={cn('absolute inset-x-6 top-0 h-px bg-gradient-to-r opacity-85', accentLineClass)} />
+        <div className="absolute -right-10 top-4 h-24 w-24 rounded-full bg-primary/10 blur-3xl transition-opacity duration-300 group-hover:opacity-100" />
+        <div className="relative p-6">
           {/* Header */}
-          <div className="flex items-start justify-between mb-4">
+          <div className="mb-5 flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-semibold text-lg truncate">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <h3 className="truncate text-xl font-semibold tracking-tight">
                   {bill.description}
                 </h3>
                 {bill.is_recurring && (
-                  <Badge variant="outline" className="shrink-0">
+                  <Badge variant="outline" className="shrink-0 rounded-full border-border/70 bg-surface/70">
                     <Repeat className="h-3 w-3 mr-1" />
                     Recorrente
                   </Badge>
                 )}
                 {bill.is_installment && (
-                  <Badge variant="outline" className="shrink-0">
+                  <Badge variant="outline" className="shrink-0 rounded-full border-border/70 bg-surface/70">
                     <Split className="h-3 w-3 mr-1" />
                     {formatInstallment(bill.installment_number!, bill.installment_total!)}
                   </Badge>
@@ -137,7 +152,11 @@ export function BillCard({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 rounded-xl border border-border/70 bg-surface/75 text-muted-foreground hover:bg-surface"
+                >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -190,8 +209,9 @@ export function BillCard({
           </div>
 
           {/* Valor - mostrar paid_amount se conta está paga */}
-          <div className="mb-4">
-            <p className="text-3xl font-bold">
+          <div className="mb-5 rounded-[1.35rem] border border-border/60 bg-surface/55 p-4">
+            <p className="mb-1 text-sm font-medium text-muted-foreground">Valor da conta</p>
+            <p className="text-[2rem] font-semibold tracking-tight">
               {formatCurrency(bill.status === 'paid' && bill.paid_amount ? bill.paid_amount : bill.amount)}
             </p>
             {bill.status === 'partial' && bill.paid_amount && (
@@ -256,8 +276,9 @@ export function BillCard({
             )}
           </div>
 
-          <div className="mt-3 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            Pagamento rapido: <span className="font-medium text-foreground">{paymentSummary}</span>
+          <div className="mt-4 rounded-xl border border-border/60 bg-surface/55 px-3 py-3 text-xs text-muted-foreground">
+            <span className="font-medium uppercase tracking-[0.18em] text-muted-foreground/80">Pagamento rápido</span>
+            <div className="mt-1 text-sm text-foreground">{paymentSummary}</div>
           </div>
         </div>
       </Card>

@@ -172,5 +172,4 @@ AS $$
   SELECT * FROM financial_cycles_projection
   ORDER BY display_start_at ASC;
 $$;
-
 COMMENT ON FUNCTION public.get_agenda_window IS 'Unified agenda window: canonical events + derived financial projections with deduplication';

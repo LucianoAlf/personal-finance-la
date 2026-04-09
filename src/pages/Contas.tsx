@@ -1,7 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Plus, Wallet, ArrowLeftRight, DollarSign } from 'lucide-react';
+import {
+  Plus,
+  Wallet,
+  ArrowLeftRight,
+  DollarSign,
+  Landmark,
+  PiggyBank,
+  type LucideIcon,
+} from 'lucide-react';
 
 import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
@@ -34,18 +42,83 @@ import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/utils/formatters';
 import type { Account } from '@/types/accounts';
 
+interface SummaryMetricCardProps {
+  title: string;
+  value: string;
+  icon: LucideIcon;
+  accent?: 'brand' | 'bank' | 'wallet';
+}
+
+const summaryAccentStyles: Record<NonNullable<SummaryMetricCardProps['accent']>, string> = {
+  brand:
+    'border-primary/20 bg-[linear-gradient(135deg,rgba(139,92,246,0.2),rgba(139,92,246,0.08)_38%,rgba(255,255,255,0)_100%)] dark:bg-[linear-gradient(135deg,rgba(139,92,246,0.2),rgba(15,23,42,0)_70%)]',
+  bank:
+    'border-sky-500/15 bg-[linear-gradient(135deg,rgba(59,130,246,0.12),rgba(255,255,255,0)_45%)] dark:bg-[linear-gradient(135deg,rgba(59,130,246,0.16),rgba(15,23,42,0)_72%)]',
+  wallet:
+    'border-emerald-500/15 bg-[linear-gradient(135deg,rgba(16,185,129,0.12),rgba(255,255,255,0)_45%)] dark:bg-[linear-gradient(135deg,rgba(16,185,129,0.16),rgba(15,23,42,0)_72%)]',
+};
+
+const summaryIconAccentStyles: Record<NonNullable<SummaryMetricCardProps['accent']>, string> = {
+  brand:
+    'border-primary/20 bg-primary text-primary-foreground shadow-[0_14px_28px_rgba(139,92,246,0.24)]',
+  bank:
+    'border-sky-500/20 bg-sky-600 text-white shadow-[0_14px_28px_rgba(59,130,246,0.22)]',
+  wallet:
+    'border-emerald-500/20 bg-emerald-600 text-white shadow-[0_14px_28px_rgba(16,185,129,0.22)]',
+};
+
+const primaryButtonClass =
+  'rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90';
+
+const SummaryMetricCard: React.FC<SummaryMetricCardProps> = ({
+  title,
+  value,
+  icon: Icon,
+  accent = 'brand',
+}) => (
+  <Card
+    className={`group relative overflow-hidden rounded-[28px] border bg-card/95 p-5 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(15,23,42,0.12)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)] ${summaryAccentStyles[accent]}`}
+  >
+    <div className="flex items-start justify-between gap-4">
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-muted-foreground">{title}</p>
+        <p className="text-[1.75rem] font-semibold leading-tight tracking-tight text-foreground [font-variant-numeric:tabular-nums] sm:text-[1.9rem]">
+          {value}
+        </p>
+      </div>
+
+      <div
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[1.1rem] border dark:border-white/10 ${summaryIconAccentStyles[accent]}`}
+      >
+        <Icon size={20} />
+      </div>
+    </div>
+  </Card>
+);
+
 export const Contas: React.FC = () => {
   const navigate = useNavigate();
-  const { accounts, loading, error, fetchAccounts, getTotalBalance, getBalanceByType, addAccount, updateAccount, deleteAccount } = useAccounts();
+  const {
+    accounts,
+    loading,
+    error,
+    fetchAccounts,
+    getTotalBalance,
+    getBalanceByType,
+    addAccount,
+    updateAccount,
+    deleteAccount,
+  } = useAccounts();
   const { addTransaction } = useTransactions();
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [adjustBalanceDialogOpen, setAdjustBalanceDialogOpen] = useState(false);
   const [transferDialogOpen, setTransferDialogOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | undefined>();
   const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
-  const [accountToAdjustId, setAccountToAdjustId] = useState<string>('');
-  const [newBalance, setNewBalance] = useState<string>('');
+  const [accountToAdjustId, setAccountToAdjustId] = useState('');
+  const [newBalance, setNewBalance] = useState('');
   const [adjustmentNote, setAdjustmentNote] = useState('');
   const [isAdjustingBalance, setIsAdjustingBalance] = useState(false);
   const [transferFromAccountId, setTransferFromAccountId] = useState('');
@@ -57,64 +130,67 @@ export const Contas: React.FC = () => {
 
   const totalBalance = getTotalBalance();
   const bankBalance = getBalanceByType(['checking', 'savings']);
-  const walletBalance = getBalanceByType(['cash']);
+  const walletBalance = getBalanceByType(['cash', 'wallet']);
+
   const accountToAdjust = useMemo(
     () => accounts.find((account) => account.id === accountToAdjustId) || null,
-    [accountToAdjustId, accounts]
+    [accountToAdjustId, accounts],
   );
   const transferFromAccount = useMemo(
     () => accounts.find((account) => account.id === transferFromAccountId) || null,
-    [transferFromAccountId, accounts]
+    [transferFromAccountId, accounts],
   );
   const transferToOptions = useMemo(
     () => accounts.filter((account) => account.id !== transferFromAccountId),
-    [accounts, transferFromAccountId]
+    [accounts, transferFromAccountId],
   );
 
-  // Handlers para o AccountCard
   const handleEdit = (account: Account) => {
     setSelectedAccount(account);
     setDialogOpen(true);
   };
 
   const handleDelete = (id: string) => {
-    const account = accounts.find(a => a.id === id);
-    if (account) {
-      setAccountToDelete(account);
-      setDeleteDialogOpen(true);
-    }
+    const account = accounts.find((item) => item.id === id);
+    if (!account) return;
+
+    setAccountToDelete(account);
+    setDeleteDialogOpen(true);
   };
 
   const confirmDelete = async () => {
     if (!accountToDelete) return;
-    
+
     try {
       await deleteAccount(accountToDelete.id);
       toast.success('Conta excluída com sucesso!');
       setAccountToDelete(null);
-    } catch (error) {
+    } catch {
       toast.error('Erro ao excluir conta. Tente novamente.');
     }
   };
 
   const handleArchive = async (id: string) => {
-    const account = accounts.find(a => a.id === id);
+    const account = accounts.find((item) => item.id === id);
     if (!account) return;
-    
-    if (!confirm(`Tem certeza que deseja arquivar a conta "${account.name}"? Ela ficará inativa mas seus dados serão mantidos.`)) {
+
+    if (
+      !confirm(
+        `Tem certeza que deseja arquivar a conta "${account.name}"? Ela ficará inativa, mas seus dados serão mantidos.`,
+      )
+    ) {
       return;
     }
-    
+
     try {
       await updateAccount(id, { is_active: false });
       toast.success('Conta arquivada com sucesso!');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao arquivar conta. Tente novamente.');
     }
   };
 
   const handleViewTransactions = (accountId: string) => {
-    // Redirecionar para página de transações com filtro por conta
     navigate(`/transacoes?account=${accountId}`);
   };
 
@@ -133,22 +209,20 @@ export const Contas: React.FC = () => {
 
     const parsedBalance = Number(newBalance);
     if (!Number.isFinite(parsedBalance) || parsedBalance < 0) {
-      toast.error('Informe um saldo valido para a conta.');
+      toast.error('Informe um saldo válido para a conta.');
       return;
     }
 
     try {
       setIsAdjustingBalance(true);
-      await updateAccount(accountToAdjust.id, { 
-        current_balance: parsedBalance,
-      });
+      await updateAccount(accountToAdjust.id, { current_balance: parsedBalance });
       await fetchAccounts();
       toast.success('Saldo ajustado com sucesso!');
       setAdjustBalanceDialogOpen(false);
       setAccountToAdjustId('');
       setNewBalance('');
       setAdjustmentNote('');
-    } catch (error) {
+    } catch {
       toast.error('Erro ao ajustar saldo. Tente novamente.');
     } finally {
       setIsAdjustingBalance(false);
@@ -170,7 +244,7 @@ export const Contas: React.FC = () => {
 
   const handleOpenTransferDialog = () => {
     if (accounts.length < 2) {
-      toast.error('Cadastre pelo menos duas contas para realizar uma transferencia.');
+      toast.error('Cadastre pelo menos duas contas para realizar uma transferência.');
       return;
     }
 
@@ -195,7 +269,7 @@ export const Contas: React.FC = () => {
 
     const parsedAmount = Number(transferAmount);
     if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      toast.error('Informe um valor valido para a transferencia.');
+      toast.error('Informe um valor válido para a transferência.');
       return;
     }
 
@@ -203,7 +277,7 @@ export const Contas: React.FC = () => {
     const destinationAccount = accounts.find((account) => account.id === transferToAccountId);
 
     if (!sourceAccount || !destinationAccount) {
-      toast.error('Nao foi possivel localizar as contas selecionadas.');
+      toast.error('Não foi possível localizar as contas selecionadas.');
       return;
     }
 
@@ -212,7 +286,7 @@ export const Contas: React.FC = () => {
       return;
     }
 
-    const description = transferDescription.trim() || `Transferencia para ${destinationAccount.name}`;
+    const description = transferDescription.trim() || `Transferência para ${destinationAccount.name}`;
     const expectedSourceBalance = Number(sourceAccount.current_balance) - parsedAmount;
     const expectedDestinationBalance = Number(destinationAccount.current_balance) + parsedAmount;
 
@@ -237,9 +311,7 @@ export const Contas: React.FC = () => {
         .select('id, current_balance')
         .in('id', [transferFromAccountId, transferToAccountId]);
 
-      if (refreshedAccountsError) {
-        throw refreshedAccountsError;
-      }
+      if (refreshedAccountsError) throw refreshedAccountsError;
 
       const refreshedSource = refreshedAccounts?.find((account) => account.id === transferFromAccountId);
       const refreshedDestination = refreshedAccounts?.find((account) => account.id === transferToAccountId);
@@ -258,9 +330,7 @@ export const Contas: React.FC = () => {
           })
           .eq('id', transferFromAccountId);
 
-        if (sourceUpdateError) {
-          throw sourceUpdateError;
-        }
+        if (sourceUpdateError) throw sourceUpdateError;
 
         const { error: destinationUpdateError } = await supabase
           .from('accounts')
@@ -270,14 +340,12 @@ export const Contas: React.FC = () => {
           })
           .eq('id', transferToAccountId);
 
-        if (destinationUpdateError) {
-          throw destinationUpdateError;
-        }
+        if (destinationUpdateError) throw destinationUpdateError;
       }
 
       await fetchAccounts();
 
-      toast.success('Transferencia realizada com sucesso!');
+      toast.success('Transferência realizada com sucesso!');
       setTransferDialogOpen(false);
       setTransferFromAccountId('');
       setTransferToAccountId('');
@@ -286,21 +354,18 @@ export const Contas: React.FC = () => {
       setTransferDate(new Date().toISOString().split('T')[0]);
     } catch (error) {
       console.error('Erro ao transferir saldo:', error);
-      toast.error('Erro ao realizar transferencia. Tente novamente.');
+      toast.error('Erro ao realizar transferência. Tente novamente.');
     } finally {
       setIsSubmittingTransfer(false);
     }
   };
 
-  // Handler para salvar conta (criar ou editar)
   const handleSave = async (data: AccountFormData) => {
     try {
       if (selectedAccount) {
-        // Editar conta existente
         await updateAccount(selectedAccount.id, data);
         toast.success('Conta atualizada com sucesso!');
       } else {
-        // Criar nova conta
         await addAccount({
           name: data.name,
           type: data.type ?? 'checking',
@@ -315,12 +380,11 @@ export const Contas: React.FC = () => {
       }
       setDialogOpen(false);
       setSelectedAccount(undefined);
-    } catch (error) {
+    } catch {
       toast.error('Erro ao salvar conta. Tente novamente.');
     }
   };
 
-  // Handler para abrir dialog de nova conta
   const handleNewAccount = () => {
     setSelectedAccount(undefined);
     setDialogOpen(true);
@@ -328,41 +392,54 @@ export const Contas: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-lg">Carregando contas...</div>
+      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+        <div className="rounded-2xl border border-border/70 bg-card px-6 py-4 text-lg shadow-sm">
+          Carregando contas...
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-red-600">Erro: {error}</div>
+      <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+        <div className="rounded-2xl border border-danger-border bg-danger-subtle px-6 py-4 text-danger shadow-sm">
+          Erro: {error}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[24rem] bg-[radial-gradient(circle_at_top,rgba(130,92,255,0.12),transparent_60%)]" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-[18rem] bg-[radial-gradient(circle_at_center,rgba(59,130,246,0.06),transparent_70%)] lg:block" />
+
       <Header
         title="Contas"
         subtitle="Gerencie suas contas bancárias e carteiras"
         icon={<Wallet size={24} />}
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={handleOpenTransferDialog}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl border-border/70 bg-surface/85 px-4 shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay"
+              onClick={handleOpenTransferDialog}
+            >
               <ArrowLeftRight className="mr-2" size={16} />
               Transferência
             </Button>
-            <Button variant="outline" size="sm" onClick={handleOpenAdjustBalanceDialog}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl border-border/70 bg-surface/85 px-4 shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay"
+              onClick={handleOpenAdjustBalanceDialog}
+            >
               <DollarSign className="mr-2" size={16} />
               Ajustar Saldo
             </Button>
-            <Button 
-              className="bg-purple-600 hover:bg-purple-700" 
-              size="sm" 
-              onClick={handleNewAccount}
-            >
+            <Button className={`${primaryButtonClass} px-4`} size="sm" onClick={handleNewAccount}>
               <Plus className="mr-2" size={16} />
               Nova Conta
             </Button>
@@ -370,42 +447,30 @@ export const Contas: React.FC = () => {
         }
       />
 
-      <div className="p-6 space-y-6">
-
-        {/* Cards de Resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 1: Saldo Total Geral */}
-          <Card className="p-6 bg-gradient-to-r from-purple-600 to-purple-700 text-white">
-            <div>
-              <h3 className="text-sm font-medium text-white/80">Saldo Total Geral</h3>
-              <p className="text-3xl font-bold">{formatCurrency(totalBalance)}</p>
-            </div>
-          </Card>
-
-          {/* Card 2: Contas Bancárias */}
-          <Card className="p-6 bg-white border border-gray-200">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600">Contas Bancárias</h3>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(bankBalance)}</p>
-            </div>
-          </Card>
-
-          {/* Card 3: Carteira/Dinheiro */}
-          <Card className="p-6 bg-white border border-gray-200">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600">Carteira/Dinheiro</h3>
-              <p className="text-2xl font-bold text-gray-900">{formatCurrency(walletBalance)}</p>
-            </div>
-          </Card>
+      <div className="relative mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <SummaryMetricCard
+            title="Saldo Total Geral"
+            value={formatCurrency(totalBalance)}
+            icon={Wallet}
+            accent="brand"
+          />
+          <SummaryMetricCard
+            title="Contas Bancárias"
+            value={formatCurrency(bankBalance)}
+            icon={Landmark}
+            accent="bank"
+          />
+          <SummaryMetricCard
+            title="Carteira/Dinheiro"
+            value={formatCurrency(walletBalance)}
+            icon={PiggyBank}
+            accent="wallet"
+          />
         </div>
 
-        {/* Seção "Suas Contas" */}
         <div>
-          <div 
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-            style={{ gridAutoRows: '1fr' }}
-          >
-            {/* Mapear accounts */}
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3" style={{ gridAutoRows: '1fr' }}>
             {accounts.map((account) => (
               <AccountCard
                 key={account.id}
@@ -418,33 +483,37 @@ export const Contas: React.FC = () => {
               />
             ))}
 
-            {/* Card "+ Criar Nova Conta" */}
-            <Card 
-              className="border-2 border-dashed border-gray-300 hover:border-purple-500 transition-colors cursor-pointer group h-full min-h-[320px]"
+            <Card
+              className="group h-full min-h-[320px] cursor-pointer overflow-hidden rounded-[28px] border-2 border-dashed border-border/80 bg-card/75 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/45 hover:bg-card hover:shadow-[0_20px_45px_rgba(15,23,42,0.12)] dark:hover:shadow-[0_24px_55px_rgba(2,6,23,0.32)]"
               onClick={handleNewAccount}
             >
-              <CardContent className="p-6 flex flex-col items-center justify-center text-center h-full gap-3">
-                <Plus
-                  size={48}
-                  className="text-gray-400 group-hover:text-purple-500"
-                />
-                <h3 className="text-lg font-semibold text-gray-700">Criar Nova Conta</h3>
-                <p className="text-sm text-gray-500">Adicione uma conta bancária ou carteira</p>
+              <CardContent className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+                <div className="flex h-20 w-20 items-center justify-center rounded-[26px] border border-primary/20 bg-primary/8 text-primary transition-transform duration-300 group-hover:scale-105 group-hover:bg-primary/12">
+                  <Plus size={40} />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-semibold tracking-tight text-foreground">Criar Nova Conta</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Adicione uma conta bancária ou carteira
+                  </p>
+                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Mensagem quando não há contas */}
           {accounts.length === 0 && (
-            <div className="text-center py-12 text-gray-500">
-              <Wallet size={48} className="mx-auto mb-4 opacity-50" />
-              <p className="text-lg font-medium mb-2">Nenhuma conta encontrada</p>
-              <p className="text-sm">Crie sua primeira conta para começar a gerenciar suas finanças</p>
+            <div className="mt-6 rounded-[28px] border border-border/70 bg-card/80 px-6 py-12 text-center shadow-sm">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-primary">
+                <Wallet size={32} />
+              </div>
+              <p className="mb-2 text-lg font-medium text-foreground">Nenhuma conta encontrada</p>
+              <p className="text-sm text-muted-foreground">
+                Crie sua primeira conta para começar a gerenciar suas finanças
+              </p>
             </div>
           )}
         </div>
 
-        {/* Dialog para criar/editar conta */}
         <AccountDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
@@ -452,7 +521,6 @@ export const Contas: React.FC = () => {
           onSave={handleSave}
         />
 
-        {/* Dialog de confirmação de exclusão */}
         <DeleteAccountDialog
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
@@ -472,16 +540,16 @@ export const Contas: React.FC = () => {
           }}
         >
           <DialogContent className="sm:max-w-md">
-            <DialogHeader>
+            <DialogHeader className="space-y-2 border-b border-border/60 pb-4">
               <DialogTitle>Ajustar Saldo</DialogTitle>
               <DialogDescription>
                 Atualize manualmente o saldo atual de uma conta existente.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Conta</label>
+                <label className="text-sm font-medium text-foreground">Conta</label>
                 <Select
                   value={accountToAdjustId}
                   onValueChange={(value) => {
@@ -504,13 +572,13 @@ export const Contas: React.FC = () => {
               </div>
 
               {accountToAdjust && (
-                <p className="text-sm text-muted-foreground">
-                  Saldo atual: <strong>{formatCurrency(accountToAdjust.current_balance)}</strong>
-                </p>
+                <div className="rounded-2xl border border-border/60 bg-surface-elevated/70 px-4 py-3 text-sm text-muted-foreground">
+                  Saldo atual: <strong className="text-foreground">{formatCurrency(accountToAdjust.current_balance)}</strong>
+                </div>
               )}
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Novo saldo</label>
+                <label className="text-sm font-medium text-foreground">Novo saldo</label>
                 <Input
                   type="number"
                   step="0.01"
@@ -522,22 +590,22 @@ export const Contas: React.FC = () => {
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Observacao opcional</label>
+                <label className="text-sm font-medium text-foreground">Observação opcional</label>
                 <Textarea
                   value={adjustmentNote}
                   onChange={(event) => setAdjustmentNote(event.target.value)}
-                  placeholder="Ex: saldo conciliado com extrato bancario"
+                  placeholder="Ex: saldo conciliado com extrato bancário"
                 />
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="border-t border-border/60 pt-4">
               <Button variant="outline" onClick={() => setAdjustBalanceDialogOpen(false)}>
                 Cancelar
               </Button>
               <Button
                 onClick={confirmAdjustBalance}
-                className="bg-purple-600 hover:bg-purple-700"
+                className={primaryButtonClass}
                 disabled={isAdjustingBalance}
               >
                 {isAdjustingBalance ? 'Salvando...' : 'Confirmar ajuste'}
@@ -560,17 +628,17 @@ export const Contas: React.FC = () => {
           }}
         >
           <DialogContent className="sm:max-w-lg">
-            <DialogHeader>
+            <DialogHeader className="space-y-2 border-b border-border/60 pb-4">
               <DialogTitle>Transferência</DialogTitle>
               <DialogDescription>
                 Mova saldo entre contas sem sair desta tela.
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Conta origem</label>
+                  <label className="text-sm font-medium text-foreground">Conta origem</label>
                   <Select
                     value={transferFromAccountId}
                     onValueChange={(value) => {
@@ -594,13 +662,13 @@ export const Contas: React.FC = () => {
                   </Select>
                   {transferFromAccount && (
                     <p className="text-xs text-muted-foreground">
-                      Saldo disponivel: {formatCurrency(transferFromAccount.current_balance)}
+                      Saldo disponível: {formatCurrency(transferFromAccount.current_balance)}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Conta destino</label>
+                  <label className="text-sm font-medium text-foreground">Conta destino</label>
                   <Select value={transferToAccountId} onValueChange={setTransferToAccountId}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione" />
@@ -616,9 +684,9 @@ export const Contas: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Valor</label>
+                  <label className="text-sm font-medium text-foreground">Valor</label>
                   <Input
                     type="number"
                     step="0.01"
@@ -630,36 +698,36 @@ export const Contas: React.FC = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Data</label>
+                  <label className="text-sm font-medium text-foreground">Data</label>
                   <DatePickerInput
                     value={transferDate}
                     onChange={(value) => setTransferDate(value)}
-                    placeholder="Selecione a data da transferencia"
+                    placeholder="Selecione a data da transferência"
                     disableFuture={true}
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <label className="text-sm font-medium">Descricao opcional</label>
+                <label className="text-sm font-medium text-foreground">Descrição opcional</label>
                 <Textarea
                   value={transferDescription}
                   onChange={(event) => setTransferDescription(event.target.value)}
-                  placeholder="Ex: transferencia para reserva de emergencia"
+                  placeholder="Ex: transferência para reserva de emergência"
                 />
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="border-t border-border/60 pt-4">
               <Button variant="outline" onClick={() => setTransferDialogOpen(false)}>
                 Cancelar
               </Button>
               <Button
                 onClick={handleTransfer}
-                className="bg-purple-600 hover:bg-purple-700"
+                className={primaryButtonClass}
                 disabled={isSubmittingTransfer}
               >
-                {isSubmittingTransfer ? 'Transferindo...' : 'Confirmar transferencia'}
+                {isSubmittingTransfer ? 'Transferindo...' : 'Confirmar transferência'}
               </Button>
             </DialogFooter>
           </DialogContent>

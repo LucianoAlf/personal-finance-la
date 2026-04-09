@@ -55,7 +55,10 @@ export function FinancialCyclesManager() {
 
   if (loading) {
     return (
-      <Card>
+      <Card
+        data-testid="goals-settings-cycles-shell"
+        className="rounded-[28px] border border-border/70 bg-surface shadow-[0_18px_46px_rgba(8,15,32,0.14)] dark:shadow-[0_24px_56px_rgba(2,6,23,0.32)]"
+      >
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Calendar className="h-5 w-5" />
@@ -71,12 +74,17 @@ export function FinancialCyclesManager() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
+      <Card
+        data-testid="goals-settings-cycles-shell"
+        className="rounded-[28px] border border-border/70 bg-surface shadow-[0_18px_46px_rgba(8,15,32,0.14)] dark:shadow-[0_24px_56px_rgba(2,6,23,0.32)]"
+      >
+        <CardHeader className="border-b border-border/60 pb-5">
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Calendar className="h-5 w-5" />
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-sm">
+                  <Calendar className="h-5 w-5" />
+                </span>
                 Ciclos Financeiros
               </CardTitle>
               <CardDescription>
@@ -89,10 +97,9 @@ export function FinancialCyclesManager() {
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          {/* Summary */}
+        <CardContent className="pt-6">
           {activeCycles.length > 0 && nextCycle && (
-            <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 rounded-lg">
+            <div className="mb-6 rounded-[24px] border border-border/70 bg-[linear-gradient(135deg,rgba(59,130,246,0.14),rgba(139,92,246,0.16),rgba(15,23,42,0))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
               <div className="grid grid-cols-2 gap-4 text-center">
                 <div>
                   <p className="text-sm text-muted-foreground">Ciclos Ativos</p>
@@ -111,10 +118,11 @@ export function FinancialCyclesManager() {
             </div>
           )}
 
-          {/* Cycles List */}
           {cyclesWithStats.length === 0 ? (
-            <div className="text-center py-12">
-              <Calendar className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <div className="rounded-[24px] border border-dashed border-border/70 bg-surface-elevated/60 py-14 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-border/70 bg-background/70 text-primary shadow-sm">
+                <Calendar className="h-7 w-7" />
+              </div>
               <h3 className="text-lg font-semibold mb-2">Nenhum ciclo criado</h3>
               <p className="text-muted-foreground mb-4">
                 Comece criando seu primeiro ciclo financeiro
@@ -125,7 +133,7 @@ export function FinancialCyclesManager() {
               </Button>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-5 md:grid-cols-2">
               {cyclesWithStats.map((cycle) => (
                 <CycleCard
                   key={cycle.id}

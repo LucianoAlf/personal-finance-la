@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useCreditCardTransactions } from '@/hooks/useCreditCardTransactions';
-import { useCreditCardTags } from '@/hooks/useCreditCardTags';
-import { formatCurrency } from '@/utils/formatters';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Skeleton } from '@/components/ui/skeleton';
+
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { InstallmentTransactionCard } from '@/components/credit-cards/InstallmentTransactionCard';
+import { useCreditCardTags } from '@/hooks/useCreditCardTags';
+import { useCreditCardTransactions } from '@/hooks/useCreditCardTransactions';
 import { CreditCardTransaction } from '@/types/database.types';
+import { formatCurrency } from '@/utils/formatters';
 
 interface InvoiceTransactionsListProps {
   invoiceId: string;
@@ -23,25 +24,22 @@ export function InvoiceTransactionsList({
   const [selectedTagIds, setSelectedTagIds] = useState<string[]>([]);
   const [tagsByTransaction, setTagsByTransaction] = useState<Record<string, any[]>>({});
 
-  // Filtrar transações da fatura
   const invoiceTransactions = useMemo(
-    () => transactions.filter((t) => t.invoice_id === invoiceId),
-    [transactions, invoiceId]
+    () => transactions.filter((transaction) => transaction.invoice_id === invoiceId),
+    [transactions, invoiceId],
   );
 
-  // Separar transações simples de parcelamentos (agrupados por installment_group_id)
   const { simpleTransactions, installmentGroups } = useMemo(() => {
     const simple: CreditCardTransaction[] = [];
     const groupsMap = new Map<string, CreditCardTransaction>();
 
-    invoiceTransactions.forEach((t) => {
-      if (t.is_installment && t.installment_group_id) {
-        // Para parcelamentos, pegar apenas o registro pai ou o primeiro do grupo
-        if (!groupsMap.has(t.installment_group_id)) {
-          groupsMap.set(t.installment_group_id, t);
+    invoiceTransactions.forEach((transaction) => {
+      if (transaction.is_installment && transaction.installment_group_id) {
+        if (!groupsMap.has(transaction.installment_group_id)) {
+          groupsMap.set(transaction.installment_group_id, transaction);
         }
       } else {
-        simple.push(t);
+        simple.push(transaction);
       }
     });
 
@@ -51,70 +49,69 @@ export function InvoiceTransactionsList({
     };
   }, [invoiceTransactions]);
 
-  // Buscar tags das transações desta fatura (em lote)
   useEffect(() => {
-    const load = async () => {
-      const ids = invoiceTransactions.map((t) => t.id);
+    const loadTags = async () => {
+      const ids = invoiceTransactions.map((transaction) => transaction.id);
       if (ids.length === 0) return;
       const map = await getTagsForTransactions(ids);
       setTagsByTransaction(map);
     };
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoiceTransactions.length]);
 
-  // Aplicar filtro por tags
-  const filteredTransactions = useMemo(() => {
-    if (selectedTagIds.length === 0) return invoiceTransactions;
-    return invoiceTransactions.filter((t) => {
-      const txTags = tagsByTransaction[t.id] || [];
-      if (txTags.length === 0) return false;
-      const txTagIds = txTags.map((tg: any) => tg.id);
-      return selectedTagIds.some((id) => txTagIds.includes(id));
+    loadTags();
+  }, [getTagsForTransactions, invoiceTransactions]);
+
+  const filteredSimpleTransactions = useMemo(() => {
+    if (selectedTagIds.length === 0) return simpleTransactions;
+    return simpleTransactions.filter((transaction) => {
+      const transactionTags = tagsByTransaction[transaction.id] || [];
+      if (transactionTags.length === 0) return false;
+      const transactionTagIds = transactionTags.map((tag: any) => tag.id);
+      return selectedTagIds.some((tagId) => transactionTagIds.includes(tagId));
     });
-  }, [invoiceTransactions, selectedTagIds, tagsByTransaction]);
+  }, [selectedTagIds, simpleTransactions, tagsByTransaction]);
 
   if (loading) {
     return (
-      <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-16 w-full" />
+      <div className="space-y-4">
+        {[1, 2, 3].map((item) => (
+          <Skeleton key={item} className="h-20 w-full rounded-[22px]" />
         ))}
       </div>
     );
   }
 
-  if (filteredTransactions.length === 0) {
+  if (installmentGroups.length === 0 && filteredSimpleTransactions.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        Nenhuma transação nesta fatura
+      <div className="rounded-[24px] border border-dashed border-border/70 bg-surface-elevated/35 px-5 py-10 text-center text-sm text-muted-foreground">
+        Nenhuma transacao registrada nesta fatura.
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {/* Filtro por Tags */}
-      <div className="mb-2">
-        <p className="text-sm text-gray-600 mb-2">Filtrar por Tags</p>
-        <div className="flex flex-wrap gap-2">
+    <div className="space-y-4">
+      <div className="rounded-[24px] border border-border/70 bg-surface-elevated/45 p-4 shadow-sm">
+        <p className="text-sm font-semibold text-foreground">Filtrar por tags</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Use as tags para isolar as compras mais importantes deste ciclo.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
           {tags.map((tag) => {
             const active = selectedTagIds.includes(tag.id);
             return (
               <Badge
                 key={tag.id}
-                variant={active ? 'default' : 'outline'}
+                className="cursor-pointer rounded-full border px-3 py-1 text-xs font-semibold shadow-sm transition-transform hover:-translate-y-0.5"
                 style={{
                   backgroundColor: active ? tag.color : 'transparent',
                   borderColor: tag.color,
-                  color: active ? '#fff' : tag.color,
+                  color: active ? '#ffffff' : tag.color,
                 }}
-                className="cursor-pointer"
                 onClick={() =>
-                  setSelectedTagIds((prev) =>
-                    prev.includes(tag.id)
-                      ? prev.filter((id) => id !== tag.id)
-                      : [...prev, tag.id]
+                  setSelectedTagIds((previous) =>
+                    previous.includes(tag.id)
+                      ? previous.filter((item) => item !== tag.id)
+                      : [...previous, tag.id],
                   )
                 }
               >
@@ -125,7 +122,6 @@ export function InvoiceTransactionsList({
         </div>
       </div>
 
-      {/* Parcelamentos agrupados */}
       {installmentGroups.map((transaction) => (
         <InstallmentTransactionCard
           key={transaction.installment_group_id || transaction.id}
@@ -133,37 +129,41 @@ export function InvoiceTransactionsList({
         />
       ))}
 
-      {/* Transações simples */}
-      {simpleTransactions.map((transaction) => (
+      {filteredSimpleTransactions.map((transaction) => (
         <div
           key={transaction.id}
-          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+          className="rounded-[24px] border border-border/70 bg-card/95 p-4 shadow-[0_12px_30px_rgba(2,6,23,0.12)] transition-colors hover:bg-card"
         >
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <p className="font-medium text-gray-900">{transaction.description}</p>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <p className="text-sm text-gray-500">
-                {format(new Date(transaction.purchase_date), "dd 'de' MMM", { locale: ptBR })}
-              </p>
-              {/* Tags da transação */}
-              <div className="flex flex-wrap gap-1">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-base font-semibold tracking-tight text-foreground">{transaction.description}</p>
+                {groupByCategory && transaction.category_name ? (
+                  <span className="rounded-full border border-border/60 bg-surface/70 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+                    {transaction.category_name}
+                  </span>
+                ) : null}
+              </div>
+
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>{format(new Date(transaction.purchase_date), "dd 'de' MMM", { locale: ptBR })}</span>
                 {(tagsByTransaction[transaction.id] || []).map((tag: any) => (
                   <Badge
                     key={tag.id}
-                    style={{ backgroundColor: tag.color }}
-                    className="text-white"
+                    className="rounded-full border px-2.5 py-0.5 text-[11px] font-semibold shadow-sm"
+                    style={{ backgroundColor: `${tag.color}1A`, borderColor: tag.color, color: tag.color }}
                   >
                     {tag.name}
                   </Badge>
                 ))}
               </div>
             </div>
-          </div>
-          <div className="text-right">
-            <div className="text-lg font-semibold text-gray-900">
-              {formatCurrency(transaction.amount)}
+
+            <div className="shrink-0 text-right">
+              <p className="text-lg font-semibold tracking-tight text-foreground">
+                {formatCurrency(transaction.amount)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">Compra registrada</p>
             </div>
           </div>
         </div>

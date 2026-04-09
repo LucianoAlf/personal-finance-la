@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { PeriodMetrics } from './PeriodMetrics';
 import { InsightsPanel } from './InsightsPanel';
 import { ChartsSection } from './ChartsSection';
@@ -21,23 +21,19 @@ export function AnalyticsTab() {
 
   const { data, loading, error } = useAnalytics(analyticsScope);
 
-  useEffect(() => {
-    console.log('🔍 AnalyticsTab - Debug:', { data, loading, error, selectedCardId, selectedPeriod });
-  }, [data, loading, error, selectedCardId, selectedPeriod]);
-
   if (error) {
     return (
       <div className="space-y-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <h3 className="text-lg font-semibold text-red-900 mb-2">
-            Erro ao carregar análises
+        <div className="rounded-[28px] border border-danger/20 bg-danger-subtle/80 p-6 text-center shadow-[0_18px_42px_rgba(220,38,38,0.08)]">
+          <h3 className="mb-2 text-lg font-semibold text-foreground">
+            Erro ao carregar analises
           </h3>
-          <p className="text-red-700 text-sm">{error}</p>
+          <p className="text-sm text-muted-foreground">{error}</p>
           <button 
             onClick={() => window.location.reload()} 
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="mt-4 rounded-xl border border-danger/20 bg-danger px-4 py-2 text-danger-foreground shadow-sm transition-colors hover:bg-danger/90"
           >
-            Recarregar Página
+            Recarregar Pagina
           </button>
         </div>
       </div>
@@ -73,16 +69,16 @@ export function AnalyticsTab() {
     console.error('Erro ao renderizar AnalyticsTab:', err);
     return (
       <div className="space-y-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <h3 className="text-lg font-semibold text-red-900 mb-2">
-            Erro ao renderizar análises
+        <div className="rounded-[28px] border border-danger/20 bg-danger-subtle/80 p-6 text-center shadow-[0_18px_42px_rgba(220,38,38,0.08)]">
+          <h3 className="mb-2 text-lg font-semibold text-foreground">
+            Erro ao renderizar analises
           </h3>
-          <p className="text-red-700 text-sm">{String(err)}</p>
+          <p className="text-sm text-muted-foreground">{String(err)}</p>
           <button 
             onClick={() => window.location.reload()} 
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            className="mt-4 rounded-xl border border-danger/20 bg-danger px-4 py-2 text-danger-foreground shadow-sm transition-colors hover:bg-danger/90"
           >
-            Recarregar Página
+            Recarregar Pagina
           </button>
         </div>
       </div>

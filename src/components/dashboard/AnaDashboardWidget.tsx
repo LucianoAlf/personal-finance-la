@@ -42,7 +42,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
   if (error || !insights) {
     return (
       <Card className="border-danger-border bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)]">
-        <CardHeader className="border-b border-border/70">
+        <CardHeader className="pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl border border-danger-border bg-danger-subtle p-2">
@@ -63,7 +63,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-1">
           <p className="text-sm text-danger">Erro ao carregar insights. Tente novamente.</p>
         </CardContent>
       </Card>
@@ -80,7 +80,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
         <div className="pointer-events-none absolute inset-x-0 top-0 h-28 bg-[radial-gradient(circle_at_top_left,rgba(151,117,250,0.24),transparent_58%)]" />
         <div className="pointer-events-none absolute right-0 top-12 h-24 w-24 rounded-full bg-primary/10 blur-3xl" />
 
-        <CardHeader className="relative border-b border-border/70">
+        <CardHeader className="relative pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="relative">
@@ -119,20 +119,20 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48 border-border/70 bg-surface-overlay text-foreground">
-                  <DropdownMenuLabel>OpÃ§Ãµes</DropdownMenuLabel>
+                  <DropdownMenuLabel>Opções</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={() => setOpenHistory(true)}>
                     <History className="mr-2 h-4 w-4" />
-                    Ver HistÃ³rico
+                    Ver Histórico
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setOpenPrefs(true)}>
                     <Download className="mr-2 h-4 w-4" />
-                    Exportar/PreferÃªncias
+                    Exportar/Preferências
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem>
                     <Settings className="mr-2 h-4 w-4" />
-                    ConfiguraÃ§Ãµes
+                    Configurações
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -140,7 +140,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
           </div>
         </CardHeader>
 
-        <CardContent className="relative space-y-4">
+        <CardContent className="relative space-y-4 pt-1">
           <AnaInsightCard insight={insights.primary} size="large" />
 
           {insights.secondary.length > 0 ? (
@@ -160,7 +160,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
               planning: Math.round(healthScore * 0.2),
             }}
             showBreakdown={true}
-            label="SaÃºde Financeira"
+            label="Saúde Financeira"
             defaultExpanded={false}
             hasSufficientData={hasSufficientData}
           />
@@ -179,7 +179,7 @@ export function AnaDashboardWidget({ autoRefresh = true }: AnaDashboardWidgetPro
 function WidgetSkeleton() {
   return (
     <Card className="border border-primary/20 bg-surface/95 shadow-[0_26px_60px_rgba(3,8,20,0.32)]">
-      <CardHeader className="border-b border-border/70">
+      <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Skeleton className="h-12 w-12 rounded-2xl bg-surface-elevated" />
@@ -191,7 +191,7 @@ function WidgetSkeleton() {
           <Skeleton className="h-8 w-8 rounded-xl bg-surface-elevated" />
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 pt-1">
         <Skeleton className="h-32 w-full rounded-2xl bg-surface-elevated" />
         <div className="grid grid-cols-3 gap-3">
           <Skeleton className="h-24 w-full rounded-2xl bg-surface-elevated" />

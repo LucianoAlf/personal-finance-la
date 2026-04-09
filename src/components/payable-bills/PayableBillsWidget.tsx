@@ -69,10 +69,10 @@ export function PayableBillsWidget() {
                     <AlertCircle className="h-4 w-4 text-red-500" />
                     <span className="text-xs font-medium text-red-500">Vencidas</span>
                   </div>
-                  <p className="text-lg font-bold text-red-600 dark:text-red-400">
+                  <p className="text-sm font-bold leading-none tracking-tight tabular-nums text-red-600 dark:text-red-400">
                     {formatCurrency(summary.overdue_amount)}
                   </p>
-                  <p className="text-xs text-muted-foreground dark:text-gray-500">
+                  <p className="mt-1.5 text-xs text-muted-foreground dark:text-gray-500">
                     {summary.overdue_count}{' '}
                     {summary.overdue_count === 1 ? 'conta' : 'contas'}
                   </p>
@@ -86,10 +86,10 @@ export function PayableBillsWidget() {
                     <Clock className="h-4 w-4 text-yellow-500" />
                     <span className="text-xs font-medium text-yellow-500 dark:text-yellow-400">A Vencer</span>
                   </div>
-                  <p className="text-lg font-bold text-yellow-600 dark:text-yellow-400">
+                  <p className="text-sm font-bold leading-none tracking-tight tabular-nums text-yellow-600 dark:text-yellow-400">
                     {formatCurrency(summary.pending_amount)}
                   </p>
-                  <p className="text-xs text-muted-foreground dark:text-gray-500">
+                  <p className="mt-1.5 text-xs text-muted-foreground dark:text-gray-500">
                     {summary.pending_count}{' '}
                     {summary.pending_count === 1 ? 'conta' : 'contas'}
                   </p>

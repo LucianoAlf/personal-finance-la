@@ -158,7 +158,7 @@ export function BillCalendar({
   return (
     <div className="space-y-4">
       {/* Header do Calendário */}
-      <Card className="p-4">
+      <Card className="rounded-[1.7rem] border-border/70 bg-card/95 p-5 shadow-[0_20px_48px_rgba(15,23,42,0.1)]">
         {showEmbeddedHeader && (
           <div className="flex items-center justify-between mb-4">
             <Button
@@ -184,27 +184,27 @@ export function BillCalendar({
         )}
 
         {/* Resumo do Mês */}
-        <div className="grid grid-cols-4 gap-2 mb-4 text-center text-sm">
-          <div className="p-2 rounded-lg bg-muted">
+        <div className="mb-4 grid grid-cols-4 gap-3 text-center text-sm">
+          <div className="rounded-xl border border-border/60 bg-surface/70 p-3">
             <p className="text-muted-foreground">Total</p>
             <p className="font-bold">{formatCurrency(monthTotals.total)}</p>
           </div>
-          <div className="p-2 rounded-lg bg-yellow-500/10">
-            <p className="text-yellow-600">Pendente</p>
-            <p className="font-bold text-yellow-600">{formatCurrency(monthTotals.pending)}</p>
+          <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+            <p className="text-amber-500">Pendente</p>
+            <p className="font-bold text-amber-500">{formatCurrency(monthTotals.pending)}</p>
           </div>
-          <div className="p-2 rounded-lg bg-red-500/10">
-            <p className="text-red-600">Vencido</p>
-            <p className="font-bold text-red-600">{formatCurrency(monthTotals.overdue)}</p>
+          <div className="rounded-xl border border-red-500/20 bg-red-500/10 p-3">
+            <p className="text-red-500">Vencido</p>
+            <p className="font-bold text-red-500">{formatCurrency(monthTotals.overdue)}</p>
           </div>
-          <div className="p-2 rounded-lg bg-green-500/10">
-            <p className="text-green-600">Pago</p>
-            <p className="font-bold text-green-600">{formatCurrency(monthTotals.paid)}</p>
+          <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
+            <p className="text-emerald-500">Pago</p>
+            <p className="font-bold text-emerald-500">{formatCurrency(monthTotals.paid)}</p>
           </div>
         </div>
 
         {/* Dias da Semana */}
-        <div className="grid grid-cols-7 gap-1 mb-2">
+        <div className="mb-2 grid grid-cols-7 gap-1">
           {WEEKDAYS.map((day) => (
             <div
               key={day}
@@ -216,7 +216,7 @@ export function BillCalendar({
         </div>
 
         {/* Dias do Mês */}
-        <div className="grid grid-cols-7 border-t border-l border-border/50">
+        <div className="grid grid-cols-7 overflow-hidden rounded-[1.4rem] border border-border/60 bg-surface/35">
           {/* Espaços vazios antes do primeiro dia */}
           {Array.from({ length: startDayOfWeek }).map((_, i) => (
             <div key={`empty-${i}`} className="aspect-square border-r border-b border-border/50" />
@@ -237,15 +237,15 @@ export function BillCalendar({
                 onClick={() => handleDayClick(day)}
                 disabled={!hasContent}
                 className={cn(
-                  "aspect-square p-1 text-sm transition-all relative",
+                  "relative aspect-square p-1 text-sm transition-all",
                   "flex flex-col items-center justify-start",
                   "border-r border-b border-border/50",
-                  isToday(day) && "ring-2 ring-inset ring-blue-500",
-                  hasContent && "cursor-pointer hover:bg-muted/50",
+                  isToday(day) && "ring-2 ring-inset ring-primary",
+                  hasContent && "cursor-pointer hover:bg-surface/75",
                   !hasContent && "cursor-default",
                   status === 'overdue' && "bg-red-500/10",
-                  status === 'pending' && "bg-yellow-500/10",
-                  status === 'paid' && "bg-green-500/10"
+                  status === 'pending' && "bg-amber-500/10",
+                  status === 'paid' && "bg-emerald-500/10"
                 )}
               >
                 <span
@@ -261,11 +261,11 @@ export function BillCalendar({
                 {hasContent && (
                   <div className="mt-1 w-full">
                     <div
-                      className={cn(
-                        "text-[10px] font-bold truncate px-1 rounded",
-                        status === 'overdue' && "text-red-600",
-                        status === 'pending' && "text-yellow-600",
-                        status === 'paid' && "text-green-600"
+                    className={cn(
+                        "rounded px-1 text-[10px] font-bold truncate",
+                        status === 'overdue' && "text-red-500",
+                        status === 'pending' && "text-amber-400",
+                        status === 'paid' && "text-emerald-400"
                       )}
                     >
                       {formatCurrency(total)}
@@ -284,8 +284,8 @@ export function BillCalendar({
                     className={cn(
                       "absolute top-1 right-1 w-2 h-2 rounded-full",
                       status === 'overdue' && "bg-red-500",
-                      status === 'pending' && "bg-yellow-500",
-                      status === 'paid' && "bg-green-500"
+                      status === 'pending' && "bg-amber-500",
+                      status === 'paid' && "bg-emerald-500"
                     )}
                   />
                 )}
@@ -297,7 +297,7 @@ export function BillCalendar({
 
       {/* Dialog com detalhes do dia */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-[1.6rem] border-border/70 bg-background/98 shadow-[0_26px_70px_rgba(2,6,23,0.4)] backdrop-blur-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5" />
@@ -320,12 +320,12 @@ export function BillCalendar({
                   <Card
                     key={bill.id}
                     className={cn(
-                      "p-4",
-                      bill.status === 'overdue' && "border-l-4 border-l-red-500",
-                      bill.status === 'pending' && "border-l-4 border-l-yellow-500",
-                      bill.status === 'paid' && "border-l-4 border-l-green-500"
-                    )}
-                  >
+                  "rounded-[1.2rem] border-border/60 bg-card/95 p-4",
+                  bill.status === 'overdue' && "border-l-4 border-l-red-500",
+                  bill.status === 'pending' && "border-l-4 border-l-yellow-500",
+                  bill.status === 'paid' && "border-l-4 border-l-green-500"
+                )}
+              >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <h4 className="font-semibold">{bill.description}</h4>
@@ -360,8 +360,9 @@ export function BillCalendar({
                       </div>
                     </div>
 
-                    <div className="mt-3 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                      Pagamento rapido: <span className="font-medium text-foreground">{paymentSummary}</span>
+                    <div className="mt-3 rounded-xl border border-border/60 bg-surface/55 px-3 py-3 text-xs text-muted-foreground">
+                      <span className="font-medium uppercase tracking-[0.18em] text-muted-foreground/80">Pagamento rápido</span>
+                      <div className="mt-1 text-sm text-foreground">{paymentSummary}</div>
                     </div>
 
                     {bill.status !== 'paid' && (

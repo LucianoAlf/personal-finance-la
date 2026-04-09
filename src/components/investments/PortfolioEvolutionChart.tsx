@@ -27,11 +27,20 @@ interface PortfolioEvolutionChartProps {
   currentValue: number;
 }
 
+const shellClassName =
+  'rounded-[30px] border border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(3,8,20,0.16)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)]';
+
+function normalizeNumber(value: unknown) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export function PortfolioEvolutionChart({
   totalInvested,
   currentValue,
 }: PortfolioEvolutionChartProps) {
   const { history, loading } = usePortfolioHistory(365);
+
   const data = useMemo(() => {
     if (history.length === 0) {
       if (totalInvested === 0 && currentValue === 0) return [];
@@ -60,25 +69,27 @@ export function PortfolioEvolutionChart({
     return Array.from(snapshotsByMonth.values());
   }, [currentValue, history, totalInvested]);
 
-  // Custom tooltip
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
+      const invested = normalizeNumber(payload[0]?.value);
+      const current = normalizeNumber(payload[1]?.value);
+
       return (
-        <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold mb-2">{payload[0].payload.date}</p>
+        <div className="rounded-2xl border border-border/70 bg-popover/95 p-3 text-popover-foreground shadow-xl backdrop-blur-xl">
+          <p className="mb-2 font-semibold tracking-tight">{payload[0].payload.date}</p>
           <div className="space-y-1">
-            <p className="text-sm flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-blue-500" />
+            <p className="flex items-center gap-2 text-sm">
+              <span className="h-2.5 w-2.5 rounded-full bg-blue-500" />
               <span className="text-muted-foreground">Investido:</span>
-              <span className="font-medium">{formatCurrency(payload[0].value)}</span>
+              <span className="font-medium text-foreground">{formatCurrency(invested)}</span>
             </p>
-            <p className="text-sm flex items-center gap-2">
-              <span className="w-3 h-3 rounded-full bg-green-500" />
-              <span className="text-muted-foreground">Valor Atual:</span>
-              <span className="font-medium">{formatCurrency(payload[1].value)}</span>
+            <p className="flex items-center gap-2 text-sm">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+              <span className="text-muted-foreground">Valor atual:</span>
+              <span className="font-medium text-foreground">{formatCurrency(current)}</span>
             </p>
-            <p className="text-sm font-semibold text-green-600 mt-2">
-              Ganho: {formatCurrency(payload[1].value - payload[0].value)}
+            <p className="mt-2 text-sm font-semibold text-emerald-500 dark:text-emerald-400">
+              Ganho: {formatCurrency(current - invested)}
             </p>
           </div>
         </div>
@@ -87,7 +98,6 @@ export function PortfolioEvolutionChart({
     return null;
   };
 
-  // Format Y-axis
   const formatYAxis = (value: number) => {
     if (value >= 1000) {
       return `${(value / 1000).toFixed(0)}k`;
@@ -96,55 +106,60 @@ export function PortfolioEvolutionChart({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Evolução do Portfólio</CardTitle>
+    <Card className={shellClassName}>
+      <CardHeader className="pb-4">
+        <CardTitle className="text-xl font-semibold tracking-tight">Evolução do Portfólio</CardTitle>
       </CardHeader>
       <CardContent>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis
-              dataKey="date"
-              className="text-xs"
-              tick={{ fill: 'hsl(var(--muted-foreground))' }}
-            />
-            <YAxis
-              tickFormatter={formatYAxis}
-              className="text-xs"
-              tick={{ fill: 'hsl(var(--muted-foreground))' }}
-            />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend
-              wrapperStyle={{ paddingTop: '20px' }}
-              iconType="circle"
-            />
-            <Line
-              type="monotone"
-              dataKey="invested"
-              stroke="#3b82f6"
-              strokeWidth={2}
-              name="Investido"
-              dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-            <Line
-              type="monotone"
-              dataKey="current"
-              stroke="#10b981"
-              strokeWidth={2}
-              name="Valor Atual"
-              dot={{ r: 4 }}
-              activeDot={{ r: 6 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        <div className="rounded-2xl border border-border/60 bg-surface-elevated/35 p-4">
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.55} />
+              <XAxis
+                dataKey="date"
+                className="text-xs"
+                tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
+              />
+              <YAxis
+                tickFormatter={formatYAxis}
+                className="text-xs"
+                tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                axisLine={{ stroke: 'hsl(var(--border))' }}
+                tickLine={{ stroke: 'hsl(var(--border))' }}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              <Legend
+                wrapperStyle={{ paddingTop: '20px' }}
+                iconType="circle"
+              />
+              <Line
+                type="monotone"
+                dataKey="invested"
+                stroke="#3b82f6"
+                strokeWidth={2.5}
+                name="Investido"
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+              <Line
+                type="monotone"
+                dataKey="current"
+                stroke="#10b981"
+                strokeWidth={2.5}
+                name="Valor atual"
+                dot={{ r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
 
-        {/* Info card */}
-        <div className="mt-6 flex gap-3 rounded-lg bg-muted p-4">
+        <div className="mt-6 flex gap-3 rounded-2xl border border-border/60 bg-surface-elevated/45 p-4">
           <Info className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
-          <div>
-            <p className="text-sm text-muted-foreground mb-2">
+          <div className="space-y-1">
+            <p className="text-sm text-muted-foreground">
               {loading
                 ? 'Carregando snapshots reais do portfólio...'
                 : history.length > 0

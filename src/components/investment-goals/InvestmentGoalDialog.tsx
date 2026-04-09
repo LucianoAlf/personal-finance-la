@@ -279,20 +279,20 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-purple-600" />
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-[1.7rem] border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
+        <DialogHeader className="border-b border-border/60 px-6 py-5">
+          <DialogTitle className="flex items-center gap-2 text-[1.65rem] font-semibold tracking-tight text-foreground">
+            <TrendingUp className="h-5 w-5 text-primary" />
             {goal ? 'Editar Meta de Investimento' : 'Nova Meta de Investimento'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm leading-relaxed text-foreground/72">
             {goal ? 'Atualize sua meta de longo prazo' : 'Configure sua meta com juros compostos e projeções'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit, onInvalid)}>
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="px-6 py-5">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-4 rounded-[1.2rem] border border-border/70 bg-surface-elevated p-1">
               <TabsTrigger value="basic" className="relative">
                 Básico
                 {(errors.name || errors.category) && (
@@ -370,7 +370,7 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
                 </Select>
               </div>
 
-              <div className="rounded-lg border p-4 space-y-4">
+              <div className="space-y-4 rounded-[1.35rem] border border-border/60 bg-surface-elevated/45 p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
                     <Label className="text-base">Integrar com carteira real</Label>
@@ -396,8 +396,8 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
                       <span>Buscando seus investimentos ativos…</span>
                     </div>
                     <div className="space-y-2">
-                      <div className="h-14 rounded-md border bg-muted/50 animate-pulse" />
-                      <div className="h-14 rounded-md border bg-muted/50 animate-pulse w-5/6" />
+                      <div className="h-14 rounded-xl border border-border/60 bg-surface/70 animate-pulse" />
+                      <div className="h-14 w-5/6 rounded-xl border border-border/60 bg-surface/70 animate-pulse" />
                     </div>
                   </div>
                 ) : availableInvestments.length === 0 ? (
@@ -413,7 +413,7 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
                       return (
                         <label
                           key={investment.id}
-                          className="flex items-start gap-3 rounded-md border p-3 cursor-pointer hover:bg-muted/40"
+                          className="flex cursor-pointer items-start gap-3 rounded-xl border border-border/60 bg-surface/65 p-3 transition-colors hover:bg-surface-overlay"
                         >
                           <Checkbox
                             checked={isChecked}
@@ -529,9 +529,9 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
 
               {/* Projeção */}
               {projection && (
-                <div className={`p-4 rounded-lg ${projection.willReachGoal ? 'bg-green-50 dark:bg-green-950' : 'bg-orange-50 dark:bg-orange-950'}`}>
+                <div className={`rounded-[1.35rem] border p-4 ${projection.willReachGoal ? 'border-success/20 bg-success-subtle/50' : 'border-warning/20 bg-warning-subtle/50'}`}>
                   <div className="flex items-center gap-2 mb-2">
-                    <TrendingUp className={`h-4 w-4 ${projection.willReachGoal ? 'text-green-600' : 'text-orange-600'}`} />
+                    <TrendingUp className={`h-4 w-4 ${projection.willReachGoal ? 'text-success' : 'text-warning'}`} />
                     <p className="font-semibold">Projeção Estimada</p>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-sm">
@@ -541,7 +541,7 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
                     </div>
                     <div>
                       <p className="text-muted-foreground">Total Juros:</p>
-                      <p className="font-semibold text-green-600">+R$ {projection.totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                      <p className="font-semibold text-success">+R$ {projection.totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                     </div>
                   </div>
                   <p className="text-xs mt-2 text-muted-foreground">
@@ -665,13 +665,13 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
             </TabsContent>
           </Tabs>
 
-          <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={isSaving}>
-              {isSaving ? (
-                <>
+            <DialogFooter className="mt-6 gap-3 border-t border-border/60 pt-4">
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl border-border/70 bg-surface/85 hover:bg-surface-elevated">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isSaving} className="rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90">
+                {isSaving ? (
+                  <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Salvando...
                 </>

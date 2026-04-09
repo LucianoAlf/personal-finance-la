@@ -46,9 +46,12 @@ import { useTransactions } from '@/hooks/useTransactions';
 import type { Transaction } from '@/types/transactions';
 import { getTransactionWriteTarget } from '@/utils/tags/tag-assignment';
 import { TRANSACTION_TYPES } from '@/constants/categories';
-import { X, Plus } from 'lucide-react';
+import { X, Plus, ReceiptText } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+
+const primaryButtonClass =
+  'rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90';
 
 const transactionSchema = z
   .object({
@@ -302,14 +305,14 @@ export const TransactionDialog = ({
     <>
       <Dialog open={open} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
+          <DialogHeader className="space-y-3 border-b border-border/60 pb-4">
             <DialogTitle>
               {transaction ? 'Editar Transação' : 'Nova Transação'}
             </DialogTitle>
           </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
             {/* Tipo */}
             <FormField
               control={form.control}
@@ -489,7 +492,7 @@ export const TransactionDialog = ({
               control={form.control}
               name="is_paid"
               render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                <FormItem className="flex items-center justify-between rounded-2xl border border-border/70 bg-surface-elevated/55 p-4">
                   <div className="space-y-0.5">
                     <FormLabel className="text-base">
                       {selectedType === 'income' ? 'Recebido' : 'Pago'}
@@ -536,7 +539,7 @@ export const TransactionDialog = ({
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowTagInput(!showTagInput)}
-                  className="h-8 text-purple-600 hover:text-purple-700"
+                  className="h-8 rounded-lg text-primary hover:text-primary"
                 >
                   <Plus size={16} className="mr-1" />
                   Nova tag
@@ -557,7 +560,7 @@ export const TransactionDialog = ({
                     type="button"
                     size="sm"
                     onClick={handleCreateTag}
-                    className="bg-purple-600 hover:bg-purple-700"
+                    className={primaryButtonClass}
                   >
                     Criar
                   </Button>
@@ -585,8 +588,8 @@ export const TransactionDialog = ({
                       onClick={() => handleToggleTag(tag.id)}
                       className={`cursor-pointer transition-all ${
                         isSelected
-                          ? 'bg-purple-600 text-white hover:bg-purple-700'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                          ? 'border border-primary/20 bg-primary/10 text-primary hover:bg-primary/15'
+                          : 'border border-border/70 bg-surface-elevated text-muted-foreground hover:bg-surface-overlay hover:text-foreground'
                       }`}
                       style={isSelected ? { backgroundColor: tag.color } : {}}
                     >
@@ -598,14 +601,14 @@ export const TransactionDialog = ({
               </div>
 
               {tags.length === 0 && !showTagInput && (
-                <p className="text-sm text-gray-500">
+                <p className="text-sm text-muted-foreground">
                   Nenhuma tag criada ainda. Clique em "Nova tag" para criar.
                 </p>
               )}
             </div>
 
             {/* Botões */}
-            <div className="flex items-center justify-between gap-3 pt-4">
+            <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-5">
               <div>
                 {transaction && onDelete && (
                   <Button
@@ -630,7 +633,7 @@ export const TransactionDialog = ({
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="bg-purple-600 hover:bg-purple-700"
+                  className={primaryButtonClass}
                 >
                   {loading ? 'Salvando...' : transaction ? 'Atualizar' : 'Criar'}
                 </Button>

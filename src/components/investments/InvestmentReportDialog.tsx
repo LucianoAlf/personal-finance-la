@@ -1,4 +1,3 @@
-// SPRINT 5: Dialog para Gerar Relatórios de Investimentos
 import { useState, useMemo, useCallback } from 'react';
 import {
   Dialog,
@@ -18,7 +17,13 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { FileText, Download, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import {
+  FileText,
+  Download,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+} from 'lucide-react';
 import { generateInvestmentReport, type ReportPeriod } from '@/utils/investmentReports';
 import { exportReportToPDF } from '@/utils/pdfExport';
 import { formatCurrency } from '@/utils/formatters';
@@ -29,7 +34,6 @@ import type { Investment, InvestmentTransaction } from '@/types/database.types';
 interface InvestmentReportDialogProps {
   investments: Investment[];
   transactions: InvestmentTransaction[];
-  /** Dispara carregamento de transações antes do usuário usar o relatório (ex.: página com autoLoad desligado). */
   onPrefetchTransactions?: () => void;
 }
 
@@ -53,7 +57,7 @@ export function InvestmentReportDialog({
         onPrefetchTransactions?.();
       }
     },
-    [onPrefetchTransactions],
+    [onPrefetchTransactions]
   );
 
   const report = useMemo(
@@ -83,7 +87,7 @@ export function InvestmentReportDialog({
       exportReportToPDF(report);
       toast({
         title: 'PDF exportado com sucesso!',
-        description: 'O relatório foi baixado para seu computador.',
+        description: 'O relatório foi baixado para o seu computador.',
       });
     } catch (error) {
       console.error('Erro ao exportar PDF:', error);
@@ -100,210 +104,231 @@ export function InvestmentReportDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button
+          variant="outline"
+          size="sm"
+          className="border-border/70 bg-background/80 text-foreground shadow-sm transition-colors hover:bg-muted/80"
+        >
           <FileText className="mr-2 h-4 w-4" />
           Relatório
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Relatório de Investimentos</DialogTitle>
-          <DialogDescription>
-            Visualize um resumo completo dos seus investimentos e performance
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-hidden rounded-[1.7rem] border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
+        <div className="border-b border-border/60 bg-gradient-to-br from-background via-background to-muted/20 px-6 py-5">
+          <DialogHeader className="space-y-2 text-left">
+            <DialogTitle className="text-[1.65rem] font-semibold tracking-tight text-foreground">
+              Relatório de Investimentos
+            </DialogTitle>
+            <DialogDescription className="max-w-2xl text-sm leading-relaxed text-foreground/72">
+              Visualize um resumo completo dos seus investimentos e da performance do período.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        {/* Filtros */}
-        <div className="flex gap-3 mb-6">
-          <Select
-            value={period}
-            onValueChange={(value) => setPeriod(value as ReportPeriod)}
-          >
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="monthly">Mensal</SelectItem>
-              <SelectItem value="quarterly">Trimestral</SelectItem>
-              <SelectItem value="annual">Anual</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="max-h-[calc(90vh-7rem)] overflow-y-auto px-6 py-5">
+          <div className="rounded-[1.2rem] border border-border/60 bg-surface-elevated/75 p-3 shadow-sm">
+            <div className="flex flex-wrap gap-3">
+              <Select
+                value={period}
+                onValueChange={(value) => setPeriod(value as ReportPeriod)}
+              >
+                <SelectTrigger className="h-10 w-[140px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="monthly">Mensal</SelectItem>
+                  <SelectItem value="quarterly">Trimestral</SelectItem>
+                  <SelectItem value="annual">Anual</SelectItem>
+                </SelectContent>
+              </Select>
 
-          <Select value={year.toString()} onValueChange={(v) => setYear(Number(v))}>
-            <SelectTrigger className="w-[100px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {years.map((y) => (
-                <SelectItem key={y} value={y.toString()}>
-                  {y}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+              <Select value={year.toString()} onValueChange={(v) => setYear(Number(v))}>
+                <SelectTrigger className="h-10 w-[110px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {years.map((y) => (
+                    <SelectItem key={y} value={y.toString()}>
+                      {y}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
-          {period === 'monthly' && (
-            <Select value={month.toString()} onValueChange={(v) => setMonth(Number(v))}>
-              <SelectTrigger className="w-[140px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {months.map((m) => (
-                  <SelectItem key={m.value} value={m.value.toString()}>
-                    {m.label}
-                  </SelectItem>
+              {period === 'monthly' && (
+                <Select value={month.toString()} onValueChange={(v) => setMonth(Number(v))}>
+                  <SelectTrigger className="h-10 w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {months.map((m) => (
+                      <SelectItem key={m.value} value={m.value.toString()}>
+                        {m.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-6">
+            <div className="rounded-2xl border border-border/60 bg-gradient-to-r from-muted/20 via-background to-muted/30 p-5 text-center shadow-sm">
+              <h3 className="text-xl font-semibold tracking-tight">{report.period.label}</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {report.period.start.toLocaleDateString()} - {report.period.end.toLocaleDateString()}
+              </p>
+            </div>
+
+            <section className="space-y-3">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Resumo
+              </h4>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {[
+                  {
+                    label: 'Total Investido',
+                    value: formatCurrency(report.summary.totalInvested),
+                    tone: 'default',
+                  },
+                  {
+                    label: 'Valor Atual',
+                    value: formatCurrency(report.summary.currentValue),
+                    tone: 'default',
+                  },
+                  {
+                    label: 'Retorno Total',
+                    value: formatCurrency(report.summary.totalReturn),
+                    tone: report.summary.totalReturn >= 0 ? 'positive' : 'negative',
+                  },
+                  {
+                    label: 'Rentabilidade',
+                    value: `${report.summary.returnPercentage >= 0 ? '+' : ''}${report.summary.returnPercentage.toFixed(2)}%`,
+                    tone: report.summary.returnPercentage >= 0 ? 'positive' : 'negative',
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.label}
+                    className="rounded-2xl border border-border/60 bg-muted/40 p-4 shadow-sm"
+                  >
+                    <p className="text-xs text-muted-foreground">{item.label}</p>
+                    <p
+                      className={cn(
+                        'mt-2 text-lg font-semibold tracking-tight',
+                        item.tone === 'positive' && 'text-emerald-500',
+                        item.tone === 'negative' && 'text-rose-500'
+                      )}
+                    >
+                      {item.value}
+                    </p>
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
-          )}
-        </div>
-
-        {/* Report Content */}
-        <div className="space-y-6">
-          {/* Header */}
-          <div className="text-center p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg">
-            <h3 className="text-xl font-bold text-gray-900">{report.period.label}</h3>
-            <p className="text-sm text-muted-foreground">
-              {report.period.start.toLocaleDateString()} -{' '}
-              {report.period.end.toLocaleDateString()}
-            </p>
-          </div>
-
-          {/* Summary */}
-          <div>
-            <h4 className="font-semibold mb-3">Resumo</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Total Investido</p>
-                <p className="text-lg font-bold">{formatCurrency(report.summary.totalInvested)}</p>
               </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Valor Atual</p>
-                <p className="text-lg font-bold">{formatCurrency(report.summary.currentValue)}</p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Retorno Total</p>
-                <p
-                  className={cn(
-                    'text-lg font-bold',
-                    report.summary.totalReturn >= 0 ? 'text-green-600' : 'text-red-600'
-                  )}
-                >
-                  {formatCurrency(report.summary.totalReturn)}
-                </p>
-              </div>
-              <div className="p-4 bg-gray-50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Rentabilidade</p>
-                <p
-                  className={cn(
-                    'text-lg font-bold',
-                    report.summary.returnPercentage >= 0 ? 'text-green-600' : 'text-red-600'
-                  )}
-                >
-                  {report.summary.returnPercentage >= 0 ? '+' : ''}
-                  {report.summary.returnPercentage.toFixed(2)}%
-                </p>
-              </div>
-            </div>
-          </div>
+            </section>
 
-          <Separator />
+            <Separator className="bg-border/60" />
 
-          {/* Performance */}
-          <div>
-            <h4 className="font-semibold mb-3">Performance</h4>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 bg-green-50 rounded-lg">
-                <div className="flex items-center gap-2 mb-1">
-                  <TrendingUp className="h-4 w-4 text-green-600" />
-                  <p className="text-xs text-green-900">Melhor</p>
+            <section className="space-y-3">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Performance
+              </h4>
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-border/60 bg-emerald-500/10 p-4 shadow-sm">
+                  <div className="mb-2 flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-emerald-500" />
+                    <p className="text-xs font-medium text-emerald-500">Melhor</p>
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {report.performance.bestPerformer?.name || '-'}
+                  </p>
+                  <p className="text-xs text-emerald-500">
+                    +{report.performance.bestPerformer?.return.toFixed(2) || 0}%
+                  </p>
                 </div>
-                <p className="text-sm font-semibold">
-                  {report.performance.bestPerformer?.name || '-'}
-                </p>
-                <p className="text-xs text-green-600">
-                  +{report.performance.bestPerformer?.return.toFixed(2) || 0}%
-                </p>
-              </div>
 
-              <div className="p-3 bg-red-50 rounded-lg">
-                <div className="flex items-center gap-2 mb-1">
-                  <TrendingDown className="h-4 w-4 text-red-600" />
-                  <p className="text-xs text-red-900">Pior</p>
+                <div className="rounded-2xl border border-border/60 bg-rose-500/10 p-4 shadow-sm">
+                  <div className="mb-2 flex items-center gap-2">
+                    <TrendingDown className="h-4 w-4 text-rose-500" />
+                    <p className="text-xs font-medium text-rose-500">Pior</p>
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">
+                    {report.performance.worstPerformer?.name || '-'}
+                  </p>
+                  <p className="text-xs text-rose-500">
+                    {report.performance.worstPerformer?.return.toFixed(2) || 0}%
+                  </p>
                 </div>
-                <p className="text-sm font-semibold">
-                  {report.performance.worstPerformer?.name || '-'}
-                </p>
-                <p className="text-xs text-red-600">
-                  {report.performance.worstPerformer?.return.toFixed(2) || 0}%
-                </p>
-              </div>
 
-              <div className="p-3 bg-blue-50 rounded-lg">
-                <div className="flex items-center gap-2 mb-1">
-                  <DollarSign className="h-4 w-4 text-blue-600" />
-                  <p className="text-xs text-blue-900">Média</p>
+                <div className="rounded-2xl border border-border/60 bg-sky-500/10 p-4 shadow-sm">
+                  <div className="mb-2 flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-sky-500" />
+                    <p className="text-xs font-medium text-sky-500">Média</p>
+                  </div>
+                  <p className="text-sm font-semibold text-foreground">Retorno Médio</p>
+                  <p className="text-xs text-sky-500">{report.performance.avgReturn.toFixed(2)}%</p>
                 </div>
-                <p className="text-sm font-semibold">Retorno Médio</p>
-                <p className="text-xs text-blue-600">
-                  {report.performance.avgReturn.toFixed(2)}%
-                </p>
               </div>
-            </div>
-          </div>
+            </section>
 
-          <Separator />
+            <Separator className="bg-border/60" />
 
-          {/* Dividends */}
-          <div>
-            <h4 className="font-semibold mb-3">Dividendos</h4>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Total Recebido</p>
-                <p className="text-lg font-bold text-green-600">
-                  {formatCurrency(report.dividends.totalReceived)}
-                </p>
+            <section className="space-y-3">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Dividendos
+              </h4>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-2xl border border-border/60 bg-muted/40 p-4 shadow-sm">
+                  <p className="text-xs text-muted-foreground">Total Recebido</p>
+                  <p className="mt-2 text-lg font-semibold text-emerald-500">
+                    {formatCurrency(report.dividends.totalReceived)}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-muted/40 p-4 shadow-sm">
+                  <p className="text-xs text-muted-foreground">Pagamentos</p>
+                  <p className="mt-2 text-lg font-semibold text-foreground">
+                    {report.dividends.count}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-muted/40 p-4 shadow-sm">
+                  <p className="text-xs text-muted-foreground">Yield on Cost</p>
+                  <p className="mt-2 text-lg font-semibold text-foreground">
+                    {report.dividends.yieldOnCost.toFixed(2)}%
+                  </p>
+                </div>
               </div>
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Pagamentos</p>
-                <p className="text-lg font-bold">{report.dividends.count}</p>
-              </div>
-              <div className="p-3 bg-gray-50 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">Yield on Cost</p>
-                <p className="text-lg font-bold">{report.dividends.yieldOnCost.toFixed(2)}%</p>
-              </div>
-            </div>
-          </div>
+            </section>
 
-          <Separator />
+            <Separator className="bg-border/60" />
 
-          {/* Transactions */}
-          <div>
-            <h4 className="font-semibold mb-3">Transações no Período</h4>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-3 bg-gray-50 rounded-lg text-center">
-                <p className="text-xs text-muted-foreground mb-1">Compras</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {report.transactions.buys.length}
-                </p>
+            <section className="space-y-3">
+              <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Transações no Período
+              </h4>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="rounded-2xl border border-border/60 bg-muted/40 p-4 text-center shadow-sm">
+                  <p className="text-xs text-muted-foreground">Compras</p>
+                  <p className="mt-2 text-2xl font-semibold text-emerald-500">
+                    {report.transactions.buys.length}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-muted/40 p-4 text-center shadow-sm">
+                  <p className="text-xs text-muted-foreground">Vendas</p>
+                  <p className="mt-2 text-2xl font-semibold text-rose-500">
+                    {report.transactions.sells.length}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-border/60 bg-muted/40 p-4 text-center shadow-sm">
+                  <p className="text-xs text-muted-foreground">Dividendos</p>
+                  <p className="mt-2 text-2xl font-semibold text-sky-500">
+                    {report.transactions.dividends.length}
+                  </p>
+                </div>
               </div>
-              <div className="p-3 bg-gray-50 rounded-lg text-center">
-                <p className="text-xs text-muted-foreground mb-1">Vendas</p>
-                <p className="text-2xl font-bold text-red-600">
-                  {report.transactions.sells.length}
-                </p>
-              </div>
-              <div className="p-3 bg-gray-50 rounded-lg text-center">
-                <p className="text-xs text-muted-foreground mb-1">Dividendos</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  {report.transactions.dividends.length}
-                </p>
-              </div>
-            </div>
+            </section>
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="border-t border-border/60 px-6 py-4">
           <Button variant="outline" onClick={() => setOpen(false)}>
             Fechar
           </Button>

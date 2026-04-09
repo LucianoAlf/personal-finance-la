@@ -66,7 +66,7 @@ export function MonthSelector({ selectedDate, onDateChange, className = '' }: Mo
           variant="ghost"
           size="icon"
           onClick={handlePreviousMonth}
-          className="h-8 w-8"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground dark:h-10 dark:w-10 dark:rounded-xl dark:border dark:border-border/60 dark:bg-surface/65 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:hover:border-primary/20 dark:hover:bg-surface-elevated dark:hover:text-foreground"
         >
           <ChevronLeft size={16} />
         </Button>
@@ -74,7 +74,7 @@ export function MonthSelector({ selectedDate, onDateChange, className = '' }: Mo
         <Button
           variant="outline"
           onClick={() => setMonthModalOpen(true)}
-          className="px-4 py-2 bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 font-medium min-w-[180px]"
+          className="min-w-[180px] rounded-xl border border-purple-200 bg-purple-50 px-4 py-2 font-medium text-purple-700 shadow-sm transition-all hover:bg-purple-100 dark:border-border/70 dark:bg-surface-elevated/95 dark:px-5 dark:text-foreground dark:shadow-[0_14px_34px_rgba(3,8,20,0.24)] dark:hover:border-primary/20 dark:hover:bg-surface-overlay dark:hover:text-foreground"
         >
           {formatMonthYear(selectedDate)}
         </Button>
@@ -83,7 +83,7 @@ export function MonthSelector({ selectedDate, onDateChange, className = '' }: Mo
           variant="ghost"
           size="icon"
           onClick={handleNextMonth}
-          className="h-8 w-8"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground dark:h-10 dark:w-10 dark:rounded-xl dark:border dark:border-border/60 dark:bg-surface/65 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:hover:border-primary/20 dark:hover:bg-surface-elevated dark:hover:text-foreground"
         >
           <ChevronRight size={16} />
         </Button>

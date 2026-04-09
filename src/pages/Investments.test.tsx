@@ -127,8 +127,18 @@ vi.mock('@/hooks/usePortfolioMetrics', () => ({
 }));
 
 vi.mock('@/hooks/useDividendCalendar', () => ({
-  useDividendCalendar: () => [],
-  useDividendHistory: () => [],
+  useDividendCalendar: () => ({
+    monthlyBreakdown: [],
+    totalEstimated: 0,
+    next30Days: 0,
+    next90Days: 0,
+  }),
+  useDividendHistory: () => ({
+    transactions: [],
+    totalReceived: 0,
+    yearlyTotals: [],
+    count: 0,
+  }),
 }));
 
 vi.mock('@/hooks/useUserPreferences', () => ({
@@ -240,7 +250,7 @@ describe('Investments initial render', () => {
     render(
       <MemoryRouter initialEntries={['/investimentos']}>
         <Investments />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     expect(screen.getByText('Investimentos')).not.toBeNull();
@@ -253,12 +263,39 @@ describe('Investments initial render', () => {
     render(
       <MemoryRouter initialEntries={['/investimentos']}>
         <Investments />
-      </MemoryRouter>,
+      </MemoryRouter>
     );
 
     expect(screen.queryByText('investment-dialog-mounted')).toBeNull();
     expect(screen.queryByText('investment-transaction-dialog-mounted')).toBeNull();
     expect(screen.queryByText('investment-alert-dialog-mounted')).toBeNull();
     expect(screen.getByText('investment-report-trigger')).not.toBeNull();
+  });
+
+  it('renders the investment navigation with correct semantic labels', () => {
+    render(
+      <MemoryRouter initialEntries={['/investimentos']}>
+        <Investments />
+      </MemoryRouter>
+    );
+
+    expect(screen.getAllByText('Portfólio').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Transações').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Dividendos').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Alertas').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Visão Geral').length).toBeGreaterThan(0);
+  });
+
+  it('renders the portfolio shell with the expected premium sections', () => {
+    render(
+      <MemoryRouter initialEntries={['/investimentos']}>
+        <Investments />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Minha carteira')).not.toBeNull();
+    expect(screen.getAllByText('Investimentos').length).toBeGreaterThan(0);
+    expect(screen.getByText('Adicionar')).not.toBeNull();
+    expect(screen.getByText('portfolio-summary-mounted')).not.toBeNull();
   });
 });

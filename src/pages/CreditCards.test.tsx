@@ -7,12 +7,13 @@ import { MemoryRouter } from 'react-router-dom';
 
 import { CreditCards } from './CreditCards';
 
-const { useInvoicesMock } = vi.hoisted(() => ({
+const { useInvoicesMock, statCardCalls } = vi.hoisted(() => ({
   useInvoicesMock: vi.fn(() => ({
     invoices: [{ id: 'inv-1', credit_card_id: 'card-1' }],
     invoicesDetailed: [],
     getCurrentMonthInvoicesTotal: () => ({ total: 245, count: 1, monthName: 'Abril' }),
   })),
+  statCardCalls: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock('@/components/layout/Header', () => ({
@@ -77,13 +78,36 @@ vi.mock('@/hooks/use-toast', () => ({
 }));
 
 vi.mock('@/components/dashboard/StatCard', () => ({
-  StatCard: ({ title, value, subtitle }: { title: string; value: string; subtitle?: string }) => (
-    <div>
+  StatCard: ({
+    title,
+    value,
+    subtitle,
+    valueClassName,
+    iconBoxClassName,
+    iconClassName,
+  }: {
+    title: string;
+    value: string;
+    subtitle?: string;
+    valueClassName?: string;
+    iconBoxClassName?: string;
+    iconClassName?: string;
+  }) => {
+    statCardCalls.push({ title, valueClassName, iconBoxClassName, iconClassName });
+
+    return (
+    <div
+      data-testid={`stat-card-${title}`}
+      data-value-class={valueClassName || ''}
+      data-icon-box-class={iconBoxClassName || ''}
+      data-icon-class={iconClassName || ''}
+    >
       <div>{title}</div>
       <div>{value}</div>
       {subtitle ? <div>{subtitle}</div> : null}
     </div>
-  ),
+    );
+  },
 }));
 
 vi.mock('@/components/credit-cards/CreditCardAlerts', () => ({
@@ -134,6 +158,7 @@ describe('CreditCards initial render', () => {
   afterEach(() => {
     cleanup();
     useInvoicesMock.mockClear();
+    statCardCalls.length = 0;
   });
 
   it('does not mount closed heavy dialogs on initial render', () => {
@@ -164,5 +189,28 @@ describe('CreditCards initial render', () => {
     expect(screen.getByText('R$ 200.00')).not.toBeNull();
     expect(screen.getByText('Abril • 1 cartão')).not.toBeNull();
     expect(useInvoicesMock).not.toHaveBeenCalled();
+  });
+  it('renders the page shell with the premium tokenized surface', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/cartoes']}>
+        <CreditCards />
+      </MemoryRouter>,
+    );
+
+    const root = container.firstElementChild as HTMLElement | null;
+    expect(root?.className).toContain('bg-background');
+    expect(root?.className).toContain('text-foreground');
+  });
+
+  it('keeps the top stat icons at the same semantic scale as the dashboard system', () => {
+    render(
+      <MemoryRouter initialEntries={['/cartoes']}>
+        <CreditCards />
+      </MemoryRouter>,
+    );
+
+    const totalLimitCard = screen.getByTestId('stat-card-Limite Total');
+    expect(totalLimitCard.getAttribute('data-icon-box-class')).toBe('');
+    expect(totalLimitCard.getAttribute('data-icon-class')).toBe('');
   });
 });

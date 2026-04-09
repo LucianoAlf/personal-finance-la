@@ -75,6 +75,11 @@ export function AdvancedFiltersModal({
   onApplyFilters,
   currentFilters,
 }: AdvancedFiltersModalProps) {
+  const primaryButtonClass =
+    'rounded-xl border border-primary/25 bg-primary text-primary-foreground shadow-[0_16px_34px_rgba(139,92,246,0.24)] hover:bg-primary/90';
+
+  const sectionLabelClass = 'text-sm font-medium text-foreground';
+
   // ESTADO DO FILTRO
   const [filters, setFilters] = useState<FilterConfig>(() => cloneFilterConfig(currentFilters));
 
@@ -147,17 +152,24 @@ export function AdvancedFiltersModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">Filtro de transações</DialogTitle>
+      <DialogContent className="max-h-[90vh] overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl sm:max-w-[540px]">
+        <DialogHeader className="border-b border-border/60 px-6 py-5">
+          <DialogTitle className="text-[1.65rem] font-semibold tracking-tight text-foreground">Filtro de transações</DialogTitle>
         </DialogHeader>
 
+        <div className="px-6 py-5">
         <Tabs defaultValue="new" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="new" className="data-[state=active]:text-purple-600">
+          <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-border/70 bg-surface-elevated/70 p-1">
+            <TabsTrigger
+              value="new"
+              className="rounded-xl px-4 py-3 text-sm font-semibold tracking-[0.12em] text-muted-foreground transition-colors data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
+            >
               NOVO FILTRO
             </TabsTrigger>
-            <TabsTrigger value="saved" className="data-[state=active]:text-purple-600">
+            <TabsTrigger
+              value="saved"
+              className="rounded-xl px-4 py-3 text-sm font-semibold tracking-[0.12em] text-muted-foreground transition-colors data-[state=active]:bg-surface data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/20"
+            >
               FILTROS SALVOS
             </TabsTrigger>
           </TabsList>
@@ -169,13 +181,13 @@ export function AdvancedFiltersModal({
               <div className="grid grid-cols-2 gap-4">
                 {/* Data DE */}
                 <div className="space-y-2">
-                  <Label className="text-sm text-gray-600">De</Label>
+                  <Label className={sectionLabelClass}>De</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         className={cn(
-                          'w-full justify-start text-left font-normal',
+                          'h-11 w-full justify-start rounded-xl border-border/70 bg-surface/80 text-left font-normal shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/70 dark:hover:bg-surface-overlay',
                           !filters.dateRange.from && 'text-muted-foreground'
                         )}
                       >
@@ -206,13 +218,13 @@ export function AdvancedFiltersModal({
 
                 {/* Data ATÉ */}
                 <div className="space-y-2">
-                  <Label className="text-sm text-gray-600">Até</Label>
+                  <Label className={sectionLabelClass}>Até</Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         className={cn(
-                          'w-full justify-start text-left font-normal',
+                          'h-11 w-full justify-start rounded-xl border-border/70 bg-surface/80 text-left font-normal shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/70 dark:hover:bg-surface-overlay',
                           !filters.dateRange.to && 'text-muted-foreground'
                         )}
                       >
@@ -245,7 +257,7 @@ export function AdvancedFiltersModal({
 
             {/* CATEGORIAS */}
             <div className="space-y-2">
-              <Label className="text-sm text-gray-600">Categorias</Label>
+              <Label className={sectionLabelClass}>Categorias</Label>
               <CategoryMultiSelect
                 selectedIds={filters.categories}
                 onSelectionChange={(ids) =>
@@ -256,7 +268,7 @@ export function AdvancedFiltersModal({
 
             {/* CONTAS: apenas contas em `accounts`; lançamentos de cartão não têm account_id correspondente. */}
             <div className="space-y-2">
-              <Label className="text-sm text-gray-600">Contas</Label>
+              <Label className={sectionLabelClass}>Contas</Label>
               <p className="text-xs text-muted-foreground">
                 Somente lançamentos da conta bancária. Compras no cartão não entram neste filtro.
               </p>
@@ -270,7 +282,7 @@ export function AdvancedFiltersModal({
 
             {/* TAGS: mesmas tags canônicas em conta e em cartão */}
             <div className="space-y-2">
-              <Label className="text-sm text-gray-600">Tags</Label>
+              <Label className={sectionLabelClass}>Tags</Label>
               <TagMultiSelect
                 selectedTags={filters.tags}
                 onSelectionChange={(tags) =>
@@ -281,7 +293,7 @@ export function AdvancedFiltersModal({
 
             {/* SITUAÇÕES */}
             <div className="space-y-2">
-              <Label className="text-sm text-gray-600">Situações</Label>
+              <Label className={sectionLabelClass}>Situações</Label>
               <StatusMultiSelect
                 selectedStatuses={filters.statuses}
                 onSelectionChange={(statuses) =>
@@ -292,7 +304,7 @@ export function AdvancedFiltersModal({
 
             {/* TIPOS */}
             <div className="space-y-2">
-              <Label className="text-sm text-gray-600">Tipos</Label>
+              <Label className={sectionLabelClass}>Tipos</Label>
               <TypeMultiSelect
                 selectedTypes={filters.types}
                 onSelectionChange={(types) =>
@@ -302,8 +314,8 @@ export function AdvancedFiltersModal({
             </div>
 
             {/* SALVAR FILTRO PERSONALIZADO */}
-            <div className="flex items-center justify-between pt-4 border-t">
-              <Label htmlFor="save-filter" className="text-sm font-normal text-gray-700">
+            <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-surface-elevated/45 px-4 py-3">
+              <Label htmlFor="save-filter" className="text-sm font-medium text-foreground">
                 Salvar filtro personalizado
               </Label>
               <Switch
@@ -316,7 +328,7 @@ export function AdvancedFiltersModal({
             {/* CAMPO DESCRIÇÃO (quando toggle ativo) */}
             {saveFilter && (
               <div className="space-y-2">
-                <Label htmlFor="filter-name" className="text-sm text-purple-600">
+                <Label htmlFor="filter-name" className="text-sm font-medium text-primary">
                   Descrição
                 </Label>
                 <Input
@@ -324,7 +336,7 @@ export function AdvancedFiltersModal({
                   placeholder="Ex: Despesas de Novembro"
                   value={filterName}
                   onChange={(e) => setFilterName(e.target.value)}
-                  className="border-purple-200 focus:border-purple-500"
+                  className="h-11 rounded-xl border-border/70 bg-surface/80 focus-visible:border-primary dark:bg-surface-elevated/70"
                 />
               </div>
             )}
@@ -333,9 +345,9 @@ export function AdvancedFiltersModal({
           {/* ABA: FILTROS SALVOS */}
           <TabsContent value="saved" className="space-y-4 mt-6">
             {savedFilters.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                <p className="text-sm">Nenhum filtro salvo ainda</p>
-                <p className="text-xs mt-2">
+              <div className="rounded-[24px] border border-dashed border-border/70 bg-surface-elevated/40 px-6 py-12 text-center text-muted-foreground">
+                <p className="text-sm font-medium text-foreground">Nenhum filtro salvo ainda</p>
+                <p className="mt-2 text-xs">
                   Crie um filtro personalizado na aba "Novo Filtro"
                 </p>
               </div>
@@ -344,42 +356,42 @@ export function AdvancedFiltersModal({
                 {savedFilters.map((savedFilter) => (
                   <div
                     key={savedFilter.id}
-                    className="p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className="rounded-[22px] border border-border/70 bg-surface-elevated/55 p-4 shadow-[0_12px_28px_rgba(2,6,23,0.14)] transition-colors hover:bg-surface-overlay/70 dark:shadow-[0_12px_26px_rgba(2,6,23,0.26)]"
                   >
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900 mb-1">
+                        <h3 className="mb-1 text-base font-semibold text-foreground">
                           {savedFilter.name}
                         </h3>
                         <div className="flex flex-wrap gap-2 text-xs">
                           {/* Resumo do filtro */}
                           {(savedFilter.filter_config.dateRange.from || savedFilter.filter_config.dateRange.to) && (
-                            <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                            <span className="inline-flex items-center rounded-full border border-sky-500/20 bg-sky-500/12 px-2.5 py-1 font-medium text-sky-600 dark:text-sky-300">
                               📅 Período
                             </span>
                           )}
                           {savedFilter.filter_config.categories.length > 0 && (
-                            <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
+                            <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/12 px-2.5 py-1 font-medium text-emerald-600 dark:text-emerald-300">
                               🏷️ {savedFilter.filter_config.categories.length} cat.
                             </span>
                           )}
                           {savedFilter.filter_config.accounts.length > 0 && (
-                            <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded">
+                            <span className="inline-flex items-center rounded-full border border-amber-500/20 bg-amber-500/12 px-2.5 py-1 font-medium text-amber-600 dark:text-amber-300">
                               💳 {savedFilter.filter_config.accounts.length} contas
                             </span>
                           )}
                           {savedFilter.filter_config.tags.length > 0 && (
-                            <span className="px-2 py-1 bg-pink-100 text-pink-700 rounded">
+                            <span className="inline-flex items-center rounded-full border border-pink-500/20 bg-pink-500/12 px-2.5 py-1 font-medium text-pink-600 dark:text-pink-300">
                               🔖 {savedFilter.filter_config.tags.length} tags
                             </span>
                           )}
                           {savedFilter.filter_config.statuses.length > 0 && (
-                            <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded">
+                            <span className="inline-flex items-center rounded-full border border-yellow-500/20 bg-yellow-500/12 px-2.5 py-1 font-medium text-yellow-700 dark:text-yellow-300">
                               ⚡ {savedFilter.filter_config.statuses.length} sit.
                             </span>
                           )}
                           {savedFilter.filter_config.types.length > 0 && (
-                            <span className="px-2 py-1 bg-indigo-100 text-indigo-700 rounded">
+                            <span className="inline-flex items-center rounded-full border border-indigo-500/20 bg-indigo-500/12 px-2.5 py-1 font-medium text-indigo-600 dark:text-indigo-300">
                               📊 {savedFilter.filter_config.types.length} tipos
                             </span>
                           )}
@@ -390,7 +402,7 @@ export function AdvancedFiltersModal({
                         variant="ghost"
                         size="icon"
                         onClick={() => handleDeleteSavedFilter(savedFilter.id)}
-                        className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        className="rounded-xl text-danger hover:bg-danger/10 hover:text-danger"
                       >
                         <X size={16} />
                       </Button>
@@ -398,7 +410,7 @@ export function AdvancedFiltersModal({
 
                     <Button
                       onClick={() => handleLoadSavedFilter(savedFilter)}
-                      className="w-full bg-purple-500 hover:bg-purple-600"
+                      className={cn('h-11 w-full', primaryButtonClass)}
                       size="sm"
                     >
                       Aplicar este filtro
@@ -411,11 +423,11 @@ export function AdvancedFiltersModal({
         </Tabs>
 
         {/* BOTÕES */}
-        <div className="flex justify-between pt-6 border-t">
+        <div className="mt-6 flex justify-between border-t border-border/60 pt-5">
           <Button
             variant="outline"
             onClick={handleCancel}
-            className="text-purple-600 border-purple-200 hover:bg-purple-50"
+            className="rounded-xl border-border/70 bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
           >
             CANCELAR
           </Button>
@@ -423,17 +435,18 @@ export function AdvancedFiltersModal({
             <Button
               variant="outline"
               onClick={handleClearFilters}
-              className="text-gray-600"
+              className="rounded-xl border-border/70 bg-surface/70 text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
             >
               LIMPAR
             </Button>
             <Button
               onClick={handleApply}
-              className="bg-purple-500 hover:bg-purple-600"
+              className={primaryButtonClass}
             >
               APLICAR FILTROS
             </Button>
           </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>

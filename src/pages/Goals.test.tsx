@@ -299,4 +299,55 @@ describe('Goals initial render', () => {
     expect(screen.getByText('Economia')).not.toBeNull();
     expect(screen.queryByText('savings-goal-card-mounted')).toBeNull();
   });
+
+  it('uses the premium page shell with semantic summaries and corrected visible copy', () => {
+    const { container } = render(
+      <MemoryRouter initialEntries={['/metas']}>
+        <Goals />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Metas Financeiras')).not.toBeNull();
+    expect(screen.getByText('Metas ativas de patrimônio')).not.toBeNull();
+    expect(screen.getByText('Planejamento Mensal')).not.toBeNull();
+    expect(screen.getByText('Configurações')).not.toBeNull();
+    expect(container.firstElementChild?.className).toContain('bg-background');
+  });
+
+  it('renders the progress tab inside a premium shell instead of an old generic card', () => {
+    useGamificationMock.mockReturnValue({
+      profile: {
+        id: 'profile-1',
+        user_id: 'user-1',
+        level: 3,
+        xp: 68,
+        total_xp: 450,
+        current_streak: 1,
+        best_streak: 3,
+        total_badges_earned: 2,
+        last_activity_date: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+      badges: [],
+      unlockedBadges: [],
+      xpForNextLevel: 519,
+      xpProgress: 13,
+      levelTitle: 'Iniciante',
+      loading: false,
+      celebrationQueue: [],
+      showCelebration: false,
+      dismissCelebration: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/metas?tab=progress']}>
+        <Goals />
+      </MemoryRouter>,
+    );
+
+    const shell = screen.getByTestId('goals-progress-shell');
+    expect(shell.className).toContain('bg-surface');
+    expect(shell.className).toContain('rounded-[28px]');
+  });
 });

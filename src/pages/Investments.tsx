@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,31 +33,54 @@ import { DiversificationScoreCard } from '@/components/investments/Diversificati
 import { PerformanceHeatMap } from '@/components/investments/PerformanceHeatMap';
 import { BenchmarkComparison } from '@/components/investments/BenchmarkComparison';
 import { InvestmentReportDialog } from '@/components/investments/InvestmentReportDialog';
-import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDividendCalendar, useDividendHistory } from '@/hooks/useDividendCalendar';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
-import { Plus, TrendingUp, TrendingDown, Loader2, BarChart3, ArrowLeftRight, Bell, DollarSign } from 'lucide-react';
-import type { CreateInvestmentInput, UpdateInvestmentInput, CreateTransactionInput } from '@/types/database.types';
+import {
+  Plus,
+  TrendingUp,
+  Loader2,
+  BarChart3,
+  ArrowLeftRight,
+  Bell,
+  DollarSign,
+} from 'lucide-react';
+import type { CreateInvestmentInput, CreateTransactionInput } from '@/types/database.types';
 import {
   resolveInvestmentDisplayPrice,
   resolveInvestmentDisplayValue,
   resolveInvestmentTotalInvested,
 } from '@/utils/investments/pricing';
-import {
-  buildInvestmentPriceItems,
-  buildOverviewPlanningDefaults,
-} from '@/utils/investments/overview';
+import { buildInvestmentPriceItems, buildOverviewPlanningDefaults } from '@/utils/investments/overview';
+
+const investmentTabsListClassName =
+  'grid h-auto w-full grid-cols-5 rounded-[1.4rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)]';
+
+const investmentTabsTriggerClassName =
+  'flex items-center justify-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15';
+
+const investmentsPrimaryButtonClass =
+  'h-11 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_14px_28px_rgba(139,92,246,0.24)] hover:bg-primary/90';
+
+const investmentsSecondaryButtonClass =
+  'h-11 rounded-xl border border-border/70 bg-surface/85 px-4 text-sm font-semibold text-foreground shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay';
+
+const investmentsPanelCardClassName =
+  'border-border/70 bg-card/95 shadow-[0_18px_44px_rgba(15,23,42,0.08)] dark:shadow-[0_22px_46px_rgba(2,6,23,0.24)]';
 
 export function Investments() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { investments, loading, refresh, addInvestment, updateInvestment, deleteInvestment } = useInvestments();
+  const { investments, loading, refresh, addInvestment, updateInvestment } = useInvestments();
   const { goals: investmentGoals } = useInvestmentGoals({ lightweight: true });
-  const { transactions, addTransaction, deleteTransaction, refresh: refreshTransactions } =
-    useInvestmentTransactions({ autoLoad: false });
+  const {
+    transactions,
+    addTransaction,
+    deleteTransaction,
+    refresh: refreshTransactions,
+  } = useInvestmentTransactions({ autoLoad: false });
   const { alerts, addAlert, deleteAlert, toggleAlert } = useInvestmentAlerts();
   const { formatCurrency } = useUserPreferences();
-  
+
   const [investmentDialogOpen, setInvestmentDialogOpen] = useState(false);
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
@@ -85,7 +109,6 @@ export function Investments() {
 
   const priceItems = useMemo(() => buildInvestmentPriceItems(investments), [investments]);
 
-  // Hook de cotações em tempo real
   const {
     quotes,
     loading: quotesLoading,
@@ -111,6 +134,7 @@ export function Investments() {
       }),
     [investments, quotes]
   );
+
   const metrics = usePortfolioMetrics(investmentsWithMarketData);
   const dividendCalendar = useDividendCalendar({ investments: investmentsWithMarketData, transactions });
   const dividendHistory = useDividendHistory(transactions);
@@ -125,9 +149,9 @@ export function Investments() {
       }),
     [investmentGoals, metrics.currentValue, selectedGoalId]
   );
+
   const { selectedGoal, planningYears, monthlyContribution: planningContribution } = planningDefaults;
 
-  // Handlers
   const handleSaveInvestment = async (data: any) => {
     if (editingInvestment) {
       await updateInvestment(editingInvestment.id, data);
@@ -154,120 +178,20 @@ export function Investments() {
   };
 
   const headerActions = (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center justify-end gap-3">
       <MarketStatus />
-      <PriceUpdater
-        onRefresh={refreshPrices}
-        lastUpdate={lastUpdate}
-        loading={quotesLoading}
-      />
+      <PriceUpdater onRefresh={refreshPrices} lastUpdate={lastUpdate} loading={quotesLoading} />
       <InvestmentReportDialog
         investments={investments}
         transactions={transactions}
         onPrefetchTransactions={() => void refreshTransactions()}
       />
-      <Button
-        size="sm"
-        onClick={openNewInvestmentDialog}
-      >
+      <Button size="sm" onClick={openNewInvestmentDialog} className={investmentsPrimaryButtonClass}>
         <Plus size={16} className="mr-1" />
         Novo Investimento
       </Button>
     </div>
   );
-
-  // Loading state
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Header
-          title="Investimentos"
-          subtitle="Acompanhe sua carteira de investimentos"
-          icon={<TrendingUp size={24} />}
-          actions={headerActions}
-        />
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <Card key={index} className="animate-pulse">
-                <CardContent className="p-6 space-y-3">
-                  <div className="h-4 w-28 rounded bg-gray-200" />
-                  <div className="h-8 w-36 rounded bg-gray-200" />
-                  <div className="h-3 w-32 rounded bg-gray-100" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-5">
-              <TabsTrigger value="portfolio">
-                <BarChart3 className="mr-2 h-4 w-4" />
-                Portfólio
-              </TabsTrigger>
-              <TabsTrigger value="transactions">
-                <ArrowLeftRight className="mr-2 h-4 w-4" />
-                Transações
-              </TabsTrigger>
-              <TabsTrigger value="dividends">
-                <DollarSign className="mr-2 h-4 w-4" />
-                Dividendos
-              </TabsTrigger>
-              <TabsTrigger value="alerts">
-                <Bell className="mr-2 h-4 w-4" />
-                Alertas
-              </TabsTrigger>
-              <TabsTrigger value="overview">Visão Geral</TabsTrigger>
-            </TabsList>
-
-            <Card>
-              <CardContent className="p-10 text-center text-gray-500">
-                <Loader2 className="h-8 w-8 animate-spin text-purple-600 mx-auto mb-4" />
-                <p>Carregando investimentos...</p>
-              </CardContent>
-            </Card>
-          </Tabs>
-        </div>
-      </div>
-    );
-  }
-
-  // Empty state
-  if (investments.length === 0) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        {investmentDialogOpen ? (
-          <InvestmentDialog
-            open={investmentDialogOpen}
-            onOpenChange={setInvestmentDialogOpen}
-            investment={editingInvestment}
-            onSave={handleSaveInvestment}
-          />
-        ) : null}
-        <Header
-          title="Investimentos"
-          subtitle="Acompanhe sua carteira de investimentos"
-          icon={<TrendingUp size={24} />}
-          actions={headerActions}
-        />
-        <div className="p-6">
-          <Card className="p-12 text-center">
-            <div className="mb-4">
-              <TrendingUp size={48} className="mx-auto text-gray-400" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Nenhum investimento cadastrado</h3>
-            <p className="text-gray-600 mb-6">
-              Comece a construir seu portfólio adicionando seu primeiro investimento
-            </p>
-            <Button onClick={openNewInvestmentDialog}>
-              <Plus size={16} className="mr-2" />
-              Adicionar Primeiro Investimento
-            </Button>
-          </Card>
-        </div>
-      </div>
-    );
-  }
 
   const getTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
@@ -281,8 +205,106 @@ export function Investments() {
     return labels[type] || type;
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header
+          title="Investimentos"
+          subtitle="Acompanhe sua carteira de investimentos"
+          icon={<TrendingUp size={24} />}
+          actions={headerActions}
+        />
+
+        <div className="space-y-6 px-5 pb-10 pt-6 sm:px-6">
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <Card key={index} className={`animate-pulse ${investmentsPanelCardClassName}`}>
+                <CardContent className="space-y-3 p-6">
+                  <div className="h-4 w-28 rounded bg-muted" />
+                  <div className="h-8 w-36 rounded bg-muted" />
+                  <div className="h-3 w-32 rounded bg-muted/70" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className={investmentTabsListClassName}>
+              <TabsTrigger value="portfolio" className={investmentTabsTriggerClassName}>
+                <BarChart3 className="h-4 w-4" />
+                Portfólio
+              </TabsTrigger>
+              <TabsTrigger value="transactions" className={investmentTabsTriggerClassName}>
+                <ArrowLeftRight className="h-4 w-4" />
+                Transações
+              </TabsTrigger>
+              <TabsTrigger value="dividends" className={investmentTabsTriggerClassName}>
+                <DollarSign className="h-4 w-4" />
+                Dividendos
+              </TabsTrigger>
+              <TabsTrigger value="alerts" className={investmentTabsTriggerClassName}>
+                <Bell className="h-4 w-4" />
+                Alertas
+              </TabsTrigger>
+              <TabsTrigger value="overview" className={investmentTabsTriggerClassName}>
+                Visão Geral
+              </TabsTrigger>
+            </TabsList>
+
+            <Card className={investmentsPanelCardClassName}>
+              <CardContent className="p-10 text-center text-muted-foreground">
+                <Loader2 className="mx-auto mb-4 h-8 w-8 animate-spin text-primary" />
+                <p>Carregando investimentos...</p>
+              </CardContent>
+            </Card>
+          </Tabs>
+        </div>
+      </div>
+    );
+  }
+
+  if (investments.length === 0) {
+    return (
+      <div className="min-h-screen bg-background">
+        {investmentDialogOpen ? (
+          <InvestmentDialog
+            open={investmentDialogOpen}
+            onOpenChange={setInvestmentDialogOpen}
+            investment={editingInvestment}
+            onSave={handleSaveInvestment}
+          />
+        ) : null}
+
+        <Header
+          title="Investimentos"
+          subtitle="Acompanhe sua carteira de investimentos"
+          icon={<TrendingUp size={24} />}
+          actions={headerActions}
+        />
+
+        <div className="px-5 pb-10 pt-6 sm:px-6">
+          <Card className={`${investmentsPanelCardClassName} p-12 text-center`}>
+            <div className="mb-4">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full border border-border/70 bg-surface shadow-sm">
+                <TrendingUp size={28} className="text-primary" />
+              </div>
+            </div>
+            <h3 className="mb-2 text-xl font-semibold">Nenhum investimento cadastrado</h3>
+            <p className="mb-6 text-muted-foreground">
+              Comece a construir seu portfólio adicionando seu primeiro investimento.
+            </p>
+            <Button onClick={openNewInvestmentDialog} className={investmentsPrimaryButtonClass}>
+              <Plus size={16} className="mr-2" />
+              Adicionar primeiro investimento
+            </Button>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Header
         title="Investimentos"
         subtitle="Acompanhe sua carteira de investimentos"
@@ -290,8 +312,7 @@ export function Investments() {
         actions={headerActions}
       />
 
-      <div className="p-6 space-y-6">
-        {/* Dialogs */}
+      <div className="space-y-6 px-5 pb-10 pt-6 sm:px-6">
         {investmentDialogOpen ? (
           <InvestmentDialog
             open={investmentDialogOpen}
@@ -310,36 +331,43 @@ export function Investments() {
         ) : null}
 
         {alertDialogOpen ? (
-          <AlertDialog
-            open={alertDialogOpen}
-            onOpenChange={setAlertDialogOpen}
-            onSave={addAlert}
-          />
+          <AlertDialog open={alertDialogOpen} onOpenChange={setAlertDialogOpen} onSave={addAlert} />
         ) : null}
 
         {selectedGoal && (
-          <Card className="border-purple-200 bg-purple-50/50">
-            <CardContent className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm text-purple-700 font-medium">Contexto da meta</p>
-                <h2 className="text-lg font-semibold">{selectedGoal.name}</h2>
+          <Card className="border-primary/20 bg-gradient-to-r from-primary/6 via-background to-background shadow-[0_18px_44px_rgba(15,23,42,0.08)] dark:border-primary/15 dark:from-primary/10 dark:via-card dark:to-card">
+            <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
+              <div className="space-y-1.5">
+                <p className="text-sm font-semibold text-primary">Contexto da meta</p>
+                <h2 className="text-lg font-semibold text-foreground">{selectedGoal.name}</h2>
                 <p className="text-sm text-muted-foreground">
-                  A carteira vinculada cobre {formatCurrency(selectedGoal.metrics?.effective_current_amount ?? selectedGoal.current_amount)} de {formatCurrency(selectedGoal.target_amount)}.
+                  A carteira vinculada cobre{' '}
+                  {formatCurrency(
+                    selectedGoal.metrics?.effective_current_amount ?? selectedGoal.current_amount
+                  )}{' '}
+                  de {formatCurrency(selectedGoal.target_amount)}.
                 </p>
               </div>
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => navigate('/metas?tab=investments')}>
-                  Ver Meta
+
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="outline"
+                  className={investmentsSecondaryButtonClass}
+                  onClick={() => navigate('/metas?tab=investments')}
+                >
+                  Ver meta
                 </Button>
-                <Button onClick={() => setActiveTab('portfolio')}>
-                  Ver Ativos Vinculados
+                <Button
+                  className={investmentsPrimaryButtonClass}
+                  onClick={() => setActiveTab('portfolio')}
+                >
+                  Ver ativos vinculados
                 </Button>
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Resumo */}
         <PortfolioSummaryCards
           totalInvested={metrics.totalInvested}
           currentValue={metrics.currentValue}
@@ -347,144 +375,174 @@ export function Investments() {
           returnPercentage={metrics.returnPercentage}
         />
 
-        {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="portfolio">
-              <BarChart3 className="mr-2 h-4 w-4" />
+          <TabsList className={investmentTabsListClassName}>
+            <TabsTrigger value="portfolio" className={investmentTabsTriggerClassName}>
+              <BarChart3 className="h-4 w-4" />
               Portfólio
             </TabsTrigger>
-            <TabsTrigger value="transactions">
-              <ArrowLeftRight className="mr-2 h-4 w-4" />
+            <TabsTrigger value="transactions" className={investmentTabsTriggerClassName}>
+              <ArrowLeftRight className="h-4 w-4" />
               Transações
             </TabsTrigger>
-            <TabsTrigger value="dividends">
-              <DollarSign className="mr-2 h-4 w-4" />
+            <TabsTrigger value="dividends" className={investmentTabsTriggerClassName}>
+              <DollarSign className="h-4 w-4" />
               Dividendos
             </TabsTrigger>
-            <TabsTrigger value="alerts">
-              <Bell className="mr-2 h-4 w-4" />
+            <TabsTrigger value="alerts" className={investmentTabsTriggerClassName}>
+              <Bell className="h-4 w-4" />
               Alertas
             </TabsTrigger>
-            <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+            <TabsTrigger value="overview" className={investmentTabsTriggerClassName}>
+              Visão Geral
+            </TabsTrigger>
           </TabsList>
 
           {activeTab === 'portfolio' ? (
-          <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-portfolio">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold">Minha Carteira</h2>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setEditingInvestment(null);
-                  setInvestmentDialogOpen(true);
-                }}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Adicionar
-              </Button>
-            </div>
+            <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-portfolio">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Minha carteira</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Visão consolidada dos seus ativos, posições e vínculos com metas.
+                  </p>
+                </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Portfólio</CardTitle>
-              </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">Tipo</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">Símbolo</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">Quantidade</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">Preço Médio</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">Cotação</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">Total</th>
-                    <th className="text-right py-3 px-4 text-sm font-semibold text-gray-900">Rentabilidade</th>
-                    <th className="text-left py-3 px-4 text-sm font-semibold text-gray-900">Metas</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {investmentsWithMarketData.map((investment) => {
-                    const totalInv = resolveInvestmentTotalInvested(investment);
-                    const totalCur = resolveInvestmentDisplayValue(investment);
-                    const gain = totalCur - totalInv;
-                    const percentG = totalInv > 0 ? (gain / totalInv) * 100 : 0;
+                <Button className={investmentsPrimaryButtonClass} onClick={openNewInvestmentDialog}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Adicionar
+                </Button>
+              </div>
 
-                    return (
-                      <tr key={investment.id} className="border-b hover:bg-gray-50">
-                        <td className="py-3 px-4 text-sm">{getTypeLabel(investment.type)}</td>
-                        <td className="py-3 px-4 text-sm font-medium">{investment.ticker || investment.name}</td>
-                        <td className="py-3 px-4 text-sm text-right">{investment.quantity}</td>
-                        <td className="py-3 px-4 text-sm text-right">
-                          {formatCurrency(investment.purchase_price)}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right">
-                          {formatCurrency(resolveInvestmentDisplayPrice(investment))}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-right font-medium">
-                          {formatCurrency(totalCur)}
-                        </td>
-                        <td
-                          className={`py-3 px-4 text-sm text-right font-semibold ${
-                            percentG >= 0 ? 'text-green-600' : 'text-red-600'
-                          }`}
-                        >
-                          {percentG >= 0 ? '+' : ''}
-                          {percentG.toFixed(2)}%
-                        </td>
-                        <td className="py-3 px-4 text-sm">
-                          <div className="flex flex-wrap gap-2">
-                            {(relatedGoalsByInvestment.get(investment.id) || []).length === 0 ? (
-                              <span className="text-muted-foreground">Sem vínculo</span>
-                            ) : (
-                              (relatedGoalsByInvestment.get(investment.id) || []).map((goal) => (
-                                <Badge
-                                  key={goal.id}
-                                  variant={goal.id === selectedGoalId ? 'default' : 'secondary'}
-                                  className="cursor-pointer"
-                                  onClick={() => navigate(`/metas?tab=investments`)}
-                                >
-                                  {goal.name}
-                                </Badge>
-                              ))
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <Card className={investmentsPanelCardClassName}>
+                <CardHeader className="border-b border-border/60 pb-5">
+                  <CardTitle className="text-2xl">Portfólio</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-[940px]">
+                      <thead className="bg-surface/65 text-muted-foreground">
+                        <tr className="border-b border-border/60">
+                          <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.22em]">
+                            Tipo
+                          </th>
+                          <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.22em]">
+                            Símbolo
+                          </th>
+                          <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
+                            Quantidade
+                          </th>
+                          <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
+                            Preço médio
+                          </th>
+                          <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
+                            Cotação
+                          </th>
+                          <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
+                            Total
+                          </th>
+                          <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
+                            Rentabilidade
+                          </th>
+                          <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.22em]">
+                            Metas
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {investmentsWithMarketData.map((investment) => {
+                          const totalInvested = resolveInvestmentTotalInvested(investment);
+                          const totalCurrent = resolveInvestmentDisplayValue(investment);
+                          const gain = totalCurrent - totalInvested;
+                          const gainPercentage =
+                            totalInvested > 0 ? (gain / totalInvested) * 100 : 0;
+                          const linkedGoals = relatedGoalsByInvestment.get(investment.id) || [];
+
+                          return (
+                            <tr
+                              key={investment.id}
+                              className="border-b border-border/60 transition-colors hover:bg-surface/65"
+                            >
+                              <td className="px-5 py-4 text-sm text-foreground">
+                                {getTypeLabel(investment.type)}
+                              </td>
+                              <td className="px-5 py-4 text-sm font-semibold text-foreground">
+                                {investment.ticker || investment.name}
+                              </td>
+                              <td className="px-5 py-4 text-right text-sm text-muted-foreground">
+                                {investment.quantity}
+                              </td>
+                              <td className="px-5 py-4 text-right text-sm text-muted-foreground">
+                                {formatCurrency(investment.purchase_price)}
+                              </td>
+                              <td className="px-5 py-4 text-right text-sm text-muted-foreground">
+                                {formatCurrency(resolveInvestmentDisplayPrice(investment))}
+                              </td>
+                              <td className="px-5 py-4 text-right text-sm font-semibold text-foreground">
+                                {formatCurrency(totalCurrent)}
+                              </td>
+                              <td
+                                className={`px-5 py-4 text-right text-sm font-semibold ${
+                                  gainPercentage >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                                }`}
+                              >
+                                {gainPercentage >= 0 ? '+' : ''}
+                                {gainPercentage.toFixed(2)}%
+                              </td>
+                              <td className="px-5 py-4 text-sm">
+                                <div className="flex flex-wrap gap-2">
+                                  {linkedGoals.length === 0 ? (
+                                    <span className="text-muted-foreground">Sem vínculo</span>
+                                  ) : (
+                                    linkedGoals.map((goal) => (
+                                      <Badge
+                                        key={goal.id}
+                                        variant={goal.id === selectedGoalId ? 'default' : 'secondary'}
+                                        className="cursor-pointer rounded-full"
+                                        onClick={() => navigate('/metas?tab=investments')}
+                                      >
+                                        {goal.name}
+                                      </Badge>
+                                    ))
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
-          </div>
           ) : null}
 
           {activeTab === 'transactions' ? (
-          <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-transactions">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold">Histórico de Transações</h2>
-              <Button
-                size="sm"
-                onClick={() => setTransactionDialogOpen(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Nova Transação
-              </Button>
-            </div>
+            <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-transactions">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Histórico de transações</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Acompanhe aportes, vendas, dividendos e movimentações do portfólio.
+                  </p>
+                </div>
 
-            <TransactionTimeline
-              transactions={transactions}
-              onDelete={handleDeleteTransaction}
-            />
-          </div>
+                <Button
+                  className={investmentsPrimaryButtonClass}
+                  onClick={() => setTransactionDialogOpen(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova transação
+                </Button>
+              </div>
+
+              <TransactionTimeline transactions={transactions} onDelete={handleDeleteTransaction} />
+            </div>
           ) : null}
 
           {activeTab === 'dividends' ? (
-          <div className="mt-2 space-y-6" role="tabpanel" aria-labelledby="tab-dividends">
-            <div className="space-y-6">
+            <div className="mt-2 space-y-6" role="tabpanel" aria-labelledby="tab-dividends">
               <DividendCalendar
                 monthlyBreakdown={dividendCalendar.monthlyBreakdown}
                 totalEstimated={dividendCalendar.totalEstimated}
@@ -499,81 +557,63 @@ export function Investments() {
                 count={dividendHistory.count}
               />
             </div>
-          </div>
           ) : null}
 
           {activeTab === 'alerts' ? (
-          <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-alerts">
-            <div className="flex justify-between items-center">
-              <h2 className="text-lg font-semibold">Alertas de Preço</h2>
-              <Button
-                size="sm"
-                onClick={() => setAlertDialogOpen(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Novo Alerta
-              </Button>
-            </div>
+            <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-alerts">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Alertas de preço</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Monitore oportunidades e riscos da carteira com alertas configuráveis.
+                  </p>
+                </div>
 
-            <AlertsList
-              alerts={alerts}
-              onDelete={deleteAlert}
-              onToggle={toggleAlert}
-            />
-          </div>
+                <Button
+                  className={investmentsPrimaryButtonClass}
+                  onClick={() => setAlertDialogOpen(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo alerta
+                </Button>
+              </div>
+
+              <AlertsList alerts={alerts} onDelete={deleteAlert} onToggle={toggleAlert} />
+            </div>
           ) : null}
 
           {activeTab === 'overview' ? (
-          <div className="mt-2 space-y-6" role="tabpanel" aria-labelledby="tab-overview">
-            {/* Ana Clara Insights Widget - Destaque no topo */}
-            <AnaInvestmentInsights investments={investmentsWithMarketData} />
+            <div className="mt-2 space-y-6" role="tabpanel" aria-labelledby="tab-overview">
+              <AnaInvestmentInsights investments={investmentsWithMarketData} />
 
-            <InvestmentPlanningCalculator
-              title="Planejamento patrimonial e aposentadoria"
-              description="Simule patrimônio alvo, renda futura e o aporte mensal necessário com base na sua carteira real."
-              initialCurrentAmount={planningDefaults.currentAmount}
-              initialMonthlyContribution={planningContribution}
-              initialTargetAmount={planningDefaults.targetAmount}
-              initialYearsToGoal={planningYears}
-              initialAnnualReturnRate={planningDefaults.annualReturnRate}
-              initialDesiredMonthlyIncome={planningDefaults.desiredMonthlyIncome}
-            />
-
-            {/* SPRINT 5: Diversification Score Card */}
-            <DiversificationScoreCard investments={investmentsWithMarketData} />
-
-            {/* SPRINT 5: Performance Heat Map */}
-            <PerformanceHeatMap />
-
-            {/* SPRINT 5: Benchmark Comparison */}
-            <BenchmarkComparison />
-
-            {/* Grid de gráficos */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Alocação por Categoria */}
-              <AssetAllocationChart
-                data={Object.values(metrics.allocation)}
+              <InvestmentPlanningCalculator
+                title="Planejamento patrimonial e aposentadoria"
+                description="Simule patrimônio alvo, renda futura e o aporte mensal necessário com base na sua carteira real."
+                initialCurrentAmount={planningDefaults.currentAmount}
+                initialMonthlyContribution={planningContribution}
+                initialTargetAmount={planningDefaults.targetAmount}
+                initialYearsToGoal={planningYears}
+                initialAnnualReturnRate={planningDefaults.annualReturnRate}
+                initialDesiredMonthlyIncome={planningDefaults.desiredMonthlyIncome}
               />
 
-              {/* Evolução do Portfólio */}
-              <PortfolioEvolutionChart
-                totalInvested={metrics.totalInvested}
-                currentValue={metrics.currentValue}
-              />
+              <DiversificationScoreCard investments={investmentsWithMarketData} />
+              <PerformanceHeatMap />
+              <BenchmarkComparison />
+
+              <div className="grid gap-6 lg:grid-cols-2">
+                <AssetAllocationChart data={Object.values(metrics.allocation)} />
+                <PortfolioEvolutionChart
+                  totalInvested={metrics.totalInvested}
+                  currentValue={metrics.currentValue}
+                />
+              </div>
+
+              <PerformanceBarChart investments={investmentsWithMarketData} />
+              <OpportunityFeed />
+              <SmartRebalanceWidget investments={investmentsWithMarketData} />
+              <BadgesDisplay />
             </div>
-
-            {/* Performance por Ativo (full width) */}
-            <PerformanceBarChart investments={investmentsWithMarketData} />
-
-            {/* Investment Radar - Ana Clara */}
-            <OpportunityFeed />
-
-            {/* Smart Rebalance */}
-            <SmartRebalanceWidget investments={investmentsWithMarketData} />
-
-            {/* Badges - Gamificação */}
-            <BadgesDisplay />
-          </div>
           ) : null}
         </Tabs>
       </div>

@@ -107,7 +107,7 @@ export function BillPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md rounded-[1.6rem] border-border/70 bg-background/98 shadow-[0_26px_70px_rgba(2,6,23,0.4)] backdrop-blur-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <CheckCircle2 className="h-5 w-5 text-green-500" />
@@ -121,7 +121,7 @@ export function BillPaymentDialog({
 
         <div className="space-y-4">
           {/* Resumo da Conta */}
-          <div className="rounded-lg bg-muted p-4 space-y-2">
+          <div className="space-y-2 rounded-[1.35rem] border border-border/60 bg-surface/55 p-4">
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Valor Total:</span>
               <span className="font-semibold">{formatCurrency(bill.amount)}</span>
@@ -134,7 +134,7 @@ export function BillPaymentDialog({
                 </span>
               </div>
             )}
-            <div className="flex justify-between text-sm pt-2 border-t">
+              <div className="flex justify-between border-t border-border/60 pt-2 text-sm">
               <span className="text-muted-foreground font-semibold">Restante:</span>
               <span className="font-bold text-lg">
                 {formatCurrency(remaining)}
@@ -174,7 +174,7 @@ export function BillPaymentDialog({
                       <FormLabel>Forma de Pagamento*</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="rounded-xl border-border/70 bg-surface/75 shadow-none">
                             <SelectValue placeholder="Selecione" />
                           </SelectTrigger>
                         </FormControl>
@@ -199,7 +199,7 @@ export function BillPaymentDialog({
                       <FormLabel>Pago da Conta</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
-                          <SelectTrigger>
+                          <SelectTrigger className="rounded-xl border-border/70 bg-surface/75 shadow-none">
                             <SelectValue placeholder="Selecione (opcional)" />
                           </SelectTrigger>
                         </FormControl>
@@ -229,7 +229,7 @@ export function BillPaymentDialog({
                     <FormItem>
                       <FormLabel>Número de Confirmação</FormLabel>
                       <FormControl>
-                        <Input placeholder="Protocolo, autenticação..." {...field} />
+                        <Input className="rounded-xl border-border/70 bg-surface/75 shadow-none" placeholder="Protocolo, autenticação..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -243,7 +243,7 @@ export function BillPaymentDialog({
                     <FormItem>
                       <FormLabel>Observações</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Anotações sobre o pagamento..." {...field} />
+                        <Textarea className="min-h-28 rounded-xl border-border/70 bg-surface/75 shadow-none" placeholder="Anotações sobre o pagamento..." {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -254,11 +254,14 @@ export function BillPaymentDialog({
                   <Button
                     type="button"
                     variant="outline"
+                    className="rounded-xl border-border/70 bg-surface/85 hover:bg-surface-elevated"
                     onClick={() => onOpenChange(false)}
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit">Confirmar Pagamento</Button>
+                  <Button type="submit" className="rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90">
+                    Confirmar Pagamento
+                  </Button>
                 </DialogFooter>
               </form>
             </Form>

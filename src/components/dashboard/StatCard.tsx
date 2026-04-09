@@ -1,7 +1,6 @@
 import { LucideIcon, TrendingUp, TrendingDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { IconBox } from '@/components/shared/IconBox';
 import { cn } from '@/lib/cn';
 
 interface StatCardProps {
@@ -20,6 +19,9 @@ interface StatCardProps {
   subtitle?: string;
   onClick?: () => void;
   loading?: boolean;
+  valueClassName?: string;
+  iconBoxClassName?: string;
+  iconClassName?: string;
 }
 
 const accentStyles = {
@@ -58,13 +60,16 @@ const accentStyles = {
 export function StatCard({
   title,
   value,
-  icon,
+  icon: Icon,
   gradient,
   badge,
   trend,
   subtitle,
   onClick,
   loading = false,
+  valueClassName,
+  iconBoxClassName,
+  iconClassName,
 }: StatCardProps) {
   return (
     <Card
@@ -93,16 +98,32 @@ export function StatCard({
           {loading ? (
             <div className="h-7 w-28 animate-pulse rounded-full bg-surface-elevated" />
           ) : (
-            <h3 className="text-2xl font-bold tracking-tight text-foreground">{value}</h3>
+            <h3
+              className={cn(
+                'text-[1.75rem] font-semibold leading-tight tracking-tight text-foreground sm:text-[1.9rem]',
+                valueClassName
+              )}
+            >
+              {value}
+            </h3>
           )}
           {subtitle ? <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p> : null}
         </div>
-        <IconBox
-          icon={icon}
-          gradient={gradient}
-          size="md"
-          className={cn('ring-1 shadow-[0_18px_28px_rgba(5,10,24,0.28)]', accentStyles[gradient].iconRing)}
-        />
+        <div
+          className={cn(
+            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white ring-1 shadow-[0_14px_24px_rgba(5,10,24,0.26)]',
+            accentStyles[gradient].iconRing,
+            iconBoxClassName,
+            gradient === 'blue' && 'from-blue-500 to-blue-600',
+            gradient === 'green' && 'from-green-500 to-green-600',
+            gradient === 'red' && 'from-red-500 to-red-600',
+            gradient === 'orange' && 'from-orange-500 to-orange-600',
+            gradient === 'purple' && 'from-purple-500 to-purple-600',
+            gradient === 'pink' && 'from-pink-500 to-pink-600'
+          )}
+        >
+          <Icon className={cn('h-5 w-5 text-white', iconClassName)} />
+        </div>
       </div>
 
       {(badge || trend) && (

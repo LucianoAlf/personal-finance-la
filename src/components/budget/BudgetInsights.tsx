@@ -1,6 +1,6 @@
 import { Card } from '@/components/ui/card';
 import { motion, AnimatePresence } from 'framer-motion';
-import { AlertTriangle, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { BudgetItem } from '@/hooks/useBudgets';
 import { formatCurrency } from '@/utils/formatters';
 
@@ -14,6 +14,41 @@ function formatMonthYear(month: string) {
   const [y, m] = month.split('-').map(Number);
   const d = new Date(y, (m || 1) - 1, 1);
   return d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+}
+
+function InsightCard({
+  icon: Icon,
+  title,
+  description,
+  tone,
+  children,
+}: {
+  icon: typeof CheckCircle2;
+  title: string;
+  description?: string;
+  tone: 'success' | 'warning' | 'danger';
+  children?: React.ReactNode;
+}) {
+  const toneClasses = {
+    success: 'border-success-border/70 bg-success-subtle/60 text-success',
+    warning: 'border-warning-border/70 bg-warning-subtle/60 text-warning',
+    danger: 'border-danger-border/70 bg-danger-subtle/60 text-danger',
+  } as const;
+
+  return (
+    <Card className={`rounded-[1.6rem] border p-5 shadow-[0_18px_36px_rgba(8,15,32,0.12)] ${toneClasses[tone]}`}>
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-xl bg-background/45">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="space-y-2">
+          <div className="font-semibold">{title}</div>
+          {description ? <div className="text-sm text-foreground/75">{description}</div> : null}
+          {children}
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 export function BudgetInsights({ budgets, totalDifference, month }: BudgetInsightsProps) {
@@ -30,15 +65,12 @@ export function BudgetInsights({ budgets, totalDifference, month }: BudgetInsigh
           exit={{ opacity: 0, y: -12 }}
           transition={{ duration: 0.3 }}
         >
-          <Card className="border border-green-200 bg-green-50 p-4 flex items-start gap-3">
-            <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
-            <div>
-              <div className="font-semibold text-green-800">Parabéns!</div>
-              <div className="text-sm text-green-700">
-                Você está dentro do planejado em todas as categorias de {formatMonthYear(month)}.
-              </div>
-            </div>
-          </Card>
+          <InsightCard
+            icon={CheckCircle2}
+            title="Parabéns!"
+            description={`Você está dentro do planejado em todas as categorias de ${formatMonthYear(month)}.`}
+            tone="success"
+          />
         </motion.div>
       </AnimatePresence>
     );
@@ -54,47 +86,35 @@ export function BudgetInsights({ budgets, totalDifference, month }: BudgetInsigh
         exit={{ opacity: 0, y: -12 }}
         transition={{ duration: 0.3 }}
       >
-      {totalDifference < 0 && (
-        <Card className="border border-red-200 bg-red-50 p-4 flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-          <div>
-            <div className="font-semibold text-red-800">Planejamento ultrapassado</div>
-            <div className="text-sm text-red-700">
-              Você gastou {formatCurrency(Math.abs(totalDifference))} a mais que o limite planejado em {formatMonthYear(month)}.
-            </div>
-          </div>
-        </Card>
-      )}
+        {totalDifference < 0 ? (
+          <InsightCard
+            icon={AlertTriangle}
+            title="Planejamento ultrapassado"
+            description={`Você gastou ${formatCurrency(Math.abs(totalDifference))} a mais que o limite planejado em ${formatMonthYear(month)}.`}
+            tone="danger"
+          />
+        ) : null}
 
-      {exceeded.length > 0 && (
-        <Card className="border border-red-200 bg-red-50 p-4">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
-            <div>
-              <div className="font-semibold text-red-800">Categorias acima do limite</div>
-              <ul className="list-disc list-inside mt-2 space-y-1 text-sm text-red-700">
-                {exceeded.map((b) => (
-                  <li key={b.id}>
-                    {b.category_name}: {formatCurrency(b.actual_amount)} / {formatCurrency(b.planned_amount)} ({Math.round(b.percentage)}%)
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </Card>
-      )}
+        {exceeded.length > 0 ? (
+          <InsightCard icon={AlertTriangle} title="Categorias acima do limite" tone="danger">
+            <ul className="mt-2 space-y-1.5 text-sm text-foreground/75">
+              {exceeded.map((b) => (
+                <li key={b.id}>
+                  {b.category_name}: {formatCurrency(b.actual_amount)} / {formatCurrency(b.planned_amount)} ({Math.round(b.percentage)}%)
+                </li>
+              ))}
+            </ul>
+          </InsightCard>
+        ) : null}
 
-      {warning.length > 0 && (
-        <Card className="border border-yellow-200 bg-yellow-50 p-4 flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
-          <div>
-            <div className="font-semibold text-yellow-800">Atenção</div>
-            <div className="text-sm text-yellow-700">
-              {warning.length} {warning.length === 1 ? 'categoria está' : 'categorias estão'} próximas do limite (&gt;80%).
-            </div>
-          </div>
-        </Card>
-      )}
+        {warning.length > 0 ? (
+          <InsightCard
+            icon={AlertCircle}
+            title="Atenção"
+            description={`${warning.length} ${warning.length === 1 ? 'categoria está' : 'categorias estão'} próximas do limite (>80%).`}
+            tone="warning"
+          />
+        ) : null}
       </motion.div>
     </AnimatePresence>
   );

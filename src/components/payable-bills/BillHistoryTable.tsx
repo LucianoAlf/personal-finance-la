@@ -97,9 +97,9 @@ export function BillHistoryTable({ bills, categories, onDelete }: BillHistoryTab
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col items-center justify-center py-16 text-center"
+        className="rounded-[1.8rem] border border-border/70 bg-card/95 px-6 py-20 text-center shadow-[0_20px_48px_rgba(15,23,42,0.08)]"
       >
-        <div className="rounded-full bg-muted p-6 mb-4">
+        <div className="mx-auto mb-4 rounded-full border border-border/70 bg-surface/70 p-6">
           <FileText className="h-12 w-12 text-muted-foreground" />
         </div>
         <h3 className="text-lg font-semibold mb-2">Nenhum histórico ainda</h3>
@@ -119,28 +119,30 @@ export function BillHistoryTable({ bills, categories, onDelete }: BillHistoryTab
       <HistorySummaryCards bills={filteredBills} />
 
       {/* Filtros adicionais */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por descrição ou fornecedor..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
+      <div className="rounded-[1.5rem] border border-border/70 bg-card/95 p-4 shadow-[0_16px_42px_rgba(15,23,42,0.08)]">
+        <div className="flex flex-col gap-4 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por descrição ou fornecedor..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-11 rounded-xl border-border/70 bg-surface/80 pl-9 shadow-none"
+            />
+          </div>
+          <BillCategoryFilter
+            categories={categories}
+            value={categoryFilter}
+            onChange={setCategoryFilter}
           />
         </div>
-        <BillCategoryFilter
-          categories={categories}
-          value={categoryFilter}
-          onChange={setCategoryFilter}
-        />
       </div>
 
       {/* Tabela */}
-      <div className="border rounded-lg overflow-hidden">
+      <div className="overflow-hidden rounded-[1.7rem] border border-border/70 bg-card/95 shadow-[0_20px_48px_rgba(15,23,42,0.1)]">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="border-b border-border/70 bg-surface/75 hover:bg-surface/75">
               <TableHead>Descrição</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Vencimento</TableHead>
@@ -164,9 +166,9 @@ export function BillHistoryTable({ bills, categories, onDelete }: BillHistoryTab
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline">
-                    {getCategoryName(bill)}
-                  </Badge>
+                      <Badge variant="outline" className="rounded-full border-border/70 bg-surface/70">
+                        {getCategoryName(bill)}
+                      </Badge>
                 </TableCell>
                 <TableCell className="text-sm">
                   {formatDate(bill.due_date)}
@@ -176,7 +178,7 @@ export function BillHistoryTable({ bills, categories, onDelete }: BillHistoryTab
                 </TableCell>
                 <TableCell>
                   {bill.payment_method && (
-                    <Badge variant="outline">
+                    <Badge variant="outline" className="rounded-full border-border/70 bg-surface/70">
                       {PAYMENT_METHOD_LABELS[bill.payment_method]}
                     </Badge>
                   )}
@@ -189,7 +191,7 @@ export function BillHistoryTable({ bills, categories, onDelete }: BillHistoryTab
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-8 w-8 text-red-500 hover:text-red-700 hover:bg-red-50"
+                      className="h-8 w-8 rounded-xl text-red-500 hover:bg-red-500/10 hover:text-red-600"
                       onClick={() => onDelete(bill)}
                     >
                       <Trash2 className="h-4 w-4" />

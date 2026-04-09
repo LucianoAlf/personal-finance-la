@@ -13,28 +13,20 @@ export function AdvancedAnalytics({ scope }: AdvancedAnalyticsProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
-          Análises Avançadas
+        <h2 className="mb-2 text-[1.75rem] font-semibold tracking-tight text-foreground">
+          Analises Avancadas
         </h2>
-        <p className="text-gray-600">
-          Insights detalhados sobre seus padrões de consumo
+        <p className="text-sm text-muted-foreground">
+          Insights detalhados sobre seus padroes de consumo
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Top Categorias */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <TopCategoriesCard scope={scope} />
-
-        {/* Top Estabelecimentos */}
         <TopMerchantsCard scope={scope} />
-
-        {/* Comparação de Cartões */}
         <CardComparisonCard scope={scope} />
-
-        {/* Padrões de Gasto */}
         <SpendingPatternsCard scope={scope} />
 
-        {/* Análise Temporal - Ocupa 2 colunas */}
         <div className="lg:col-span-2">
           <TemporalAnalysisCard scope={scope} />
         </div>

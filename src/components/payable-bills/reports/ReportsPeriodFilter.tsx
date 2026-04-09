@@ -1,4 +1,16 @@
+import { useState } from 'react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Calendar as CalendarIcon } from 'lucide-react';
+import { DateRange } from 'react-day-picker';
+
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -6,19 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { Calendar as CalendarIcon, ChevronDown } from 'lucide-react';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
-import { PeriodPreset, PERIOD_LABELS } from '@/hooks/useBillReports';
-import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { DateRange } from 'react-day-picker';
+import { PERIOD_LABELS, type PeriodPreset } from '@/hooks/useBillReports';
 
 interface ReportsPeriodFilterProps {
   periodPreset: PeriodPreset;
@@ -28,15 +29,24 @@ interface ReportsPeriodFilterProps {
   periodLabel: string;
 }
 
+const QUICK_PRESETS: PeriodPreset[] = [
+  'this_month',
+  'last_month',
+  'last_3_months',
+  'last_6_months',
+  'last_12_months',
+  'this_year',
+];
+
 export function ReportsPeriodFilter({
   periodPreset,
   onPeriodChange,
   customDateRange,
   onCustomDateChange,
-  periodLabel
+  periodLabel,
 }: ReportsPeriodFilterProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(
-    customDateRange ? { from: customDateRange.start, to: customDateRange.end } : undefined
+    customDateRange ? { from: customDateRange.start, to: customDateRange.end } : undefined,
   );
   const [calendarOpen, setCalendarOpen] = useState(false);
 
@@ -48,91 +58,88 @@ export function ReportsPeriodFilter({
     }
   };
 
-  const presets: PeriodPreset[] = [
-    'this_month',
-    'last_month',
-    'last_3_months',
-    'last_6_months',
-    'last_12_months',
-    'this_year'
-  ];
-
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      {/* Chips de período rápido */}
-      <div className="flex flex-wrap gap-1">
-        {presets.slice(0, 4).map((preset) => (
-          <Button
-            key={preset}
-            variant={periodPreset === preset ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => onPeriodChange(preset)}
-            className="h-8 text-xs"
+    <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <div className="flex flex-wrap gap-2">
+        {QUICK_PRESETS.slice(0, 4).map((preset) => {
+          const active = periodPreset === preset;
+          return (
+            <Button
+              key={preset}
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onPeriodChange(preset)}
+              className={cn(
+                'h-10 rounded-xl border-border/70 px-4 text-sm font-semibold shadow-sm transition-all',
+                active
+                  ? 'border-primary/25 bg-primary/12 text-primary hover:bg-primary/14'
+                  : 'bg-background/55 text-foreground hover:bg-surface-elevated',
+              )}
+            >
+              {PERIOD_LABELS[preset]}
+            </Button>
+          );
+        })}
+
+        <Select
+          value={QUICK_PRESETS.slice(4).includes(periodPreset) ? periodPreset : ''}
+          onValueChange={(value) => onPeriodChange(value as PeriodPreset)}
+        >
+          <SelectTrigger className="h-10 w-[168px] rounded-xl border-border/70 bg-background/55 text-sm font-semibold shadow-none">
+            <SelectValue placeholder="Mais períodos" />
+          </SelectTrigger>
+          <SelectContent className="rounded-2xl border-border/70 bg-background/98 shadow-[0_24px_70px_rgba(2,6,23,0.32)]">
+            {QUICK_PRESETS.slice(4).map((preset) => (
+              <SelectItem key={preset} value={preset}>
+                {PERIOD_LABELS[preset]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={cn(
+                'h-10 rounded-xl border-border/70 px-4 text-sm font-semibold shadow-sm transition-all hover:bg-surface-elevated',
+                periodPreset === 'custom'
+                  ? 'border-primary/25 bg-primary/12 text-primary'
+                  : 'bg-background/55 text-foreground',
+              )}
+              onClick={() => {
+                if (periodPreset !== 'custom') onPeriodChange('custom');
+              }}
+            >
+              <CalendarIcon className="h-4 w-4" />
+              {periodPreset === 'custom' && customDateRange
+                ? `${format(customDateRange.start, 'dd/MM')} - ${format(customDateRange.end, 'dd/MM')}`
+                : 'Personalizado'}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            className="w-auto rounded-[1.4rem] border-border/70 bg-background/98 p-0 shadow-[0_24px_70px_rgba(2,6,23,0.3)]"
           >
-            {PERIOD_LABELS[preset]}
-          </Button>
-        ))}
+            <Calendar
+              initialFocus
+              mode="range"
+              defaultMonth={dateRange?.from}
+              selected={dateRange}
+              onSelect={handleDateSelect}
+              numberOfMonths={2}
+              locale={ptBR}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
-      {/* Select para mais opções */}
-      <Select
-        value={presets.slice(4).includes(periodPreset) ? periodPreset : ''}
-        onValueChange={(value) => onPeriodChange(value as PeriodPreset)}
-      >
-        <SelectTrigger className="w-[140px] h-8">
-          <SelectValue placeholder="Mais períodos" />
-        </SelectTrigger>
-        <SelectContent>
-          {presets.slice(4).map((preset) => (
-            <SelectItem key={preset} value={preset}>
-              {PERIOD_LABELS[preset]}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-
-      {/* Calendário personalizado */}
-      <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant={periodPreset === 'custom' ? 'default' : 'outline'}
-            size="sm"
-            className={cn(
-              'h-8 justify-start text-left font-normal',
-              periodPreset === 'custom' && 'bg-primary text-primary-foreground'
-            )}
-            onClick={() => {
-              if (periodPreset !== 'custom') {
-                onPeriodChange('custom');
-              }
-            }}
-          >
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {periodPreset === 'custom' && customDateRange ? (
-              <span className="text-xs">
-                {format(customDateRange.start, 'dd/MM')} - {format(customDateRange.end, 'dd/MM')}
-              </span>
-            ) : (
-              <span className="text-xs">Personalizado</span>
-            )}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            initialFocus
-            mode="range"
-            defaultMonth={dateRange?.from}
-            selected={dateRange}
-            onSelect={handleDateSelect}
-            numberOfMonths={2}
-            locale={ptBR}
-          />
-        </PopoverContent>
-      </Popover>
-
-      {/* Label do período selecionado */}
-      <div className="ml-2 text-sm text-muted-foreground capitalize">
-        {periodLabel}
+      <div className="flex items-center gap-2 rounded-full border border-border/60 bg-background/50 px-3 py-2 text-sm text-muted-foreground">
+        <CalendarIcon className="h-4 w-4" />
+        <span className="capitalize">{periodLabel}</span>
       </div>
     </div>
   );

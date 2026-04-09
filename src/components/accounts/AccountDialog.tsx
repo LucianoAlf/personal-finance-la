@@ -2,10 +2,12 @@ import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Wallet } from 'lucide-react';
 
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
@@ -28,7 +30,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
 import { ACCOUNT_TYPES, ACCOUNT_ICONS, COLOR_OPTIONS, ACCOUNT_COLORS } from '@/constants/accounts';
-import type { Account, AccountType } from '@/types/accounts';
+import type { Account } from '@/types/accounts';
 
 interface AccountDialogProps {
   open: boolean;
@@ -50,11 +52,14 @@ const accountSchema = z.object({
 
 export type AccountFormData = z.infer<typeof accountSchema>;
 
+const primaryButtonClass =
+  'rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90';
+
 export const AccountDialog: React.FC<AccountDialogProps> = ({
   open,
   onOpenChange,
   account,
-  onSave
+  onSave,
 }) => {
   const form = useForm<AccountFormData>({
     resolver: zodResolver(accountSchema),
@@ -63,24 +68,23 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
       type: 'checking',
       bank_name: '',
       initial_balance: 0,
-      color: '#3b82f6', // Azul padrão
+      color: '#3b82f6',
       icon: 'checking',
       is_shared: false,
       is_active: true,
     },
   });
 
-  // Resetar formulário quando account mudar (modo edição)
   useEffect(() => {
     if (account) {
       form.reset({
         name: account.name,
         type: account.type,
         bank_name: account.bank_name || '',
-        initial_balance: account.current_balance, // carregar saldo total atual
+        initial_balance: account.current_balance,
         color: account.color?.startsWith('#')
           ? account.color
-          : (ACCOUNT_COLORS as any)[account.color] ?? '#3b82f6',
+          : (ACCOUNT_COLORS as Record<string, string>)[String(account.color)] ?? '#3b82f6',
         icon: account.icon,
         is_shared: account.is_shared,
         is_active: account.is_active,
@@ -91,7 +95,7 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
         type: 'checking',
         bank_name: '',
         initial_balance: 0,
-        color: '#3b82f6', // Azul padrão
+        color: '#3b82f6',
         icon: 'checking',
         is_shared: false,
         is_active: true,
@@ -111,16 +115,25 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle>
-            {account ? 'Editar Conta' : 'Nova Conta'}
-          </DialogTitle>
+      <DialogContent className="sm:max-w-[560px]">
+        <DialogHeader className="space-y-3 border-b border-border/60 pb-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm">
+              <Wallet size={22} />
+            </div>
+            <div className="space-y-1">
+              <DialogTitle>{account ? 'Editar Conta' : 'Nova Conta'}</DialogTitle>
+              <DialogDescription>
+                {account
+                  ? 'Atualize os dados visuais e financeiros desta conta.'
+                  : 'Cadastre uma nova conta mantendo o mesmo padrão visual premium do sistema.'}
+              </DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* Nome */}
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
             <FormField
               control={form.control}
               name="name"
@@ -135,48 +148,47 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
               )}
             />
 
-            {/* Tipo */}
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipo de Conta</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Conta</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o tipo" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.entries(ACCOUNT_TYPES).map(([key, label]) => (
+                          <SelectItem key={key} value={key}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="bank_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Banco (Opcional)</FormLabel>
                     <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o tipo" />
-                      </SelectTrigger>
+                      <Input placeholder="Ex: Nubank, Itaú, Bradesco..." {...field} />
                     </FormControl>
-                    <SelectContent>
-                      {Object.entries(ACCOUNT_TYPES).map(([key, label]) => (
-                        <SelectItem key={key} value={key}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-            {/* Banco */}
-            <FormField
-              control={form.control}
-              name="bank_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Banco (Opcional)</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ex: Nubank, Itaú, Bradesco..." {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Saldo Total */}
             <FormField
               control={form.control}
               name="initial_balance"
@@ -185,7 +197,9 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
                   <FormLabel>Saldo Total</FormLabel>
                   <FormControl>
                     <div className="relative">
-                      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">R$</span>
+                      <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground">
+                        R$
+                      </span>
                       <Input
                         type="number"
                         step="0.01"
@@ -211,73 +225,72 @@ export const AccountDialog: React.FC<AccountDialogProps> = ({
               )}
             />
 
-            {/* Cor */}
-            <FormField
-              control={form.control}
-              name="color"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cor</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma cor" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {COLOR_OPTIONS.map((option) => (
-                        <SelectItem key={option.key} value={option.color}>
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-4 h-4 rounded-full" 
-                              style={{ backgroundColor: option.color }}
-                            />
-                            {option.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="color"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cor</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione uma cor" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {COLOR_OPTIONS.map((option) => (
+                          <SelectItem key={option.key} value={option.color}>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-4 w-4 rounded-full"
+                                style={{ backgroundColor: option.color }}
+                              />
+                              {option.name}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            {/* Ícone */}
-            <FormField
-              control={form.control}
-              name="icon"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ícone</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um ícone" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.entries(ACCOUNT_ICONS).map(([key, IconComponent]) => (
-                        <SelectItem key={key} value={key}>
-                          <div className="flex items-center gap-2">
-                            <IconComponent size={16} />
-                            {ACCOUNT_TYPES[key as keyof typeof ACCOUNT_TYPES]}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={form.control}
+                name="icon"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ícone</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um ícone" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.entries(ACCOUNT_ICONS).map(([key, IconComponent]) => (
+                          <SelectItem key={key} value={key}>
+                            <div className="flex items-center gap-2">
+                              <IconComponent size={16} />
+                              {ACCOUNT_TYPES[key as keyof typeof ACCOUNT_TYPES]}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
-            {/* Botões */}
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex justify-end gap-2 border-t border-border/60 pt-5">
               <Button type="button" variant="outline" onClick={handleClose}>
                 Cancelar
               </Button>
-              <Button type="submit" className="bg-purple-600 hover:bg-purple-700">
+              <Button type="submit" className={primaryButtonClass}>
                 {account ? 'Atualizar' : 'Criar'} Conta
               </Button>
             </div>

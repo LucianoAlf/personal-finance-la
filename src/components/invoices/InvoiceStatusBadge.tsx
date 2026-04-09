@@ -1,22 +1,15 @@
-import { 
-  ShoppingCart, 
-  Clock, 
-  AlertTriangle, 
-  CheckCircle, 
-  XCircle, 
-  MinusCircle 
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { 
-  getInvoiceStatusInfo, 
-  type DynamicInvoiceStatus 
-} from '@/utils/creditCardUtils';
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  MinusCircle,
+  ShoppingCart,
+  XCircle,
+} from 'lucide-react';
+
+import { cn } from '@/lib/utils';
+import { getInvoiceStatusInfo, type DynamicInvoiceStatus } from '@/utils/creditCardUtils';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface InvoiceStatusBadgeProps {
   closingDate: Date | string;
@@ -39,18 +32,18 @@ const STATUS_ICONS: Record<DynamicInvoiceStatus, React.ElementType> = {
 };
 
 const STATUS_STYLES: Record<DynamicInvoiceStatus, string> = {
-  open: 'bg-blue-100 text-blue-800 border-blue-300',
-  closed: 'bg-orange-100 text-orange-800 border-orange-300',
-  due_soon: 'bg-yellow-100 text-yellow-800 border-yellow-300',
-  paid: 'bg-green-100 text-green-800 border-green-300',
-  overdue: 'bg-red-100 text-red-800 border-red-300',
-  partial: 'bg-purple-100 text-purple-800 border-purple-300',
+  open: 'border-info/25 bg-info/12 text-info',
+  closed: 'border-warning/25 bg-warning/12 text-warning',
+  due_soon: 'border-warning/30 bg-warning/14 text-warning',
+  paid: 'border-success/25 bg-success/12 text-success',
+  overdue: 'border-danger/30 bg-danger/12 text-danger',
+  partial: 'border-primary/25 bg-primary/12 text-primary',
 };
 
 const SIZE_STYLES = {
-  sm: 'text-xs px-2 py-0.5',
-  md: 'text-sm px-2.5 py-1',
-  lg: 'text-base px-3 py-1.5',
+  sm: 'gap-1 px-2.5 py-1 text-[11px]',
+  md: 'gap-1.5 px-3 py-1.5 text-xs',
+  lg: 'gap-2 px-3.5 py-2 text-sm',
 };
 
 const ICON_SIZES = {
@@ -74,7 +67,7 @@ export function InvoiceStatusBadge({
     dueDate,
     totalAmount,
     paidAmount,
-    currentStatus
+    currentStatus,
   );
 
   const Icon = STATUS_ICONS[statusInfo.status];
@@ -82,11 +75,11 @@ export function InvoiceStatusBadge({
   const badge = (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border font-medium',
+        'inline-flex items-center rounded-full border font-semibold tracking-[0.02em] backdrop-blur-sm',
         STATUS_STYLES[statusInfo.status],
         SIZE_STYLES[size],
-        statusInfo.isUrgent && 'animate-pulse',
-        className
+        statusInfo.isUrgent && 'shadow-[0_0_0_1px_rgba(239,68,68,0.1)]',
+        className,
       )}
     >
       <Icon size={ICON_SIZES[size]} />
@@ -96,9 +89,9 @@ export function InvoiceStatusBadge({
 
   if (showDescription) {
     return (
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-col gap-1.5">
         {badge}
-        <span className="text-xs text-gray-500">{statusInfo.description}</span>
+        <span className="text-xs leading-5 text-muted-foreground">{statusInfo.description}</span>
       </div>
     );
   }
@@ -107,16 +100,15 @@ export function InvoiceStatusBadge({
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>{badge}</TooltipTrigger>
-        <TooltipContent>
-          <p className="font-medium">{statusInfo.label}</p>
-          <p className="text-xs text-gray-400">{statusInfo.description}</p>
+        <TooltipContent className="border border-border/70 bg-card/95 text-foreground shadow-lg backdrop-blur-xl">
+          <p className="font-semibold">{statusInfo.label}</p>
+          <p className="text-xs text-muted-foreground">{statusInfo.description}</p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
 }
 
-// Versão simplificada que aceita status diretamente (para compatibilidade)
 interface SimpleStatusBadgeProps {
   status: DynamicInvoiceStatus | string;
   size?: 'sm' | 'md' | 'lg';
@@ -143,10 +135,10 @@ export function SimpleInvoiceStatusBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 rounded-full border font-medium',
+        'inline-flex items-center rounded-full border font-semibold tracking-[0.02em] backdrop-blur-sm',
         STATUS_STYLES[normalizedStatus] || STATUS_STYLES.open,
         SIZE_STYLES[size],
-        className
+        className,
       )}
     >
       <Icon size={ICON_SIZES[size]} />

@@ -4,22 +4,26 @@ import { Progress } from '@/components/ui/progress';
 import { Trophy, RefreshCw } from 'lucide-react';
 import { ACHIEVEMENTS, calculateTierProgress, TIER_CONFIG } from '@/config/achievements';
 import { useGamification } from '@/hooks/useGamification';
+import { cn } from '@/lib/utils';
+
+const shellClassName =
+  'rounded-[30px] border border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(3,8,20,0.16)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)]';
 
 export function BadgesDisplay() {
   const { badges, loading, refreshBadges } = useGamification();
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Trophy className="h-5 w-5 text-amber-600" />
+      <Card className={shellClassName}>
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+            <Trophy className="h-5 w-5 text-amber-500" />
             Suas Conquistas
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-pulse text-muted-foreground">Carregando...</div>
+          <div className="flex items-center justify-center rounded-2xl border border-dashed border-border/60 bg-surface-elevated/35 py-10 text-muted-foreground">
+            Carregando...
           </div>
         </CardContent>
       </Card>
@@ -76,19 +80,24 @@ export function BadgesDisplay() {
   });
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between gap-4">
+    <Card className={shellClassName}>
+      <CardHeader className="pb-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <CardTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-amber-600" />
+            <CardTitle className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+              <Trophy className="h-5 w-5 text-amber-500" />
               Suas Conquistas
             </CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
+            <p className="mt-1 text-sm text-muted-foreground">
               {unlockedCount}/{ACHIEVEMENTS.length} conquistas oficiais desbloqueadas
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={refreshBadges} className="gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refreshBadges}
+            className="gap-2 rounded-full border-border/70 bg-surface/80 hover:bg-surface-elevated/55"
+          >
             <RefreshCw className="h-4 w-4" />
             Atualizar
           </Button>
@@ -98,12 +107,20 @@ export function BadgesDisplay() {
       <CardContent className="space-y-6">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {byCategory.map((category) => (
-            <div key={category.key} className="space-y-2 rounded-lg border bg-muted/20 p-4">
+            <div
+              key={category.key}
+              className="space-y-2 rounded-2xl border border-border/60 bg-surface-elevated/35 p-4"
+            >
               <div className="flex items-center justify-between text-sm">
                 <span className="font-medium text-muted-foreground">{category.label}</span>
-                <span className="font-semibold">{category.unlocked}/{category.total}</span>
+                <span className="font-semibold text-foreground">
+                  {category.unlocked}/{category.total}
+                </span>
               </div>
-              <Progress value={category.total > 0 ? (category.unlocked / category.total) * 100 : 0} className="h-2" />
+              <Progress
+                value={category.total > 0 ? (category.unlocked / category.total) * 100 : 0}
+                className="h-2"
+              />
             </div>
           ))}
         </div>
@@ -120,17 +137,22 @@ export function BadgesDisplay() {
             return (
               <div
                 key={achievement.id}
-                className={`rounded-xl border p-4 transition-all ${
-                  achievement.highestUnlockedTier ? 'border-amber-200 bg-amber-50/60' : 'border-gray-200 bg-white'
-                }`}
+                className={cn(
+                  'rounded-2xl border p-4 transition-all',
+                  achievement.highestUnlockedTier
+                    ? 'border-amber-500/25 bg-amber-500/10'
+                    : 'border-border/60 bg-surface-elevated/35'
+                )}
               >
                 <div className="flex items-start gap-3">
-                  <div className="rounded-full bg-muted p-3">
+                  <div className="rounded-2xl border border-border/60 bg-surface/80 p-3">
                     <Icon className="h-5 w-5 text-foreground" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="truncate text-sm font-semibold text-foreground">{achievement.name}</p>
+                      <p className="truncate text-sm font-semibold tracking-tight text-foreground">
+                        {achievement.name}
+                      </p>
                       <span className="text-sm">{tierVisual.emoji}</span>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{achievement.description}</p>
@@ -140,7 +162,8 @@ export function BadgesDisplay() {
                 <div className="mt-4 space-y-2">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>
-                      {achievement.progressValue.toLocaleString('pt-BR')} / {achievement.nextTarget.toLocaleString('pt-BR')}
+                      {achievement.progressValue.toLocaleString('pt-BR')} /{' '}
+                      {achievement.nextTarget.toLocaleString('pt-BR')}
                     </span>
                     <span className="font-semibold text-foreground">{Math.round(achievement.percentage)}%</span>
                   </div>

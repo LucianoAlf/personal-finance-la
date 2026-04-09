@@ -93,6 +93,12 @@ describe('PurchaseDialog', () => {
     replaceCanonicalTagAssignmentsMock.mockReset();
   });
 
+  it('renders a readable portuguese title without mojibake', () => {
+    render(<PurchaseDialog open={true} onOpenChange={vi.fn()} cardId="card-1" />);
+
+    expect(screen.getByText('Nova Compra no Cartão')).not.toBeNull();
+  });
+
   it('keeps the dialog open and reuses created transaction ids when tag persistence fails', async () => {
     const user = userEvent.setup();
     const onOpenChange = vi.fn();

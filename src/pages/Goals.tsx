@@ -3,7 +3,7 @@ import { Header } from '@/components/layout/Header';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap, Copy, Sparkles, Settings, ChevronDown, TrendingUp, Wallet } from 'lucide-react';
+import { Plus, Target, PiggyBank, Shield, Flame, AlertTriangle, Trophy, Zap, Copy, Sparkles, Settings, ChevronDown, TrendingUp, Wallet, type LucideIcon } from 'lucide-react';
 import { motion, MotionConfig } from 'framer-motion';
 import { useGoals } from '@/hooks/useGoals';
 import { useSearchParams } from 'react-router-dom';
@@ -39,6 +39,7 @@ import { useSpendingGoalsPlanning } from '@/hooks/useSpendingGoalsPlanning';
 import type { BudgetAllocation, NotificationPreferences, UserSettings } from '@/types/settings.types';
 import { useGamification } from '@/hooks/useGamification';
 import { useSettings } from '@/hooks/useSettings';
+import { cn } from '@/lib/cn';
 
 const DEFAULT_BUDGET_ALLOCATION: BudgetAllocation = {
   essentials: 50,
@@ -88,6 +89,173 @@ interface GoalsProgressContentProps {
   successRate: number;
 }
 
+type SummaryGradient = 'blue' | 'orange' | 'purple' | 'green';
+
+interface GoalsSummaryCardProps {
+  title: string;
+  subtitle: string;
+  value: string;
+  valueSuffix?: string;
+  icon: LucideIcon;
+  gradient: SummaryGradient;
+  loading?: boolean;
+  metrics: Array<{
+    label: string;
+    value: string;
+    tone?: 'default' | 'success' | 'warning' | 'danger';
+    icon?: LucideIcon;
+  }>;
+}
+
+const summaryAccentStyles: Record<
+  SummaryGradient,
+  {
+    line: string;
+    glow: string;
+    ring: string;
+    icon: string;
+    value: string;
+  }
+> = {
+  blue: {
+    line: 'via-sky-300/80',
+    glow: 'bg-sky-400/12',
+    ring: 'ring-sky-300/20',
+    icon: 'from-sky-500 to-blue-600',
+    value: 'text-foreground',
+  },
+  orange: {
+    line: 'via-amber-300/80',
+    glow: 'bg-amber-400/12',
+    ring: 'ring-amber-300/20',
+    icon: 'from-amber-500 to-orange-600',
+    value: 'text-foreground',
+  },
+  purple: {
+    line: 'via-primary/80',
+    glow: 'bg-primary/12',
+    ring: 'ring-primary/20',
+    icon: 'from-violet-500 to-purple-600',
+    value: 'text-foreground',
+  },
+  green: {
+    line: 'via-emerald-300/80',
+    glow: 'bg-emerald-400/12',
+    ring: 'ring-emerald-300/20',
+    icon: 'from-emerald-500 to-teal-600',
+    value: 'text-foreground',
+  },
+};
+
+const goalsTabsListClassName =
+  'mb-6 grid h-auto w-full grid-cols-5 rounded-[1.4rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)]';
+
+const goalsTabsTriggerClassName =
+  'flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15';
+
+function GoalsSummaryCard({
+  title,
+  subtitle,
+  value,
+  valueSuffix,
+  icon: Icon,
+  gradient,
+  loading = false,
+  metrics,
+}: GoalsSummaryCardProps) {
+  const accent = summaryAccentStyles[gradient];
+  const shouldStackValueSuffix = Boolean(valueSuffix?.trim().startsWith('/'));
+
+  return (
+    <Card className="group relative overflow-hidden rounded-[1.75rem] border border-border/70 bg-surface/92 p-6 shadow-[0_18px_38px_rgba(8,15,32,0.12)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/20 hover:bg-surface-elevated/90 dark:shadow-[0_20px_40px_rgba(2,6,23,0.28)]">
+      <div
+        className={cn(
+          'absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent to-transparent opacity-80',
+          accent.line
+        )}
+      />
+      <div className={cn('absolute -right-10 top-4 h-24 w-24 rounded-full blur-3xl', accent.glow)} />
+
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className="text-base font-semibold text-foreground">{title}</p>
+          <p className="max-w-[15rem] text-[0.87rem] leading-snug text-muted-foreground">{subtitle}</p>
+        </div>
+        <div
+          className={cn(
+            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white ring-1 shadow-[0_14px_24px_rgba(5,10,24,0.22)]',
+            accent.ring,
+            accent.icon
+          )}
+        >
+          <Icon className="h-5 w-5 text-white" />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="space-y-4">
+          <div className="h-9 w-40 animate-pulse rounded-full bg-surface-elevated" />
+          <div className="space-y-2">
+            <div className="h-3 w-full animate-pulse rounded-full bg-surface-elevated" />
+            <div className="h-3 w-2/3 animate-pulse rounded-full bg-surface-elevated" />
+          </div>
+        </div>
+      ) : (
+        <>
+          <div
+            className={cn(
+              'mb-5 min-w-0',
+              shouldStackValueSuffix ? 'space-y-1' : 'flex items-end gap-2'
+            )}
+          >
+            <span
+              className={cn(
+                shouldStackValueSuffix ? 'block' : 'shrink-0',
+                'text-[1.62rem] font-semibold leading-tight tracking-tight sm:text-[1.78rem]',
+                accent.value
+              )}
+            >
+              {value}
+            </span>
+            {valueSuffix ? (
+              <span
+                className={cn(
+                  'max-w-full font-medium leading-snug text-muted-foreground',
+                  shouldStackValueSuffix ? 'block text-[0.9rem]' : 'pb-1 text-base'
+                )}
+              >
+                {valueSuffix}
+              </span>
+            ) : null}
+          </div>
+
+          <div className="space-y-2.5 border-t border-border/60 pt-4">
+            {metrics.map(({ label, value: metricValue, tone = 'default', icon: MetricIcon }) => (
+              <div key={label} className="flex items-center justify-between gap-3 text-[0.8rem]">
+                <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                  {MetricIcon ? <MetricIcon className="h-4 w-4" /> : null}
+                  {label}
+                </span>
+                <span
+                  className={cn(
+                    'text-[0.82rem] font-medium',
+                    tone === 'default' && 'text-foreground/78',
+                    tone === 'success' && 'text-success/90',
+                    tone === 'warning' && 'text-warning/90',
+                    tone === 'danger' && 'text-danger/90'
+                  )}
+                >
+                  {metricValue}
+                </span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
 function GoalsProgressContent({
   active,
   totalGoalCount,
@@ -131,14 +299,17 @@ function GoalsProgressContent({
                 <NextAchievements badges={badges} />
               </div>
               <div>
-                <Card className="p-6">
+                <div
+                  data-testid="goals-progress-shell"
+                  className="rounded-[28px] border border-border/70 bg-surface/92 p-6 shadow-[0_20px_42px_rgba(8,15,32,0.16)]"
+                >
                   <StreakHeatmap
                     currentStreak={profile?.current_streak ?? 0}
                     bestStreak={profile?.best_streak ?? 0}
                     lastActivityDate={profile?.last_activity_date ?? null}
                     subtitle="Resumo visual do streak diário baseado na última atividade real registrada no app. Não representa histórico mensal."
                   />
-                  <div className="my-4 border-t" />
+                  <div className="my-5 border-t border-border/60" />
                   <GamificationStats
                     profile={profile}
                     unlockedBadgesCount={unlockedBadges.length}
@@ -150,7 +321,7 @@ function GoalsProgressContent({
                     activeGoals={activeGoalCount}
                     successRate={successRate}
                   />
-                </Card>
+                </div>
               </div>
             </div>
 
@@ -537,8 +708,55 @@ export function Goals() {
   };
   const showPageShell = loading;
 
+  const primaryButtonClass =
+    'rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90';
+
+  const secondaryButtonClass =
+    'rounded-xl border-border/70 bg-surface/85 px-4 shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay';
+
+  const savingsOverviewMetrics = [
+    { label: 'Metas ativas', value: `${savingsGoals.length}` },
+    { label: 'Progresso médio', value: `${avgSavingsProgress}%` },
+  ];
+
+  const spendingOverviewMetrics = [
+    {
+      label: 'Melhor streak',
+      value:
+        spendingGoals.length === 0
+          ? '—'
+          : `${spendingGoalsBestStreak} ${spendingGoalsBestStreak === 1 ? 'mês' : 'meses'}`,
+      icon: Flame,
+      tone: 'warning' as const,
+    },
+    attentionCategory
+      ? {
+          label: 'Atenção',
+          value: `${attentionCategory.category_name || attentionCategory.name} (${attentionCategory.percentage}%)`,
+          icon: AlertTriangle,
+          tone: 'danger' as const,
+        }
+      : { label: 'Categorias no limite', value: `${limitsComplied}/${spendingGoals.length || 0}` },
+  ];
+
+  const investmentsOverviewMetrics = [
+    { label: 'Metas ativas', value: `${investmentHero.count}` },
+    { label: 'Progresso médio', value: `${investmentHero.avgProgress}%` },
+    {
+      label: 'No caminho',
+      value: `${investmentHero.onTrackCount} de ${investmentHero.count}`,
+      tone: 'success' as const,
+    },
+  ];
+
+  const planningOverviewMetrics = [
+    { label: 'Uso dos limites', value: heroTotalPlanned > 0 ? `${heroPlanningUsagePct}%` : '—' },
+    { label: 'Categorias no mês', value: `${heroPlanningItems.length}` },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.08),transparent_34%),radial-gradient(circle_at_top_right,rgba(34,197,94,0.06),transparent_28%)]" />
       <Header
         title="Metas Financeiras"
         subtitle="Acompanhe seus objetivos e controle seus gastos"
@@ -546,13 +764,13 @@ export function Goals() {
         actions={
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button>
+              <Button className={primaryButtonClass}>
                 <Plus className="h-4 w-4 mr-2" />
                 Nova Meta
                 <ChevronDown className="h-4 w-4 ml-2" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuContent align="end" className="w-72 rounded-2xl border-border/70 bg-surface/95 shadow-[0_24px_48px_rgba(2,6,23,0.28)]">
               <DropdownMenuItem onClick={openSavingsFromHeader}>
                 <PiggyBank className="h-4 w-4 mr-2" />
                 <div>
@@ -579,55 +797,58 @@ export function Goals() {
         }
       />
 
-      <div className="p-6 space-y-6">
+      <div className="relative space-y-6 p-6">
         {showPageShell ? (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+            <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
               {Array.from({ length: 4 }).map((_, index) => (
-                <Card key={index} className="p-6 h-full animate-pulse">
-                  <div className="flex items-start gap-3 mb-4">
-                    <div className="h-12 w-12 rounded-xl bg-gray-200" />
-                    <div className="space-y-2 flex-1">
-                      <div className="h-4 w-24 rounded bg-gray-200" />
-                      <div className="h-3 w-32 rounded bg-gray-100" />
+                <Card
+                  key={index}
+                  className="h-full animate-pulse rounded-[1.75rem] border-border/70 bg-surface/92 p-6 shadow-[0_18px_38px_rgba(8,15,32,0.12)]"
+                >
+                  <div className="mb-4 flex items-start gap-3">
+                    <div className="h-11 w-11 rounded-xl bg-surface-elevated" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-24 rounded-full bg-surface-elevated" />
+                      <div className="h-3 w-32 rounded-full bg-surface-elevated/80" />
                     </div>
                   </div>
                   <div className="space-y-3">
-                    <div className="h-8 w-36 rounded bg-gray-200" />
-                    <div className="h-3 w-full rounded bg-gray-100" />
-                    <div className="h-3 w-2/3 rounded bg-gray-100" />
+                    <div className="h-8 w-36 rounded-full bg-surface-elevated" />
+                    <div className="h-3 w-full rounded-full bg-surface-elevated/80" />
+                    <div className="h-3 w-2/3 rounded-full bg-surface-elevated/80" />
                   </div>
                 </Card>
               ))}
             </div>
 
             <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
-              <TabsList className="grid w-full grid-cols-5 mb-6">
-                <TabsTrigger value="savings" className="flex items-center gap-2">
+              <TabsList className={goalsTabsListClassName}>
+                <TabsTrigger value="savings" className={goalsTabsTriggerClassName}>
                   <PiggyBank className="h-4 w-4" />
                   Economia
                 </TabsTrigger>
-                <TabsTrigger value="spending" className="flex items-center gap-2">
+                <TabsTrigger value="spending" className={goalsTabsTriggerClassName}>
                   <Shield className="h-4 w-4" />
                   Gastos
                 </TabsTrigger>
-                <TabsTrigger value="investments" className="flex items-center gap-2">
+                <TabsTrigger value="investments" className={goalsTabsTriggerClassName}>
                   <TrendingUp className="h-4 w-4" />
                   Investimentos
                 </TabsTrigger>
-                <TabsTrigger value="progress" className="flex items-center gap-2">
+                <TabsTrigger value="progress" className={goalsTabsTriggerClassName}>
                   <Zap className="h-4 w-4" />
                   Progresso
                 </TabsTrigger>
-                <TabsTrigger value="config" className="flex items-center gap-2">
+                <TabsTrigger value="config" className={goalsTabsTriggerClassName}>
                   <Settings className="h-4 w-4" />
                   Configurações
                 </TabsTrigger>
               </TabsList>
 
-              <Card className="p-10">
-                <div className="flex items-center justify-center gap-3 text-gray-500">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600" />
+              <Card className="rounded-[1.8rem] border-border/70 bg-surface/92 p-10 shadow-[0_18px_38px_rgba(8,15,32,0.12)]">
+                <div className="flex items-center justify-center gap-3 text-muted-foreground">
+                  <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-primary" />
                   <span>Carregando metas...</span>
                 </div>
               </Card>
@@ -636,180 +857,76 @@ export function Goals() {
         ) : (
           <>
             {/* Hero: visão geral (mês atual para orçamento) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-              <Card className="p-6 h-full">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-                      <PiggyBank className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-base text-gray-900">Economia</h3>
-                      <p className="text-sm text-gray-600">Total economizado</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-3xl font-bold text-gray-900">{formatCurrency(totalSavingsCurrent)}</span>
-                  {totalSavingsTarget > 0 && (
-                    <span className="text-sm text-gray-600">/ {formatCurrency(totalSavingsTarget)}</span>
-                  )}
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-gray-600">Metas ativas</span>
-                    <span className="font-semibold text-gray-900">{savingsGoals.length}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-gray-600">Progresso médio</span>
-                    <span className="font-semibold text-gray-900">{avgSavingsProgress}%</span>
-                  </div>
-                </div>
-              </Card>
+            <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+              <GoalsSummaryCard
+                title="Economia"
+                subtitle="Total economizado"
+                value={formatCurrency(totalSavingsCurrent)}
+                valueSuffix={totalSavingsTarget > 0 ? `/ ${formatCurrency(totalSavingsTarget)}` : undefined}
+                icon={PiggyBank}
+                gradient="blue"
+                loading={loading}
+                metrics={savingsOverviewMetrics}
+              />
 
-              <Card className="p-6 h-full">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
-                      <Shield className="h-6 w-6 text-white" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-base text-gray-900">Controle de Gastos</h3>
-                      <p className="text-sm text-gray-600">Categorias dentro do limite</p>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-2xl font-bold text-gray-900">{limitsComplied}</span>
-                  <span className="text-gray-600">de {spendingGoals.length}</span>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="inline-flex items-center gap-1.5 text-gray-600">
-                      <Flame className="h-4 w-4 text-orange-500" />
-                      Melhor streak
-                    </span>
-                    <span className="font-semibold text-gray-900">
-                      {spendingGoals.length === 0
-                        ? '—'
-                        : `${spendingGoalsBestStreak} ${spendingGoalsBestStreak === 1 ? 'mês' : 'meses'}`}
-                    </span>
-                  </div>
-                  {attentionCategory && (
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="inline-flex items-center gap-1.5 text-gray-600">
-                        <AlertTriangle className="h-4 w-4 text-red-500" />
-                        Atenção
-                      </span>
-                      <span className="font-semibold text-red-700 text-right">
-                        {attentionCategory.category_name || attentionCategory.name} ({attentionCategory.percentage}%)
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </Card>
+              <GoalsSummaryCard
+                title="Controle de Gastos"
+                subtitle="Categorias dentro do limite"
+                value={`${limitsComplied}`}
+                valueSuffix={`de ${spendingGoals.length}`}
+                icon={Shield}
+                gradient="orange"
+                loading={loading}
+                metrics={spendingOverviewMetrics}
+              />
 
-              <Card className="p-6 h-full">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-base text-gray-900">Investimentos</h3>
-                  <p className="text-sm text-gray-600">Metas ativas de patrimônio</p>
-                </div>
-              </div>
+              <GoalsSummaryCard
+                title="Investimentos"
+                subtitle="Metas ativas de patrimônio"
+                value={investmentLoading ? 'Carregando...' : formatCurrency(investmentHero.totalCurrent)}
+                valueSuffix={
+                  !investmentLoading && investmentHero.totalTarget > 0
+                    ? `/ ${formatCurrency(investmentHero.totalTarget)}`
+                    : undefined
+                }
+                icon={TrendingUp}
+                gradient="purple"
+                loading={investmentLoading}
+                metrics={investmentsOverviewMetrics}
+              />
+
+              <GoalsSummaryCard
+                title="Planejamento Mensal"
+                subtitle={`Mês atual (${heroSummaryMonth})`}
+                value={formatCurrency(heroTotalActual)}
+                valueSuffix={`/ ${formatCurrency(heroTotalPlanned)}`}
+                icon={Wallet}
+                gradient="green"
+                loading={loading}
+                metrics={planningOverviewMetrics}
+              />
             </div>
-            {investmentLoading ? (
-              <p className="text-sm text-gray-500">Carregando…</p>
-            ) : investmentHero.count === 0 ? (
-              <p className="text-sm text-gray-600">Nenhuma meta de investimento ativa.</p>
-            ) : (
-              <>
-                <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-3xl font-bold text-gray-900">{formatCurrency(investmentHero.totalCurrent)}</span>
-                  {investmentHero.totalTarget > 0 && (
-                    <span className="text-sm text-gray-600">/ {formatCurrency(investmentHero.totalTarget)}</span>
-                  )}
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-gray-600">Metas ativas</span>
-                    <span className="font-semibold text-gray-900">{investmentHero.count}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-gray-600">Progresso médio</span>
-                    <span className="font-semibold text-gray-900">{investmentHero.avgProgress}%</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-gray-600">No caminho</span>
-                    <span className="font-semibold text-emerald-700">
-                      {investmentHero.onTrackCount} de {investmentHero.count}
-                    </span>
-                  </div>
-                </div>
-              </>
-            )}
-          </Card>
-
-          <Card className="p-6 h-full">
-            <div className="flex items-start justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-                  <Wallet className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-base text-gray-900">Planejamento Mensal</h3>
-                  <p className="text-sm text-gray-600">Mês atual ({heroSummaryMonth})</p>
-                </div>
-              </div>
-            </div>
-            {loading ? (
-              <p className="text-sm text-gray-500">Carregando…</p>
-            ) : (
-              <>
-                <div className="flex items-baseline gap-2 mb-4">
-                  <span className="text-3xl font-bold text-gray-900">{formatCurrency(heroTotalActual)}</span>
-                  <span className="text-sm text-gray-600">/ {formatCurrency(heroTotalPlanned)}</span>
-                </div>
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-gray-600">Uso dos limites</span>
-                    <span className="font-semibold text-gray-900">
-                      {heroTotalPlanned > 0 ? `${heroPlanningUsagePct}%` : '—'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-gray-600">Categorias no mês</span>
-                    <span className="font-semibold text-gray-900">{heroPlanningItems.length}</span>
-                  </div>
-                </div>
-              </>
-            )}
-          </Card>
-        </div>
 
         {/* Tabs de Navegação */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="mb-6">
-          <TabsList className="grid w-full grid-cols-5 mb-6">
-            <TabsTrigger value="savings" className="flex items-center gap-2">
+          <TabsList className={goalsTabsListClassName}>
+            <TabsTrigger value="savings" className={goalsTabsTriggerClassName}>
               <PiggyBank className="h-4 w-4" />
               Economia
             </TabsTrigger>
-            <TabsTrigger value="spending" className="flex items-center gap-2">
+            <TabsTrigger value="spending" className={goalsTabsTriggerClassName}>
               <Shield className="h-4 w-4" />
               Gastos
             </TabsTrigger>
-            <TabsTrigger value="investments" className="flex items-center gap-2">
+            <TabsTrigger value="investments" className={goalsTabsTriggerClassName}>
               <TrendingUp className="h-4 w-4" />
               Investimentos
             </TabsTrigger>
-            <TabsTrigger value="progress" className="flex items-center gap-2">
+            <TabsTrigger value="progress" className={goalsTabsTriggerClassName}>
               <Zap className="h-4 w-4" />
               Progresso
             </TabsTrigger>
-            <TabsTrigger value="config" className="flex items-center gap-2">
+            <TabsTrigger value="config" className={goalsTabsTriggerClassName}>
               <Settings className="h-4 w-4" />
               Configurações
             </TabsTrigger>
@@ -817,34 +934,34 @@ export function Goals() {
 
           {/* Tab: Economia - Sistema Unificado Superior */}
           {activeTab === 'savings' ? (
-            <TabsContent value="savings">
+            <TabsContent value="savings" className="mt-0">
               {savingsGoals.length === 0 ? (
-                <div className="text-center py-12">
-                  <PiggyBank className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhuma meta de economia</h3>
-                  <p className="text-gray-600 mb-6">
+                <Card className="rounded-[1.8rem] border border-dashed border-border/70 bg-surface/88 px-8 py-14 text-center shadow-[0_18px_38px_rgba(8,15,32,0.12)]">
+                  <PiggyBank className="mx-auto mb-4 h-16 w-16 text-muted-foreground/40" />
+                  <h3 className="mb-2 text-lg font-semibold text-foreground">Nenhuma meta de economia</h3>
+                  <p className="mb-6 text-muted-foreground">
                     Crie uma meta para acompanhar aportes, prazo e progresso sem esperar outro carregamento da página.
                   </p>
-                  <Button onClick={openSavingsFromHeader}>
+                  <Button className={primaryButtonClass} onClick={openSavingsFromHeader}>
                     <Plus className="h-4 w-4 mr-2" />
                     Criar Meta de Economia
                   </Button>
-                </div>
+                </Card>
               ) : (
                 <div className="space-y-6">
-                  <Card className="p-6">
+                  <Card className="rounded-[1.75rem] border-border/70 bg-surface/92 p-6 shadow-[0_18px_38px_rgba(8,15,32,0.12)]">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                       <div className="text-center">
-                        <p className="text-sm text-gray-500">Metas Ativas</p>
-                        <p className="text-3xl font-bold text-gray-900">{savingsGoals.length}</p>
+                        <p className="text-sm text-muted-foreground">Metas Ativas</p>
+                        <p className="text-3xl font-semibold text-foreground">{savingsGoals.length}</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-sm text-gray-500">Total Economizado</p>
-                        <p className="text-3xl font-bold text-emerald-600">{formatCurrency(totalSavingsCurrent)}</p>
+                        <p className="text-sm text-muted-foreground">Total Economizado</p>
+                        <p className="text-3xl font-semibold text-emerald-500">{formatCurrency(totalSavingsCurrent)}</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-sm text-gray-500">Meta Total</p>
-                        <p className="text-3xl font-bold text-gray-900">{formatCurrency(totalSavingsTarget)}</p>
+                        <p className="text-sm text-muted-foreground">Meta Total</p>
+                        <p className="text-3xl font-semibold text-foreground">{formatCurrency(totalSavingsTarget)}</p>
                       </div>
                     </div>
                   </Card>
@@ -867,7 +984,7 @@ export function Goals() {
 
           {/* Tab: Gastos */}
           {activeTab === 'spending' ? (
-            <TabsContent value="spending">
+            <TabsContent value="spending" className="mt-0">
             <MotionConfig reducedMotion="never">
               <motion.div
                 key={`spending-${selectedMonthStr}`}
@@ -876,33 +993,37 @@ export function Goals() {
                 transition={{ duration: 0.35 }}
                 className="space-y-6"
               >
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Planejamento mensal por categoria</h3>
-                    <p className="text-sm text-gray-600">
+                <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+                  <div className="max-w-[36rem]">
+                    <h3 className="text-[1.55rem] font-semibold tracking-tight text-foreground">Planejamento mensal por categoria</h3>
+                    <p className="mt-1 text-[0.9rem] leading-relaxed text-muted-foreground">
                       Meta de Gasto agora concentra o planejamento do mês, os limites e o acompanhamento por categoria.
                     </p>
                   </div>
 
-                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                  <div className="flex flex-wrap items-center gap-2 xl:justify-end">
                     <MonthSelector selectedDate={selectedPlanningDate} onDateChange={setSelectedPlanningDate} />
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        await copyFromPreviousMonth();
-                      }}
-                    >
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copiar mês anterior
-                    </Button>
-                    <Button
-                      onClick={async () => {
-                        await applySuggestions();
-                      }}
-                    >
-                      <Sparkles className="h-4 w-4 mr-2" />
-                      Aplicar sugestões
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        className={cn(secondaryButtonClass, 'text-sm')}
+                        onClick={async () => {
+                          await copyFromPreviousMonth();
+                        }}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copiar mês anterior
+                      </Button>
+                      <Button
+                        className={cn(primaryButtonClass, 'text-sm')}
+                        onClick={async () => {
+                          await applySuggestions();
+                        }}
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Aplicar sugestões
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
@@ -916,20 +1037,20 @@ export function Goals() {
                 <BudgetInsights budgets={planningItems} totalDifference={totalDifference} month={selectedMonthStr} />
 
                 <Card
-                  className="border-2 border-dashed border-gray-300 hover:border-purple-400 hover:bg-purple-50 transition-all cursor-pointer"
+                  className="cursor-pointer rounded-[1.85rem] border-2 border-dashed border-border/80 bg-surface/88 transition-all duration-300 hover:border-primary/50 hover:bg-surface-elevated/88 hover:shadow-[0_20px_40px_rgba(8,15,32,0.14)]"
                   onClick={openSpendingPlanningDialog}
                 >
                   <div className="p-6 flex flex-col items-center justify-center text-center gap-3">
-                    <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center">
-                      <Plus className="h-6 w-6 text-gray-500" />
+                    <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-primary">
+                      <Plus className="h-6 w-6" />
                     </div>
                     <div>
-                      <h4 className="text-base font-semibold text-gray-900">Adicionar categoria</h4>
-                      <p className="text-sm text-gray-600">
+                      <h4 className="text-base font-semibold text-foreground">Adicionar categoria</h4>
+                      <p className="text-sm text-muted-foreground">
                         Inclua uma nova meta de gasto no planejamento mensal sem duplicar os cards abaixo.
                       </p>
                     </div>
-                    <Button variant="outline" onClick={openSpendingPlanningDialog}>
+                    <Button variant="outline" className={secondaryButtonClass} onClick={openSpendingPlanningDialog}>
                       <Plus className="h-4 w-4 mr-2" />
                       Nova categoria
                     </Button>
@@ -939,8 +1060,8 @@ export function Goals() {
                 {monthlySpendingGoals.length > 0 && (
                   <div className="space-y-4">
                     <div>
-                      <h4 className="text-base font-semibold text-gray-900">Detalhe das metas do mês</h4>
-                      <p className="text-sm text-gray-600">
+                      <h4 className="text-base font-semibold text-foreground">Detalhe das metas do mês</h4>
+                      <p className="text-sm text-muted-foreground">
                         Aqui você acompanha projeção, streak e histórico de cada categoria planejada.
                       </p>
                     </div>
@@ -964,24 +1085,24 @@ export function Goals() {
 
           {/* Tab: Investimentos */}
           {activeTab === 'investments' ? (
-            <TabsContent value="investments">
+            <TabsContent value="investments" className="mt-0">
             {investmentLoading ? (
               <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-                <p className="mt-4 text-gray-600">Carregando metas de investimento...</p>
+                <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
+                <p className="mt-4 text-muted-foreground">Carregando metas de investimento...</p>
               </div>
             ) : activeInvestmentGoals.length === 0 ? (
-              <div className="text-center py-12">
-                <TrendingUp className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhuma meta de investimento</h3>
-                <p className="text-gray-600 mb-6">
+              <Card className="rounded-[1.8rem] border border-dashed border-border/70 bg-surface/88 px-8 py-14 text-center shadow-[0_18px_38px_rgba(8,15,32,0.12)]">
+                <TrendingUp className="mx-auto mb-4 h-16 w-16 text-muted-foreground/40" />
+                <h3 className="mb-2 text-lg font-semibold text-foreground">Nenhuma meta de investimento</h3>
+                <p className="mb-6 text-muted-foreground">
                   Crie metas de longo prazo para crescer seu patrimônio com rentabilidade!
                 </p>
-                <Button onClick={openInvestmentsFromHeader}>
+                <Button className={primaryButtonClass} onClick={openInvestmentsFromHeader}>
                   <Plus className="h-4 w-4 mr-2" />
                   Criar Meta de Investimento
                 </Button>
-              </div>
+              </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {activeInvestmentGoals.map((goal) => (

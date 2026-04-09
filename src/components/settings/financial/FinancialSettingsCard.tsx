@@ -85,25 +85,29 @@ export function FinancialSettingsCard({
   };
 
   return (
-    <Card>
-      <CardHeader>
+    <Card
+      data-testid="goals-settings-financial-shell"
+      className="rounded-[28px] border border-border/70 bg-surface shadow-[0_18px_46px_rgba(8,15,32,0.14)] dark:shadow-[0_24px_56px_rgba(2,6,23,0.32)]"
+    >
+      <CardHeader className="border-b border-border/60 pb-5">
         <CardTitle className="flex items-center gap-2">
-          <DollarSign className="h-5 w-5" />
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-sm">
+            <DollarSign className="h-5 w-5" />
+          </span>
           Configurações Financeiras
         </CardTitle>
         <CardDescription>
           Defina suas metas e preferências financeiras
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-6 pt-6">
         {isLoading && (
-          <div className="rounded-lg border border-dashed border-muted-foreground/30 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+          <div className="rounded-2xl border border-dashed border-border/70 bg-surface-elevated/60 px-4 py-3 text-sm text-muted-foreground">
             Carregando configurações salvas...
           </div>
         )}
 
-        {/* Meta de Economia Mensal */}
-        <div className="space-y-3">
+        <div className="space-y-3 rounded-[24px] border border-border/70 bg-surface-elevated/70 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div className="flex items-center justify-between">
             <Label>Meta de Economia Mensal (%)</Label>
             <span className="text-sm font-medium">{savingsGoal}%</span>
@@ -133,8 +137,7 @@ export function FinancialSettingsCard({
           </div>
         </div>
 
-        {/* Dia de Fechamento */}
-        <div className="space-y-3">
+        <div className="space-y-3 rounded-[24px] border border-border/70 bg-surface-elevated/70 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div className="flex items-center gap-2">
             <Label>Dia de Fechamento do Mês</Label>
             <TooltipProvider>
@@ -162,8 +165,7 @@ export function FinancialSettingsCard({
           </p>
         </div>
 
-        {/* Alocação do Planejamento */}
-        <div className="space-y-4 pt-4 border-t">
+        <div className="space-y-4 rounded-[24px] border border-border/70 bg-surface-elevated/70 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div className="flex items-center justify-between">
             <Label className="text-base font-semibold">Alocação do Planejamento</Label>
             <span
@@ -263,8 +265,7 @@ export function FinancialSettingsCard({
           )}
         </div>
 
-        {/* Alertas Financeiros */}
-        <div className="space-y-3 pt-4 border-t">
+        <div className="space-y-3 rounded-[24px] border border-border/70 bg-surface-elevated/70 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <Label className="text-base font-semibold">Alertas Financeiros</Label>
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -288,7 +289,7 @@ export function FinancialSettingsCard({
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted-foreground">
             As alterações só são aplicadas ao sistema quando você salvar.
           </p>

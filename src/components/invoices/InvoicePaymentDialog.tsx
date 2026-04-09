@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { AlertCircle, CheckCircle2 } from 'lucide-react';
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,15 +13,11 @@ import { DatePickerInput } from '@/components/ui/date-picker-input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { CreditCardInvoice, CreditCard } from '@/types/database.types';
 import { useInvoices } from '@/hooks/useInvoices';
 import { useAccounts } from '@/hooks/useAccounts';
 import { formatCurrency } from '@/utils/formatters';
-import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const paymentSchema = z.object({
   payment_type: z.enum(['total', 'minimum', 'partial']),
@@ -37,6 +37,9 @@ interface InvoicePaymentDialogProps {
   onSuccess?: () => void;
 }
 
+const primaryButtonClass =
+  'rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90';
+
 export function InvoicePaymentDialog({
   open,
   onOpenChange,
@@ -51,8 +54,7 @@ export function InvoicePaymentDialog({
   const [paymentType, setPaymentType] = useState<'total' | 'minimum' | 'partial'>('total');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
 
-  // Calcular valores
-  const minimumPayment = invoice.remaining_amount * 0.02; // 2% do total
+  const minimumPayment = invoice.remaining_amount * 0.02;
   const totalPayment = invoice.remaining_amount;
 
   const {
@@ -73,28 +75,22 @@ export function InvoicePaymentDialog({
 
   const watchAmount = watch('amount');
 
-  // Filtrar apenas contas ativas
-  const availableAccounts = accounts.filter(
-    (acc) => acc.type !== 'credit_card'
-  );
-
-  // Buscar conta selecionada
-  const selectedAccount = availableAccounts.find(acc => acc.id === selectedAccountId);
+  const availableAccounts = accounts.filter((account) => account.type !== 'credit_card');
+  const selectedAccount = availableAccounts.find((account) => account.id === selectedAccountId);
   const hasEnoughBalance = selectedAccount ? selectedAccount.current_balance >= watchAmount : false;
   const balanceAfterPayment = selectedAccount ? selectedAccount.current_balance - watchAmount : 0;
 
-  // Atualizar valor quando tipo de pagamento muda
   useEffect(() => {
     if (paymentType === 'total') {
       setValue('amount', totalPayment);
     } else if (paymentType === 'minimum') {
       setValue('amount', minimumPayment);
     }
+
     setValue('payment_type', paymentType);
-  }, [paymentType, totalPayment, minimumPayment, setValue]);
+  }, [minimumPayment, paymentType, setValue, totalPayment]);
 
   const onSubmit = async (data: PaymentFormData) => {
-    // Validações adicionais
     if (!selectedAccount) {
       toast({
         title: 'Erro',
@@ -134,16 +130,17 @@ export function InvoicePaymentDialog({
         notes: data.notes,
       });
 
-      if (result.success) {
-        toast({
-          title: 'Fatura paga!',
-          description: `Pagamento de ${formatCurrency(data.amount)} registrado com sucesso.`,
-        });
-        onSuccess?.();
-        onOpenChange(false);
-      } else {
+      if (!result.success) {
         throw new Error(result.error || 'Erro ao registrar pagamento');
       }
+
+      toast({
+        title: 'Fatura paga!',
+        description: `Pagamento de ${formatCurrency(data.amount)} registrado com sucesso.`,
+      });
+
+      onSuccess?.();
+      onOpenChange(false);
     } catch (error: any) {
       toast({
         title: 'Erro',
@@ -155,108 +152,100 @@ export function InvoicePaymentDialog({
     }
   };
 
+  const paymentTypeCardClass = (type: 'total' | 'minimum' | 'partial') =>
+    `rounded-[22px] border p-4 text-left transition-all ${
+      paymentType === type
+        ? type === 'minimum'
+          ? 'border-warning/25 bg-warning/10 shadow-sm'
+          : type === 'partial'
+            ? 'border-primary/25 bg-primary/10 shadow-sm'
+            : 'border-info/25 bg-info/10 shadow-sm'
+        : 'border-border/70 bg-surface/75 hover:bg-surface-elevated'
+    }`;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Pagar Fatura</DialogTitle>
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
+        <DialogHeader className="border-b border-border/60 px-6 py-5">
+          <DialogTitle className="text-[1.65rem] font-semibold tracking-tight text-foreground">
+            Pagar Fatura
+          </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-          {/* Informações da Fatura */}
-          <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Fatura:</span>
-              <span className="font-medium">
-                {format(new Date(invoice.reference_month), 'MMMM yyyy', { locale: ptBR })}
-              </span>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 px-6 py-5">
+          <div className="rounded-[24px] border border-border/70 bg-surface-elevated/50 p-5 shadow-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between gap-4 text-sm">
+                <span className="text-muted-foreground">Fatura</span>
+                <span className="font-medium text-foreground">
+                  {format(new Date(invoice.reference_month), 'MMMM yyyy', { locale: ptBR })}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4 text-sm">
+                <span className="text-muted-foreground">Cartão</span>
+                <span className="font-medium text-foreground">{card.name}</span>
+              </div>
+              <div className="flex justify-between gap-4 pt-1">
+                <span className="text-muted-foreground">Valor Total</span>
+                <span className="text-[1.55rem] font-semibold tracking-tight text-foreground">
+                  {formatCurrency(invoice.total_amount)}
+                </span>
+              </div>
+              {invoice.paid_amount > 0 ? (
+                <>
+                  <div className="flex justify-between gap-4 text-sm">
+                    <span className="text-muted-foreground">Já Pago</span>
+                    <span className="font-medium text-success">{formatCurrency(invoice.paid_amount)}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Restante</span>
+                    <span className="text-lg font-semibold text-warning">
+                      {formatCurrency(invoice.remaining_amount)}
+                    </span>
+                  </div>
+                </>
+              ) : null}
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Cartão:</span>
-              <span className="font-medium">{card.name}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Valor Total:</span>
-              <span className="text-lg font-bold text-gray-900">
-                {formatCurrency(invoice.total_amount)}
-              </span>
-            </div>
-            {invoice.paid_amount > 0 && (
-              <>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Já Pago:</span>
-                  <span className="font-medium text-green-600">
-                    {formatCurrency(invoice.paid_amount)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Restante:</span>
-                  <span className="text-lg font-bold text-orange-600">
-                    {formatCurrency(invoice.remaining_amount)}
-                  </span>
-                </div>
-              </>
-            )}
           </div>
 
-          {/* Tipo de Pagamento */}
           <div className="space-y-3">
-            <Label>Tipo de Pagamento *</Label>
+            <Label className="text-foreground">Tipo de Pagamento *</Label>
             <div className="grid grid-cols-3 gap-3">
-              <button
-                type="button"
-                onClick={() => setPaymentType('total')}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  paymentType === 'total'
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
+              <button type="button" onClick={() => setPaymentType('total')} className={paymentTypeCardClass('total')}>
                 <div className="text-center">
-                  <p className="font-semibold text-sm">Total</p>
-                  <p className="text-lg font-bold text-blue-600 mt-1">
-                    {formatCurrency(totalPayment)}
-                  </p>
+                  <p className="text-sm font-semibold text-foreground">Total</p>
+                  <p className="mt-1 text-lg font-semibold text-info">{formatCurrency(totalPayment)}</p>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPaymentType('minimum')}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  paymentType === 'minimum'
-                    ? 'border-orange-500 bg-orange-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
+                className={paymentTypeCardClass('minimum')}
               >
                 <div className="text-center">
-                  <p className="font-semibold text-sm">Mínimo (2%)</p>
-                  <p className="text-lg font-bold text-orange-600 mt-1">
-                    {formatCurrency(minimumPayment)}
-                  </p>
+                  <p className="text-sm font-semibold text-foreground">Mínimo (2%)</p>
+                  <p className="mt-1 text-lg font-semibold text-warning">{formatCurrency(minimumPayment)}</p>
                 </div>
               </button>
 
               <button
                 type="button"
                 onClick={() => setPaymentType('partial')}
-                className={`p-4 rounded-lg border-2 transition-all ${
-                  paymentType === 'partial'
-                    ? 'border-purple-500 bg-purple-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
+                className={paymentTypeCardClass('partial')}
               >
                 <div className="text-center">
-                  <p className="font-semibold text-sm">Parcial</p>
-                  <p className="text-sm text-gray-600 mt-1">Valor customizado</p>
+                  <p className="text-sm font-semibold text-foreground">Parcial</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Valor customizado</p>
                 </div>
               </button>
             </div>
           </div>
 
-          {/* Valor do Pagamento */}
           <div className="space-y-2">
-            <Label htmlFor="amount">Valor do Pagamento *</Label>
+            <Label htmlFor="amount" className="text-foreground">
+              Valor do Pagamento *
+            </Label>
             <Input
               id="amount"
               type="number"
@@ -264,93 +253,90 @@ export function InvoicePaymentDialog({
               placeholder="0.00"
               {...register('amount', { valueAsNumber: true })}
               disabled={paymentType !== 'partial'}
-              className={errors.amount ? 'border-red-500' : ''}
+              className={`h-11 rounded-xl border-border/70 bg-surface/80 text-foreground shadow-sm dark:bg-surface-elevated/70 ${
+                errors.amount ? 'border-danger focus-visible:border-danger' : ''
+              }`}
             />
-            {errors.amount && (
-              <p className="text-sm text-red-500">{errors.amount.message}</p>
-            )}
+            {errors.amount ? <p className="text-sm text-danger">{errors.amount.message}</p> : null}
           </div>
 
-          {/* Data do Pagamento */}
           <div className="space-y-2">
-            <Label htmlFor="payment_date">Data do Pagamento *</Label>
+            <Label htmlFor="payment_date" className="text-foreground">
+              Data do Pagamento *
+            </Label>
             <DatePickerInput
               value={watch('payment_date')}
               onChange={(value) => setValue('payment_date', value)}
               placeholder="Selecione a data do pagamento"
-              disableFuture={true}
-              className={errors.payment_date ? 'border-red-500' : ''}
+              disableFuture
+              className={errors.payment_date ? 'border-danger focus-visible:border-danger' : ''}
             />
-            {errors.payment_date && (
-              <p className="text-sm text-red-500">{errors.payment_date.message}</p>
-            )}
+            {errors.payment_date ? <p className="text-sm text-danger">{errors.payment_date.message}</p> : null}
           </div>
 
-          {/* Conta de Débito */}
           <div className="space-y-2">
-            <Label htmlFor="account_id">Conta de Débito *</Label>
-            <Select 
+            <Label htmlFor="account_id" className="text-foreground">
+              Conta de Débito *
+            </Label>
+            <Select
               onValueChange={(value) => {
                 setValue('account_id', value);
                 setSelectedAccountId(value);
               }}
             >
-              <SelectTrigger className={errors.account_id ? 'border-red-500' : ''}>
+              <SelectTrigger
+                className={`h-11 rounded-xl border-border/70 bg-surface/80 text-foreground shadow-sm dark:bg-surface-elevated/70 ${
+                  errors.account_id ? 'border-danger focus-visible:border-danger' : ''
+                }`}
+              >
                 <SelectValue placeholder="Selecione uma conta" />
               </SelectTrigger>
               <SelectContent>
                 {availableAccounts.map((account) => (
                   <SelectItem key={account.id} value={account.id}>
-                    <div className="flex items-center justify-between w-full">
+                    <div className="flex w-full items-center justify-between gap-4">
                       <span>{account.name}</span>
-                      <span className="ml-2 text-gray-600">
-                        {formatCurrency(account.current_balance)}
-                      </span>
+                      <span className="text-muted-foreground">{formatCurrency(account.current_balance)}</span>
                     </div>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {errors.account_id && (
-              <p className="text-sm text-red-500">{errors.account_id.message}</p>
-            )}
+            {errors.account_id ? <p className="text-sm text-danger">{errors.account_id.message}</p> : null}
           </div>
 
-          {/* Resumo do Pagamento */}
-          {selectedAccount && watchAmount > 0 && (
-            <div className={`p-4 rounded-lg border-2 ${
-              hasEnoughBalance ? 'border-green-200 bg-green-50' : 'border-red-200 bg-red-50'
-            }`}>
-              <div className="flex items-start gap-2">
+          {selectedAccount && watchAmount > 0 ? (
+            <div
+              className={`rounded-[24px] border p-5 shadow-sm ${
+                hasEnoughBalance ? 'border-success/20 bg-success/10' : 'border-danger/20 bg-danger/10'
+              }`}
+            >
+              <div className="flex items-start gap-3">
                 {hasEnoughBalance ? (
-                  <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
+                  <CheckCircle2 className="mt-0.5 h-5 w-5 text-success" />
                 ) : (
-                  <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
+                  <AlertCircle className="mt-0.5 h-5 w-5 text-danger" />
                 )}
-                <div className="flex-1 space-y-2">
-                  <p className={`font-semibold ${
-                    hasEnoughBalance ? 'text-green-900' : 'text-red-900'
-                  }`}>
+
+                <div className="flex-1 space-y-3">
+                  <p className={`font-semibold ${hasEnoughBalance ? 'text-success' : 'text-danger'}`}>
                     {hasEnoughBalance ? 'Saldo suficiente' : 'Saldo insuficiente'}
                   </p>
-                  <div className="text-sm space-y-1">
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Saldo atual:</span>
-                      <span className="font-medium">
+
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Saldo atual</span>
+                      <span className="font-medium text-foreground">
                         {formatCurrency(selectedAccount.current_balance)}
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Valor do pagamento:</span>
-                      <span className="font-medium text-red-600">
-                        - {formatCurrency(watchAmount)}
-                      </span>
+                    <div className="flex justify-between gap-4">
+                      <span className="text-muted-foreground">Valor do pagamento</span>
+                      <span className="font-medium text-danger">- {formatCurrency(watchAmount)}</span>
                     </div>
-                    <div className="flex justify-between pt-1 border-t">
-                      <span className="font-semibold">Saldo após pagamento:</span>
-                      <span className={`font-bold ${
-                        balanceAfterPayment >= 0 ? 'text-green-600' : 'text-red-600'
-                      }`}>
+                    <div className="flex justify-between gap-4 border-t border-border/50 pt-2">
+                      <span className="font-semibold text-foreground">Saldo após pagamento</span>
+                      <span className={`font-semibold ${balanceAfterPayment >= 0 ? 'text-success' : 'text-danger'}`}>
                         {formatCurrency(balanceAfterPayment)}
                       </span>
                     </div>
@@ -358,32 +344,35 @@ export function InvoicePaymentDialog({
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
 
-          {/* Observações */}
           <div className="space-y-2">
-            <Label htmlFor="notes">Observações (opcional)</Label>
+            <Label htmlFor="notes" className="text-foreground">
+              Observações (opcional)
+            </Label>
             <Textarea
               id="notes"
               placeholder="Notas sobre o pagamento..."
               rows={3}
               {...register('notes')}
+              className="min-h-[110px] rounded-xl border-border/70 bg-surface/80 text-foreground shadow-sm dark:bg-surface-elevated/70"
             />
           </div>
 
-          {/* Botões */}
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <div className="flex justify-end gap-3 border-t border-border/60 pt-5">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
+              className="rounded-xl border-border/70 bg-surface/70 text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
             >
               Cancelar
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={loading || !hasEnoughBalance || !selectedAccount}
+              className={primaryButtonClass}
             >
               {loading ? 'Processando...' : 'Confirmar Pagamento'}
             </Button>

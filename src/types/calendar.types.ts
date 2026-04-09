@@ -5,11 +5,36 @@
 
 export type CalendarEventStatus = 'scheduled' | 'confirmed' | 'cancelled' | 'completed';
 
-export type CalendarEventSource = 'internal';
+/** Categorias de agenda para UI (criação manual); não inclui rotas financeiras canônicas. */
+export type EventKind = 'personal' | 'work' | 'mentoring';
+
+export type CalendarEventSource = 'internal' | 'external';
+
+/** Prioridade exibida/sincronizada via `metadata.priority` no evento canônico. */
+export type EventPriority = 'low' | 'medium' | 'high';
+
+/**
+ * Distingue intenção de lembrete no cliente. O servidor V1 persiste apenas offsets relativos ao início;
+ * `absolute` não implica paridade com provedores externos nem persistência de horário absoluto.
+ */
+export type ReminderType = 'relative' | 'absolute';
 
 export type CalendarEventCreatedBy = 'user' | 'ana_clara' | 'system';
 
 export type CalendarRecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+/** Frequências persistidas no domínio atual de agenda/recorrência. */
+export type CalendarRecurrenceFrequencyV1 = CalendarRecurrenceFrequency;
+
+/** Metadados extras em itens de agenda gerados a partir de série recorrente (`get_agenda_window`). */
+export interface CalendarAgendaRecurringMetadata {
+  event_id: string;
+  occurrence_key: string;
+  is_recurring: true;
+  original_start_at: string;
+  override_id: string | null;
+  series_frequency: string;
+}
 
 export type CalendarReminderKind = 'default' | 'prep' | 'deadline';
 
@@ -80,6 +105,8 @@ export interface CalendarEventReminder {
   event_id: string;
   reminder_kind: CalendarReminderKind;
   remind_offset_minutes: number;
+  /** Opcional: linhas legadas / futuras leituras; RPC V1 de escrita usa só offset relativo. */
+  reminder_type?: ReminderType;
   channel_policy: string;
   enabled: boolean;
   created_at: string;
@@ -164,7 +191,7 @@ export interface AgendaItem {
 export interface CreateCalendarEventInput {
   title: string;
   description?: string;
-  event_kind?: string;
+  event_kind?: EventKind;
   domain_type?: string;
   start_at: string;
   end_at?: string;
@@ -180,7 +207,7 @@ export interface CreateCalendarEventInput {
 export interface UpdateCalendarEventInput {
   title?: string;
   description?: string;
-  event_kind?: string;
+  event_kind?: EventKind;
   start_at?: string;
   end_at?: string;
   all_day?: boolean;
@@ -202,5 +229,7 @@ export interface SetEventRemindersInput {
     reminder_kind?: CalendarReminderKind;
     remind_offset_minutes: number;
     channel_policy?: string;
+    enabled?: boolean;
+    reminder_type?: ReminderType;
   }>;
 }

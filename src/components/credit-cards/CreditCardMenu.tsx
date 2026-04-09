@@ -44,7 +44,11 @@ export function CreditCardMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-white hover:bg-white/20">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-xl border border-white/10 bg-black/10 text-white/82 shadow-sm backdrop-blur-sm hover:bg-white/16 hover:text-white"
+          >
             <MoreVertical size={16} />
           </Button>
         </DropdownMenuTrigger>
@@ -66,7 +70,7 @@ export function CreditCardMenu({
               e.stopPropagation(); 
               setArchiveDialogOpen(true); 
             }}
-            className="text-orange-600"
+            className="text-warning focus:text-warning data-[highlighted]:text-warning"
           >
             <Archive size={16} className="mr-2" />
             Arquivar cartão
@@ -77,7 +81,7 @@ export function CreditCardMenu({
               e.stopPropagation(); 
               setDeleteDialogOpen(true); 
             }}
-            className="text-red-600"
+            className="text-danger focus:text-danger data-[highlighted]:text-danger"
           >
             <Trash2 size={16} className="mr-2" />
             Excluir cartão
@@ -105,7 +109,7 @@ export function CreditCardMenu({
                 onArchive();
                 setArchiveDialogOpen(false);
               }}
-              className="bg-orange-600 hover:bg-orange-700"
+              className="border-warning/25 bg-warning text-white hover:bg-warning/90"
             >
               Arquivar
             </AlertDialogAction>
@@ -133,7 +137,7 @@ export function CreditCardMenu({
                 onDelete();
                 setDeleteDialogOpen(false);
               }}
-              className="bg-red-600 hover:bg-red-700"
+              className="border-danger/25 bg-danger text-white hover:bg-danger/90"
             >
               Excluir
             </AlertDialogAction>

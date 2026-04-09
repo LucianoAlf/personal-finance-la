@@ -29,36 +29,31 @@ export function DeleteAccountDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-              <AlertTriangle className="h-6 w-6 text-red-600" />
+      <DialogContent className="sm:max-w-[460px]">
+        <DialogHeader className="space-y-3 border-b border-border/60 pb-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-danger-border bg-danger-subtle text-danger shadow-sm">
+              <AlertTriangle className="h-6 w-6" />
             </div>
-            <DialogTitle className="text-xl">Excluir Conta?</DialogTitle>
+            <div className="space-y-1">
+              <DialogTitle className="text-xl">Excluir conta?</DialogTitle>
+              <DialogDescription className="text-sm">
+                Tem certeza que deseja excluir a conta <strong>"{accountName}"</strong>?
+              </DialogDescription>
+            </div>
           </div>
-          <DialogDescription className="text-base">
-            Tem certeza que deseja excluir a conta <strong>"{accountName}"</strong>?
-            <br />
-            <br />
-            Esta ação é <strong>permanente</strong> e não pode ser desfeita. Todas as transações
-            associadas a esta conta também serão removidas.
-          </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="gap-2 sm:gap-0">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-          >
+
+        <div className="rounded-2xl border border-danger-border/70 bg-danger-subtle/70 px-4 py-3 text-sm text-muted-foreground">
+          Esta ação é <strong className="text-danger">permanente</strong> e não pode ser desfeita.
+          Todas as transações associadas a esta conta também serão removidas.
+        </div>
+
+        <DialogFooter className="border-t border-border/60 pt-4">
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            onClick={handleConfirm}
-            className="bg-red-600 hover:bg-red-700"
-          >
+          <Button type="button" variant="destructive" onClick={handleConfirm}>
             Sim, Excluir Conta
           </Button>
         </DialogFooter>

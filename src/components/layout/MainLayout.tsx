@@ -113,7 +113,7 @@ function QuickCreateTransactionModal({
     }
     const row = await addTransaction(data);
     if (!row?.id) {
-      throw new Error('NÃ£o foi possÃ­vel obter o id da transaÃ§Ã£o criada');
+      throw new Error('Não foi possível obter o id da transação criada');
     }
     return row.id;
   };

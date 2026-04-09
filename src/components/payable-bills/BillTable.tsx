@@ -291,10 +291,10 @@ export function BillTable({
 
   return (
     <TooltipProvider>
-      <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="overflow-hidden rounded-[1.7rem] border border-border/70 bg-card/95 shadow-[0_20px_48px_rgba(15,23,42,0.1)]">
         <Table>
           <TableHeader>
-            <TableRow className="bg-muted/50 hover:bg-muted/50">
+            <TableRow className="border-b border-border/70 bg-surface/75 hover:bg-surface/75">
               <TableHead className="w-12">
                 <Checkbox
                   checked={selectedIds.size === bills.length && bills.length > 0}
@@ -357,9 +357,9 @@ export function BillTable({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.02 }}
                 className={cn(
-                  "border-b transition-colors hover:bg-muted/50",
+                  "border-b border-border/60 transition-colors hover:bg-surface/40",
                   selectedIds.has(bill.id) && "bg-primary/5",
-                  bill.status === 'overdue' && "bg-red-50 dark:bg-red-950/20"
+                  bill.status === 'overdue' && "bg-red-500/6"
                 )}
               >
                 <TableCell>
@@ -370,7 +370,7 @@ export function BillTable({
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/60 bg-surface/65">
                       {getCategoryIcon(bill.bill_type)}
                     </div>
                     <div>
@@ -397,7 +397,7 @@ export function BillTable({
                   {(() => {
                     const catInfo = getCategoryInfo(bill);
                     return (
-                      <Badge variant="outline" className="gap-1 font-normal">
+                      <Badge variant="outline" className="gap-1 rounded-full border-border/70 bg-surface/70 font-normal">
                         {catInfo.icon}
                         {catInfo.name}
                       </Badge>
@@ -429,7 +429,7 @@ export function BillTable({
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 text-green-600 hover:text-green-700 hover:bg-green-50"
+                            className="h-8 w-8 rounded-xl text-green-600 hover:bg-green-500/10 hover:text-green-700"
                             onClick={() => onPay(bill)}
                           >
                             <CheckCircle className="h-4 w-4" />
@@ -441,7 +441,7 @@ export function BillTable({
                     
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl border border-border/70 bg-surface/70">
                           <MoreHorizontal className="h-4 w-4" />
                         </Button>
                       </DropdownMenuTrigger>
@@ -497,7 +497,7 @@ export function BillTable({
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center justify-between px-4 py-3 bg-muted/50 border-t"
+            className="flex items-center justify-between border-t border-border/70 bg-surface/60 px-4 py-3"
           >
             <span className="text-sm text-muted-foreground">
               {selectedIds.size} conta{selectedIds.size > 1 ? 's' : ''} selecionada{selectedIds.size > 1 ? 's' : ''}

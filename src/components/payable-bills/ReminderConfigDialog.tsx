@@ -116,10 +116,10 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[560px] rounded-[1.75rem] border-border/70 bg-background/98 shadow-[0_28px_80px_rgba(2,6,23,0.35)] backdrop-blur-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Bell className="h-5 w-5" />
+            <Bell className="h-5 w-5 text-primary" />
             Configurar Lembretes
           </DialogTitle>
           <DialogDescription>
@@ -129,7 +129,7 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
 
         <div className="space-y-6 py-4">
           {/* Info da Conta */}
-          <div className="bg-muted/50 rounded-lg p-4 border border-border">
+          <div className="rounded-[1.35rem] border border-border/60 bg-surface/55 p-4 shadow-[0_16px_36px_rgba(2,6,23,0.12)]">
             <h4 className="font-semibold text-sm mb-2">{bill.description}</h4>
             <div className="flex items-center justify-between text-sm text-muted-foreground">
               <span>Vencimento:</span>
@@ -151,7 +151,7 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
           {/* Quando lembrar */}
           <div>
             <Label className="text-base font-semibold mb-3 flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
+              <Calendar className="h-5 w-5 text-primary" />
               Quando lembrar?
             </Label>
             <div className="space-y-3">
@@ -163,7 +163,7 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
                   <motion.div
                     key={option.value}
                     whileHover={{ x: 4 }}
-                    className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
+                    className="flex items-center space-x-3 rounded-[1.2rem] border border-border/60 bg-surface/45 p-3.5 transition-colors hover:border-primary/30 hover:bg-surface/70"
                   >
                     <Checkbox
                       id={`day-${option.value}`}
@@ -188,14 +188,14 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
           {/* Como enviar */}
           <div>
             <Label className="text-base font-semibold mb-3 flex items-center gap-2">
-              <Send className="h-5 w-5" />
+              <Send className="h-5 w-5 text-primary" />
               Como enviar?
             </Label>
             <div className="space-y-3">
               {/* Push Notification */}
               <motion.div
                 whileHover={{ x: 4 }}
-                className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
+                className="flex items-center space-x-3 rounded-[1.2rem] border border-border/60 bg-surface/45 p-3.5 transition-colors hover:border-primary/30 hover:bg-surface/70"
               >
                 <Checkbox
                   id="channel-push"
@@ -216,7 +216,7 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
               {/* Email */}
               <motion.div
                 whileHover={{ x: 4 }}
-                className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
+                className="flex items-center space-x-3 rounded-[1.2rem] border border-border/60 bg-surface/45 p-3.5 transition-colors hover:border-primary/30 hover:bg-surface/70"
               >
                 <Checkbox
                   id="channel-email"
@@ -237,7 +237,7 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
               {/* WhatsApp */}
               <motion.div
                 whileHover={{ x: 4 }}
-                className="flex items-center space-x-3 p-3 rounded-lg border border-border hover:border-primary/50 transition-colors"
+                className="flex items-center space-x-3 rounded-[1.2rem] border border-border/60 bg-surface/45 p-3.5 transition-colors hover:border-primary/30 hover:bg-surface/70"
               >
                 <Checkbox
                   id="channel-whatsapp"
@@ -258,8 +258,8 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
           </div>
 
           {/* Dica */}
-          <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900/30 rounded-lg p-4">
-            <p className="text-xs text-blue-800 dark:text-blue-300 flex items-start gap-2">
+          <div className="rounded-[1.2rem] border border-primary/18 bg-primary/10 p-4">
+            <p className="text-xs text-primary flex items-start gap-2">
               <Lightbulb className="h-4 w-4 mt-0.5 flex-shrink-0" />
               <span><span className="font-medium">Dica:</span> Recomendamos ativar múltiplos canais e lembretes em diferentes dias para não esquecer nenhuma conta!</span>
             </p>
@@ -267,18 +267,18 @@ export function ReminderConfigDialog({ open, onOpenChange, bill, onSuccess }: Re
         </div>
 
         {/* Ações */}
-        <div className="flex gap-3">
+        <div className="flex gap-3 border-t border-border/60 pt-4">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
-            className="flex-1"
+            className="flex-1 rounded-xl border-border/70 bg-surface/85 hover:bg-surface-elevated"
             disabled={loading}
           >
             Cancelar
           </Button>
           <Button
             onClick={handleSave}
-            className="flex-1"
+            className="flex-1 rounded-xl shadow-[0_18px_36px_rgba(124,58,237,0.22)]"
             disabled={loading || selectedDays.length === 0 || selectedChannels.length === 0}
           >
             {loading ? (

@@ -22,6 +22,12 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
 
 export function CreditCards() {
+  const primaryButtonClass =
+    'rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90';
+
+  const secondaryButtonClass =
+    'rounded-xl border-border/70 bg-surface/85 px-4 shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay';
+
   const {
     cardsSummary,
     loading,
@@ -135,18 +141,19 @@ export function CreditCards() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.08),transparent_34%),radial-gradient(circle_at_top_right,rgba(59,130,246,0.06),transparent_30%)]" />
       <Header
         title="Cartões de Crédito"
         subtitle="Gerencie suas faturas e limites"
         icon={<CreditCard size={24} />}
         actions={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => handleNewPurchase()}>
+            <Button variant="outline" className={secondaryButtonClass} onClick={() => handleNewPurchase()}>
               <ShoppingCart size={16} className="mr-1" />
               Nova Compra
             </Button>
-            <Button onClick={() => { 
+            <Button className={primaryButtonClass} onClick={() => { 
               setSelectedCard(undefined); 
               setDialogOpen(true);
             }}>
@@ -157,9 +164,9 @@ export function CreditCards() {
         }
       />
 
-      <div className="p-6 space-y-6">
+      <div className="relative space-y-6 p-6">
         {/* Alertas Proativos */}
-        <CreditCardAlerts cards={cardsSummary} />
+        <CreditCardAlerts cards={cardsSummary} className="animate-fade-in" />
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-fade-in">
@@ -168,44 +175,48 @@ export function CreditCards() {
             value={formatCurrency(getTotalLimit())}
             icon={CreditCard}
             gradient="blue"
+            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
           />
           <StatCard
             title="Limite Usado"
             value={formatCurrency(getTotalUsed())}
             icon={TrendingUp}
             gradient="orange"
+            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
           />
           <StatCard
             title="Limite Disponível"
             value={formatCurrency(getTotalAvailable())}
             icon={Wallet}
             gradient="green"
+            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
           />
           <StatCard
             title={currentMonthInvoicesSummary.count === 1 ? 'Fatura do Mês' : 'Faturas do Mês'}
             value={formatCurrency(currentMonthInvoicesSummary.total)}
             icon={Receipt}
             gradient="red"
+            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
             subtitle={`${currentMonthInvoicesSummary.monthName} • ${currentMonthInvoicesSummary.count} ${currentMonthInvoicesSummary.count === 1 ? 'cartão' : 'cartões'}`}
           />
         </div>
 
         {/* Tabs: Cartões, Faturas, Análises e Histórico */}
         <Tabs defaultValue="cartoes" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-6">
-            <TabsTrigger value="cartoes" className="flex items-center gap-2">
+          <TabsList className="mb-6 grid h-auto w-full grid-cols-4 rounded-[1.4rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)]">
+            <TabsTrigger value="cartoes" className="flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15">
               <CreditCard className="h-4 w-4" />
               Meus Cartões
             </TabsTrigger>
-            <TabsTrigger value="faturas" className="flex items-center gap-2">
+            <TabsTrigger value="faturas" className="flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15">
               <Receipt className="h-4 w-4" />
               Faturas
             </TabsTrigger>
-            <TabsTrigger value="analises" className="flex items-center gap-2">
+            <TabsTrigger value="analises" className="flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15">
               <BarChart3 className="h-4 w-4" />
               Análises
             </TabsTrigger>
-            <TabsTrigger value="historico" className="flex items-center gap-2">
+            <TabsTrigger value="historico" className="flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15">
               <History className="h-4 w-4" />
               Histórico
             </TabsTrigger>

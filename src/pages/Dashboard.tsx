@@ -30,6 +30,7 @@ import {
   CreditCard,
   FileText,
   Home,
+  List,
 } from 'lucide-react';
 import { groupTransactionsForDisplay } from '@/utils/groupTransactionsForDisplay';
 import { competenceMonthFromTransaction, isInvoicePaymentExpense } from '@/utils/transactionCompetence';
@@ -226,9 +227,12 @@ export function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in animation-delay-300">
           {/* Transações Recentes */}
           <Card className="border-border/70 bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
-            <CardHeader className="border-b border-border/70">
+            <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
-                <CardTitle>Transações Recentes</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <List className="h-5 w-5 text-primary" />
+                  Transações Recentes
+                </CardTitle>
                 <Button 
                   variant="ghost" 
                   size="sm"
@@ -239,7 +243,7 @@ export function Dashboard() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-3 pt-1">
               {recentTransactions.length > 0 ? (
                 recentTransactions.map((transaction) => {
                   const shown = transaction.displayAmount ?? transaction.amount;

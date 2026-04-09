@@ -113,6 +113,7 @@ export function ExpensesByCategoryChart({ transactions, selectedDate }: Expenses
     <ChartCard
       title="Despesas por Categoria"
       icon={PieChartIcon}
+      headerTone="satin-clean"
       isEmpty={isEmpty}
       emptyMessage="Nenhuma despesa registrada neste mês"
     >

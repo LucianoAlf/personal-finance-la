@@ -15,12 +15,12 @@ export function MarketStatus({ showCrypto = true, className }: MarketStatusProps
   const { b3, crypto, timeUntilNextEvent } = useMarketStatus();
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
+    <div className={`flex flex-wrap items-center gap-2 ${className ?? ''}`}>
       {/* Status B3 */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 rounded-full border border-border/70 bg-surface/88 px-3 py-2 shadow-sm dark:bg-surface-elevated/80">
         <Badge
           variant={b3.isOpen ? 'success' : 'outline'}
-          className="gap-1.5"
+          className="gap-1.5 border-border/60 bg-surface/70"
         >
           {b3.isOpen ? (
             <>
@@ -38,7 +38,7 @@ export function MarketStatus({ showCrypto = true, className }: MarketStatusProps
           )}
         </Badge>
         {timeUntilNextEvent && (
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
             {b3.isOpen ? 'Fecha em' : 'Abre em'} {timeUntilNextEvent}
           </span>
@@ -47,7 +47,7 @@ export function MarketStatus({ showCrypto = true, className }: MarketStatusProps
 
       {/* Status Crypto */}
       {showCrypto && (
-        <Badge variant="warning" className="gap-1.5">
+        <Badge variant="warning" className="gap-1.5 border-warning/30 bg-warning/12 px-3 py-2 text-warning">
           <TrendingUp className="h-3 w-3" />
           <span>Crypto 24/7</span>
         </Badge>

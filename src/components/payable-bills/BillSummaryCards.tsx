@@ -1,8 +1,7 @@
 import { motion } from 'framer-motion';
-import { Card } from '@/components/ui/card';
 import { AlertCircle, CheckCircle2, Clock, Wallet } from 'lucide-react';
 import { formatCurrency } from '@/utils/billCalculations';
-import { IconBox } from '@/components/shared/IconBox';
+import { StatCard } from '@/components/dashboard/StatCard';
 
 interface BillSummaryCardsProps {
   pendingAmount: number;
@@ -77,24 +76,14 @@ export function BillSummaryCards({
           viewport={{ once: true }}
           transition={{ delay: index * 0.1 }}
         >
-          <Card className={`border-2 ${card.borderColor} ${card.bgColor} transition-all duration-300 hover:-translate-y-2 hover:shadow-xl`}>
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  {card.title}
-                </h3>
-                <IconBox icon={card.icon} gradient={card.gradient} size="sm" />
-              </div>
-              <div className="space-y-1">
-                <p className={`text-2xl font-bold ${card.color}`}>
-                  {formatCurrency(card.amount)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {card.count} {card.count === 1 ? 'conta' : 'contas'}
-                </p>
-              </div>
-            </div>
-          </Card>
+          <StatCard
+            title={card.title}
+            value={formatCurrency(card.amount)}
+            icon={card.icon}
+            gradient={card.gradient}
+            subtitle={`${card.count} ${card.count === 1 ? 'conta' : 'contas'}`}
+            valueClassName={card.color}
+          />
         </motion.div>
       ))}
     </div>

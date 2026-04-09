@@ -1,12 +1,15 @@
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { CreditCardInvoice, CreditCard } from '@/types/database.types';
-import { formatCurrency } from '@/utils/formatters';
-import { formatCardNumber, calculateUsagePercentage, getInvoiceStatusInfo } from '@/utils/creditCardUtils';
 import { differenceInDays, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatLongDateBR } from '@/lib/date-utils';
-import { Calendar } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { CreditCardInvoice, CreditCard } from '@/types/database.types';
+import { getInvoiceStatusInfo } from '@/utils/creditCardUtils';
+import { formatCurrency } from '@/utils/formatters';
+import { parseDateOnlyAsLocal } from '@/utils/dateOnly';
+import { cn } from '@/lib/utils';
+
 import { InvoiceStatusBadge } from './InvoiceStatusBadge';
 
 interface InvoiceCardProps {
@@ -17,154 +20,203 @@ interface InvoiceCardProps {
   onPayInvoice?: () => void;
 }
 
-export function InvoiceCard({ invoice, card, isHighlighted = false, onViewDetails, onPayInvoice }: InvoiceCardProps) {
-  const usagePercentage = calculateUsagePercentage(invoice.total_amount, card.credit_limit);
-  const daysUntilDue = differenceInDays(new Date(invoice.due_date), new Date());
-  
-  // Usar status dinâmico calculado
+export function InvoiceCard({
+  invoice,
+  card,
+  isHighlighted = false,
+  onViewDetails,
+  onPayInvoice,
+}: InvoiceCardProps) {
+  const dueDate = parseDateOnlyAsLocal(invoice.due_date);
+  const referenceMonth = parseDateOnlyAsLocal(invoice.reference_month);
+  const usagePercentage = card.credit_limit > 0 ? (invoice.total_amount / card.credit_limit) * 100 : 0;
+  const daysUntilDue = differenceInDays(dueDate, new Date());
+
   const statusInfo = getInvoiceStatusInfo(
     invoice.closing_date,
     invoice.due_date,
     invoice.total_amount,
     invoice.paid_amount,
-    invoice.status
+    invoice.status,
   );
-  
+
   const isOverdue = statusInfo.status === 'overdue';
   const isPaid = statusInfo.status === 'paid';
+  const hasPartialPayment = Number(invoice.paid_amount) > 0 && Number(invoice.paid_amount) < Number(invoice.total_amount);
+  const displayAmount = hasPartialPayment ? Number(invoice.remaining_amount) : Number(invoice.total_amount);
 
-  // Determinar cor da barra de progresso
-  const getProgressColor = () => {
-    if (usagePercentage >= 90) return 'bg-red-500';
-    if (usagePercentage >= 70) return 'bg-orange-500';
-    if (usagePercentage >= 50) return 'bg-yellow-500';
-    return 'bg-green-500';
-  };
+  const progressToneClass =
+    usagePercentage >= 90
+      ? 'bg-danger'
+      : usagePercentage >= 70
+        ? 'bg-warning'
+        : usagePercentage >= 45
+          ? 'bg-info'
+          : 'bg-success';
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
       <Card
-        className={`hover:-translate-y-1 hover:shadow-xl transition-all duration-300 ${
-          isOverdue ? 'border-red-500 border-2' : ''
-        } ${isPaid ? 'opacity-75' : ''} ${
-          isHighlighted ? 'ring-2 ring-primary ring-offset-2 shadow-2xl animate-pulse' : ''
-        }`}
+        className={cn(
+          'group overflow-hidden rounded-[30px] border border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(15,23,42,0.12)] dark:shadow-[0_22px_55px_rgba(2,6,23,0.28)] dark:hover:shadow-[0_28px_65px_rgba(2,6,23,0.38)]',
+          isOverdue && 'border-danger/40 shadow-[0_20px_48px_rgba(220,38,38,0.12)]',
+          isPaid && 'opacity-[0.86]',
+          isHighlighted && 'ring-2 ring-primary/40 ring-offset-0 shadow-[0_28px_65px_rgba(139,92,246,0.18)]',
+        )}
       >
-      <CardContent className="p-6 space-y-4">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm font-medium text-gray-600">{card.name}</span>
-              <span className="text-xs text-gray-400">{formatCardNumber(card.last_four_digits)}</span>
+        <CardContent className="space-y-5 p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span className="font-medium text-foreground">{card.name}</span>
+                <span className="text-foreground/60">{`•••• ${card.last_four_digits}`}</span>
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-[1.35rem] font-semibold tracking-tight text-foreground">
+                  Fatura de {format(referenceMonth, 'MMMM yyyy', { locale: ptBR })}
+                </h3>
+                <p className="text-sm leading-6 text-muted-foreground">
+                  Ciclo atual do cartao com visao de limite, vencimento e pagamento.
+                </p>
+              </div>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900">
-              Fatura de {format(new Date(invoice.reference_month + 'T12:00:00'), 'MMMM yyyy', { locale: ptBR })}
-            </h3>
-          </div>
-          <InvoiceStatusBadge
-            closingDate={invoice.closing_date}
-            dueDate={invoice.due_date}
-            totalAmount={invoice.total_amount}
-            paidAmount={invoice.paid_amount}
-            currentStatus={invoice.status}
-            size="md"
-          />
-        </div>
 
-        {/* Valores */}
-        <div className="space-y-2">
-          {(() => {
-            const paidAmount = Number(invoice.paid_amount) || 0;
-            const totalAmount = Number(invoice.total_amount) || 0;
-            const remainingAmount = Number(invoice.remaining_amount) || (totalAmount - paidAmount);
-            const hasParcial = paidAmount > 0 && paidAmount < totalAmount;
-            
-            return (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">
-                    {hasParcial ? 'Valor Restante' : 'Valor Total'}
-                  </span>
-                  <span className="text-2xl font-bold text-gray-900">
-                    {formatCurrency(hasParcial ? remainingAmount : totalAmount)}
-                  </span>
-                </div>
-                {hasParcial && (
-                  <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Valor original: {formatCurrency(totalAmount)}</span>
-                    <span className="text-green-600">Pago: {formatCurrency(paidAmount)}</span>
-                  </div>
-                )}
-              </>
-            );
-          })()}
-
-          <div className="flex items-center justify-between text-sm">
-            <div className="flex items-center gap-1 text-gray-600">
-              <Calendar size={14} />
-              <span>Vencimento</span>
-            </div>
-            <span className={`font-medium ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
-              {formatLongDateBR(invoice.due_date).replace(/de \d{4}$/, '')}
-            </span>
-          </div>
-
-          {!isPaid && daysUntilDue >= 0 && (
-            <div className="text-xs text-gray-500">
-              {daysUntilDue === 0
-                ? 'Vence hoje!'
-                : daysUntilDue === 1
-                ? 'Vence amanhã'
-                : `Vence em ${daysUntilDue} dias`}
-            </div>
-          )}
-
-          {isOverdue && (
-            <div className="text-xs text-red-600 font-semibold">
-              Vencida há {Math.abs(daysUntilDue)} dias
-            </div>
-          )}
-        </div>
-
-        {/* Barra de Uso do Limite */}
-        <div>
-          <div className="flex items-center justify-between text-sm mb-2">
-            <span className="text-gray-600">Uso do Limite</span>
-            <span className={usagePercentage >= 80 ? 'text-red-600 font-semibold' : 'text-gray-900'}>
-              {usagePercentage.toFixed(1)}%
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div
-              className={`h-2 rounded-full transition-all ${getProgressColor()}`}
-              style={{ width: `${Math.min(usagePercentage, 100)}%` }}
+            <InvoiceStatusBadge
+              closingDate={invoice.closing_date}
+              dueDate={invoice.due_date}
+              totalAmount={invoice.total_amount}
+              paidAmount={invoice.paid_amount}
+              currentStatus={invoice.status}
+              size="md"
             />
           </div>
-          <div className="flex items-center justify-between text-xs text-gray-600 mt-1">
-            <span>{formatCurrency(invoice.total_amount)} usado</span>
-            <span>Limite: {formatCurrency(card.credit_limit)}</span>
+
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+            <div
+              data-testid="invoice-value-panel"
+              className="rounded-[24px] border border-border/70 bg-gradient-to-br from-primary/[0.05] via-surface-elevated/80 to-surface/80 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:from-primary/[0.08] dark:via-surface-elevated/60 dark:to-surface/95"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-muted-foreground">
+                    {hasPartialPayment ? 'Valor Restante' : 'Valor Total'}
+                  </p>
+                  <p className="text-[1.72rem] font-semibold tracking-tight text-foreground sm:text-[1.78rem]">
+                    {formatCurrency(displayAmount)}
+                  </p>
+                </div>
+
+                {hasPartialPayment ? (
+                  <div className="rounded-full border border-success/20 bg-success/10 px-3 py-1 text-xs font-semibold text-success">
+                    Pago {formatCurrency(invoice.paid_amount)}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
+                <div className="rounded-2xl border border-border/65 bg-background/50 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                  <p className="text-[0.74rem] font-medium uppercase tracking-[0.14em] text-muted-foreground/90">
+                    Vencimento
+                  </p>
+                  <p
+                    data-testid="invoice-due-value"
+                    className={cn(
+                      'mt-2 whitespace-nowrap text-[1.08rem] font-semibold leading-tight text-foreground',
+                      isOverdue && 'text-danger',
+                    )}
+                  >
+                    {format(dueDate, "dd 'de' MMM", { locale: ptBR })}
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    {isPaid
+                      ? 'Fatura quitada'
+                      : isOverdue
+                        ? `Vencida ha ${Math.abs(daysUntilDue)} dias`
+                        : daysUntilDue <= 0
+                          ? 'Vence hoje'
+                          : `Vence em ${daysUntilDue} dias`}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-border/65 bg-background/50 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                  <p
+                    data-testid="invoice-limit-label"
+                    className="text-[0.74rem] font-medium uppercase tracking-[0.14em] text-muted-foreground/90"
+                  >
+                    Uso do limite
+                  </p>
+                  <p className="mt-2 text-[1.08rem] font-semibold leading-tight text-foreground">
+                    {usagePercentage.toFixed(1)}%
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
+                    Limite total {formatCurrency(card.credit_limit)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div
+              data-testid="invoice-usage-panel"
+              className="rounded-[24px] border border-border/70 bg-gradient-to-br from-info/[0.045] via-surface-elevated/80 to-surface/80 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] dark:from-info/[0.08] dark:via-surface-elevated/60 dark:to-surface/95"
+            >
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-foreground">Uso do limite</span>
+                <span className={cn('font-semibold text-foreground', usagePercentage >= 80 && 'text-danger')}>
+                  {usagePercentage.toFixed(1)}%
+                </span>
+              </div>
+
+              <div className="mt-3 h-2 rounded-full bg-surface-overlay/80">
+                <div
+                  className={cn('h-full rounded-full transition-all', progressToneClass)}
+                  style={{ width: `${Math.min(usagePercentage, 100)}%` }}
+                />
+              </div>
+
+              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                <span>{formatCurrency(invoice.total_amount)} usado</span>
+                <span>Limite {formatCurrency(card.credit_limit)}</span>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-border/60 bg-background/55 px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                <div className="flex items-center justify-between text-sm">
+                  <span
+                    data-testid="invoice-explore-title"
+                    className="text-sm font-semibold text-foreground"
+                  >
+                    Explorar conteudo
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </div>
+                <p
+                  data-testid="invoice-explore-copy"
+                  className="mt-2 text-[0.84rem] leading-6 text-muted-foreground"
+                >
+                  Veja transacoes, categorias, parcelas e historico de pagamentos desta fatura.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Contador de Transações - será calculado via hook */}
-        <div className="text-sm text-gray-600">
-          Ver transações
-        </div>
-
-        {/* Botões de Ação */}
-        <div className="flex gap-2 pt-2">
-          <Button variant="outline" className="flex-1" onClick={onViewDetails}>
-            Ver Detalhes
-          </Button>
-          {!isPaid && onPayInvoice && (
-            <Button className="flex-1" onClick={onPayInvoice}>
-              Pagar Fatura
+          <div className="flex gap-3 border-t border-border/60 pt-5">
+            <Button
+              variant="outline"
+              className="flex-1 rounded-xl border-border/70 bg-surface/75 hover:bg-surface-elevated"
+              onClick={onViewDetails}
+            >
+              Ver Detalhes
             </Button>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+            {!isPaid && onPayInvoice ? (
+              <Button
+                className="flex-1 rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90"
+                onClick={onPayInvoice}
+              >
+                Pagar Fatura
+              </Button>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

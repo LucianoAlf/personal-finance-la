@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useBenchmark } from '@/hooks/useBenchmarks';
+import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/utils/formatters';
 import { calculateInvestmentPlan, type PlanningStatus } from '@/utils/investmentPlanning';
 
@@ -19,6 +20,9 @@ interface InvestmentPlanningCalculatorProps {
   editableBaseInputs?: boolean;
   compact?: boolean;
 }
+
+const shellClassName =
+  'overflow-hidden rounded-[30px] border border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(3,8,20,0.16)] dark:shadow-[0_22px_55px_rgba(2,6,23,0.28)]';
 
 export function InvestmentPlanningCalculator({
   title = 'Calculadora de Planejamento',
@@ -76,52 +80,84 @@ export function InvestmentPlanningCalculator({
     }
   }, [inflationTouched, ipcaBenchmark]);
 
-  const plan = useMemo(() => calculateInvestmentPlan({
-    currentAmount,
-    monthlyContribution,
-    annualReturnRate,
-    inflationRate,
-    annualTaxRate,
-    annualFeeRate,
-    yearsToGoal,
-    targetAmountToday,
-    desiredMonthlyIncomeToday: desiredMonthlyIncome,
-    withdrawalRate,
-  }), [
-    annualFeeRate,
-    annualReturnRate,
-    annualTaxRate,
-    currentAmount,
-    desiredMonthlyIncome,
-    inflationRate,
-    monthlyContribution,
-    targetAmountToday,
-    withdrawalRate,
-    yearsToGoal,
-  ]);
+  const plan = useMemo(
+    () =>
+      calculateInvestmentPlan({
+        currentAmount,
+        monthlyContribution,
+        annualReturnRate,
+        inflationRate,
+        annualTaxRate,
+        annualFeeRate,
+        yearsToGoal,
+        targetAmountToday,
+        desiredMonthlyIncomeToday: desiredMonthlyIncome,
+        withdrawalRate,
+      }),
+    [
+      annualFeeRate,
+      annualReturnRate,
+      annualTaxRate,
+      currentAmount,
+      desiredMonthlyIncome,
+      inflationRate,
+      monthlyContribution,
+      targetAmountToday,
+      withdrawalRate,
+      yearsToGoal,
+    ],
+  );
 
   const statusVariant = getStatusVariant(plan.status);
 
   return (
-    <Card className={compact ? 'border-dashed' : undefined}>
-      <CardHeader className={compact ? 'pb-3' : undefined}>
+    <Card className={shellClassName}>
+      <CardHeader className="border-b border-border/60 pb-5">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-base">{title}</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">{description}</p>
+          <div className="max-w-2xl">
+            <CardTitle className="text-xl font-semibold tracking-tight">{title}</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">{description}</p>
           </div>
-          <Badge variant={statusVariant}>{plan.status}</Badge>
+          <Badge variant={statusVariant} className="rounded-full px-3 py-1.5 text-xs font-semibold">
+            {plan.status}
+          </Badge>
         </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+
+      <CardContent className="space-y-5 pt-6">
         {editableBaseInputs && (
           <div className={`grid gap-4 ${compact ? 'grid-cols-1' : 'md:grid-cols-3'}`}>
-            <NumberField label="Patrimônio atual" value={currentAmount} onChange={setCurrentAmount} prefix="R$" />
-            <NumberField label="Aporte mensal atual" value={monthlyContribution} onChange={setMonthlyContribution} prefix="R$" />
+            <NumberField
+              label="Patrimônio atual"
+              value={currentAmount}
+              onChange={setCurrentAmount}
+              prefix="R$"
+            />
+            <NumberField
+              label="Aporte mensal atual"
+              value={monthlyContribution}
+              onChange={setMonthlyContribution}
+              prefix="R$"
+            />
             <NumberField label="Prazo (anos)" value={yearsToGoal} onChange={setYearsToGoal} min={1} />
-            <NumberField label="Objetivo em dinheiro de hoje" value={targetAmountToday} onChange={setTargetAmountToday} prefix="R$" />
-            <NumberField label="Renda mensal desejada hoje" value={desiredMonthlyIncome} onChange={setDesiredMonthlyIncome} prefix="R$" />
-            <NumberField label="Retorno nominal anual" value={annualReturnRate} onChange={setAnnualReturnRate} suffix="%" />
+            <NumberField
+              label="Objetivo em dinheiro de hoje"
+              value={targetAmountToday}
+              onChange={setTargetAmountToday}
+              prefix="R$"
+            />
+            <NumberField
+              label="Renda mensal desejada hoje"
+              value={desiredMonthlyIncome}
+              onChange={setDesiredMonthlyIncome}
+              prefix="R$"
+            />
+            <NumberField
+              label="Retorno nominal anual"
+              value={annualReturnRate}
+              onChange={setAnnualReturnRate}
+              suffix="%"
+            />
           </div>
         )}
 
@@ -164,20 +200,31 @@ export function InvestmentPlanningCalculator({
 
         <div className={`grid gap-4 ${compact ? 'grid-cols-1' : 'md:grid-cols-3'}`}>
           {plan.scenarios.map((scenario) => (
-            <div key={scenario.label} className="rounded-lg border p-3">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <p className="font-medium capitalize">{scenario.label}</p>
-                <Badge variant={getStatusVariant(scenario.status)}>{scenario.status}</Badge>
+            <div
+              key={scenario.label}
+              className="rounded-2xl border border-border/60 bg-surface-elevated/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="font-medium capitalize text-foreground">{scenario.label}</p>
+                <Badge variant={getStatusVariant(scenario.status)} className="rounded-full px-3 py-1 text-xs">
+                  {scenario.status}
+                </Badge>
               </div>
               <p className="text-sm text-muted-foreground">Patrimônio projetado</p>
-              <p className="text-lg font-semibold">{formatCurrency(scenario.projectedAmount)}</p>
+              <p className="text-lg font-semibold text-foreground">{formatCurrency(scenario.projectedAmount)}</p>
             </div>
           ))}
         </div>
 
-        <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-          <p>Retorno real estimado: <span className="font-semibold text-foreground">{plan.realAnnualReturnRate.toFixed(2)}% ao ano</span>.</p>
-          <p>Retorno líquido após impostos e custos: <span className="font-semibold text-foreground">{plan.netAnnualReturnRate.toFixed(2)}% ao ano</span>.</p>
+        <div className="rounded-2xl border border-border/60 bg-surface-elevated/45 p-4 text-sm text-muted-foreground">
+          <p>
+            Retorno real estimado:{' '}
+            <span className="font-semibold text-foreground">{plan.realAnnualReturnRate.toFixed(2)}% ao ano</span>.
+          </p>
+          <p>
+            Retorno líquido após impostos e custos:{' '}
+            <span className="font-semibold text-foreground">{plan.netAnnualReturnRate.toFixed(2)}% ao ano</span>.
+          </p>
         </div>
       </CardContent>
     </Card>
@@ -201,7 +248,7 @@ function NumberField({
 }) {
   return (
     <div className="space-y-2">
-      <Label>{label}</Label>
+      <Label className="text-sm font-medium text-foreground">{label}</Label>
       <div className="relative">
         {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{prefix}</span>}
         <Input
@@ -210,7 +257,10 @@ function NumberField({
           step="0.01"
           value={Number.isFinite(value) ? value : 0}
           onChange={(event) => onChange(Number(event.target.value || 0))}
-          className={prefix ? 'pl-10' : suffix ? 'pr-10' : undefined}
+          className={cn(
+            'h-11 rounded-xl border-border/70 bg-surface/85 text-foreground shadow-sm dark:bg-surface-elevated/70',
+            prefix ? 'pl-10' : suffix ? 'pr-10' : undefined,
+          )}
         />
         {suffix && <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">{suffix}</span>}
       </div>
@@ -228,9 +278,14 @@ function Metric({
   highlight?: boolean;
 }) {
   return (
-    <div className={`rounded-lg border p-3 ${highlight ? 'border-purple-200 bg-purple-50/50' : ''}`}>
+    <div
+      className={cn(
+        'rounded-2xl border border-border/60 bg-surface-elevated/45 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]',
+        highlight && 'border-purple-500/20 bg-purple-500/10',
+      )}
+    >
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="text-lg font-semibold">{value}</p>
+      <p className={cn('text-lg font-semibold text-foreground', highlight && 'text-purple-500')}>{value}</p>
     </div>
   );
 }

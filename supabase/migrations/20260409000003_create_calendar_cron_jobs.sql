@@ -6,7 +6,6 @@
 -- Functions already have verify_jwt = false in config.toml.
 
 CREATE EXTENSION IF NOT EXISTS pg_cron;
-
 -- Reminder dispatch: every 5 minutes
 SELECT cron.schedule(
   'calendar-dispatch-reminders',
@@ -21,7 +20,6 @@ SELECT cron.schedule(
   ) AS request_id;
   $$
 );
-
 -- TickTick sync: every 10 minutes
 SELECT cron.schedule(
   'calendar-sync-ticktick',
@@ -36,7 +34,6 @@ SELECT cron.schedule(
   ) AS request_id;
   $$
 );
-
 -- Verify cron jobs created
 SELECT jobname, schedule FROM cron.job
 WHERE jobname IN ('calendar-dispatch-reminders', 'calendar-sync-ticktick');

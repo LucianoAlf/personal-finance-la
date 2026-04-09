@@ -1,12 +1,15 @@
 import { useState } from 'react';
+import { AlertTriangle, CheckCircle2, Clock, CreditCard, FileText, Package } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { InvoiceCard } from './InvoiceCard';
-import { useInvoices } from '@/hooks/useInvoices';
-import { useCreditCards } from '@/hooks/useCreditCards';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FileText, Clock, CheckCircle2, CreditCard, Package, AlertTriangle } from 'lucide-react';
+import { useCreditCards } from '@/hooks/useCreditCards';
+import { useInvoices } from '@/hooks/useInvoices';
+import { cn } from '@/lib/utils';
 import { parseDateOnlyAsLocal } from '@/utils/dateOnly';
+
+import { InvoiceCard } from './InvoiceCard';
 
 interface InvoiceListProps {
   cardId?: string;
@@ -16,7 +19,26 @@ interface InvoiceListProps {
   onPayInvoice?: (invoiceId: string) => void;
 }
 
-export function InvoiceList({ cardId, loading: externalLoading, highlightedInvoiceId, onViewDetails, onPayInvoice }: InvoiceListProps) {
+const filterButtonClass = (
+  active: boolean,
+  tone: 'default' | 'danger' = 'default',
+) =>
+  cn(
+    'h-11 rounded-xl border px-4 text-sm font-semibold shadow-sm transition-colors',
+    active
+      ? tone === 'danger'
+        ? 'border-danger/30 bg-danger/12 text-danger'
+        : 'border-primary/25 bg-primary/12 text-foreground'
+      : 'border-border/70 bg-surface/72 text-muted-foreground hover:bg-surface-elevated hover:text-foreground',
+  );
+
+export function InvoiceList({
+  cardId,
+  loading: externalLoading,
+  highlightedInvoiceId,
+  onViewDetails,
+  onPayInvoice,
+}: InvoiceListProps) {
   const [selectedCardId, setSelectedCardId] = useState<string | undefined>(cardId);
   const [activeTab, setActiveTab] = useState<'open' | 'closed' | 'overdue' | 'paid'>('open');
 
@@ -25,18 +47,15 @@ export function InvoiceList({ cardId, loading: externalLoading, highlightedInvoi
 
   const isLoading = externalLoading || invoicesLoading;
 
-  // Filtrar faturas
   const filteredInvoices = selectedCardId
-    ? invoices.filter((inv) => inv.credit_card_id === selectedCardId)
+    ? invoices.filter((invoice) => invoice.credit_card_id === selectedCardId)
     : invoices;
 
-  // Separar por status
-  const openInvoices = filteredInvoices.filter((inv) => inv.status === 'open');
-  const closedInvoices = filteredInvoices.filter((inv) => inv.status === 'closed');
-  const overdueInvoices = filteredInvoices.filter((inv) => inv.status === 'overdue');
-  const paidInvoices = filteredInvoices.filter((inv) => inv.status === 'paid');
+  const openInvoices = filteredInvoices.filter((invoice) => invoice.status === 'open');
+  const closedInvoices = filteredInvoices.filter((invoice) => invoice.status === 'closed');
+  const overdueInvoices = filteredInvoices.filter((invoice) => invoice.status === 'overdue');
+  const paidInvoices = filteredInvoices.filter((invoice) => invoice.status === 'paid');
 
-  // Selecionar faturas baseado na aba ativa
   const getDisplayInvoices = () => {
     const sortByClosestDueDate = (a: typeof invoices[number], b: typeof invoices[number]) =>
       parseDateOnlyAsLocal(a.due_date).getTime() - parseDateOnlyAsLocal(b.due_date).getTime();
@@ -45,165 +64,188 @@ export function InvoiceList({ cardId, loading: externalLoading, highlightedInvoi
       parseDateOnlyAsLocal(b.reference_month).getTime() - parseDateOnlyAsLocal(a.reference_month).getTime();
 
     switch (activeTab) {
-      case 'open': return [...openInvoices].sort(sortByClosestDueDate);
-      case 'closed': return [...closedInvoices].sort(sortByClosestDueDate);
-      case 'overdue': return [...overdueInvoices].sort(sortByClosestDueDate);
-      case 'paid': return [...paidInvoices].sort(sortByMostRecentFirst);
-      default: return [...openInvoices].sort(sortByClosestDueDate);
+      case 'closed':
+        return [...closedInvoices].sort(sortByClosestDueDate);
+      case 'overdue':
+        return [...overdueInvoices].sort(sortByClosestDueDate);
+      case 'paid':
+        return [...paidInvoices].sort(sortByMostRecentFirst);
+      case 'open':
+      default:
+        return [...openInvoices].sort(sortByClosestDueDate);
     }
   };
+
   const displayInvoices = getDisplayInvoices();
 
-  // Encontrar cartão para cada fatura
-  const getCardForInvoice = (invoiceCardId: string) => {
-    return cards.find((c) => c.id === invoiceCardId);
-  };
+  const getCardForInvoice = (invoiceCardId: string) => cards.find((card) => card.id === invoiceCardId);
 
-  // Loading State
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <Skeleton className="h-10 w-full" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[1, 2].map((i) => (
-            <Skeleton key={i} className="h-64 w-full" />
+      <div className="space-y-6">
+        <div className="rounded-[28px] border border-border/70 bg-card/95 p-5 shadow-[0_18px_42px_rgba(3,8,20,0.18)] dark:shadow-[0_20px_48px_rgba(2,6,23,0.28)]">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap gap-3">
+              <Skeleton className="h-11 w-28 rounded-xl" />
+              <Skeleton className="h-11 w-28 rounded-xl" />
+              <Skeleton className="h-11 w-24 rounded-xl" />
+            </div>
+            <Skeleton className="h-11 w-full rounded-xl lg:w-[220px]" />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          {[1, 2].map((item) => (
+            <Skeleton key={item} className="h-[320px] rounded-[28px]" />
           ))}
         </div>
       </div>
     );
   }
 
-  // Empty State
-  const getEmptyMessage = () => {
+  const getEmptyTitle = () => {
     switch (activeTab) {
-      case 'open': return 'Suas faturas abertas aparecerão aqui quando você realizar compras.';
-      case 'closed': return 'Faturas fechadas aguardando pagamento aparecerão aqui.';
-      case 'overdue': return 'Você não tem faturas vencidas. Continue assim!';
-      case 'paid': return 'Suas faturas pagas aparecerão aqui após o pagamento.';
-      default: return '';
+      case 'closed':
+        return 'Nenhuma fatura fechada';
+      case 'overdue':
+        return 'Nenhuma fatura vencida';
+      case 'paid':
+        return 'Nenhuma fatura paga';
+      case 'open':
+      default:
+        return 'Nenhuma fatura aberta';
     }
   };
 
-  const EmptyState = ({ message }: { message: string }) => (
-    <div className="flex flex-col items-center justify-center py-16 px-4">
-      <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mb-6">
-        <FileText size={48} className="text-gray-400" />
+  const getEmptyMessage = () => {
+    switch (activeTab) {
+      case 'closed':
+        return 'As faturas fechadas aguardando pagamento vao aparecer aqui.';
+      case 'overdue':
+        return 'Voce nao tem faturas vencidas. Continue assim.';
+      case 'paid':
+        return 'As faturas pagas ficam disponiveis aqui para consulta.';
+      case 'open':
+      default:
+        return 'As faturas abertas aparecem aqui assim que novas compras entram no ciclo.';
+    }
+  };
+
+  const EmptyState = () => (
+    <div className="rounded-[30px] border border-dashed border-border/70 bg-card/70 px-6 py-16 text-center shadow-[0_18px_42px_rgba(3,8,20,0.12)] dark:shadow-[0_20px_48px_rgba(2,6,23,0.24)]">
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.6rem] border border-border/70 bg-surface-elevated/60 text-muted-foreground shadow-sm">
+        <FileText className="h-7 w-7" />
       </div>
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">{message}</h3>
-      <p className="text-gray-600 text-center max-w-md">
-        {getEmptyMessage()}
-      </p>
+      <div className="mt-5 space-y-2">
+        <h3 className="text-xl font-semibold tracking-tight text-foreground">{getEmptyTitle()}</h3>
+        <p className="mx-auto max-w-xl text-sm leading-6 text-muted-foreground">{getEmptyMessage()}</p>
+      </div>
     </div>
   );
 
   return (
     <div className="space-y-6">
-      {/* Filtros Modernos */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-white rounded-lg border border-gray-200 shadow-sm">
-        {/* Filtros de Status */}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={activeTab === 'open' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('open')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Clock className="h-4 w-4" />
-            Abertas
-            <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-white/20">
-              {openInvoices.length}
-            </span>
-          </Button>
-          <Button
-            variant={activeTab === 'closed' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('closed')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <Package className="h-4 w-4" />
-            Fechadas
-            <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-white/20">
-              {closedInvoices.length}
-            </span>
-          </Button>
-          {overdueInvoices.length > 0 && (
+      <div>
+        <div className="flex flex-col gap-4 rounded-[28px] border border-border/70 bg-card/95 p-4 shadow-[0_18px_42px_rgba(3,8,20,0.16)] backdrop-blur-xl dark:shadow-[0_20px_48px_rgba(2,6,23,0.28)] xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap gap-2.5">
             <Button
-              variant={activeTab === 'overdue' ? 'destructive' : 'outline'}
-              onClick={() => setActiveTab('overdue')}
-              className="flex items-center gap-2"
+              variant="outline"
               size="sm"
+              onClick={() => setActiveTab('open')}
+              className={filterButtonClass(activeTab === 'open')}
             >
-              <AlertTriangle className="h-4 w-4" />
-              Vencidas
-              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-red-500/20 text-red-600">
-                {overdueInvoices.length}
+              <Clock className="mr-2 h-4 w-4" />
+              Abertas
+              <span className="ml-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
+                {openInvoices.length}
               </span>
             </Button>
-          )}
-          <Button
-            variant={activeTab === 'paid' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('paid')}
-            className="flex items-center gap-2"
-            size="sm"
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            Pagas
-            <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-white/20">
-              {paidInvoices.length}
-            </span>
-          </Button>
-        </div>
 
-        {/* Filtro por Cartão */}
-        {cards.length > 1 && (
-          <Select value={selectedCardId || 'all'} onValueChange={(v) => setSelectedCardId(v === 'all' ? undefined : v)}>
-            <SelectTrigger className="w-full sm:w-[220px]">
-              <CreditCard className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Todos os Cartões" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os Cartões</SelectItem>
-              {cards.map((card) => (
-                <SelectItem key={card.id} value={card.id}>
-                  {card.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveTab('closed')}
+              className={filterButtonClass(activeTab === 'closed')}
+            >
+              <Package className="mr-2 h-4 w-4" />
+              Fechadas
+              <span className="ml-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
+                {closedInvoices.length}
+              </span>
+            </Button>
 
-      {/* Lista de Faturas */}
-      <div>
-        {displayInvoices.length === 0 ? (
-          <EmptyState
-            message={
-              activeTab === 'open' ? 'Nenhuma fatura aberta' : 
-              activeTab === 'closed' ? 'Nenhuma fatura fechada' :
-              activeTab === 'overdue' ? 'Nenhuma fatura vencida' :
-              'Nenhuma fatura paga'
-            }
-          />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {displayInvoices.map((invoice) => {
-              const card = getCardForInvoice(invoice.credit_card_id);
-              if (!card) return null;
+            {overdueInvoices.length > 0 ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveTab('overdue')}
+                className={filterButtonClass(activeTab === 'overdue', 'danger')}
+              >
+                <AlertTriangle className="mr-2 h-4 w-4" />
+                Vencidas
+                <span className="ml-2 rounded-full bg-background/85 px-2 py-0.5 text-[11px] font-semibold text-danger ring-1 ring-danger/20">
+                  {overdueInvoices.length}
+                </span>
+              </Button>
+            ) : null}
 
-              return (
-                <InvoiceCard
-                  key={invoice.id}
-                  invoice={invoice}
-                  card={card}
-                  isHighlighted={highlightedInvoiceId === invoice.id}
-                  onViewDetails={() => onViewDetails?.(invoice.id)}
-                  onPayInvoice={() => onPayInvoice?.(invoice.id)}
-                />
-              );
-            })}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setActiveTab('paid')}
+              className={filterButtonClass(activeTab === 'paid')}
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              Pagas
+              <span className="ml-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
+                {paidInvoices.length}
+              </span>
+            </Button>
           </div>
-        )}
+
+          {cards.length > 1 ? (
+            <Select
+              value={selectedCardId || 'all'}
+              onValueChange={(value) => setSelectedCardId(value === 'all' ? undefined : value)}
+            >
+              <SelectTrigger className="h-11 w-full rounded-xl border-border/70 bg-surface/80 text-foreground shadow-sm hover:bg-surface-elevated focus-visible:ring-primary/20 dark:bg-surface-elevated/70 xl:w-[220px]">
+                <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
+                <SelectValue placeholder="Todos os Cartões" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Cartões</SelectItem>
+                {cards.map((card) => (
+                  <SelectItem key={card.id} value={card.id}>
+                    {card.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+        </div>
       </div>
+
+      {displayInvoices.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          {displayInvoices.map((invoice) => {
+            const card = getCardForInvoice(invoice.credit_card_id);
+            if (!card) return null;
+
+            return (
+              <InvoiceCard
+                key={invoice.id}
+                invoice={invoice}
+                card={card}
+                isHighlighted={highlightedInvoiceId === invoice.id}
+                onViewDetails={() => onViewDetails?.(invoice.id)}
+                onPayInvoice={() => onPayInvoice?.(invoice.id)}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

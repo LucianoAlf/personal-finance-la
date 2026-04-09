@@ -14,8 +14,8 @@ describe('calendar-intent-parser', () => {
       expect(isCalendarIntent('tenho um compromisso amanha')).toBe(true);
     });
 
-    it('detects "lembrete" keyword', () => {
-      expect(isCalendarIntent('me lembra as 9h')).toBe(true);
+    it('detects non-financial reminder wording for agenda flow', () => {
+      expect(isCalendarIntent('me lembra da reuniao as 9h')).toBe(true);
     });
 
     it('detects "remarcar" keyword', () => {
@@ -32,6 +32,22 @@ describe('calendar-intent-parser', () => {
 
     it('rejects unrelated messages', () => {
       expect(isCalendarIntent('gastei 50 no mercado')).toBe(false);
+    });
+
+    it('rejects financial reminder phrases even with "lembra"', () => {
+      expect(isCalendarIntent('me lembra de pagar a luz dia 10')).toBe(false);
+    });
+
+    it('rejects financial reminder phrases with "lembrete"', () => {
+      expect(isCalendarIntent('lembrete do aluguel')).toBe(false);
+    });
+
+    it('rejects due-date financial messages that should stay in bills pipeline', () => {
+      expect(isCalendarIntent('a netflix vence dia 15')).toBe(false);
+    });
+
+    it('rejects recurring payment language that belongs to payable bills', () => {
+      expect(isCalendarIntent('me lembra do aluguel todo mes')).toBe(false);
     });
 
     it('rejects empty string', () => {
@@ -109,6 +125,11 @@ describe('calendar-intent-parser', () => {
       const result = parseCalendarIntent('tenho compromisso');
       expect(result.intent).toBe('create');
       expect(result.title).toBe('Compromisso');
+    });
+
+    it('keeps existing list regression for agenda wording', () => {
+      const result = parseCalendarIntent('minha agenda de amanha');
+      expect(result.intent).toBe('list');
     });
   });
 });

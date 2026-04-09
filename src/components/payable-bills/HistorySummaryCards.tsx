@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Card } from '@/components/ui/card';
 import { DollarSign, Receipt, CheckCircle, TrendingUp } from 'lucide-react';
-import { PayableBill } from '@/types/payable-bills.types';
 import { parseISO, isBefore } from 'date-fns';
+import { PayableBill } from '@/types/payable-bills.types';
+import { StatCard } from '@/components/dashboard/StatCard';
 
 interface HistorySummaryCardsProps {
   bills: PayableBill[];
@@ -14,60 +14,63 @@ export function HistorySummaryCards({ bills }: HistorySummaryCardsProps) {
     const total = bills.reduce((sum, bill) => sum + bill.amount, 0);
     const count = bills.length;
     const average = count > 0 ? total / count : 0;
-    
-    // Calcular pontualidade (pagos antes ou no dia do vencimento)
+
     const onTime = bills.filter((bill) => {
       if (!bill.paid_at) return false;
       const paidDate = parseISO(bill.paid_at);
       const dueDate = parseISO(bill.due_date);
-      return !isBefore(dueDate, paidDate); // pago antes ou no dia
+      return !isBefore(dueDate, paidDate);
     }).length;
-    
+
     const onTimeRate = count > 0 ? Math.round((onTime / count) * 100) : 0;
 
     return { total, count, average, onTimeRate };
   }, [bills]);
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('pt-BR', {
       style: 'currency',
       currency: 'BRL',
     }).format(value);
-  };
 
   const cards = [
     {
       title: 'Total Pago',
       value: formatCurrency(stats.total),
       icon: DollarSign,
-      color: 'text-green-600',
-      bgColor: 'bg-green-500/10',
+      gradient: 'green' as const,
+      valueClassName: 'text-emerald-500',
+      subtitle: `${stats.count} ${stats.count === 1 ? 'conta' : 'contas'}`,
     },
     {
       title: 'Contas Pagas',
       value: stats.count.toString(),
       icon: Receipt,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-500/10',
+      gradient: 'blue' as const,
+      valueClassName: 'text-blue-500',
+      subtitle: 'Histórico filtrado',
     },
     {
       title: 'Pontualidade',
       value: `${stats.onTimeRate}%`,
       icon: CheckCircle,
-      color: stats.onTimeRate >= 80 ? 'text-green-600' : stats.onTimeRate >= 50 ? 'text-yellow-600' : 'text-red-600',
-      bgColor: stats.onTimeRate >= 80 ? 'bg-green-500/10' : stats.onTimeRate >= 50 ? 'bg-yellow-500/10' : 'bg-red-500/10',
+      gradient: stats.onTimeRate >= 80 ? ('green' as const) : stats.onTimeRate >= 50 ? ('orange' as const) : ('red' as const),
+      valueClassName:
+        stats.onTimeRate >= 80 ? 'text-emerald-500' : stats.onTimeRate >= 50 ? 'text-amber-400' : 'text-red-500',
+      subtitle: 'Pagas no prazo',
     },
     {
       title: 'Média por Conta',
       value: formatCurrency(stats.average),
       icon: TrendingUp,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-500/10',
+      gradient: 'purple' as const,
+      valueClassName: 'text-primary',
+      subtitle: 'Valor médio pago',
     },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
       {cards.map((card, index) => (
         <motion.div
           key={card.title}
@@ -75,17 +78,14 @@ export function HistorySummaryCards({ bills }: HistorySummaryCardsProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.1 }}
         >
-          <Card className={`p-4 ${card.bgColor}`}>
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg bg-background/50`}>
-                <card.icon className={`h-5 w-5 ${card.color}`} />
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">{card.title}</p>
-                <p className={`text-xl font-bold ${card.color}`}>{card.value}</p>
-              </div>
-            </div>
-          </Card>
+          <StatCard
+            title={card.title}
+            value={card.value}
+            icon={card.icon}
+            gradient={card.gradient}
+            subtitle={card.subtitle}
+            valueClassName={card.valueClassName}
+          />
         </motion.div>
       ))}
     </div>

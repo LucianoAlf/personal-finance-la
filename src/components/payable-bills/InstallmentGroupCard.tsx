@@ -25,6 +25,7 @@ import {
 import { PayableBill } from '@/types/payable-bills.types';
 import type { Category } from '@/types/categories';
 import type { Account } from '@/types/accounts';
+import { cn } from '@/lib/utils';
 import {
   formatCurrency,
   formatDueDateWithContext,
@@ -135,8 +136,10 @@ export function InstallmentGroupCard({
       viewport={{ once: true }}
       transition={{ duration: 0.2 }}
     >
-      <Card className="overflow-hidden hover:shadow-lg transition-shadow">
-        <div className="p-6">
+      <Card className="group relative overflow-hidden rounded-[1.7rem] border-border/70 bg-card/95 shadow-[0_20px_48px_rgba(15,23,42,0.1)] transition-all duration-300 hover:-translate-y-1 hover:border-primary/20 hover:bg-card hover:shadow-[0_24px_56px_rgba(2,6,23,0.2)]">
+        <div className="absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-orange-400/80 to-transparent opacity-85" />
+        <div className="absolute -right-10 top-4 h-24 w-24 rounded-full bg-orange-400/10 blur-3xl transition-opacity duration-300 group-hover:opacity-100" />
+        <div className="relative p-6">
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex-1 min-w-0">
@@ -151,13 +154,13 @@ export function InstallmentGroupCard({
                   {getCategoryName()}
                 </p>
                 {group.paymentMethod === 'credit_card' && (
-                  <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                  <Badge variant="outline" className="text-xs border-border/70 bg-surface/70 text-foreground">
                     <CreditCard className="h-3 w-3 mr-1" />
                     {group.creditCardName || 'Cartão'}
                   </Badge>
                 )}
                 {group.paymentMethod === 'boleto' && (
-                  <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                  <Badge variant="outline" className="text-xs border-border/70 bg-surface/70 text-foreground">
                     📄 Boleto
                   </Badge>
                 )}
@@ -166,7 +169,7 @@ export function InstallmentGroupCard({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl border border-border/70 bg-surface/75 text-muted-foreground hover:bg-surface">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -206,7 +209,7 @@ export function InstallmentGroupCard({
           </div>
 
           {/* Valores */}
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="mb-4 grid grid-cols-2 gap-4 rounded-[1.35rem] border border-border/60 bg-surface/55 p-4">
             <div>
               <p className="text-sm text-muted-foreground">Valor por parcela</p>
               <p className="text-2xl font-bold">
@@ -271,7 +274,7 @@ export function InstallmentGroupCard({
 
           {/* Próxima Parcela */}
           {group.nextInstallment && (
-            <div className="bg-muted/50 rounded-lg p-3 mb-4">
+            <div className="mb-4 rounded-xl border border-border/60 bg-surface/55 p-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -304,8 +307,9 @@ export function InstallmentGroupCard({
             </div>
           </div>
 
-          <div className="mb-4 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-            Pagamento rapido: <span className="font-medium text-foreground">{paymentSummary}</span>
+          <div className="mb-4 rounded-xl border border-border/60 bg-surface/55 px-3 py-3 text-xs text-muted-foreground">
+            <span className="font-medium uppercase tracking-[0.18em] text-muted-foreground/80">Pagamento rápido</span>
+            <div className="mt-1 text-sm text-foreground">{paymentSummary}</div>
           </div>
 
           {/* Botões de Ação */}
@@ -349,20 +353,18 @@ export function InstallmentGroupCard({
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="border-t"
+              className="border-t border-border/60"
             >
-              <div className="p-4 bg-muted/30 max-h-80 overflow-y-auto">
+              <div className="max-h-80 overflow-y-auto bg-surface/35 p-4">
                 <div className="space-y-2">
                   {group.installments.map((installment) => (
                     <div
                       key={installment.id}
-                      className={`flex items-center justify-between p-3 rounded-lg ${
-                        installment.status === 'paid'
-                          ? 'bg-emerald-50 dark:bg-emerald-950/20'
-                          : installment.status === 'overdue'
-                          ? 'bg-red-50 dark:bg-red-950/20'
-                          : 'bg-background'
-                      }`}
+                      className={cn(
+                        'flex items-center justify-between rounded-xl border border-border/60 bg-card/90 p-3',
+                        installment.status === 'paid' && 'bg-emerald-500/8',
+                        installment.status === 'overdue' && 'bg-red-500/8'
+                      )}
                     >
                       <div className="flex items-center gap-3">
                         {installment.status === 'paid' ? (

@@ -1,4 +1,3 @@
-// SPRINT 5: Heat Map de Performance Mensal (estilo GitHub)
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Tooltip,
@@ -12,25 +11,18 @@ import { useMonthlyReturns } from '@/hooks/useMonthlyReturns';
 import { formatCurrency } from '@/utils/formatters';
 import { cn } from '@/lib/utils';
 
-/**
- * Retorna cor CSS baseada no retorno percentual
- */
 function getHeatColor(returnPct: number): string {
-  // Verde para positivo, vermelho para negativo, cinza para zero
-  if (returnPct > 10) return 'bg-green-700 hover:bg-green-800';
-  if (returnPct > 5) return 'bg-green-600 hover:bg-green-700';
-  if (returnPct > 2) return 'bg-green-400 hover:bg-green-500';
-  if (returnPct > 0) return 'bg-green-200 hover:bg-green-300';
-  if (returnPct === 0) return 'bg-gray-200 hover:bg-gray-300';
-  if (returnPct > -2) return 'bg-red-200 hover:bg-red-300';
-  if (returnPct > -5) return 'bg-red-400 hover:bg-red-500';
-  if (returnPct > -10) return 'bg-red-600 hover:bg-red-700';
-  return 'bg-red-700 hover:bg-red-800';
+  if (returnPct > 10) return 'bg-emerald-600/90 hover:bg-emerald-600';
+  if (returnPct > 5) return 'bg-emerald-500/85 hover:bg-emerald-500';
+  if (returnPct > 2) return 'bg-emerald-400/85 hover:bg-emerald-400';
+  if (returnPct > 0) return 'bg-emerald-300/90 hover:bg-emerald-300';
+  if (returnPct === 0) return 'bg-slate-300/90 hover:bg-slate-300';
+  if (returnPct > -2) return 'bg-rose-300/90 hover:bg-rose-300';
+  if (returnPct > -5) return 'bg-rose-400/85 hover:bg-rose-400';
+  if (returnPct > -10) return 'bg-rose-500/85 hover:bg-rose-500';
+  return 'bg-rose-600/90 hover:bg-rose-600';
 }
 
-/**
- * Retorna descrição textual da performance
- */
 function getPerformanceLabel(returnPct: number): string {
   if (returnPct > 10) return 'Excelente';
   if (returnPct > 5) return 'Muito bom';
@@ -43,32 +35,50 @@ function getPerformanceLabel(returnPct: number): string {
   return 'Crítico';
 }
 
+const shellClassName =
+  'rounded-[30px] border border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(3,8,20,0.16)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)]';
+
+function normalizeNumber(value: unknown) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 export function PerformanceHeatMap() {
   const monthlyReturns = useMonthlyReturns();
-
-  // Calcular estatísticas
   const avgReturn = monthlyReturns.reduce((sum, m) => sum + m.return, 0) / monthlyReturns.length;
-  const bestMonth = monthlyReturns.reduce((best, m) => (m.return > best.return ? m : best), monthlyReturns[0] || { return: 0, month: '' });
-  const worstMonth = monthlyReturns.reduce((worst, m) => (m.return < worst.return ? m : worst), monthlyReturns[0] || { return: 0, month: '' });
+  const bestMonth = monthlyReturns.reduce(
+    (best, m) => (m.return > best.return ? m : best),
+    monthlyReturns[0] || { return: 0, month: '' }
+  );
+  const worstMonth = monthlyReturns.reduce(
+    (worst, m) => (m.return < worst.return ? m : worst),
+    monthlyReturns[0] || { return: 0, month: '' }
+  );
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-blue-600" />
+    <Card className={shellClassName}>
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between gap-4">
+          <CardTitle className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+            <TrendingUp className="h-5 w-5 text-blue-500" />
             Performance Mensal Estimada (12 meses)
           </CardTitle>
 
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger>
-                <Info className="h-4 w-4 text-muted-foreground" />
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Informações sobre a visualização de performance mensal"
+                  className="rounded-full border border-border/70 bg-surface-elevated/45 p-2 text-muted-foreground transition hover:bg-surface-elevated/60 hover:text-foreground"
+                >
+                  <Info className="h-4 w-4" />
+                </button>
               </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
+              <TooltipContent className="max-w-xs rounded-2xl border border-border/70 bg-popover/95 text-popover-foreground shadow-xl backdrop-blur-xl">
                 <p className="text-sm">
-                  Visualização estilo GitHub baseada no replay das transações.
-                  Ainda não usa marcação a mercado histórica por mês.
+                  Visualização estilo GitHub baseada no replay das transações. Ainda não usa marcação a
+                  mercado histórica por mês.
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -76,101 +86,96 @@ export function PerformanceHeatMap() {
         </div>
       </CardHeader>
 
-      <CardContent>
-        {/* Heat Map Grid */}
-        <div className="mb-6">
-          <div className="grid grid-cols-6 md:grid-cols-12 gap-2">
-            {monthlyReturns.map((month, index) => (
-              <TooltipProvider key={month.date.toISOString()}>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <motion.div
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{
-                        duration: 0.3,
-                        delay: index * 0.05,
-                        type: 'spring',
-                      }}
+      <CardContent className="space-y-6">
+        <div className="grid grid-cols-6 gap-2 md:grid-cols-12">
+          {monthlyReturns.map((month, index) => (
+            <TooltipProvider key={month.date.toISOString()}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <motion.button
+                    type="button"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{
+                      duration: 0.3,
+                      delay: index * 0.04,
+                      type: 'spring',
+                    }}
+                    className={cn(
+                      'aspect-square rounded-md border border-transparent shadow-sm transition-all',
+                      'hover:scale-110 hover:border-border/70',
+                      getHeatColor(month.return)
+                    )}
+                    aria-label={`${month.month}: ${month.return.toFixed(2)}%`}
+                  />
+                </TooltipTrigger>
+                <TooltipContent className="rounded-2xl border border-border/70 bg-popover/95 p-3 text-popover-foreground shadow-xl backdrop-blur-xl">
+                  <div className="space-y-1 text-center">
+                    <p className="font-semibold tracking-tight text-foreground">{month.month}</p>
+                    <p
                       className={cn(
-                        'aspect-square rounded-md transition-all cursor-pointer',
-                        'border border-transparent hover:border-gray-400 hover:scale-110',
-                        getHeatColor(month.return)
+                        'text-lg font-bold',
+                        month.return >= 0
+                          ? 'text-emerald-500 dark:text-emerald-400'
+                          : 'text-rose-500'
                       )}
-                    />
-                  </TooltipTrigger>
-                  <TooltipContent className="bg-white border border-gray-200 shadow-lg">
-                    <div className="text-center space-y-1 p-1">
-                      <p className="font-semibold text-gray-900">{month.month}</p>
-                      <p
-                        className={cn(
-                          'text-lg font-bold',
-                          month.return >= 0 ? 'text-green-600' : 'text-red-600'
-                        )}
-                      >
-                        {month.return >= 0 ? '+' : ''}
-                        {month.return.toFixed(2)}%
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatCurrency(month.value)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {getPerformanceLabel(month.return)}
-                      </p>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            ))}
-          </div>
+                    >
+                      {month.return >= 0 ? '+' : ''}
+                      {month.return.toFixed(2)}%
+                    </p>
+                    <p className="text-sm text-muted-foreground">{formatCurrency(month.value)}</p>
+                    <p className="text-xs text-muted-foreground">{getPerformanceLabel(month.return)}</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ))}
         </div>
 
-        {/* Legenda de Cores */}
-        <div className="flex justify-center items-center gap-2 text-xs text-muted-foreground mb-6">
+        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
           <span>Menos</span>
-          <div className="w-4 h-4 bg-red-700 rounded border border-gray-300" />
-          <div className="w-4 h-4 bg-red-400 rounded border border-gray-300" />
-          <div className="w-4 h-4 bg-red-200 rounded border border-gray-300" />
-          <div className="w-4 h-4 bg-gray-200 rounded border border-gray-300" />
-          <div className="w-4 h-4 bg-green-200 rounded border border-gray-300" />
-          <div className="w-4 h-4 bg-green-400 rounded border border-gray-300" />
-          <div className="w-4 h-4 bg-green-700 rounded border border-gray-300" />
+          <div className="h-4 w-4 rounded border border-border/60 bg-rose-600/90" />
+          <div className="h-4 w-4 rounded border border-border/60 bg-rose-400/85" />
+          <div className="h-4 w-4 rounded border border-border/60 bg-rose-200/90" />
+          <div className="h-4 w-4 rounded border border-border/60 bg-slate-300/90" />
+          <div className="h-4 w-4 rounded border border-border/60 bg-emerald-200/90" />
+          <div className="h-4 w-4 rounded border border-border/60 bg-emerald-400/85" />
+          <div className="h-4 w-4 rounded border border-border/60 bg-emerald-600/90" />
           <span>Mais</span>
         </div>
 
-        {/* Estatísticas Resumidas */}
-        <div className="grid grid-cols-3 gap-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg">
+        <div className="grid grid-cols-3 gap-4 rounded-2xl border border-border/60 bg-surface-elevated/45 p-4">
           <div className="text-center">
-            <p className="text-xs text-muted-foreground mb-1">Retorno Médio</p>
+            <p className="mb-1 text-xs text-muted-foreground">Retorno médio</p>
             <p
               className={cn(
-                'text-lg font-bold',
-                avgReturn >= 0 ? 'text-green-600' : 'text-red-600'
+                'text-lg font-bold tracking-tight',
+                avgReturn >= 0 ? 'text-emerald-500 dark:text-emerald-400' : 'text-rose-500'
               )}
             >
               {avgReturn >= 0 ? '+' : ''}
-              {avgReturn.toFixed(2)}%
+              {normalizeNumber(avgReturn).toFixed(2)}%
             </p>
           </div>
 
-          <div className="text-center border-l border-r border-gray-300">
-            <p className="text-xs text-muted-foreground mb-1">Melhor Mês</p>
-            <p className="text-lg font-bold text-green-600">
-              +{bestMonth.return.toFixed(2)}%
+          <div className="text-center border-x border-border/70">
+            <p className="mb-1 text-xs text-muted-foreground">Melhor mês</p>
+            <p className="text-lg font-bold tracking-tight text-emerald-500 dark:text-emerald-400">
+              +{normalizeNumber(bestMonth.return).toFixed(2)}%
             </p>
             <p className="text-xs text-muted-foreground">{bestMonth.month}</p>
           </div>
 
           <div className="text-center">
-            <p className="text-xs text-muted-foreground mb-1">Pior Mês</p>
-            <p className="text-lg font-bold text-red-600">
-              {worstMonth.return.toFixed(2)}%
+            <p className="mb-1 text-xs text-muted-foreground">Pior mês</p>
+            <p className="text-lg font-bold tracking-tight text-rose-500">
+              {normalizeNumber(worstMonth.return).toFixed(2)}%
             </p>
             <p className="text-xs text-muted-foreground">{worstMonth.month}</p>
           </div>
         </div>
 
-        <div className="mt-4 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+        <div className="rounded-2xl border border-dashed border-border/60 bg-surface-elevated/35 p-4 text-sm text-muted-foreground">
           Esta seção é uma estimativa operacional baseada no histórico de transações e no custo médio.
           Para leitura patrimonial histórica real, use a evolução por snapshots.
         </div>

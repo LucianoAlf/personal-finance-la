@@ -1,20 +1,21 @@
-import { Line } from 'react-chartjs-2';
 import {
-  Chart as ChartJS,
   CategoryScale,
+  Chart as ChartJS,
+  Filler,
+  Legend,
+  LineElement,
   LinearScale,
   PointElement,
-  LineElement,
   Title,
   Tooltip,
-  Legend,
-  Filler
+  type TooltipItem,
 } from 'chart.js';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, Loader2 } from 'lucide-react';
-import { MonthlyTotal, formatCurrency } from '@/hooks/useBillReports';
+import { Line } from 'react-chartjs-2';
+import { Loader2, TrendingUp } from 'lucide-react';
 
-// Registrar componentes do Chart.js
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatCurrency, type MonthlyTotal } from '@/hooks/useBillReports';
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -23,7 +24,7 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  Filler
+  Filler,
 );
 
 interface MonthlyEvolutionChartProps {
@@ -31,77 +32,97 @@ interface MonthlyEvolutionChartProps {
   loading?: boolean;
 }
 
+function getThemeColor(token: string, fallback: string) {
+  if (typeof window === 'undefined') return fallback;
+  const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+  return value ? `hsl(${value})` : fallback;
+}
+
+function ChartShell({ children }: { children: React.ReactNode }) {
+  return (
+    <Card className="rounded-[1.75rem] border-border/70 bg-card/95 shadow-[0_20px_50px_rgba(2,6,23,0.2)]">
+      <CardHeader className="border-b border-border/60 pb-4">
+        <CardTitle className="flex items-center gap-2 text-[1.1rem] font-semibold tracking-tight">
+          <TrendingUp className="h-5 w-5 text-primary" />
+          Evolução Mensal
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-5">{children}</CardContent>
+    </Card>
+  );
+}
+
 export function MonthlyEvolutionChart({ data, loading }: MonthlyEvolutionChartProps) {
   if (loading) {
     return (
-      <Card className="col-span-2">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <TrendingUp className="h-5 w-5" />
-            Evolução Mensal
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="h-[300px] flex items-center justify-center">
+      <ChartShell>
+        <div className="flex h-[320px] items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </CardContent>
-      </Card>
+        </div>
+      </ChartShell>
     );
   }
 
   if (!data || data.length === 0) {
     return (
-      <Card className="col-span-2">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <TrendingUp className="h-5 w-5" />
-            Evolução Mensal
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="h-[300px] flex items-center justify-center">
-          <div className="text-center text-muted-foreground">
-            <TrendingUp className="h-12 w-12 mx-auto mb-3 opacity-30" />
-            <p className="text-sm">Sem dados para exibir</p>
+      <ChartShell>
+        <div className="flex h-[320px] items-center justify-center text-center text-muted-foreground">
+          <div>
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-border/60 bg-surface/70">
+              <TrendingUp className="h-7 w-7 opacity-60" />
+            </div>
+            <p className="text-base font-semibold text-foreground">Sem dados para exibir</p>
+            <p className="mt-2 text-sm">Adicione contas em meses diferentes para ver a evolução.</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </ChartShell>
     );
   }
 
+  const textColor = getThemeColor('--muted-foreground', 'rgba(148,163,184,0.9)');
+  const foregroundColor = getThemeColor('--foreground', '#f8fafc');
+  const gridColor = typeof window === 'undefined'
+    ? 'rgba(148,163,184,0.12)'
+    : document.documentElement.classList.contains('dark')
+      ? 'rgba(148,163,184,0.12)'
+      : 'rgba(15,23,42,0.08)';
+  const tooltipBg = getThemeColor('--popover', 'rgba(15,23,42,0.95)');
+
   const chartData = {
-    labels: data.map(m => m.month_name),
+    labels: data.map((month) => month.month_name),
     datasets: [
       {
         label: 'Total',
-        data: data.map(m => m.total),
-        borderColor: 'rgb(99, 102, 241)',
-        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-        tension: 0.4,
+        data: data.map((month) => month.total),
+        borderColor: '#8b5cf6',
+        backgroundColor: 'rgba(139,92,246,0.12)',
+        tension: 0.38,
         fill: true,
         pointRadius: 4,
-        pointHoverRadius: 6
+        pointHoverRadius: 6,
       },
       {
         label: 'Pago',
-        data: data.map(m => m.paid),
-        borderColor: 'rgb(34, 197, 94)',
-        backgroundColor: 'rgba(34, 197, 94, 0.1)',
-        tension: 0.4,
+        data: data.map((month) => month.paid),
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16,185,129,0.1)',
+        tension: 0.38,
         fill: true,
         pointRadius: 4,
-        pointHoverRadius: 6
+        pointHoverRadius: 6,
       },
       {
         label: 'Pendente',
-        data: data.map(m => m.pending),
-        borderColor: 'rgb(251, 191, 36)',
-        backgroundColor: 'rgba(251, 191, 36, 0.1)',
-        tension: 0.4,
+        data: data.map((month) => month.pending),
+        borderColor: '#f59e0b',
+        backgroundColor: 'rgba(245,158,11,0.08)',
+        tension: 0.35,
         fill: false,
         pointRadius: 3,
         pointHoverRadius: 5,
-        borderDash: [5, 5]
-      }
-    ]
+        borderDash: [6, 5],
+      },
+    ],
   };
 
   const options = {
@@ -109,102 +130,71 @@ export function MonthlyEvolutionChart({ data, loading }: MonthlyEvolutionChartPr
     maintainAspectRatio: false,
     interaction: {
       mode: 'index' as const,
-      intersect: false
+      intersect: false,
     },
     plugins: {
       legend: {
         position: 'bottom' as const,
         labels: {
+          color: textColor,
           usePointStyle: true,
-          padding: 15,
+          boxWidth: 8,
+          padding: 18,
           font: {
-            size: 12
-          }
-        }
+            size: 12,
+            weight: 600,
+          },
+        },
       },
       tooltip: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        padding: 12,
-        titleFont: {
-          size: 14,
-          weight: 'bold' as const
-        },
-        bodyFont: {
-          size: 13
-        },
+        backgroundColor: tooltipBg,
+        titleColor: foregroundColor,
+        bodyColor: foregroundColor,
+        borderColor: 'rgba(148,163,184,0.18)',
+        borderWidth: 1,
+        padding: 14,
         callbacks: {
-          label: function(context: any) {
-            let label = context.dataset.label || '';
-            if (label) {
-              label += ': ';
-            }
-            if (context.parsed.y !== null) {
-              label += formatCurrency(context.parsed.y);
-            }
-            
-            // Adicionar variação se houver ponto anterior
-            const dataIndex = context.dataIndex;
-            if (dataIndex > 0 && context.dataset.label === 'Total') {
-              const previousValue = context.dataset.data[dataIndex - 1];
-              const currentValue = context.parsed.y;
-              if (previousValue && currentValue) {
-                const variation = ((currentValue - previousValue) / previousValue * 100).toFixed(1);
-                const sign = parseFloat(variation) > 0 ? '+' : '';
-                label += ` (${sign}${variation}%)`;
-              }
-            }
-            
-            return label;
+          label: (context: TooltipItem<'line'>) => {
+            const label = context.dataset.label ? `${context.dataset.label}: ` : '';
+            const value = context.parsed.y ?? 0;
+            return `${label}${formatCurrency(value)}`;
           },
-          afterBody: function(context: any) {
-            const dataIndex = context[0].dataIndex;
-            const monthData = data[dataIndex];
-            return [`\n${monthData.count} contas no mês`];
-          }
-        }
-      }
+          afterBody: (contexts: TooltipItem<'line'>[]) => {
+            const month = data[contexts[0].dataIndex];
+            return [`${month.count} conta${month.count > 1 ? 's' : ''} no mês`];
+          },
+        },
+      },
     },
     scales: {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: function(value: any) {
-            return formatCurrency(value);
-          },
-          font: {
-            size: 11
-          }
+          color: textColor,
+          callback: (value: string | number) => formatCurrency(Number(value)),
+          font: { size: 11 },
         },
         grid: {
-          color: 'rgba(0, 0, 0, 0.05)'
-        }
+          color: gridColor,
+        },
       },
       x: {
-        grid: {
-          display: false
-        },
         ticks: {
-          font: {
-            size: 11
-          }
-        }
-      }
-    }
+          color: textColor,
+          font: { size: 11 },
+        },
+        grid: {
+          display: false,
+        },
+      },
+    },
   };
 
   return (
-    <Card className="col-span-2">
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <TrendingUp className="h-5 w-5" />
-          Evolução Mensal
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[300px]">
-          <Line data={chartData} options={options} />
-        </div>
-      </CardContent>
-    </Card>
+    <ChartShell>
+      <div className="h-[320px] rounded-[1.35rem] border border-border/60 bg-surface/35 p-4">
+        <Line data={chartData} options={options} />
+      </div>
+    </ChartShell>
   );
 }

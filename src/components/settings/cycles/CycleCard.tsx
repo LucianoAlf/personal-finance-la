@@ -93,15 +93,17 @@ export function CycleCard({
   return (
     <Card
       className={cn(
-        'border-l-4 transition-all',
-        cycle.active ? 'border-l-green-500' : 'border-l-gray-300 opacity-60'
+        'rounded-[28px] border transition-all shadow-[0_16px_34px_rgba(8,15,32,0.1)] dark:shadow-[0_22px_46px_rgba(2,6,23,0.26)]',
+        cycle.active
+          ? 'border-border/70 bg-surface hover:-translate-y-0.5 hover:border-primary/20'
+          : 'border-border/70 bg-surface/75 opacity-75'
       )}
-      style={cycle.color ? { borderLeftColor: cycle.color } : undefined}
+      style={cycle.color ? { boxShadow: `inset 3px 0 0 ${cycle.color}` } : undefined}
     >
-      <CardHeader>
+      <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={cn('p-2 rounded-lg', getTypeColorClass(cycle.type))}>
+            <div className={cn('rounded-xl border p-2.5 shadow-sm', getTypeColorClass(cycle.type))}>
               {(() => {
                 const IconComponent = getIconComponent(cycle.icon);
                 return <IconComponent className="h-6 w-6" />;
@@ -139,54 +141,52 @@ export function CycleCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {/* Dia do Ciclo */}
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Dia do Ciclo</span>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min={1}
-                max={28}
-                value={draftDay}
-                onChange={(e) => setDraftDay(e.target.value)}
-                onBlur={commitDay}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    commitDay();
-                  }
-                }}
-                className="w-16 text-center"
-              />
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+      <CardContent className="pt-0">
+        <div className="space-y-4">
+          <div className="rounded-[22px] border border-border/70 bg-surface-elevated/70 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">Dia do Ciclo</span>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={28}
+                  value={draftDay}
+                  onChange={(e) => setDraftDay(e.target.value)}
+                  onBlur={commitDay}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      commitDay();
+                    }
+                  }}
+                  className="w-16 text-center"
+                />
+                <Calendar className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </div>
+
+            {cycle.description && (
+              <div className="mt-3">
+                <p className="text-sm text-muted-foreground">{cycle.description}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-[20px] border border-border/70 bg-surface-elevated/65 p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/90">Próximo Ciclo</p>
+              <p className="mt-2 text-base font-semibold text-foreground">{formatNextCycleDate(cycle.nextCycleDate)}</p>
+            </div>
+            <div className="rounded-[20px] border border-border/70 bg-surface-elevated/65 p-4">
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground/90">Faltam</p>
+              <p className="mt-2 text-base font-semibold text-foreground">
+                {cycle.daysUntilNext} {cycle.daysUntilNext === 1 ? 'dia' : 'dias'}
+              </p>
             </div>
           </div>
 
-          {/* Descrição */}
-          {cycle.description && (
-            <div>
-              <p className="text-sm text-muted-foreground">{cycle.description}</p>
-            </div>
-          )}
-
-          {/* Próximo Ciclo */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Próximo Ciclo</span>
-            <span className="font-medium">{formatNextCycleDate(cycle.nextCycleDate)}</span>
-          </div>
-
-          {/* Dias até próximo */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Faltam</span>
-            <span className="font-medium">
-              {cycle.daysUntilNext} {cycle.daysUntilNext === 1 ? 'dia' : 'dias'}
-            </span>
-          </div>
-
-          {/* Notificações */}
           {cycle.notify_start && (
-            <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400">
+            <div className="flex items-center gap-2 rounded-2xl border border-info/20 bg-info/8 px-3 py-2 text-xs text-info">
               <span>🔔</span>
               <span>
                 Notificar {cycle.notify_days_before}{' '}
@@ -195,8 +195,7 @@ export function CycleCard({
             </div>
           )}
 
-          {/* Data de criação */}
-          <div className="text-xs text-muted-foreground pt-2 border-t">
+          <div className="text-xs text-muted-foreground pt-3 border-t border-border/60">
             Criado em {new Date(cycle.created_at).toLocaleDateString('pt-BR')}
           </div>
         </div>

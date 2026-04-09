@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  ReferenceLine,
+  type TooltipProps,
+} from 'recharts';
 import { TrendingUp } from 'lucide-react';
 import { ChartCard } from '@/components/dashboard/charts/ChartCard';
 import type { FinancialGoalWithCategory } from '@/types/database.types';
 import { supabase } from '@/lib/supabase';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { formatCurrency } from '@/utils/formatters';
 
 interface Props {
   goal: FinancialGoalWithCategory;
@@ -14,6 +25,30 @@ interface Props {
 interface ContributionRow {
   amount: number;
   created_at: string;
+}
+
+export function GoalProgressTooltipContent({
+  active,
+  payload,
+}: Pick<TooltipProps<number, string>, 'active' | 'payload'>) {
+  if (!active || !payload?.length) return null;
+
+  const point = payload[0];
+  const month = String(point?.payload?.month ?? '');
+  const rawValue = Number(point?.value ?? 0);
+
+  return (
+    <div
+      data-testid="goal-progress-tooltip"
+      className="min-w-[12rem] rounded-2xl border border-border/70 bg-card/95 px-4 py-3 text-foreground shadow-[0_20px_48px_rgba(2,6,23,0.34)] backdrop-blur-xl"
+    >
+      <p className="text-xs font-medium uppercase tracking-[0.18em] text-foreground/55">{month}</p>
+      <div className="mt-2 flex items-center justify-between gap-4">
+        <span className="text-sm font-medium text-foreground/72">Acumulado</span>
+        <span className="text-base font-semibold text-primary">{formatCurrency(rawValue)}</span>
+      </div>
+    </div>
+  );
 }
 
 export function GoalProgressHistoryChart({ goal }: Props) {
@@ -83,16 +118,19 @@ export function GoalProgressHistoryChart({ goal }: Props) {
               <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.05} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis dataKey="month" stroke="#9ca3af" style={{ fontSize: '12px' }} />
-          <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} />
-          <Tooltip formatter={(v: any) => ['R$ ' + Number(v).toFixed(2), 'Acumulado']} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.16)" />
+          <XAxis dataKey="month" stroke="rgba(148,163,184,0.88)" style={{ fontSize: '12px' }} />
+          <YAxis stroke="rgba(148,163,184,0.88)" style={{ fontSize: '12px' }} />
+          <Tooltip
+            cursor={{ stroke: 'rgba(148,163,184,0.24)', strokeWidth: 1 }}
+            content={<GoalProgressTooltipContent />}
+          />
           <ReferenceLine y={goal.target_amount} label="Meta" stroke="#10b981" strokeDasharray="4 4" />
           <Area type="monotone" dataKey="contributed" stroke="#3b82f6" fillOpacity={1} fill="url(#colorProgress)" />
         </AreaChart>
       </ResponsiveContainer>
-      <div className="mt-2 text-xs text-gray-600">
-        Alcançado: {percentage}% — Atual: R$ {goal.current_amount.toFixed(2)} de R$ {goal.target_amount.toFixed(2)}
+      <div className="mt-2 text-xs text-muted-foreground">
+        Alcançado: {percentage}% — Atual: {formatCurrency(goal.current_amount)} de {formatCurrency(goal.target_amount)}
       </div>
     </ChartCard>
   );

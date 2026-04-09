@@ -36,29 +36,31 @@ const alertIcons = {
 };
 
 const alertLabels = {
-  price_above: 'Preço Acima',
-  price_below: 'Preço Abaixo',
+  price_above: 'Preço acima',
+  price_below: 'Preço abaixo',
   percent_change: 'Variação %',
 };
 
-const alertColors = {
-  price_above: 'text-green-600 bg-green-50',
-  price_below: 'text-red-600 bg-red-50',
-  percent_change: 'text-blue-600 bg-blue-50',
+const alertToneClasses = {
+  price_above: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300',
+  price_below: 'border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-300',
+  percent_change: 'border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-300',
 };
 
 export function AlertsList({ alerts, onDelete, onToggle }: AlertsListProps) {
   if (alerts.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <div className="rounded-full bg-muted p-4 mb-4">
-          <TrendingUp className="h-8 w-8 text-muted-foreground" />
-        </div>
-        <h3 className="text-lg font-semibold mb-1">Nenhum alerta configurado</h3>
-        <p className="text-sm text-muted-foreground">
-          Crie alertas para ser notificado sobre mudanças de preço
-        </p>
-      </div>
+      <Card className="border-border/70 bg-card/95 shadow-[0_18px_44px_rgba(15,23,42,0.08)] dark:shadow-[0_22px_46px_rgba(2,6,23,0.24)]">
+        <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-border/70 bg-surface shadow-sm">
+            <TrendingUp className="h-7 w-7 text-primary" />
+          </div>
+          <h3 className="mb-1 text-lg font-semibold">Nenhum alerta configurado</h3>
+          <p className="text-sm text-muted-foreground">
+            Crie alertas para ser notificado sobre mudanças de preço.
+          </p>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -67,9 +69,7 @@ export function AlertsList({ alerts, onDelete, onToggle }: AlertsListProps) {
       {alerts.map((alert) => {
         const Icon = alertIcons[alert.alert_type];
         const label = alertLabels[alert.alert_type];
-        const colorClass = alertColors[alert.alert_type];
-
-        // Calculate progress (proximity to target)
+        const toneClass = alertToneClasses[alert.alert_type];
         const currentValue = alert.current_value || 0;
         const targetValue = alert.target_value;
         let progress = 0;
@@ -83,86 +83,78 @@ export function AlertsList({ alerts, onDelete, onToggle }: AlertsListProps) {
         const isTriggered = alert.triggered_at !== null;
 
         return (
-          <Card key={alert.id} className={isTriggered ? 'border-green-500' : ''}>
+          <Card
+            key={alert.id}
+            className={`border-border/70 bg-card/95 shadow-[0_18px_44px_rgba(15,23,42,0.08)] dark:shadow-[0_22px_46px_rgba(2,6,23,0.24)] ${
+              isTriggered ? 'ring-1 ring-emerald-500/20' : ''
+            }`}
+          >
             <CardContent className="p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3 flex-1">
-                  {/* Icon */}
-                  <div className={`rounded-lg p-2 ${colorClass}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <div className={`rounded-2xl border p-2.5 shadow-sm ${toneClass}`}>
                     <Icon className="h-5 w-5" />
                   </div>
 
-                  {/* Info */}
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-semibold">{alert.ticker}</span>
-                      <Badge variant="outline">{label}</Badge>
-                      {!alert.is_active && (
-                        <Badge variant="secondary">Inativo</Badge>
-                      )}
-                      {isTriggered && (
-                        <Badge className="bg-green-600">
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-foreground">{alert.ticker}</span>
+                      <Badge variant="outline" className="rounded-full">
+                        {label}
+                      </Badge>
+                      {!alert.is_active ? <Badge variant="secondary">Inativo</Badge> : null}
+                      {isTriggered ? (
+                        <Badge variant="success" className="rounded-full">
                           <CheckCircle2 className="mr-1 h-3 w-3" />
                           Disparado
                         </Badge>
-                      )}
+                      ) : null}
                     </div>
 
-                    <div className="text-sm text-muted-foreground mb-2">
+                    <div className="mb-2 text-sm text-muted-foreground">
                       Alvo:{' '}
                       {alert.alert_type === 'percent_change'
                         ? `${alert.target_value}%`
                         : formatCurrency(alert.target_value)}
-                      {currentValue > 0 && (
-                        <> • Atual: {formatCurrency(currentValue)}</>
-                      )}
+                      {currentValue > 0 ? <> • Atual: {formatCurrency(currentValue)}</> : null}
                     </div>
 
-                    {/* Progress bar for price alerts */}
-                    {alert.alert_type !== 'percent_change' &&
-                      currentValue > 0 &&
-                      !isTriggered && (
-                        <div className="space-y-1">
-                          <Progress value={progress} className="h-2" />
-                          <p className="text-xs text-muted-foreground">
-                            {progress.toFixed(1)}% do objetivo
-                          </p>
-                        </div>
-                      )}
+                    {alert.alert_type !== 'percent_change' && currentValue > 0 && !isTriggered ? (
+                      <div className="space-y-1.5">
+                        <Progress value={progress} className="h-2 bg-muted/80" />
+                        <p className="text-xs text-muted-foreground">{progress.toFixed(1)}% do objetivo</p>
+                      </div>
+                    ) : null}
 
-                    {/* Timestamp */}
-                    {isTriggered && alert.triggered_at && (
-                      <p className="text-xs text-green-600 mt-2">
+                    {isTriggered && alert.triggered_at ? (
+                      <p className="mt-2 text-xs text-emerald-500">
                         Disparado em{' '}
                         {format(new Date(alert.triggered_at), "dd/MM/yyyy 'às' HH:mm", {
                           locale: ptBR,
                         })}
                       </p>
-                    )}
+                    ) : null}
 
-                    {!isTriggered && alert.last_checked && (
-                      <p className="text-xs text-muted-foreground mt-2">
+                    {!isTriggered && alert.last_checked ? (
+                      <p className="mt-2 text-xs text-muted-foreground">
                         Última verificação:{' '}
                         {format(new Date(alert.last_checked), 'dd/MM/yyyy HH:mm', {
                           locale: ptBR,
                         })}
                       </p>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
-                {/* Actions */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl">
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {onToggle && (
-                      <DropdownMenuItem
-                        onClick={() => onToggle(alert.id, !alert.is_active)}
-                      >
+                  <DropdownMenuContent align="end" className="rounded-xl">
+                    {onToggle ? (
+                      <DropdownMenuItem onClick={() => onToggle(alert.id, !alert.is_active)}>
                         {alert.is_active ? (
                           <>
                             <PowerOff className="mr-2 h-4 w-4" />
@@ -175,16 +167,17 @@ export function AlertsList({ alerts, onDelete, onToggle }: AlertsListProps) {
                           </>
                         )}
                       </DropdownMenuItem>
-                    )}
-                    {onDelete && (
+                    ) : null}
+
+                    {onDelete ? (
                       <DropdownMenuItem
                         onClick={() => onDelete(alert.id)}
-                        className="text-red-600"
+                        className="text-rose-500 focus:text-rose-500"
                       >
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Deletar
+                        Excluir
                       </DropdownMenuItem>
-                    )}
+                    ) : null}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

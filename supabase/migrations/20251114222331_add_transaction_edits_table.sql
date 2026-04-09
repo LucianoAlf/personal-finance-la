@@ -11,7 +11,6 @@ CREATE TYPE edit_command_type AS ENUM (
   'edit_account',
   'delete'
 );
-
 -- 2. Criar tabela para histórico de edições
 CREATE TABLE IF NOT EXISTS transaction_edits (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -24,26 +23,21 @@ CREATE TABLE IF NOT EXISTS transaction_edits (
   edited_via TEXT DEFAULT 'whatsapp',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 -- 3. Criar índices para performance
 CREATE INDEX idx_transaction_edits_transaction_id ON transaction_edits(transaction_id);
 CREATE INDEX idx_transaction_edits_user_id ON transaction_edits(user_id);
 CREATE INDEX idx_transaction_edits_edited_at ON transaction_edits(edited_at DESC);
-
 -- 4. Habilitar RLS
 ALTER TABLE transaction_edits ENABLE ROW LEVEL SECURITY;
-
 -- 5. Políticas RLS
 CREATE POLICY "Users can view their own transaction edits"
   ON transaction_edits
   FOR SELECT
   USING (auth.uid() = user_id);
-
 CREATE POLICY "Users can insert their own transaction edits"
   ON transaction_edits
   FOR INSERT
   WITH CHECK (auth.uid() = user_id);
-
 -- 6. Atualizar transações pending_confirmation para completed (limpeza)
 UPDATE transactions 
 SET 
@@ -53,7 +47,6 @@ SET
 WHERE 
   status = 'pending_confirmation'
   OR (source = 'whatsapp' AND is_paid = false);
-
 -- 7. Comentários
 COMMENT ON TABLE transaction_edits IS 'Histórico de edições de transações via WhatsApp';
 COMMENT ON COLUMN transaction_edits.edit_type IS 'Tipo de edição realizada';

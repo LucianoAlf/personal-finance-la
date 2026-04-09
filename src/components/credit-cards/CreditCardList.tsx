@@ -1,8 +1,10 @@
+import { CreditCard as CreditCardIcon, Plus } from 'lucide-react';
+
 import { Card, CardContent } from '@/components/ui/card';
-import { CreditCardCard } from './CreditCardCard';
-import { CreditCardSummary } from '@/types/database.types';
-import { Plus, CreditCard as CreditCardIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { CreditCardSummary } from '@/types/database.types';
+
+import { CreditCardCard } from './CreditCardCard';
 
 interface CreditCardListProps {
   cards: CreditCardSummary[];
@@ -27,18 +29,17 @@ export function CreditCardList({
   onPayInvoice,
   onAddNew,
 }: CreditCardListProps) {
-  // Loading State
   if (loading) {
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="overflow-hidden">
-            <Skeleton className="h-48 w-full" />
-            <CardContent className="p-6 space-y-4">
-              <Skeleton className="h-8 w-3/4" />
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-2 w-full" />
-              <Skeleton className="h-6 w-1/2" />
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {[1, 2, 3].map((item) => (
+          <Card key={item} className="overflow-hidden rounded-[28px] border border-border/70 bg-card/95">
+            <Skeleton className="h-48 w-full bg-surface-elevated" />
+            <CardContent className="space-y-4 p-6">
+              <Skeleton className="h-8 w-3/4 bg-surface-elevated" />
+              <Skeleton className="h-4 w-full bg-surface-elevated/80" />
+              <Skeleton className="h-2 w-full bg-surface-elevated/80" />
+              <Skeleton className="h-6 w-1/2 bg-surface-elevated" />
             </CardContent>
           </Card>
         ))}
@@ -46,35 +47,31 @@ export function CreditCardList({
     );
   }
 
-  // Empty State
   if (cards.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4">
-        <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center mb-6">
-          <CreditCardIcon size={48} className="text-gray-400" />
+      <div className="flex flex-col items-center justify-center rounded-[30px] border border-dashed border-border/70 bg-card/85 px-6 py-16 text-center">
+        <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-[1.9rem] bg-surface-elevated ring-1 ring-border/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+          <CreditCardIcon size={40} className="text-primary/75" />
         </div>
-        <h3 className="text-2xl font-semibold text-gray-900 mb-2">
-          Nenhum cartão cadastrado
-        </h3>
-        <p className="text-gray-600 text-center max-w-md mb-6">
-          Adicione seu primeiro cartão de crédito para começar a controlar suas despesas e faturas
+        <h3 className="mb-2 text-2xl font-semibold tracking-tight text-foreground">Nenhum cartao cadastrado</h3>
+        <p className="mb-6 max-w-md text-muted-foreground">
+          Adicione seu primeiro cartao de credito para comecar a controlar suas despesas e faturas
         </p>
-        {onAddNew && (
+        {onAddNew ? (
           <button
             onClick={onAddNew}
-            className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl border border-primary/30 bg-primary px-6 py-3 font-medium text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] transition-colors hover:bg-primary/90"
           >
             <Plus size={20} />
-            Adicionar Cartão
+            Adicionar Cartao
           </button>
-        )}
+        ) : null}
       </div>
     );
   }
 
-  // Lista de Cartões
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {cards.map((card) => (
         <CreditCardCard
           key={card.id}
@@ -88,23 +85,20 @@ export function CreditCardList({
         />
       ))}
 
-      {/* Card "Adicionar Novo" */}
-      {onAddNew && (
-        <Card 
-          className="border-2 border-dashed border-gray-300 hover:border-purple-500 transition-colors cursor-pointer group"
+      {onAddNew ? (
+        <Card
+          className="group cursor-pointer rounded-[28px] border-2 border-dashed border-border/70 bg-card/70 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card/90"
           onClick={onAddNew}
         >
-          <CardContent className="p-6 flex flex-col items-center justify-center h-full min-h-[400px]">
-            <div className="w-16 h-16 rounded-full bg-gray-100 group-hover:bg-purple-100 flex items-center justify-center mb-4 transition-colors">
-              <Plus size={32} className="text-gray-400 group-hover:text-purple-500 transition-colors" />
+          <CardContent className="flex h-full min-h-[400px] flex-col items-center justify-center p-6 text-center">
+            <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.8rem] border border-border/70 bg-surface-elevated transition-colors group-hover:bg-surface-overlay">
+              <Plus size={34} className="text-primary/80 transition-colors group-hover:text-primary" />
             </div>
-            <h3 className="font-semibold text-gray-900 mb-1">Adicionar Cartão</h3>
-            <p className="text-sm text-gray-600 text-center">
-              Cadastre um novo cartão de crédito
-            </p>
+            <h3 className="mb-1 text-xl font-semibold tracking-tight text-foreground">Adicionar Cartao</h3>
+            <p className="text-sm text-muted-foreground">Cadastre um novo cartao de credito</p>
           </CardContent>
         </Card>
-      )}
+      ) : null}
     </div>
   );
 }

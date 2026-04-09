@@ -112,24 +112,24 @@ export function CreditCardAlerts({ cards, className }: CreditCardAlertsProps) {
     switch (type) {
       case 'critical':
         return {
-          container: 'border-red-200 bg-red-50',
-          icon: 'text-red-600',
-          title: 'text-red-800',
-          description: 'text-red-700',
+          container: 'border-danger-border bg-danger-subtle/85',
+          icon: 'text-danger',
+          title: 'text-foreground',
+          description: 'text-muted-foreground',
         };
       case 'warning':
         return {
-          container: 'border-orange-200 bg-orange-50',
-          icon: 'text-orange-600',
-          title: 'text-orange-800',
-          description: 'text-orange-700',
+          container: 'border-warning/25 bg-warning/10',
+          icon: 'text-warning',
+          title: 'text-foreground',
+          description: 'text-muted-foreground',
         };
       case 'info':
         return {
-          container: 'border-blue-200 bg-blue-50',
-          icon: 'text-blue-600',
-          title: 'text-blue-800',
-          description: 'text-blue-700',
+          container: 'border-info/25 bg-info/10',
+          icon: 'text-info',
+          title: 'text-foreground',
+          description: 'text-muted-foreground',
         };
     }
   };
@@ -142,7 +142,7 @@ export function CreditCardAlerts({ cards, className }: CreditCardAlertsProps) {
       {visibleAlerts.map((alert) => {
         const styles = getAlertStyles(alert.type);
         return (
-          <Alert key={alert.id} className={cn('border', styles.container)}>
+          <Alert key={alert.id} className={cn('rounded-[22px] border shadow-sm', styles.container)}>
             <div className={styles.icon}>{alert.icon}</div>
             <AlertTitle className={cn('font-semibold', styles.title)}>
               {alert.title}
@@ -155,7 +155,7 @@ export function CreditCardAlerts({ cards, className }: CreditCardAlertsProps) {
       })}
       
       {alerts.length > 3 && (
-        <p className="text-sm text-gray-500 text-center">
+        <p className="text-center text-sm text-muted-foreground">
           +{alerts.length - 3} alerta(s) adicional(is)
         </p>
       )}

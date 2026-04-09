@@ -64,18 +64,18 @@ export function ContributionDialog({ open, onOpenChange, goal, onSave }: Contrib
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-green-600" />
+      <DialogContent className="max-w-md rounded-[1.65rem] border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
+        <DialogHeader className="border-b border-border/60 px-6 py-5">
+          <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-foreground">
+            <TrendingUp className="h-5 w-5 text-success" />
             Registrar Aporte
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
             Meta: {goal.name}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5 px-6 py-5">
           <div className="space-y-2">
             <Label htmlFor="amount">Valor do Aporte (R$) *</Label>
             <Input
@@ -111,21 +111,23 @@ export function ContributionDialog({ open, onOpenChange, goal, onSave }: Contrib
 
           {/* Preview do novo total */}
           {amountNumber > 0 && (
-            <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg border border-green-200 dark:border-green-800">
+            <div className="rounded-[1.35rem] border border-success-border/60 bg-success-subtle/45 p-4">
               <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="h-4 w-4 text-green-600" />
-                <p className="font-semibold text-green-900 dark:text-green-100">Novo Progresso</p>
+                <TrendingUp className="h-4 w-4 text-success" />
+                <p className="font-semibold text-success">Novo Progresso</p>
               </div>
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Atual:</span>
-                  <span>R$ {goal.current_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                  <span className="font-medium text-foreground">
+                    R$ {goal.current_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </span>
                 </div>
-                <div className="flex justify-between text-green-600 font-medium">
+                <div className="flex justify-between font-medium text-success">
                   <span>Aporte:</span>
                   <span>+R$ {amountNumber.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 </div>
-                <div className="flex justify-between font-semibold pt-2 border-t border-green-200 dark:border-green-800">
+                <div className="flex justify-between border-t border-success-border/60 pt-2 font-semibold text-foreground">
                   <span>Novo Total:</span>
                   <span>R$ {newTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} ({newPercentage.toFixed(1)}%)</span>
                 </div>
@@ -133,19 +135,20 @@ export function ContributionDialog({ open, onOpenChange, goal, onSave }: Contrib
             </div>
           )}
 
-          <DialogFooter>
+          <DialogFooter className="border-t border-border/60 px-0 pt-5">
             <Button 
               type="button" 
               variant="outline" 
               onClick={() => onOpenChange(false)}
               disabled={isSaving}
+              className="rounded-xl border-border/70 bg-surface/80 px-5 shadow-sm hover:bg-surface-elevated"
             >
               Cancelar
             </Button>
             <Button 
               type="submit" 
               disabled={isSaving || amountNumber <= 0}
-              className="bg-green-600 hover:bg-green-700"
+              className="rounded-xl bg-success px-5 text-success-foreground shadow-[0_16px_28px_rgba(34,197,94,0.24)] hover:bg-success/90"
             >
               {isSaving ? (
                 <>

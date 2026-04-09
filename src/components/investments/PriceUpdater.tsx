@@ -1,13 +1,9 @@
-// =====================================================
-// COMPONENTE: PriceUpdater - Botão atualizar cotações
-// =====================================================
-
 import { useState } from 'react';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 
 interface PriceUpdaterProps {
   onRefresh: () => Promise<void>;
@@ -32,7 +28,7 @@ export function PriceUpdater({
       await onRefresh();
       toast({
         title: 'Cotações atualizadas',
-        description: 'Preços atualizados com sucesso',
+        description: 'Preços atualizados com sucesso.',
       });
     } catch (error) {
       toast({
@@ -46,7 +42,7 @@ export function PriceUpdater({
   };
 
   const formatLastUpdate = () => {
-    if (!lastUpdate) return 'Nunca';
+    if (!lastUpdate) return 'agora há pouco';
 
     try {
       return formatDistanceToNow(lastUpdate, {
@@ -54,28 +50,22 @@ export function PriceUpdater({
         locale: ptBR,
       });
     } catch {
-      return 'Agora';
+      return 'agora há pouco';
     }
   };
 
   return (
-    <div className={`flex items-center gap-3 ${className}`}>
-      {/* Última atualização */}
-      <span className="text-sm text-muted-foreground">
-        Atualizado {formatLastUpdate()}
-      </span>
+    <div className={`flex flex-wrap items-center gap-3 ${className ?? ''}`}>
+      <span className="text-sm text-muted-foreground">Atualizado {formatLastUpdate()}</span>
 
-      {/* Botão atualizar */}
       <Button
         variant="outline"
         size="sm"
         onClick={handleRefresh}
         disabled={loading || isRefreshing}
-        className="gap-2"
+        className="gap-2 rounded-xl border-border/70 bg-surface/85 px-4 shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay"
       >
-        <RefreshCw
-          className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
-        />
+        <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
         {isRefreshing ? 'Atualizando...' : 'Atualizar Cotações'}
       </Button>
     </div>

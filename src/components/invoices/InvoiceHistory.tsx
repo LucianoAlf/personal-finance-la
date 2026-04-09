@@ -77,7 +77,6 @@ export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistor
   const [loading, setLoading] = useState(true);
   const [cards, setCards] = useState<any[]>([]);
 
-  // Buscar cartões do usuário
   useEffect(() => {
     if (!user) return;
 
@@ -93,7 +92,6 @@ export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistor
     fetchCards();
   }, [user]);
 
-  // Buscar faturas
   useEffect(() => {
     if (!user) return;
 
@@ -104,7 +102,6 @@ export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistor
     try {
       setLoading(true);
 
-      // Se houver busca por descrição, filtrar por transações primeiro
       let invoiceIds: string[] | null = null;
       if (filters.searchQuery.trim()) {
         const q = filters.searchQuery.trim();
@@ -123,36 +120,35 @@ export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistor
         }
 
         const { data: txData } = await txQuery;
-        
+
         if (txData && txData.length > 0) {
-          invoiceIds = [...new Set(txData.map(tx => tx.invoice_id).filter(Boolean))];
+          invoiceIds = [...new Set(txData.map((tx) => tx.invoice_id).filter(Boolean))];
         } else {
-          // Nenhuma transação encontrada, retornar vazio
           setInvoices([]);
-          setPagination(prev => ({ ...prev, totalItems: 0 }));
+          setPagination((prev) => ({ ...prev, totalItems: 0 }));
           setLoading(false);
           return;
         }
       }
 
-      // Query base
       let query = supabase
         .from('credit_card_invoices')
-        .select(`
+        .select(
+          `
           *,
           credit_cards (
             name,
             brand
           )
-        `, { count: 'exact' })
+        `,
+          { count: 'exact' },
+        )
         .eq('user_id', user.id);
 
-      // Aplicar filtro de IDs se houver busca
       if (invoiceIds) {
         query = query.in('id', invoiceIds);
       }
 
-      // Aplicar filtros
       if (filters.dateRange.start) {
         query = query.gte('reference_month', format(filters.dateRange.start, 'yyyy-MM-dd'));
       }
@@ -172,10 +168,8 @@ export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistor
         query = query.in('status', filters.status);
       }
 
-      // Ordenação
       query = query.order(sorting.column, { ascending: sorting.direction === 'asc' });
 
-      // Paginação
       const from = (pagination.page - 1) * pagination.pageSize;
       const to = from + pagination.pageSize - 1;
       query = query.range(from, to);
@@ -185,7 +179,7 @@ export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistor
       if (error) throw error;
 
       setInvoices(data || []);
-      setPagination(prev => ({ ...prev, totalItems: count || 0 }));
+      setPagination((prev) => ({ ...prev, totalItems: count || 0 }));
     } catch (err) {
       console.error('Erro ao buscar faturas:', err);
     } finally {
@@ -194,37 +188,37 @@ export function InvoiceHistory({ onEditInvoice, onDeleteInvoice }: InvoiceHistor
   };
 
   const handleFiltersChange = (newFilters: Partial<Filters>) => {
-    setFilters(prev => ({ ...prev, ...newFilters }));
-    setPagination(prev => ({ ...prev, page: 1 })); // Reset para página 1
+    setFilters((prev) => ({ ...prev, ...newFilters }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
   const handleResetFilters = () => {
     setFilters(getDefaultFilters());
-    setPagination(prev => ({ ...prev, page: 1 }));
+    setPagination((prev) => ({ ...prev, page: 1 }));
   };
 
   const handlePageChange = (page: number) => {
-    setPagination(prev => ({ ...prev, page }));
+    setPagination((prev) => ({ ...prev, page }));
   };
 
   const handlePageSizeChange = (pageSize: number) => {
-    setPagination(prev => ({ ...prev, pageSize, page: 1 }));
+    setPagination((prev) => ({ ...prev, pageSize, page: 1 }));
   };
 
   const handleSortChange = (column: string) => {
-    setSorting(prev => ({
+    setSorting((prev) => ({
       column,
       direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc',
     }));
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+    <div data-testid="invoice-history-shell" className="space-y-6">
+      <div className="space-y-2">
+        <h2 className="text-[1.9rem] font-semibold tracking-tight text-foreground">
           Histórico de Faturas
         </h2>
-        <p className="text-gray-600">
+        <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
           Consulte e exporte faturas de períodos anteriores
         </p>
       </div>

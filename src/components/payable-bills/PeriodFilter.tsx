@@ -32,7 +32,7 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
   
   return (
     <Select value={value} onValueChange={(v) => onChange(v as PeriodOption)}>
-      <SelectTrigger className="w-[180px]">
+      <SelectTrigger className="h-11 w-[190px] rounded-xl border-border/70 bg-surface/85 text-sm font-semibold shadow-none">
         <SelectValue>
           <div className="flex items-center gap-2">
             {selectedOption.icon}
@@ -40,7 +40,7 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
           </div>
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="rounded-xl border-border/70 bg-popover/98 shadow-[0_18px_44px_rgba(2,6,23,0.2)]">
         {/* Todas */}
         <SelectItem value="all">
           <div className="flex items-center gap-2">

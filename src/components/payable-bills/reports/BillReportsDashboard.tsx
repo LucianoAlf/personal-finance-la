@@ -1,24 +1,50 @@
 import { motion } from 'framer-motion';
-import { Loader2, RefreshCw, FileText } from 'lucide-react';
+import { FileText, Loader2, RefreshCw } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { useBillReports } from '@/hooks/useBillReports';
 import type { PayableBill } from '@/types/payable-bills.types';
-import { ReportsPeriodFilter } from './ReportsPeriodFilter';
-import { ReportsSummaryCards } from './ReportsSummaryCards';
+
+import { ExportButton } from '../ExportButton';
 import { BehaviorAlerts } from './BehaviorAlerts';
 import { CategoryDistributionChart } from './CategoryDistributionChart';
+import { MonthlyEvolutionChart } from './MonthlyEvolutionChart';
+import { PotentialSavings } from './PotentialSavings';
+import { ReportsPeriodFilter } from './ReportsPeriodFilter';
+import { ReportsSummaryCards } from './ReportsSummaryCards';
 import { TopIncreases } from './TopIncreases';
 import { TopProviders } from './TopProviders';
-import { PotentialSavings } from './PotentialSavings';
-import { MonthlyEvolutionChart } from './MonthlyEvolutionChart';
-import { ExportButton } from '../ExportButton';
 
-interface BillReportsDashboardProps {
+const secondaryButtonClass =
+  'h-11 rounded-xl border-border/70 bg-surface/85 px-4 text-sm font-semibold text-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:bg-surface-elevated';
+
+interface LocalBillReportsDashboardProps {
   /** Lista já carregada pela página (evita segundo fetch + Realtime duplicado). */
   bills: PayableBill[];
 }
 
-export function BillReportsDashboard({ bills }: BillReportsDashboardProps) {
+function EmptyState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex min-h-[380px] items-center justify-center">
+      <div className="text-center">
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-border/60 bg-surface/80 shadow-[0_18px_42px_rgba(2,6,23,0.18)]">
+          <FileText className="h-7 w-7 text-muted-foreground" />
+        </div>
+        <p className="text-base font-semibold text-foreground">{title}</p>
+        <p className="mt-2 max-w-sm text-sm leading-6 text-muted-foreground">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+export function BillReportsDashboard({ bills }: LocalBillReportsDashboardProps) {
   const {
     data,
     loading,
@@ -28,15 +54,18 @@ export function BillReportsDashboard({ bills }: BillReportsDashboardProps) {
     setPeriodPreset,
     customDateRange,
     setCustomDateRange,
-    periodLabel
+    periodLabel,
   } = useBillReports();
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex min-h-[400px] items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-10 w-10 animate-spin text-muted-foreground mx-auto mb-4" />
-          <p className="text-sm text-muted-foreground">Carregando relatórios...</p>
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-border/60 bg-surface/80 shadow-[0_18px_42px_rgba(2,6,23,0.18)]">
+            <Loader2 className="h-7 w-7 animate-spin text-muted-foreground" />
+          </div>
+          <p className="text-base font-semibold text-foreground">Carregando relatórios...</p>
+          <p className="mt-2 text-sm text-muted-foreground">Organizando seus indicadores financeiros.</p>
         </div>
       </div>
     );
@@ -44,71 +73,59 @@ export function BillReportsDashboard({ bills }: BillReportsDashboardProps) {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-30" />
-          <p className="text-sm text-muted-foreground mb-4">
-            Erro ao carregar relatórios
-          </p>
-          <Button variant="outline" onClick={refresh}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Tentar novamente
-          </Button>
-        </div>
-      </div>
+      <EmptyState
+        title="Erro ao carregar relatórios"
+        description="Não foi possível montar essa visão agora. Tente atualizar para buscar os dados novamente."
+      />
     );
   }
 
   if (!data) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-30" />
-          <p className="text-sm text-muted-foreground">
-            Dados insuficientes para gerar relatórios
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            Cadastre algumas contas para ver os relatórios
-          </p>
-        </div>
-      </div>
+      <EmptyState
+        title="Dados insuficientes para gerar relatórios"
+        description="Cadastre algumas contas para ver tendências, categorias e oportunidades de economia."
+      />
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
-      {/* Header com filtros e ações */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold">Relatórios e Análises</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-[1.85rem] font-semibold tracking-tight text-foreground">
+            Relatórios e Análises
+          </h2>
+          <p className="text-sm leading-6 text-muted-foreground">
             Visão completa dos seus gastos e comportamento financeiro
           </p>
         </div>
-        
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={refresh}>
-            <RefreshCw className="h-4 w-4 mr-2" />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" className={secondaryButtonClass} onClick={refresh}>
+            <RefreshCw className="h-4 w-4" />
             Atualizar
           </Button>
           <ExportButton bills={bills} />
         </div>
       </div>
 
-      {/* Filtro de período */}
-      <ReportsPeriodFilter
-        periodPreset={periodPreset}
-        onPeriodChange={setPeriodPreset}
-        customDateRange={customDateRange}
-        onCustomDateChange={setCustomDateRange}
-        periodLabel={periodLabel}
-      />
+      <Card className="rounded-[1.75rem] border-border/70 bg-surface/75 shadow-[0_22px_54px_rgba(2,6,23,0.22)]">
+        <CardContent className="space-y-4 p-5">
+          <ReportsPeriodFilter
+            periodPreset={periodPreset}
+            onPeriodChange={setPeriodPreset}
+            customDateRange={customDateRange}
+            onCustomDateChange={setCustomDateRange}
+            periodLabel={periodLabel}
+          />
 
-      {/* Seção 1: Cards de Resumo */}
+          <div className="rounded-[1.2rem] border border-border/60 bg-background/55 px-4 py-3 text-sm text-muted-foreground">
+            Exibindo dados consolidados de <span className="font-medium text-foreground">{periodLabel}</span>.
+          </div>
+        </CardContent>
+      </Card>
+
       <section>
         <ReportsSummaryCards
           totalAmount={data.totals.total_amount}
@@ -122,8 +139,7 @@ export function BillReportsDashboard({ bills }: BillReportsDashboardProps) {
         />
       </section>
 
-      {/* Seção 2: Alertas e Insights */}
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="grid gap-6 xl:grid-cols-[1.08fr_0.92fr]">
         <BehaviorAlerts
           comparison={data.comparison}
           potentialSavings={data.potential_savings}
@@ -131,44 +147,50 @@ export function BillReportsDashboard({ bills }: BillReportsDashboardProps) {
           biggestExpense={data.biggest_expense?.description ? data.biggest_expense : null}
           overdueCount={data.totals.overdue_count}
         />
-        
         <PotentialSavings savings={data.potential_savings} />
       </section>
 
-      {/* Seção 3: Gráfico de Evolução */}
       <section>
         <MonthlyEvolutionChart data={data.monthly_totals} />
       </section>
 
-      {/* Seção 4: Análises Detalhadas */}
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section className="grid gap-6 xl:grid-cols-2">
         <CategoryDistributionChart
           distribution={data.by_type}
           totalAmount={data.totals.total_amount}
         />
-        
         <TopIncreases increases={data.top_increases} />
       </section>
 
-      {/* Seção 5: Top Fornecedores */}
       <section>
-        <TopProviders
-          providers={data.top_providers}
-          totalAmount={data.totals.total_amount}
-        />
+        <TopProviders providers={data.top_providers} totalAmount={data.totals.total_amount} />
       </section>
 
-      {/* Info Card */}
-      <section className="bg-muted/50 rounded-lg p-4 border border-border">
-        <h4 className="font-semibold text-sm mb-2 flex items-center gap-2">
-          <FileText className="h-4 w-4" />
-          Sobre os Relatórios
-        </h4>
-        <ul className="text-sm text-muted-foreground space-y-1">
-          <li>• Os dados são atualizados em tempo real conforme você cadastra e paga contas</li>
-          <li>• A comparação é feita com o período anterior de mesmo tamanho</li>
-          <li>• A previsão é baseada na média dos últimos 3 meses</li>
-          <li>• Economia potencial considera 2% de multa + 1% de juros ao mês</li>
+      <section className="rounded-[1.75rem] border border-border/70 bg-surface/75 p-5 shadow-[0_20px_50px_rgba(2,6,23,0.18)]">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/18 bg-primary/10 text-primary shadow-sm">
+            <FileText className="h-5 w-5" />
+          </div>
+          <div>
+            <h4 className="text-base font-semibold text-foreground">Sobre os Relatórios</h4>
+            <p className="text-sm text-muted-foreground">
+              Contexto rápido para interpretar os números dessa visão.
+            </p>
+          </div>
+        </div>
+        <ul className="grid gap-3 text-sm leading-6 text-muted-foreground md:grid-cols-2">
+          <li className="rounded-[1.2rem] border border-border/60 bg-background/55 px-4 py-3">
+            Os dados são atualizados em tempo real conforme você cadastra e paga contas.
+          </li>
+          <li className="rounded-[1.2rem] border border-border/60 bg-background/55 px-4 py-3">
+            A comparação é feita com o período anterior de mesmo tamanho.
+          </li>
+          <li className="rounded-[1.2rem] border border-border/60 bg-background/55 px-4 py-3">
+            A previsão é baseada na média dos últimos 3 meses.
+          </li>
+          <li className="rounded-[1.2rem] border border-border/60 bg-background/55 px-4 py-3">
+            Economia potencial considera multa e juros estimados sobre contas em atraso.
+          </li>
         </ul>
       </section>
     </motion.div>

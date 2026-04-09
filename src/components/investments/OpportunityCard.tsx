@@ -1,4 +1,3 @@
-// SPRINT 4 DIA 1: Card individual de oportunidade
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,7 @@ import { motion } from 'framer-motion';
 import { MarketOpportunity } from '@/hooks/useMarketOpportunities';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { cn } from '@/lib/utils';
 
 interface OpportunityCardProps {
   opportunity: MarketOpportunity;
@@ -17,13 +17,13 @@ export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps
   const getRiskColor = (risk: string) => {
     switch (risk) {
       case 'low':
-        return 'bg-green-100 text-green-700 border-green-300';
+        return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
       case 'medium':
-        return 'bg-amber-100 text-amber-700 border-amber-300';
+        return 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300';
       case 'high':
-        return 'bg-red-100 text-red-700 border-red-300';
+        return 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300';
       default:
-        return 'bg-gray-100 text-gray-700 border-gray-300';
+        return 'border-border/60 bg-surface/80 text-muted-foreground';
     }
   };
 
@@ -46,13 +46,13 @@ export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps
   const getRiskLabel = (risk: string) => {
     switch (risk) {
       case 'low':
-        return 'Baixo Risco';
+        return 'Baixo risco';
       case 'medium':
-        return 'Risco Médio';
+        return 'Risco médio';
       case 'high':
-        return 'Alto Risco';
+        return 'Alto risco';
       default:
-        return 'Risco Desconhecido';
+        return 'Risco desconhecido';
     }
   };
 
@@ -63,26 +63,26 @@ export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps
       exit={{ opacity: 0, x: -20 }}
       transition={{ duration: 0.3 }}
     >
-      <Card className="border-l-4 border-l-purple-500 hover:shadow-md transition-shadow">
-        <CardHeader className="pb-3">
+      <Card className="overflow-hidden rounded-[30px] border border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(3,8,20,0.16)] transition-shadow hover:shadow-[0_22px_45px_rgba(3,8,20,0.18)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)]">
+        <CardHeader className="border-b border-border/60 pb-4">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-start gap-3 flex-1">
-              <div className="p-2 bg-purple-100 rounded-lg">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <div className="rounded-2xl border border-border/60 bg-surface-elevated/45 p-2.5 text-purple-500">
                 {getTypeIcon(opportunity.type)}
               </div>
-              <div className="flex-1">
-                <CardTitle className="text-base mb-1 text-gray-900">
+              <div className="min-w-0 flex-1">
+                <CardTitle className="truncate text-base font-semibold tracking-tight text-foreground">
                   {opportunity.title || 'Sem título'}
                 </CardTitle>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="outline" className={getRiskColor(opportunity.risk_level)}>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Badge variant="outline" className={cn('rounded-full border px-2.5 py-1 text-xs', getRiskColor(opportunity.risk_level))}>
                     {getRiskLabel(opportunity.risk_level)}
                   </Badge>
-                  <Badge variant="outline" className="bg-purple-100 text-purple-700 border-purple-200">
+                  <Badge variant="outline" className="rounded-full border border-purple-500/25 bg-purple-500/10 px-2.5 py-1 text-xs text-purple-700 dark:text-purple-300">
                     {opportunity.confidence_score}% confiança
                   </Badge>
                   {opportunity.expected_return && (
-                    <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200">
+                    <Badge variant="outline" className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-300">
                       ~{opportunity.expected_return.toFixed(1)}% a.a.
                     </Badge>
                   )}
@@ -93,24 +93,26 @@ export function OpportunityCard({ opportunity, onDismiss }: OpportunityCardProps
               variant="ghost"
               size="sm"
               onClick={() => onDismiss(opportunity.id)}
-              className="h-8 w-8 p-0 hover:bg-red-50"
+              className="h-9 w-9 rounded-full border border-border/60 p-0 text-muted-foreground hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-500"
             >
-              <X className="h-4 w-4 text-muted-foreground hover:text-red-600" />
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-700 mb-3">
+
+        <CardContent className="space-y-3 pt-4">
+          <p className="text-sm leading-6 text-muted-foreground">
             {opportunity.description || 'Sem descrição disponível'}
           </p>
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-medium text-purple-600">
+          <div className="flex items-center justify-between gap-3 text-xs">
+            <span className="font-medium uppercase tracking-[0.14em] text-purple-500">
               {opportunity.asset_class?.replace(/_/g, ' ').toUpperCase() || 'GERAL'}
             </span>
-            <span className="text-gray-500">
-              Expira {formatDistanceToNow(new Date(opportunity.expires_at), {
+            <span className="text-muted-foreground">
+              Expira{' '}
+              {formatDistanceToNow(new Date(opportunity.expires_at), {
                 addSuffix: true,
-                locale: ptBR
+                locale: ptBR,
               })}
             </span>
           </div>

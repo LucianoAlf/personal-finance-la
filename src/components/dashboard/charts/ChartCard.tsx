@@ -1,6 +1,9 @@
 import { LucideIcon } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/cn';
+
+type ChartCardHeaderTone = 'default' | 'satin-clean';
 
 interface ChartCardProps {
   title: string;
@@ -10,6 +13,7 @@ interface ChartCardProps {
   emptyMessage?: string;
   emptyActionLabel?: string;
   onEmptyAction?: () => void;
+  headerTone?: ChartCardHeaderTone;
 }
 
 export function ChartCard({
@@ -17,13 +21,21 @@ export function ChartCard({
   icon: Icon,
   children,
   isEmpty = false,
-  emptyMessage = 'Nenhum dado disponÃ­vel',
+  emptyMessage = 'Nenhum dado disponível',
   emptyActionLabel,
   onEmptyAction,
+  headerTone = 'default',
 }: ChartCardProps) {
   return (
     <Card className="overflow-hidden border-border/70 bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
-      <CardHeader className="border-b border-border/70 bg-[linear-gradient(135deg,rgba(140,107,255,0.16),rgba(15,23,42,0.08)_40%,rgba(15,23,42,0.86)_100%)]">
+      <CardHeader
+        className={cn(
+          'border-b border-border/70',
+          headerTone === 'satin-clean'
+            ? 'bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(243,246,251,0.96))] shadow-[inset_0_-1px_0_rgba(203,213,225,0.55)] dark:bg-[linear-gradient(135deg,rgba(140,107,255,0.16),rgba(15,23,42,0.08)_40%,rgba(15,23,42,0.86)_100%)] dark:shadow-none'
+            : 'bg-[linear-gradient(135deg,rgba(140,107,255,0.16),rgba(15,23,42,0.08)_40%,rgba(15,23,42,0.86)_100%)]'
+        )}
+      >
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/14 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
             <Icon size={18} className="text-primary" />

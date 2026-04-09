@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Minus, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { formatCurrency } from '@/utils/formatters';
-import { supabase } from '@/lib/supabase';
-import { Skeleton } from '@/components/ui/skeleton';
+import { ArrowDownRight, ArrowUpRight, Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { format, subMonths } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+import { Skeleton } from '@/components/ui/skeleton';
+import { supabase } from '@/lib/supabase';
+import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/utils/formatters';
 
 interface InvoiceComparisonProps {
   invoiceId: string;
@@ -21,11 +23,11 @@ interface ComparisonData {
   trend: 'up' | 'down' | 'same';
 }
 
-export function InvoiceComparison({ 
-  invoiceId, 
-  creditCardId, 
-  referenceMonth, 
-  currentTotal 
+export function InvoiceComparison({
+  invoiceId,
+  creditCardId,
+  referenceMonth,
+  currentTotal,
 }: InvoiceComparisonProps) {
   const [comparison, setComparison] = useState<ComparisonData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,13 +36,11 @@ export function InvoiceComparison({
     const fetchPreviousInvoice = async () => {
       try {
         setLoading(true);
-        
-        // Calcular mês anterior
+
         const currentDate = new Date(referenceMonth);
         const previousDate = subMonths(currentDate, 1);
         const previousMonthStr = format(previousDate, 'yyyy-MM-01');
 
-        // Buscar fatura do mês anterior
         const { data, error } = await supabase
           .from('credit_card_invoices')
           .select('total_amount, reference_month')
@@ -55,9 +55,7 @@ export function InvoiceComparison({
 
         const previousTotal = data.total_amount || 0;
         const difference = currentTotal - previousTotal;
-        const percentageChange = previousTotal > 0 
-          ? ((difference / previousTotal) * 100) 
-          : 0;
+        const percentageChange = previousTotal > 0 ? (difference / previousTotal) * 100 : 0;
 
         let trend: 'up' | 'down' | 'same' = 'same';
         if (Math.abs(percentageChange) < 1) {
@@ -75,8 +73,8 @@ export function InvoiceComparison({
           percentageChange,
           trend,
         });
-      } catch (err) {
-        console.error('Erro ao buscar comparativo:', err);
+      } catch (error) {
+        console.error('Erro ao buscar comparativo:', error);
         setComparison(null);
       } finally {
         setLoading(false);
@@ -87,81 +85,83 @@ export function InvoiceComparison({
   }, [invoiceId, creditCardId, referenceMonth, currentTotal]);
 
   if (loading) {
-    return <Skeleton className="h-24 w-full" />;
+    return <Skeleton className="h-32 w-full rounded-[24px]" />;
   }
 
   if (!comparison) {
     return (
-      <div className="bg-gray-50 rounded-lg p-4 text-center text-gray-500 text-sm">
-        Sem dados do mês anterior para comparação
+      <div className="rounded-[24px] border border-dashed border-border/70 bg-surface-elevated/35 px-5 py-4 text-center text-sm text-muted-foreground">
+        Sem dados do mes anterior para comparacao.
       </div>
     );
   }
 
-  const getTrendIcon = () => {
-    if (comparison.trend === 'up') {
-      return <TrendingUp className="h-5 w-5 text-red-500" />;
-    }
-    if (comparison.trend === 'down') {
-      return <TrendingDown className="h-5 w-5 text-green-500" />;
-    }
-    return <Minus className="h-5 w-5 text-gray-500" />;
-  };
+  const trendClass =
+    comparison.trend === 'up'
+      ? 'text-danger border-danger/20 bg-danger/10'
+      : comparison.trend === 'down'
+        ? 'text-success border-success/20 bg-success/10'
+        : 'text-muted-foreground border-border/60 bg-surface/70';
 
-  const getTrendColor = () => {
-    if (comparison.trend === 'up') return 'text-red-600 bg-red-50';
-    if (comparison.trend === 'down') return 'text-green-600 bg-green-50';
-    return 'text-gray-600 bg-gray-50';
-  };
+  const TrendIcon =
+    comparison.trend === 'up' ? TrendingUp : comparison.trend === 'down' ? TrendingDown : Minus;
 
-  const getTrendLabel = () => {
-    if (comparison.trend === 'up') return 'Aumento';
-    if (comparison.trend === 'down') return 'Redução';
-    return 'Estável';
-  };
+  const differenceIcon =
+    comparison.difference > 0 ? ArrowUpRight : comparison.difference < 0 ? ArrowDownRight : Minus;
+
+  const DifferenceIcon = differenceIcon;
 
   return (
-    <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-lg p-4 border border-gray-200">
-      <h4 className="text-sm font-medium text-gray-600 mb-3 flex items-center gap-2">
-        {getTrendIcon()}
-        Comparativo com {comparison.previousMonth}
-      </h4>
-      
-      <div className="grid grid-cols-3 gap-4">
-        {/* Mês Anterior */}
+    <div className="rounded-[26px] border border-border/70 bg-surface-elevated/45 p-5 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs text-gray-500 mb-1">Mês anterior</p>
-          <p className="text-lg font-semibold text-gray-700">
+          <p className="text-sm font-semibold text-foreground">Comparativo com {comparison.previousMonth}</p>
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
+            Veja se o ciclo atual esta maior, menor ou estavel em relacao ao mes anterior.
+          </p>
+        </div>
+
+        <div className={cn('inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold', trendClass)}>
+          <TrendIcon className="h-4 w-4" />
+          {comparison.trend === 'up' ? 'Aumento' : comparison.trend === 'down' ? 'Reducao' : 'Estavel'}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-3">
+        <div className="rounded-[20px] border border-border/60 bg-background/55 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Mes anterior</p>
+          <p className="mt-3 text-[1.35rem] font-semibold tracking-tight text-foreground">
             {formatCurrency(comparison.previousTotal)}
           </p>
         </div>
 
-        {/* Diferença */}
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Diferença</p>
-          <div className="flex items-center gap-1">
-            {comparison.difference > 0 ? (
-              <ArrowUpRight className="h-4 w-4 text-red-500" />
-            ) : comparison.difference < 0 ? (
-              <ArrowDownRight className="h-4 w-4 text-green-500" />
-            ) : null}
-            <p className={`text-lg font-semibold ${
-              comparison.difference > 0 ? 'text-red-600' : 
-              comparison.difference < 0 ? 'text-green-600' : 'text-gray-600'
-            }`}>
-              {comparison.difference > 0 ? '+' : ''}{formatCurrency(comparison.difference)}
-            </p>
+        <div className="rounded-[20px] border border-border/60 bg-background/55 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Diferenca</p>
+          <div
+            className={cn(
+              'mt-3 inline-flex items-center gap-2 text-[1.2rem] font-semibold tracking-tight',
+              comparison.difference > 0
+                ? 'text-danger'
+                : comparison.difference < 0
+                  ? 'text-success'
+                  : 'text-foreground',
+            )}
+          >
+            <DifferenceIcon className="h-4 w-4" />
+            <span>
+              {comparison.difference > 0 ? '+' : ''}
+              {formatCurrency(comparison.difference)}
+            </span>
           </div>
         </div>
 
-        {/* Variação % */}
-        <div>
-          <p className="text-xs text-gray-500 mb-1">Variação</p>
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-sm font-medium ${getTrendColor()}`}>
+        <div className="rounded-[20px] border border-border/60 bg-background/55 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Variacao</p>
+          <p className="mt-3 text-[1.2rem] font-semibold tracking-tight text-foreground">
             {comparison.percentageChange > 0 ? '+' : ''}
             {comparison.percentageChange.toFixed(1)}%
-            <span className="ml-1 text-xs">({getTrendLabel()})</span>
-          </span>
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">sobre o valor do ciclo anterior</p>
         </div>
       </div>
     </div>

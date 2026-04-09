@@ -80,21 +80,21 @@ const ALL_OPTIONS_LABELS: Record<SortOption, string> = {
 export function BillSortSelect({ value, onChange }: BillSortSelectProps) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as SortOption)}>
-      <SelectTrigger className="w-[200px]">
+      <SelectTrigger className="h-11 w-[210px] rounded-xl border-border/70 bg-surface/85 text-sm font-semibold shadow-none">
         <ArrowUpDown className="h-4 w-4 mr-2" />
         <SelectValue placeholder="Ordenar/Filtrar">
           {ALL_OPTIONS_LABELS[value]}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="rounded-xl border-border/70 bg-popover/98 shadow-[0_18px_44px_rgba(2,6,23,0.2)]">
         <SelectGroup>
           <SelectLabel className="text-xs text-muted-foreground">Ordenar por</SelectLabel>
           {SORT_OPTIONS.map(({ key, label, icon }) => (
             <SelectItem key={key} value={key}>
-              <span className="flex items-center gap-2">
-                {icon}
-                {label}
-              </span>
+                <span className="flex items-center gap-2 text-sm">
+                  {icon}
+                  {label}
+                </span>
             </SelectItem>
           ))}
         </SelectGroup>
@@ -103,10 +103,10 @@ export function BillSortSelect({ value, onChange }: BillSortSelectProps) {
           <SelectLabel className="text-xs text-muted-foreground">Filtrar por status</SelectLabel>
           {STATUS_OPTIONS.map(({ key, label, icon }) => (
             <SelectItem key={key} value={key}>
-              <span className="flex items-center gap-2">
-                {icon}
-                {label}
-              </span>
+                <span className="flex items-center gap-2 text-sm">
+                  {icon}
+                  {label}
+                </span>
             </SelectItem>
           ))}
         </SelectGroup>

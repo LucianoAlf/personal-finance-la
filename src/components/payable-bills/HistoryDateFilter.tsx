@@ -123,11 +123,10 @@ export function HistoryDateFilter({ value, onChange }: HistoryDateFilterProps) {
             whileTap={{ scale: 0.98 }}
             onClick={() => handleQuickFilter(filter.id)}
             className={cn(
-              "px-4 py-2 rounded-full text-sm font-medium transition-all",
-              "border",
+              "rounded-full border px-4 py-2 text-sm font-medium transition-all",
               activeFilter === filter.id
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-background hover:bg-muted border-border"
+                ? "border-primary/30 bg-primary text-primary-foreground shadow-[0_12px_24px_rgba(139,92,246,0.22)]"
+                : "border-border/70 bg-card/90 text-foreground hover:bg-surface"
             )}
           >
             {filter.label}
@@ -142,7 +141,7 @@ export function HistoryDateFilter({ value, onChange }: HistoryDateFilterProps) {
             <Button
               variant="outline"
               className={cn(
-                "justify-start text-left font-normal min-w-[280px]",
+                "min-w-[280px] justify-start rounded-xl border-border/70 bg-surface/85 text-left font-medium shadow-none",
                 !value.from && "text-muted-foreground"
               )}
             >

@@ -91,6 +91,7 @@ export function MonthlyTrendChart({ transactions, selectedDate }: MonthlyTrendCh
     <ChartCard
       title="Evolução Mensal (Últimos 6 Meses)"
       icon={TrendingUp}
+      headerTone="satin-clean"
       isEmpty={!hasData}
       emptyMessage="Dados insuficientes para gerar o gráfico"
     >

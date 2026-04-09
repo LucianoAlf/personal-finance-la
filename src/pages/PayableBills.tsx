@@ -45,6 +45,12 @@ import { isBillOverdue } from '@/utils/billCalculations';
 import { getRemainingAmount } from '@/utils/billCalculations';
 
 export default function PayableBills() {
+  const primaryButtonClass =
+    'rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90';
+
+  const secondaryButtonClass =
+    'rounded-xl border-border/70 bg-surface/85 px-4 shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay';
+
   const {
     bills,
     paidBills,
@@ -450,20 +456,21 @@ export default function PayableBills() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(139,92,246,0.08),_transparent_30%),radial-gradient(circle_at_18%_22%,_rgba(59,130,246,0.05),_transparent_26%),radial-gradient(circle_at_82%_20%,_rgba(245,158,11,0.05),_transparent_24%)]" />
       <Header
         title="Contas a Pagar"
         subtitle="Gerencie suas contas e vencimentos"
         icon={<Receipt size={24} />}
         actions={
-          <Button onClick={() => handleCreateDialogChange(true)}>
+          <Button className={primaryButtonClass} onClick={() => handleCreateDialogChange(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Nova Conta
           </Button>
         }
       />
 
-      <div className="p-6 space-y-6">
+      <div className="relative space-y-6 p-6">
         {/* Cards de Resumo */}
         <BillSummaryCards
           pendingAmount={displaySummary.pendingAmount}
@@ -474,32 +481,42 @@ export default function PayableBills() {
           paidCount={displaySummary.paidCount}
         />
 
-        <Card>
-          <div className="p-4 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <Card className="rounded-[1.6rem] border-border/70 bg-card/95 p-5 shadow-[0_20px_48px_rgba(15,23,42,0.08)] dark:shadow-[0_20px_54px_rgba(2,6,23,0.22)]">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">Competência</p>
-              <div className="mt-2 flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={handlePreviousMonth} className="h-8 w-8">
+              <p className="text-sm font-medium text-muted-foreground">Competência</p>
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handlePreviousMonth}
+                  className="h-10 w-10 rounded-xl border border-transparent text-muted-foreground hover:border-border/70 hover:bg-surface"
+                >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => setMonthModalOpen(true)}
-                  className="min-w-[180px] justify-center font-medium"
+                  className="min-w-[196px] justify-center rounded-xl border-border/70 bg-surface/85 font-semibold text-foreground shadow-sm hover:bg-surface-elevated"
                 >
                   <CalendarDays className="mr-2 h-4 w-4" />
                   {formatMonthYear(selectedMonthDate)}
                 </Button>
-                <Button variant="ghost" size="icon" onClick={handleNextMonth} className="h-8 w-8">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleNextMonth}
+                  className="h-10 w-10 rounded-xl border border-transparent text-muted-foreground hover:border-border/70 hover:bg-surface"
+                >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" onClick={handleCurrentMonth}>
+                <Button variant="outline" className={secondaryButtonClass} onClick={handleCurrentMonth}>
                   Hoje
                 </Button>
               </div>
             </div>
 
-            <div className="text-sm text-muted-foreground">
+            <div className="max-w-xl text-sm leading-6 text-muted-foreground">
               {isAllAccountsMode
                 ? 'Modo expandido ativo: exibindo contas de todos os meses.'
                 : `As visões Cards, Tabela e Calendário estão sincronizadas em ${formatMonthYear(selectedMonthDate)}.`}
@@ -513,16 +530,25 @@ export default function PayableBills() {
           onValueChange={(v) => setBillsMainTab(v as 'bills' | 'history' | 'reports')}
           className="space-y-6"
         >
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="bills">
+          <TabsList className="grid h-auto w-full grid-cols-3 rounded-[1.35rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)]">
+            <TabsTrigger
+              value="bills"
+              className="flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
+            >
               <Receipt className="h-4 w-4 mr-1" />
               Contas ({filteredBills.length})
             </TabsTrigger>
-            <TabsTrigger value="history">
+            <TabsTrigger
+              value="history"
+              className="flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
+            >
               <History className="h-4 w-4 mr-1" />
               Histórico ({paidBills.length})
             </TabsTrigger>
-            <TabsTrigger value="reports">
+            <TabsTrigger
+              value="reports"
+              className="flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
+            >
               <BarChart3 className="h-4 w-4 mr-1" />
               Relatórios
             </TabsTrigger>
@@ -541,30 +567,32 @@ export default function PayableBills() {
             )}
 
             {/* Barra de Controles */}
-            <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
-              <div className="relative w-full lg:max-w-sm">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  placeholder="Buscar por descricao ou fornecedor"
-                  className="pl-9"
-                />
+            <Card className="rounded-[1.6rem] border-border/70 bg-card/95 p-4 shadow-[0_16px_42px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_44px_rgba(2,6,23,0.2)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="relative w-full lg:max-w-sm">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={searchInput}
+                    onChange={(event) => setSearchInput(event.target.value)}
+                    placeholder="Buscar por descrição ou fornecedor"
+                    className="h-11 rounded-xl border-border/70 bg-surface/80 pl-9 shadow-none placeholder:text-muted-foreground/80"
+                  />
+                </div>
+                <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
+                  <PeriodFilter value={periodFilter} onChange={setPeriodFilter} />
+                  <BillCategoryFilter
+                    categories={categories}
+                    value={categoryFilter}
+                    onChange={setCategoryFilter}
+                  />
+                  {periodFilter === 'recurring' && (
+                    <RecurrenceTypeFilter value={recurrenceTypeFilter} onChange={setRecurrenceTypeFilter} />
+                  )}
+                  <BillSortSelect value={sortOption} onChange={setSortOption} />
+                  <ViewToggle value={viewMode} onChange={setViewMode} />
+                </div>
               </div>
-              <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
-                <PeriodFilter value={periodFilter} onChange={setPeriodFilter} />
-                <BillCategoryFilter
-                  categories={categories}
-                  value={categoryFilter}
-                  onChange={setCategoryFilter}
-                />
-                {periodFilter === 'recurring' && (
-                  <RecurrenceTypeFilter value={recurrenceTypeFilter} onChange={setRecurrenceTypeFilter} />
-                )}
-                <BillSortSelect value={sortOption} onChange={setSortOption} />
-                <ViewToggle value={viewMode} onChange={setViewMode} />
-              </div>
-            </div>
+            </Card>
 
             {/* Destaque: vencidas / vence hoje / vence amanhã (abaixo dos filtros) */}
             {!loading && viewMode !== 'calendar' && (
@@ -611,7 +639,7 @@ export default function PayableBills() {
                   {isAllAccountsMode && (
                     <Button
                       onClick={() => handleCreateDialogChange(true)}
-                      className="mt-4"
+                      className={`mt-4 ${primaryButtonClass}`}
                     >
                       <Plus className="h-4 w-4 mr-2" />
                       Nova Conta

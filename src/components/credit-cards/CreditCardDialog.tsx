@@ -1,14 +1,11 @@
 import { useState } from 'react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { CreditCardForm } from './CreditCardForm';
+
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import { useCreditCards } from '@/hooks/useCreditCards';
 import { CreditCard } from '@/types/database.types';
-import { useToast } from '@/hooks/use-toast';
+
+import { CreditCardForm } from './CreditCardForm';
 
 interface CreditCardDialogProps {
   open: boolean;
@@ -22,41 +19,32 @@ export function CreditCardDialog({ open, onOpenChange, card, onSuccess }: Credit
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
-  console.log('CreditCardDialog renderizado - open:', open, 'card:', card);
-
   const handleSubmit = async (data: any) => {
     setLoading(true);
 
     try {
       if (card) {
-        // Modo edição
         const result = await updateCard(card.id, data);
-        if (result) {
-          toast({
-            title: 'Cartão atualizado!',
-            description: 'As alterações foram salvas com sucesso.',
-          });
-          onSuccess?.();
-          onOpenChange(false);
-        } else {
-          throw new Error('Erro ao atualizar cartão');
-        }
+        if (!result) throw new Error('Erro ao atualizar cartão');
+
+        toast({
+          title: 'Cartão atualizado!',
+          description: 'As alterações foram salvas com sucesso.',
+        });
       } else {
-        // Modo criação
         const result = await createCard(data);
-        if (result) {
-          toast({
-            title: 'Cartão criado!',
-            description: 'Seu novo cartão foi adicionado com sucesso.',
-          });
-          // Aguardar um pouco para o realtime subscription processar
-          await new Promise(resolve => setTimeout(resolve, 500));
-          onSuccess?.();
-          onOpenChange(false);
-        } else {
-          throw new Error('Erro ao criar cartão');
-        }
+        if (!result) throw new Error('Erro ao criar cartão');
+
+        toast({
+          title: 'Cartão criado!',
+          description: 'Seu novo cartão foi adicionado com sucesso.',
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
+
+      onSuccess?.();
+      onOpenChange(false);
     } catch (error: any) {
       toast({
         title: 'Erro',
@@ -70,19 +58,21 @@ export function CreditCardDialog({ open, onOpenChange, card, onSuccess }: Credit
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
+        <DialogHeader className="border-b border-border/60 px-6 py-5">
+          <DialogTitle className="text-[1.65rem] font-semibold tracking-tight text-foreground">
             {card ? 'Editar Cartão de Crédito' : 'Novo Cartão de Crédito'}
           </DialogTitle>
         </DialogHeader>
 
-        <CreditCardForm
-          card={card}
-          onSubmit={handleSubmit}
-          onCancel={() => onOpenChange(false)}
-          loading={loading}
-        />
+        <div className="px-6 py-5">
+          <CreditCardForm
+            card={card}
+            onSubmit={handleSubmit}
+            onCancel={() => onOpenChange(false)}
+            loading={loading}
+          />
+        </div>
       </DialogContent>
     </Dialog>
   );

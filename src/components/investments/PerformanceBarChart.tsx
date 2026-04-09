@@ -1,15 +1,15 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   BarChart,
   Bar,
+  CartesianGrid,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  Cell,
 } from 'recharts';
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/utils/formatters';
 import type { Investment } from '@/types/database.types';
 
@@ -17,34 +17,32 @@ interface PerformanceBarChartProps {
   investments: Investment[];
 }
 
+const panelClassName =
+  'border-border/70 bg-card/95 shadow-[0_18px_44px_rgba(15,23,42,0.08)] dark:shadow-[0_22px_46px_rgba(2,6,23,0.24)]';
+
 export function PerformanceBarChart({ investments }: PerformanceBarChartProps) {
   if (!investments || investments.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Performance por Ativo</CardTitle>
+      <Card className={panelClassName}>
+        <CardHeader className="border-b border-border/60 pb-5">
+          <CardTitle className="text-2xl">Performance por Ativo</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-            Nenhum investimento disponível
-          </div>
+        <CardContent className="flex h-[320px] items-center justify-center text-center text-muted-foreground">
+          Nenhum investimento disponível
         </CardContent>
       </Card>
     );
   }
 
-  // Preparar dados para o gráfico
   const chartData = investments
-    .map((inv) => {
-      const totalInvested = inv.total_invested || 0;
-      const currentValue = inv.current_value || totalInvested;
+    .map((investment) => {
+      const totalInvested = investment.total_invested || 0;
+      const currentValue = investment.current_value || totalInvested;
       const returnValue = currentValue - totalInvested;
-      const returnPercentage = totalInvested > 0
-        ? (returnValue / totalInvested) * 100
-        : 0;
+      const returnPercentage = totalInvested > 0 ? (returnValue / totalInvested) * 100 : 0;
 
       return {
-        name: inv.ticker || inv.name,
+        name: investment.ticker || investment.name,
         return: returnValue,
         percentage: returnPercentage,
         invested: totalInvested,
@@ -52,69 +50,71 @@ export function PerformanceBarChart({ investments }: PerformanceBarChartProps) {
         isPositive: returnValue >= 0,
       };
     })
-    .sort((a, b) => b.return - a.return) // Ordenar por retorno (maior primeiro)
-    .slice(0, 10); // Top 10 investimentos
+    .sort((left, right) => right.return - left.return)
+    .slice(0, 10);
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-background border rounded-lg shadow-lg p-3">
-          <p className="font-semibold mb-2">{data.name}</p>
-          <div className="space-y-1">
-            <p className="text-sm">
-              <span className="text-muted-foreground">Investido:</span>{' '}
-              <span className="font-medium">{formatCurrency(data.invested)}</span>
-            </p>
-            <p className="text-sm">
-              <span className="text-muted-foreground">Atual:</span>{' '}
-              <span className="font-medium">{formatCurrency(data.current)}</span>
-            </p>
-            <p className={`text-sm font-semibold ${data.isPositive ? 'text-green-600' : 'text-red-600'}`}>
-              Retorno: {formatCurrency(data.return)} ({data.percentage >= 0 ? '+' : ''}{data.percentage.toFixed(2)}%)
-            </p>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
+  const positiveCount = chartData.filter((item) => item.isPositive).length;
+  const negativeCount = chartData.filter((item) => !item.isPositive).length;
 
-  // Format Y-axis
   const formatYAxis = (value: number) => {
-    const absValue = Math.abs(value);
-    if (absValue >= 1000) {
-      return `${value >= 0 ? '' : '-'}${(absValue / 1000).toFixed(0)}k`;
+    const absolute = Math.abs(value);
+    if (absolute >= 1000) {
+      return `${value >= 0 ? '' : '-'}${(absolute / 1000).toFixed(0)}k`;
     }
     return value.toString();
   };
 
-  // Custom bar label
   const renderLabel = (props: any) => {
     const { x, y, width, height, value } = props;
     const isPositive = value >= 0;
-    
+
     return (
       <text
         x={x + width / 2}
-        y={isPositive ? y - 5 : y + height + 15}
+        y={isPositive ? y - 8 : y + height + 18}
         fill={isPositive ? '#10b981' : '#ef4444'}
         textAnchor="middle"
         fontSize={12}
         fontWeight={600}
       >
-        {value >= 0 ? '+' : ''}{value.toFixed(1)}%
+        {value >= 0 ? '+' : ''}
+        {value.toFixed(1)}%
       </text>
     );
   };
 
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (!active || !payload?.length) {
+      return null;
+    }
+
+    const data = payload[0].payload;
+
+    return (
+      <div className="rounded-[1.35rem] border border-border/70 bg-card/95 p-4 shadow-[0_18px_44px_rgba(15,23,42,0.18)]">
+        <p className="mb-3 text-sm font-semibold text-foreground">{data.name}</p>
+        <div className="space-y-1.5 text-sm">
+          <p className="text-muted-foreground">
+            Investido: <span className="font-medium text-foreground">{formatCurrency(data.invested)}</span>
+          </p>
+          <p className="text-muted-foreground">
+            Atual: <span className="font-medium text-foreground">{formatCurrency(data.current)}</span>
+          </p>
+          <p className={`font-semibold ${data.isPositive ? 'text-emerald-500' : 'text-rose-500'}`}>
+            Retorno: {formatCurrency(data.return)} ({data.percentage >= 0 ? '+' : ''}
+            {data.percentage.toFixed(2)}%)
+          </p>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Performance por Ativo (Top 10)</CardTitle>
+    <Card className={panelClassName}>
+      <CardHeader className="border-b border-border/60 pb-5">
+        <CardTitle className="text-2xl">Performance por Ativo (Top 10)</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-6 p-6">
         <ResponsiveContainer width="100%" height={400}>
           <BarChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -137,42 +137,27 @@ export function PerformanceBarChart({ investments }: PerformanceBarChartProps) {
                 style: { fill: 'hsl(var(--muted-foreground))' },
               }}
             />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar
-              dataKey="return"
-              fill="#8884d8"
-              radius={[8, 8, 0, 0]}
-              label={renderLabel}
-            >
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--surface))', opacity: 0.35 }} />
+            <Bar dataKey="return" radius={[8, 8, 0, 0]} label={renderLabel}>
               {chartData.map((entry, index) => (
-                <Cell
-                  key={`cell-${index}`}
-                  fill={entry.isPositive ? '#10b981' : '#ef4444'}
-                />
+                <Cell key={`cell-${index}`} fill={entry.isPositive ? '#10b981' : '#ef4444'} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
 
-        {/* Summary */}
-        <div className="grid grid-cols-3 gap-4 mt-6">
-          <div className="text-center p-3 bg-green-50 rounded-lg">
-            <p className="text-sm text-green-600 mb-1">Ganhos</p>
-            <p className="text-lg font-bold text-green-700">
-              {chartData.filter(d => d.isPositive).length}
-            </p>
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 p-4 text-center">
+            <p className="mb-1 text-sm text-emerald-600 dark:text-emerald-300">Ganhos</p>
+            <p className="text-xl font-semibold text-emerald-500">{positiveCount}</p>
           </div>
-          <div className="text-center p-3 bg-red-50 rounded-lg">
-            <p className="text-sm text-red-600 mb-1">Perdas</p>
-            <p className="text-lg font-bold text-red-700">
-              {chartData.filter(d => !d.isPositive).length}
-            </p>
+          <div className="rounded-2xl border border-rose-500/25 bg-rose-500/10 p-4 text-center">
+            <p className="mb-1 text-sm text-rose-600 dark:text-rose-300">Perdas</p>
+            <p className="text-xl font-semibold text-rose-500">{negativeCount}</p>
           </div>
-          <div className="text-center p-3 bg-muted rounded-lg">
-            <p className="text-sm text-muted-foreground mb-1">Total</p>
-            <p className="text-lg font-bold">
-              {chartData.length}
-            </p>
+          <div className="rounded-2xl border border-border/70 bg-surface/55 p-4 text-center">
+            <p className="mb-1 text-sm text-muted-foreground">Total</p>
+            <p className="text-xl font-semibold text-foreground">{chartData.length}</p>
           </div>
         </div>
       </CardContent>

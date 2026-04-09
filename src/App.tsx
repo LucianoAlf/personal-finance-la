@@ -22,6 +22,7 @@ import { Profile } from './pages/Profile';
 import { Tags } from './pages/Tags';
 import Categories from './pages/Categories';
 import PayableBills from './pages/PayableBills';
+import { CalendarPage } from './pages/CalendarPage';
 import TestEmail from './pages/TestEmail';
 import { useSettings } from './hooks/useSettings';
 import {
@@ -99,6 +100,7 @@ function App() {
           <Route path="transacoes" element={<Transacoes />} />
           <Route path="cartoes" element={<CreditCards />} />
           <Route path="contas-pagar" element={<PayableBills />} />
+          <Route path="agenda" element={<CalendarPage />} />
           <Route path="metas" element={<Goals />} />
           <Route path="investimentos" element={<Investments />} />
           <Route path="relatorios" element={<Reports />} />

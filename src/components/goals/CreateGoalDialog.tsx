@@ -97,6 +97,11 @@ const goalFormSchema = z.object({
 
 type GoalFormData = z.infer<typeof goalFormSchema>;
 
+const dialogContentClassName =
+  'max-h-[90vh] overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl sm:max-w-[500px]';
+
+const dialogSectionClassName = 'rounded-[1.35rem] border border-border/60 bg-surface-elevated/45 p-4';
+
 export function CreateGoalDialog({
   open,
   onOpenChange,
@@ -199,10 +204,12 @@ export function CreateGoalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Nova Meta Financeira</DialogTitle>
-          <DialogDescription>
+      <DialogContent className={dialogContentClassName}>
+        <DialogHeader className="border-b border-border/60 px-6 py-5">
+          <DialogTitle className="text-[1.6rem] font-semibold tracking-tight text-foreground">
+            Nova Meta Financeira
+          </DialogTitle>
+          <DialogDescription className="text-sm leading-relaxed text-foreground/72">
             {allowedTypes.length === 1
               ? allowedTypes[0] === 'spending_limit'
                 ? 'Defina um limite de gastos por categoria.'
@@ -211,10 +218,10 @@ export function CreateGoalDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 px-6 py-5">
           {/* Seletor de tipo */}
           {allowedTypes.length > 1 && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Label>Tipo de Meta</Label>
               <div className="grid grid-cols-2 gap-4">
                 {allowedTypes.includes('savings') && (
@@ -222,15 +229,19 @@ export function CreateGoalDialog({
                     type="button"
                     onClick={() => setValue('type', 'savings')}
                     aria-pressed={goalType === 'savings'}
-                    className={`flex flex-col items-center justify-between rounded-md border-2 p-4 transition-colors ${
-                      goalType === 'savings' ? 'border-primary' : 'border-muted hover:bg-accent'
-                    }`}
+                    className={cn(
+                      dialogSectionClassName,
+                      'flex min-h-[10.5rem] flex-col items-center justify-between text-center transition-all',
+                      goalType === 'savings'
+                        ? 'border-primary/50 bg-primary/10 shadow-[0_16px_30px_rgba(139,92,246,0.14)]'
+                        : 'hover:border-border hover:bg-surface-overlay'
+                    )}
                   >
-                    <div className="h-10 w-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center mb-2">
+                    <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-violet-600 text-white shadow-[0_14px_26px_rgba(59,130,246,0.28)]">
                       <PiggyBank className="h-5 w-5" />
                     </div>
-                    <span className="font-semibold">Meta de Economia</span>
-                    <span className="text-xs text-muted-foreground text-center mt-1">
+                    <span className="font-semibold text-foreground">Meta de Economia</span>
+                    <span className="mt-1 text-xs leading-relaxed text-foreground/70">
                       Economizar para um objetivo
                     </span>
                   </button>
@@ -240,15 +251,19 @@ export function CreateGoalDialog({
                     type="button"
                     onClick={() => setValue('type', 'spending_limit')}
                     aria-pressed={goalType === 'spending_limit'}
-                    className={`flex flex-col items-center justify-between rounded-md border-2 p-4 transition-colors ${
-                      goalType === 'spending_limit' ? 'border-primary' : 'border-muted hover:bg-accent'
-                    }`}
+                    className={cn(
+                      dialogSectionClassName,
+                      'flex min-h-[10.5rem] flex-col items-center justify-between text-center transition-all',
+                      goalType === 'spending_limit'
+                        ? 'border-primary/50 bg-primary/10 shadow-[0_16px_30px_rgba(139,92,246,0.14)]'
+                        : 'hover:border-border hover:bg-surface-overlay'
+                    )}
                   >
-                    <div className="h-10 w-10 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center mb-2">
+                    <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-[0_14px_26px_rgba(249,115,22,0.28)]">
                       <Shield className="h-5 w-5" />
                     </div>
-                    <span className="font-semibold">Meta de Gasto</span>
-                    <span className="text-xs text-muted-foreground text-center mt-1">
+                    <span className="font-semibold text-foreground">Meta de Gasto</span>
+                    <span className="mt-1 text-xs leading-relaxed text-foreground/70">
                       Definir limite por categoria
                     </span>
                   </button>
@@ -341,7 +356,7 @@ export function CreateGoalDialog({
                   onValueChange={(value) => setValue('category_id', value)}
                   disabled={expenseCategories.length === 0}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="border-border/70 bg-surface text-foreground">
                     <SelectValue
                       placeholder={
                         expenseCategories.length === 0
@@ -351,7 +366,7 @@ export function CreateGoalDialog({
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    <div className="px-2 py-1.5 text-xs font-semibold text-red-600 flex items-center gap-1">
+                    <div className="px-2 py-1.5 text-xs font-semibold text-danger flex items-center gap-1">
                       <span>💸</span> CATEGORIAS DE DESPESA ({expenseCategories.length})
                     </div>
                     {expenseCategories.length === 0 ? (
@@ -404,31 +419,40 @@ export function CreateGoalDialog({
                     type="button"
                     onClick={() => setValue('period_type', 'monthly')}
                     aria-pressed={selectedPeriodType === 'monthly'}
-                    className={`flex items-center justify-center rounded-md border-2 p-3 ${
-                      selectedPeriodType === 'monthly' ? 'border-primary' : 'border-muted hover:bg-accent'
-                    }`}
+                    className={cn(
+                      'flex items-center justify-center rounded-xl border p-3 text-sm font-semibold transition-all',
+                      selectedPeriodType === 'monthly'
+                        ? 'border-primary/50 bg-primary/10 text-primary shadow-sm'
+                        : 'border-border/70 bg-surface-elevated/35 text-foreground/80 hover:bg-surface-overlay'
+                    )}
                   >
-                    <span className="font-semibold">Mensal</span>
+                    <span>Mensal</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setValue('period_type', 'quarterly')}
                     aria-pressed={selectedPeriodType === 'quarterly'}
-                    className={`flex items-center justify-center rounded-md border-2 p-3 ${
-                      selectedPeriodType === 'quarterly' ? 'border-primary' : 'border-muted hover:bg-accent'
-                    }`}
+                    className={cn(
+                      'flex items-center justify-center rounded-xl border p-3 text-sm font-semibold transition-all',
+                      selectedPeriodType === 'quarterly'
+                        ? 'border-primary/50 bg-primary/10 text-primary shadow-sm'
+                        : 'border-border/70 bg-surface-elevated/35 text-foreground/80 hover:bg-surface-overlay'
+                    )}
                   >
-                    <span className="font-semibold">Trimestral</span>
+                    <span>Trimestral</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setValue('period_type', 'yearly')}
                     aria-pressed={selectedPeriodType === 'yearly'}
-                    className={`flex items-center justify-center rounded-md border-2 p-3 ${
-                      selectedPeriodType === 'yearly' ? 'border-primary' : 'border-muted hover:bg-accent'
-                    }`}
+                    className={cn(
+                      'flex items-center justify-center rounded-xl border p-3 text-sm font-semibold transition-all',
+                      selectedPeriodType === 'yearly'
+                        ? 'border-primary/50 bg-primary/10 text-primary shadow-sm'
+                        : 'border-border/70 bg-surface-elevated/35 text-foreground/80 hover:bg-surface-overlay'
+                    )}
                   >
-                    <span className="font-semibold">Anual</span>
+                    <span>Anual</span>
                   </button>
                 </div>
               </div>
@@ -436,18 +460,20 @@ export function CreateGoalDialog({
           )}
 
           {/* Botões */}
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 border-t border-border/60 pt-4">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={loading}
+              className="rounded-xl border-border/70 bg-surface/85 hover:bg-surface-elevated"
             >
               Cancelar
             </Button>
             <Button
               type="submit"
               disabled={loading || (goalType === 'spending_limit' && expenseCategories.length === 0)}
+              className="rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90"
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Criar Meta

@@ -1,11 +1,12 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, ArrowUpRight } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { ArrowUpRight, TrendingUp } from 'lucide-react';
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import { 
-  formatCurrency, 
-  TopIncrease,
-  getBillTypeLabel
+import {
+  formatCurrency,
+  getBillTypeLabel,
+  type TopIncrease,
 } from '@/hooks/useBillReports';
 
 interface TopIncreasesProps {
@@ -15,104 +16,86 @@ interface TopIncreasesProps {
 export function TopIncreases({ increases }: TopIncreasesProps) {
   if (increases.length === 0) {
     return (
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <TrendingUp className="h-5 w-5" />
+      <Card className="rounded-[1.75rem] border-border/70 bg-card/95 shadow-[0_20px_50px_rgba(2,6,23,0.2)]">
+        <CardHeader className="border-b border-border/60 pb-4">
+          <CardTitle className="flex items-center gap-2 text-[1.1rem] font-semibold tracking-tight">
+            <TrendingUp className="h-5 w-5 text-primary" />
             Contas que Mais Subiram
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="text-center py-6 text-muted-foreground">
-            <TrendingUp className="h-10 w-10 mx-auto mb-2 opacity-30" />
-            <p className="text-sm">Nenhuma variação significativa detectada</p>
-            <p className="text-xs mt-1">Suas contas estão estáveis</p>
+        <CardContent className="py-14 text-center text-muted-foreground">
+          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-3xl border border-border/60 bg-surface/70">
+            <TrendingUp className="h-6 w-6 opacity-60" />
           </div>
+          <p className="text-base font-semibold text-foreground">Nenhuma variação relevante</p>
+          <p className="mt-2 text-sm">Suas contas ficaram estáveis neste recorte.</p>
         </CardContent>
       </Card>
     );
   }
 
-  // Encontrar o maior aumento para calcular a largura das barras
-  const maxIncrease = Math.max(...increases.map(i => i.difference));
+  const maxIncrease = Math.max(...increases.map((item) => item.difference), 1);
 
   return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <TrendingUp className="h-5 w-5" />
+    <Card className="rounded-[1.75rem] border-border/70 bg-card/95 shadow-[0_20px_50px_rgba(2,6,23,0.2)]">
+      <CardHeader className="border-b border-border/60 pb-4">
+        <CardTitle className="flex items-center gap-2 text-[1.1rem] font-semibold tracking-tight">
+          <TrendingUp className="h-5 w-5 text-primary" />
           Contas que Mais Subiram
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 pt-5">
         {increases.map((increase, index) => {
-          const barWidth = (increase.difference / maxIncrease) * 100;
+          const width = (increase.difference / maxIncrease) * 100;
           const isHighVariation = increase.variation_percent > 30;
-          
+
           return (
             <motion.div
               key={`${increase.description}-${index}`}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className="relative"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.06 }}
+              className="rounded-[1.35rem] border border-border/60 bg-surface/50 p-4"
             >
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <span className="text-sm font-medium truncate">
+              <div className="mb-3 flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="text-base font-semibold tracking-tight text-foreground">
                     {increase.description}
-                  </span>
-                  {increase.provider && (
-                    <span className="text-xs text-muted-foreground truncate">
-                      ({increase.provider})
-                    </span>
-                  )}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {increase.provider ? `${increase.provider} • ` : ''}
+                    {getBillTypeLabel(increase.bill_type)}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2 ml-2">
-                  <span className={cn(
-                    'text-sm font-bold',
-                    isHighVariation ? 'text-red-600' : 'text-orange-600'
-                  )}>
-                    +{increase.variation_percent.toFixed(0)}%
-                  </span>
-                  <ArrowUpRight className={cn(
-                    'h-4 w-4',
-                    isHighVariation ? 'text-red-500' : 'text-orange-500'
-                  )} />
+                <div
+                  className={cn(
+                    'inline-flex items-center gap-1 rounded-full border border-border/60 bg-background/55 px-3 py-1 text-xs font-semibold whitespace-nowrap',
+                    isHighVariation ? 'text-danger' : 'text-warning',
+                  )}
+                >
+                  <ArrowUpRight className="h-3.5 w-3.5" />
+                  +{increase.variation_percent.toFixed(0)}%
                 </div>
               </div>
-              
-              {/* Barra de progresso */}
-              <div className="relative h-6 bg-muted rounded-md overflow-hidden">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${barWidth}%` }}
-                  transition={{ delay: index * 0.1 + 0.2, duration: 0.5 }}
-                  className={cn(
-                    'absolute inset-y-0 left-0 rounded-md',
-                    isHighVariation 
-                      ? 'bg-gradient-to-r from-red-400 to-red-500' 
-                      : 'bg-gradient-to-r from-orange-400 to-orange-500'
-                  )}
-                />
-                <div className="absolute inset-0 flex items-center justify-between px-2 text-xs">
-                  <span className="text-white font-medium drop-shadow-sm">
+
+              <div className="space-y-2">
+                <div className="h-2 rounded-full bg-background/70">
+                  <div
+                    className={cn(
+                      'h-full rounded-full',
+                      isHighVariation
+                        ? 'bg-gradient-to-r from-danger to-rose-400'
+                        : 'bg-gradient-to-r from-warning to-amber-300',
+                    )}
+                    style={{ width: `${width}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
                     {formatCurrency(increase.previous_amount)} → {formatCurrency(increase.current_amount)}
                   </span>
-                  <span className={cn(
-                    'font-bold',
-                    barWidth > 50 ? 'text-white drop-shadow-sm' : 'text-foreground'
-                  )}>
-                    +{formatCurrency(increase.difference)}
-                  </span>
+                  <span className="font-semibold text-foreground">+{formatCurrency(increase.difference)}</span>
                 </div>
-              </div>
-              
-              {/* Badge de categoria */}
-              <div className="mt-1">
-                <span className="text-xs text-muted-foreground">
-                  {getBillTypeLabel(increase.bill_type)}
-                </span>
               </div>
             </motion.div>
           );

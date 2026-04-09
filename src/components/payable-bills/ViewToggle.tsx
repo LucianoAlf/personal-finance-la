@@ -11,13 +11,13 @@ interface ViewToggleProps {
 
 export function ViewToggle({ value, onChange }: ViewToggleProps) {
   return (
-    <div className="flex items-center rounded-lg border bg-muted p-1">
+    <div className="flex items-center rounded-[1.15rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)]">
       <Button
         variant="ghost"
         size="sm"
         className={cn(
-          "h-8 px-3 rounded-md transition-all",
-          value === 'cards' && "bg-background shadow-sm"
+          "h-10 rounded-[0.9rem] px-4 text-sm font-semibold text-muted-foreground transition-all",
+          value === 'cards' && "bg-surface text-foreground shadow-sm ring-1 ring-primary/15"
         )}
         onClick={() => onChange('cards')}
       >
@@ -28,8 +28,8 @@ export function ViewToggle({ value, onChange }: ViewToggleProps) {
         variant="ghost"
         size="sm"
         className={cn(
-          "h-8 px-3 rounded-md transition-all",
-          value === 'table' && "bg-background shadow-sm"
+          "h-10 rounded-[0.9rem] px-4 text-sm font-semibold text-muted-foreground transition-all",
+          value === 'table' && "bg-surface text-foreground shadow-sm ring-1 ring-primary/15"
         )}
         onClick={() => onChange('table')}
       >
@@ -40,8 +40,8 @@ export function ViewToggle({ value, onChange }: ViewToggleProps) {
         variant="ghost"
         size="sm"
         className={cn(
-          "h-8 px-3 rounded-md transition-all",
-          value === 'calendar' && "bg-background shadow-sm"
+          "h-10 rounded-[0.9rem] px-4 text-sm font-semibold text-muted-foreground transition-all",
+          value === 'calendar' && "bg-surface text-foreground shadow-sm ring-1 ring-primary/15"
         )}
         onClick={() => onChange('calendar')}
       >

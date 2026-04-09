@@ -4,35 +4,28 @@ import { AnalyticsData } from '@/hooks/useAnalytics';
 import { useInsights, Insight } from '@/hooks/useInsights';
 import { useState } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 
 const typeStyles = {
   warning: {
-    bg: 'bg-amber-50',
-    border: 'border-amber-200',
-    text: 'text-amber-900',
-    iconBg: 'bg-amber-100',
-    iconColor: 'text-amber-600',
+    shell: 'border-warning-border/70 bg-warning-subtle/80',
+    iconBg: 'border-warning-border/70 bg-warning/10 text-warning',
+    accent: 'text-warning',
   },
   info: {
-    bg: 'bg-blue-50',
-    border: 'border-blue-200',
-    text: 'text-blue-900',
-    iconBg: 'bg-blue-100',
-    iconColor: 'text-blue-600',
+    shell: 'border-info-border/70 bg-info-subtle/80',
+    iconBg: 'border-info-border/70 bg-info/10 text-info',
+    accent: 'text-info',
   },
   success: {
-    bg: 'bg-green-50',
-    border: 'border-green-200',
-    text: 'text-green-900',
-    iconBg: 'bg-green-100',
-    iconColor: 'text-green-600',
+    shell: 'border-success-border/70 bg-success-subtle/80',
+    iconBg: 'border-success-border/70 bg-success/10 text-success',
+    accent: 'text-success',
   },
   tip: {
-    bg: 'bg-purple-50',
-    border: 'border-purple-200',
-    text: 'text-purple-900',
-    iconBg: 'bg-purple-100',
-    iconColor: 'text-purple-600',
+    shell: 'border-primary/20 bg-primary/10',
+    iconBg: 'border-primary/20 bg-primary/12 text-primary',
+    accent: 'text-primary',
   },
 };
 
@@ -41,30 +34,42 @@ function InsightCard({ insight, onDismiss }: { insight: Insight; onDismiss: () =
   const styles = typeStyles[insight.type];
 
   return (
-    <div className={`${styles.bg} border ${styles.border} rounded-lg p-4 hover:shadow-md transition-shadow relative`}>
+    <div
+      data-testid={`analytics-insight-card-${insight.id}`}
+      className={cn(
+        'relative rounded-[28px] border border-border/70 p-5 shadow-[0_18px_44px_rgba(3,8,20,0.14)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_rgba(3,8,20,0.18)] dark:shadow-[0_20px_48px_rgba(2,6,23,0.24)]',
+        styles.shell,
+      )}
+    >
       <button
         onClick={onDismiss}
-        className={`absolute top-2 right-2 p-1 rounded-full hover:bg-black/5 transition-colors ${styles.text}`}
+        className="absolute right-3 top-3 rounded-full border border-border/60 bg-background/45 p-1.5 text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
         aria-label="Dispensar insight"
       >
         <X className="h-4 w-4" />
       </button>
       <div className="flex items-start gap-3 pr-6">
-        <div className={`${styles.iconBg} p-2 rounded-lg flex-shrink-0`}>
-          <Icon className={`h-5 w-5 ${styles.iconColor}`} />
+        <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border shadow-sm', styles.iconBg)}>
+          <Icon className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <h4 className={`font-semibold ${styles.text} mb-1`}>
+          <h4
+            data-testid={`analytics-insight-title-${insight.id}`}
+            className="mb-1 text-lg font-semibold tracking-tight text-foreground"
+          >
             {insight.title}
           </h4>
-          <p className={`text-sm ${styles.text} opacity-80`}>
+          <p
+            data-testid={`analytics-insight-copy-${insight.id}`}
+            className="text-sm leading-6 text-muted-foreground"
+          >
             {insight.description}
           </p>
           {insight.action && (
             <Button
               variant="ghost"
               size="sm"
-              className={`mt-2 h-8 ${styles.text}`}
+              className={cn('mt-3 h-9 rounded-xl px-3 text-sm font-semibold hover:bg-background/60', styles.accent)}
               onClick={insight.action.onClick}
             >
               {insight.action.label}
@@ -94,10 +99,10 @@ export function InsightsPanel({ analyticsData, loading }: InsightsPanelProps) {
   if (loading) {
     return (
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-gray-900">Insights Inteligentes</h2>
+        <h2 className="text-[1.75rem] font-semibold tracking-tight text-foreground">Insights Inteligentes</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-32 rounded-lg" />
+            <Skeleton key={i} className="h-36 rounded-[28px]" />
           ))}
         </div>
       </div>
@@ -107,14 +112,14 @@ export function InsightsPanel({ analyticsData, loading }: InsightsPanelProps) {
   if (visibleInsights.length === 0) {
     return (
       <div className="space-y-4">
-        <h2 className="text-2xl font-bold text-gray-900">Insights Inteligentes</h2>
-        <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
-          <Bell className="h-12 w-12 mx-auto text-gray-400 mb-3" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        <h2 className="text-[1.75rem] font-semibold tracking-tight text-foreground">Insights Inteligentes</h2>
+        <div className="rounded-[28px] border border-border/70 bg-card/95 py-12 text-center shadow-[0_18px_42px_rgba(3,8,20,0.12)] dark:shadow-[0_20px_48px_rgba(2,6,23,0.24)]">
+          <Bell className="mx-auto mb-3 h-12 w-12 text-muted-foreground/70" />
+          <h3 className="mb-2 text-lg font-semibold text-foreground">
             Nenhum insight no momento
           </h3>
-          <p className="text-gray-600">
-            Continue usando seus cartões para receber insights personalizados
+          <p className="text-muted-foreground">
+            Continue usando seus cartoes para receber insights personalizados
           </p>
         </div>
       </div>
@@ -124,15 +129,15 @@ export function InsightsPanel({ analyticsData, loading }: InsightsPanelProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900">Insights Inteligentes</h2>
+        <h2 className="text-[1.75rem] font-semibold tracking-tight text-foreground">Insights Inteligentes</h2>
         <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-gray-400" />
-          <span className="text-sm text-gray-600">{visibleInsights.length} insights</span>
+          <Bell className="h-5 w-5 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">{visibleInsights.length} insights</span>
         </div>
       </div>
 
       {/* Desktop: Grid | Mobile: Carrossel */}
-      <div className="hidden md:grid md:grid-cols-2 gap-4">
+      <div className="hidden gap-5 md:grid md:grid-cols-2">
         {visibleInsights.map((insight) => (
           <InsightCard 
             key={insight.id} 

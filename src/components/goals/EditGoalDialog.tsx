@@ -43,6 +43,9 @@ const spendingSchema = z.object({
 type SavingsForm = z.infer<typeof savingsSchema>;
 type SpendingForm = z.infer<typeof spendingSchema>;
 
+const dialogContentClassName =
+  'max-h-[90vh] overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl sm:max-w-[500px]';
+
 export function EditGoalDialog({ open, onOpenChange, goal }: EditGoalDialogProps) {
   const { updateGoal } = useGoals();
 
@@ -93,15 +96,15 @@ export function EditGoalDialog({ open, onOpenChange, goal }: EditGoalDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle>Editar Meta</DialogTitle>
-          <DialogDescription>
+      <DialogContent className={`${dialogContentClassName} rounded-[1.7rem]`}>
+        <DialogHeader className="border-b border-border/60 px-6 py-5">
+          <DialogTitle className="text-[1.55rem] font-semibold tracking-tight text-foreground">Editar Meta</DialogTitle>
+          <DialogDescription className="text-sm leading-relaxed text-foreground/72">
             Atualize os campos da sua meta {isSavings ? 'de economia' : 'de gasto'}.
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 px-6 py-5">
           {isSavings ? (
             <>
               <div className="space-y-2">
@@ -120,7 +123,13 @@ export function EditGoalDialog({ open, onOpenChange, goal }: EditGoalDialogProps
                 <Label>Data Limite</Label>
                 <Popover>
                   <PopoverTrigger asChild>
-                    <Button variant="outline" className={cn('w-full justify-start text-left font-normal', !deadline && 'text-muted-foreground')}>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-full justify-start rounded-xl border-border/70 bg-surface text-left font-normal hover:bg-surface-elevated',
+                        !deadline && 'text-muted-foreground'
+                      )}
+                    >
                       <CalendarIcon className="mr-2 h-4 w-4" />
                       {deadline ? format(deadline, 'PPP', { locale: ptBR }) : 'Selecione uma data'}
                     </Button>
@@ -149,24 +158,24 @@ export function EditGoalDialog({ open, onOpenChange, goal }: EditGoalDialogProps
                 <RadioGroup value={periodType} onValueChange={(v) => setValue('period_type', v)} className="grid grid-cols-3 gap-3">
                   <div>
                     <RadioGroupItem value="monthly" id="monthly" className="peer sr-only" />
-                    <Label htmlFor="monthly" className="flex items-center justify-center rounded-md border-2 border-muted p-2 peer-data-[state=checked]:border-primary cursor-pointer">Mensal</Label>
+                    <Label htmlFor="monthly" className="flex cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-surface-elevated/40 p-3 text-sm font-semibold transition-all peer-data-[state=checked]:border-primary/50 peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary">Mensal</Label>
                   </div>
                   <div>
                     <RadioGroupItem value="quarterly" id="quarterly" className="peer sr-only" />
-                    <Label htmlFor="quarterly" className="flex items-center justify-center rounded-md border-2 border-muted p-2 peer-data-[state=checked]:border-primary cursor-pointer">Trimestral</Label>
+                    <Label htmlFor="quarterly" className="flex cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-surface-elevated/40 p-3 text-sm font-semibold transition-all peer-data-[state=checked]:border-primary/50 peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary">Trimestral</Label>
                   </div>
                   <div>
                     <RadioGroupItem value="yearly" id="yearly" className="peer sr-only" />
-                    <Label htmlFor="yearly" className="flex items-center justify-center rounded-md border-2 border-muted p-2 peer-data-[state=checked]:border-primary cursor-pointer">Anual</Label>
+                    <Label htmlFor="yearly" className="flex cursor-pointer items-center justify-center rounded-xl border border-border/70 bg-surface-elevated/40 p-3 text-sm font-semibold transition-all peer-data-[state=checked]:border-primary/50 peer-data-[state=checked]:bg-primary/10 peer-data-[state=checked]:text-primary">Anual</Label>
                   </div>
                 </RadioGroup>
               </div>
             </>
           )}
 
-          <div className="flex justify-end gap-3">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Cancelar</Button>
-            <Button type="submit" disabled={isSubmitting}>{isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salvar</Button>
+          <div className="flex justify-end gap-3 border-t border-border/60 pt-4">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting} className="rounded-xl border-border/70 bg-surface/85 hover:bg-surface-elevated">Cancelar</Button>
+            <Button type="submit" disabled={isSubmitting} className="rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90">{isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Salvar</Button>
           </div>
         </form>
       </DialogContent>

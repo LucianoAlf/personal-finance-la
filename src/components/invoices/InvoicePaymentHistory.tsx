@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useCreditCardPayments } from '@/hooks/useCreditCardPayments';
-import { formatCurrency } from '@/utils/formatters';
+import { Calendar, CreditCard, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Skeleton } from '@/components/ui/skeleton';
+
 import { Badge } from '@/components/ui/badge';
-import { Calendar, CreditCard, FileText } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useCreditCardPayments } from '@/hooks/useCreditCardPayments';
+import { formatCurrency } from '@/utils/formatters';
+import { cn } from '@/lib/utils';
 
 interface InvoicePaymentHistoryProps {
   invoiceId: string;
@@ -26,47 +28,46 @@ export function InvoicePaymentHistory({ invoiceId, totalAmount }: InvoicePayment
     };
 
     loadPayments();
-  }, [invoiceId]);
+  }, [fetchPaymentsWithAccount, invoiceId]);
 
-  // Calcular total pago
   const totalPaid = payments.reduce((sum, payment) => sum + Number(payment.amount), 0);
   const remaining = totalAmount - totalPaid;
   const progressPercentage = totalAmount > 0 ? (totalPaid / totalAmount) * 100 : 0;
 
-  // Mapear tipo de pagamento para label
   const getPaymentTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       total: 'Total',
-      minimum: 'Mínimo',
+      minimum: 'Minimo',
       partial: 'Parcial',
     };
+
     return labels[type] || type;
   };
 
-  // Mapear tipo de pagamento para cor
-  const getPaymentTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      total: 'bg-green-100 text-green-800',
-      minimum: 'bg-orange-100 text-orange-800',
-      partial: 'bg-blue-100 text-blue-800',
+  const getPaymentTypeClass = (type: string) => {
+    const classes: Record<string, string> = {
+      total: 'border-success/20 bg-success/10 text-success',
+      minimum: 'border-warning/20 bg-warning/10 text-warning',
+      partial: 'border-info/20 bg-info/10 text-info',
     };
-    return colors[type] || 'bg-gray-100 text-gray-800';
+
+    return classes[type] || 'border-border/60 bg-surface/70 text-muted-foreground';
   };
 
   if (loading) {
     return (
-      <div className="space-y-3">
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
+      <div className="space-y-4">
+        <Skeleton className="h-32 w-full rounded-[24px]" />
+        <Skeleton className="h-24 w-full rounded-[24px]" />
+        <Skeleton className="h-24 w-full rounded-[24px]" />
       </div>
     );
   }
 
   if (payments.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">
-        <FileText className="h-12 w-12 mx-auto mb-3 text-gray-400" />
+      <div className="rounded-[24px] border border-dashed border-border/70 bg-surface-elevated/35 px-5 py-10 text-center text-muted-foreground">
+        <FileText className="mx-auto mb-3 h-10 w-10" />
         <p className="text-sm">Nenhum pagamento registrado para esta fatura.</p>
       </div>
     );
@@ -74,98 +75,85 @@ export function InvoicePaymentHistory({ invoiceId, totalAmount }: InvoicePayment
 
   return (
     <div className="space-y-4">
-      {/* Resumo do Progresso */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 space-y-3">
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-medium text-gray-700">Progresso do Pagamento</span>
-          <span className="text-sm font-semibold text-gray-900">
+      <div className="rounded-[26px] border border-border/70 bg-surface-elevated/45 p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Progresso do pagamento</p>
+            <p className="mt-1 text-sm text-muted-foreground">Veja quanto ja foi quitado e quanto ainda resta pagar.</p>
+          </div>
+          <div className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
             {progressPercentage.toFixed(0)}%
-          </span>
+          </div>
         </div>
 
-        {/* Barra de Progresso */}
-        <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+        <div className="mt-4 h-3 rounded-full bg-surface-overlay/80">
           <div
-            className="bg-gradient-to-r from-blue-500 to-purple-500 h-full transition-all duration-500 rounded-full"
+            className="h-full rounded-full bg-[linear-gradient(90deg,rgba(59,130,246,0.92),rgba(139,92,246,0.92))]"
             style={{ width: `${Math.min(progressPercentage, 100)}%` }}
           />
         </div>
 
-        {/* Valores */}
-        <div className="grid grid-cols-3 gap-4 pt-2">
-          <div className="text-center">
-            <p className="text-xs text-gray-600 mb-1">Total</p>
-            <p className="text-sm font-bold text-gray-900">
-              {formatCurrency(totalAmount)}
-            </p>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-[20px] border border-border/60 bg-background/55 p-4 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">Total</p>
+            <p className="mt-2 text-lg font-semibold tracking-tight text-foreground">{formatCurrency(totalAmount)}</p>
           </div>
-          <div className="text-center">
-            <p className="text-xs text-gray-600 mb-1">Pago</p>
-            <p className="text-sm font-bold text-green-600">
-              {formatCurrency(totalPaid)}
-            </p>
+          <div className="rounded-[20px] border border-success/20 bg-success/10 p-4 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-success/80">Pago</p>
+            <p className="mt-2 text-lg font-semibold tracking-tight text-success">{formatCurrency(totalPaid)}</p>
           </div>
-          <div className="text-center">
-            <p className="text-xs text-gray-600 mb-1">Restante</p>
-            <p className="text-sm font-bold text-orange-600">
-              {formatCurrency(remaining)}
-            </p>
+          <div className="rounded-[20px] border border-warning/20 bg-warning/10 p-4 text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-warning/80">Restante</p>
+            <p className="mt-2 text-lg font-semibold tracking-tight text-warning">{formatCurrency(remaining)}</p>
           </div>
         </div>
       </div>
 
-      {/* Lista de Pagamentos */}
-      <div className="space-y-2">
-        <h4 className="text-sm font-semibold text-gray-700 mb-3">
-          Histórico de Pagamentos ({payments.length})
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          Historico de pagamentos ({payments.length})
         </h4>
 
         {payments.map((payment) => (
           <div
             key={payment.id}
-            className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+            className="rounded-[24px] border border-border/70 bg-card/95 p-4 shadow-[0_12px_30px_rgba(2,6,23,0.12)]"
           >
-            <div className="flex items-start justify-between">
-              <div className="flex-1 space-y-2">
-                {/* Linha 1: Tipo e Valor */}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Badge className={getPaymentTypeColor(payment.payment_type)}>
-                      {getPaymentTypeLabel(payment.payment_type)}
-                    </Badge>
-                  </div>
-                  <span className="text-lg font-bold text-gray-900">
-                    {formatCurrency(payment.amount)}
-                  </span>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className={cn('rounded-full border px-3 py-1 text-xs font-semibold shadow-sm', getPaymentTypeClass(payment.payment_type))}>
+                    {getPaymentTypeLabel(payment.payment_type)}
+                  </Badge>
                 </div>
 
-                {/* Linha 2: Data */}
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Calendar className="h-4 w-4" />
-                  <span>
-                    {format(new Date(payment.payment_date), "dd 'de' MMMM 'de' yyyy", {
-                      locale: ptBR,
-                    })}
+                <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                  <span className="inline-flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    {format(new Date(payment.payment_date), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                   </span>
-                </div>
 
-                {/* Linha 3: Conta */}
-                {payment.account && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <CreditCard className="h-4 w-4" />
-                    <span>
+                  {payment.account ? (
+                    <span className="inline-flex items-center gap-2">
+                      <CreditCard className="h-4 w-4" />
                       {payment.account.name}
-                      {payment.account.bank && ` • ${payment.account.bank}`}
+                      {payment.account.bank ? ` • ${payment.account.bank}` : ''}
                     </span>
-                  </div>
-                )}
+                  ) : null}
+                </div>
 
-                {/* Linha 4: Observações */}
-                {payment.notes && (
-                  <div className="mt-2 pt-2 border-t border-gray-100">
-                    <p className="text-xs text-gray-600 italic">{payment.notes}</p>
+                {payment.notes ? (
+                  <div className="rounded-[18px] border border-border/60 bg-surface-elevated/45 px-3 py-2 text-sm text-muted-foreground">
+                    {payment.notes}
                   </div>
-                )}
+                ) : null}
+              </div>
+
+              <div className="shrink-0 text-right">
+                <p className="text-[1.1rem] font-semibold tracking-tight text-foreground">
+                  {formatCurrency(payment.amount)}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">Pagamento registrado</p>
               </div>
             </div>
           </div>

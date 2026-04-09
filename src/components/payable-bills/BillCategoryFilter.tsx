@@ -38,10 +38,10 @@ export function BillCategoryFilter({ categories, value, onChange }: BillCategory
 
   return (
     <Select value={value} onValueChange={(v) => onChange(v as CategoryFilter)}>
-      <SelectTrigger className="w-[220px]">
+      <SelectTrigger className="h-11 w-[228px] rounded-xl border-border/70 bg-surface/85 text-sm font-semibold shadow-none">
         <SelectValue placeholder="Categoria" />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="rounded-xl border-border/70 bg-popover/98 shadow-[0_18px_44px_rgba(2,6,23,0.2)]">
         {/* Opção Todas */}
         <SelectItem value="all">
           <div className="flex items-center gap-2">

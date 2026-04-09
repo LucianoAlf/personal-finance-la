@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  type TooltipProps,
+} from 'recharts';
 import type { FinancialGoalWithCategory } from '@/types/database.types';
 import { supabase } from '@/lib/supabase';
 import { endOfMonth, startOfMonth, subMonths, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { formatDateOnly, parseDateOnly } from '@/utils/formatters';
+import { formatCurrency, formatDateOnly, parseDateOnly } from '@/utils/formatters';
 
 interface Props {
   goal: FinancialGoalWithCategory;
@@ -13,6 +22,30 @@ interface Props {
 interface Row {
   amount: number;
   date: string;
+}
+
+export function SpendingTrendTooltipContent({
+  active,
+  payload,
+}: Pick<TooltipProps<number, string>, 'active' | 'payload'>) {
+  if (!active || !payload?.length) return null;
+
+  const point = payload[0];
+  const month = String(point?.payload?.month ?? '');
+  const rawValue = Number(point?.value ?? 0);
+
+  return (
+    <div
+      data-testid="spending-trend-tooltip"
+      className="min-w-[12rem] rounded-2xl border border-border/70 bg-card/95 px-4 py-3 text-foreground shadow-[0_20px_48px_rgba(2,6,23,0.34)] backdrop-blur-xl"
+    >
+      <p className="text-xs font-medium uppercase tracking-[0.18em] text-foreground/55">{month}</p>
+      <div className="mt-2 flex items-center justify-between gap-4">
+        <span className="text-sm font-medium text-foreground/72">Gastos</span>
+        <span className="text-base font-semibold text-danger">{formatCurrency(rawValue)}</span>
+      </div>
+    </div>
+  );
 }
 
 export function SpendingCategoryTrendChart({ goal }: Props) {
@@ -81,8 +114,8 @@ export function SpendingCategoryTrendChart({ goal }: Props) {
   const hasData = data.some(d => d.amount > 0);
 
   return (
-    <div className="bg-gray-50 border rounded-xl p-3">
-      <div className="text-xs font-semibold text-gray-700 mb-2">Gastos por mês (6m)</div>
+    <div className="rounded-[1.4rem] border border-border/70 bg-surface-elevated/55 p-4 shadow-sm">
+      <div className="mb-3 text-xs font-semibold tracking-wide text-foreground">Gastos por mês (6m)</div>
       <ResponsiveContainer width="100%" height={140}>
         <AreaChart data={data} margin={{ top: 0, right: 8, left: 0, bottom: 0 }}>
           <defs>
@@ -91,15 +124,18 @@ export function SpendingCategoryTrendChart({ goal }: Props) {
               <stop offset="95%" stopColor="#ef4444" stopOpacity={0.05} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-          <XAxis dataKey="month" stroke="#9ca3af" style={{ fontSize: '11px' }} />
-          <YAxis stroke="#9ca3af" style={{ fontSize: '11px' }} />
-          <Tooltip formatter={(v: any) => ['R$ ' + Number(v).toFixed(2), 'Gastos']} />
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.16)" />
+          <XAxis dataKey="month" stroke="rgba(148,163,184,0.88)" style={{ fontSize: '11px' }} />
+          <YAxis stroke="rgba(148,163,184,0.88)" style={{ fontSize: '11px' }} />
+          <Tooltip
+            cursor={{ stroke: 'rgba(148,163,184,0.24)', strokeWidth: 1 }}
+            content={<SpendingTrendTooltipContent />}
+          />
           <Area type="monotone" dataKey="amount" stroke="#ef4444" fillOpacity={1} fill="url(#colorSpend)" />
         </AreaChart>
       </ResponsiveContainer>
       {!hasData && (
-        <div className="text-[11px] text-gray-500 mt-2">Sem dados suficientes ainda</div>
+        <div className="mt-2 text-[11px] text-muted-foreground">Sem dados suficientes ainda</div>
       )}
     </div>
   );

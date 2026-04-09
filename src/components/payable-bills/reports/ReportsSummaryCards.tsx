@@ -1,20 +1,15 @@
-import { Card, CardContent } from '@/components/ui/card';
-import { 
-  DollarSign, 
-  TrendingUp, 
-  TrendingDown, 
+import { motion } from 'framer-motion';
+import {
+  CheckCircle2,
+  DollarSign,
   Minus,
   Target,
-  CheckCircle2,
-  Calendar
+  TrendingDown,
+  TrendingUp,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+
 import { cn } from '@/lib/utils';
-import { 
-  formatCurrency, 
-  formatPercent, 
-  Comparison 
-} from '@/hooks/useBillReports';
+import { formatCurrency, formatPercent, type Comparison } from '@/hooks/useBillReports';
 
 interface ReportsSummaryCardsProps {
   totalAmount: number;
@@ -27,6 +22,59 @@ interface ReportsSummaryCardsProps {
   totalPaid: number;
 }
 
+interface MetricCardProps {
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: React.ElementType;
+  tone: 'blue' | 'red' | 'purple' | 'green';
+}
+
+const toneStyles = {
+  blue: {
+    shell:
+      'bg-[linear-gradient(145deg,rgba(59,130,246,0.12),rgba(255,255,255,0)_45%)] dark:bg-[linear-gradient(145deg,rgba(59,130,246,0.14),rgba(15,23,42,0)_76%)]',
+    iconBox: 'border-info-border/60 bg-info/10 text-info',
+  },
+  red: {
+    shell:
+      'bg-[linear-gradient(145deg,rgba(239,68,68,0.12),rgba(255,255,255,0)_45%)] dark:bg-[linear-gradient(145deg,rgba(239,68,68,0.14),rgba(15,23,42,0)_76%)]',
+    iconBox: 'border-danger-border/60 bg-danger/10 text-danger',
+  },
+  purple: {
+    shell:
+      'bg-[linear-gradient(145deg,rgba(139,92,246,0.12),rgba(255,255,255,0)_45%)] dark:bg-[linear-gradient(145deg,rgba(139,92,246,0.14),rgba(15,23,42,0)_76%)]',
+    iconBox: 'border-primary/18 bg-primary/10 text-primary',
+  },
+  green: {
+    shell:
+      'bg-[linear-gradient(145deg,rgba(16,185,129,0.12),rgba(255,255,255,0)_45%)] dark:bg-[linear-gradient(145deg,rgba(16,185,129,0.14),rgba(15,23,42,0)_76%)]',
+    iconBox: 'border-success-border/60 bg-success/10 text-success',
+  },
+} as const;
+
+function MetricCard({ title, value, subtitle, icon: Icon, tone }: MetricCardProps) {
+  return (
+    <div
+      className={cn(
+        'rounded-[28px] border border-border/70 bg-card/95 p-5 shadow-[0_18px_44px_rgba(3,8,20,0.14)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_rgba(3,8,20,0.18)] dark:shadow-[0_22px_48px_rgba(2,6,23,0.28)]',
+        toneStyles[tone].shell,
+      )}
+    >
+      <div className="mb-5 flex items-start justify-between gap-4">
+        <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl border shadow-sm', toneStyles[tone].iconBox)}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+      <h3 className="mb-1 text-sm font-medium text-muted-foreground">{title}</h3>
+      <p className="text-[1.52rem] font-semibold leading-tight tracking-tight text-foreground [font-variant-numeric:tabular-nums] sm:text-[1.68rem]">
+        {value}
+      </p>
+      <p className="mt-2 text-sm leading-6 text-muted-foreground">{subtitle}</p>
+    </div>
+  );
+}
+
 export function ReportsSummaryCards({
   totalAmount,
   totalBills,
@@ -35,97 +83,54 @@ export function ReportsSummaryCards({
   forecastMonths,
   onTimeRate,
   paidCount,
-  totalPaid
+  totalPaid,
 }: ReportsSummaryCardsProps) {
-  const cards = [
+  const comparisonIcon =
+    comparison.trend === 'up' ? TrendingUp : comparison.trend === 'down' ? TrendingDown : Minus;
+  const comparisonTone: MetricCardProps['tone'] =
+    comparison.trend === 'down' ? 'green' : comparison.trend === 'stable' ? 'red' : 'red';
+
+  const cards: MetricCardProps[] = [
     {
       title: 'Total do Período',
       value: formatCurrency(totalAmount),
-      subtitle: `${totalBills} contas`,
+      subtitle: `${totalBills} conta${totalBills === 1 ? '' : 's'}`,
       icon: DollarSign,
-      color: 'text-indigo-600',
-      bgColor: 'bg-indigo-50 dark:bg-indigo-950/20',
-      borderColor: 'border-indigo-200 dark:border-indigo-900'
+      tone: 'blue',
     },
     {
       title: 'vs Período Anterior',
       value: formatPercent(comparison.variation_percent),
-      subtitle: `${comparison.trend === 'up' ? '+' : ''}${formatCurrency(comparison.difference)}`,
-      icon: comparison.trend === 'up' ? TrendingUp : comparison.trend === 'down' ? TrendingDown : Minus,
-      color: comparison.trend === 'up' ? 'text-red-600' : comparison.trend === 'down' ? 'text-green-600' : 'text-gray-600',
-      bgColor: comparison.trend === 'up' ? 'bg-red-50 dark:bg-red-950/20' : comparison.trend === 'down' ? 'bg-green-50 dark:bg-green-950/20' : 'bg-gray-50 dark:bg-gray-950/20',
-      borderColor: comparison.trend === 'up' ? 'border-red-200 dark:border-red-900' : comparison.trend === 'down' ? 'border-green-200 dark:border-green-900' : 'border-gray-200 dark:border-gray-900',
-      highlight: true
+      subtitle: `${comparison.trend === 'up' ? '+' : comparison.trend === 'down' ? '' : ''}${formatCurrency(comparison.difference)}`,
+      icon: comparisonIcon,
+      tone: comparisonTone,
     },
     {
       title: 'Previsão Próx. Mês',
       value: formatCurrency(forecastAmount),
-      subtitle: `Baseado em ${forecastMonths} meses`,
+      subtitle: `Baseado em ${forecastMonths} ${forecastMonths === 1 ? 'mês' : 'meses'}`,
       icon: Target,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50 dark:bg-purple-950/20',
-      borderColor: 'border-purple-200 dark:border-purple-900'
+      tone: 'purple',
     },
     {
       title: 'Taxa de Pontualidade',
       value: `${onTimeRate.toFixed(0)}%`,
-      subtitle: `${paidCount}/${totalPaid} em dia`,
+      subtitle: totalPaid > 0 ? `${paidCount}/${totalPaid} em dia` : 'Sem histórico de pagamento',
       icon: CheckCircle2,
-      color: onTimeRate >= 80 ? 'text-green-600' : onTimeRate >= 50 ? 'text-yellow-600' : 'text-red-600',
-      bgColor: onTimeRate >= 80 ? 'bg-green-50 dark:bg-green-950/20' : onTimeRate >= 50 ? 'bg-yellow-50 dark:bg-yellow-950/20' : 'bg-red-50 dark:bg-red-950/20',
-      borderColor: onTimeRate >= 80 ? 'border-green-200 dark:border-green-900' : onTimeRate >= 50 ? 'border-yellow-200 dark:border-yellow-900' : 'border-red-200 dark:border-red-900'
-    }
+      tone: 'green',
+    },
   ];
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
       {cards.map((card, index) => (
         <motion.div
           key={card.title}
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: index * 0.1 }}
+          transition={{ delay: index * 0.06 }}
         >
-          <Card className={cn(
-            'relative overflow-hidden transition-all hover:shadow-md',
-            card.bgColor,
-            card.borderColor,
-            card.highlight && 'ring-2 ring-offset-2',
-            card.highlight && comparison.trend === 'up' && 'ring-red-300',
-            card.highlight && comparison.trend === 'down' && 'ring-green-300'
-          )}>
-            <CardContent className="pt-6">
-              <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-muted-foreground">
-                    {card.title}
-                  </p>
-                  <p className={cn('text-2xl font-bold', card.color)}>
-                    {card.value}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {card.subtitle}
-                  </p>
-                </div>
-                <div className={cn(
-                  'rounded-full p-2',
-                  card.bgColor
-                )}>
-                  <card.icon className={cn('h-5 w-5', card.color)} />
-                </div>
-              </div>
-              
-              {/* Indicador visual de tendência */}
-              {card.highlight && (
-                <div className={cn(
-                  'absolute bottom-0 left-0 right-0 h-1',
-                  comparison.trend === 'up' && 'bg-red-500',
-                  comparison.trend === 'down' && 'bg-green-500',
-                  comparison.trend === 'stable' && 'bg-gray-400'
-                )} />
-              )}
-            </CardContent>
-          </Card>
+          <MetricCard {...card} />
         </motion.div>
       ))}
     </div>

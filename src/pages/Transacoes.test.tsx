@@ -28,10 +28,19 @@ const transactionsHookState = {
 };
 
 vi.mock('@/components/layout/Header', () => ({
-  Header: ({ title, subtitle }: { title: string; subtitle?: string }) => (
+  Header: ({
+    title,
+    subtitle,
+    actions,
+  }: {
+    title: string;
+    subtitle?: string;
+    actions?: React.ReactNode;
+  }) => (
     <div>
       <div>{title}</div>
       {subtitle ? <div>{subtitle}</div> : null}
+      {actions ? <div>{actions}</div> : null}
     </div>
   ),
 }));
@@ -79,7 +88,7 @@ vi.mock('@/hooks/useUserPreferences', () => ({
   }),
 }));
 
-describe('Transacoes initial render', () => {
+describe('Transacoes premium page regression', () => {
   afterEach(() => {
     cleanup();
   });
@@ -95,7 +104,7 @@ describe('Transacoes initial render', () => {
 
     expect(screen.queryByText('transaction-dialog-mounted')).toBeNull();
     expect(screen.queryByText('advanced-filters-mounted')).toBeNull();
-    expect(screen.getByText('Gerencie suas receitas, despesas e transferências')).not.toBeNull();
+    expect(screen.getByText(/Gerencie suas receitas, despesas e transfer/i)).not.toBeNull();
   });
 
   it('renders the page shell while transactions are loading', () => {
@@ -107,7 +116,29 @@ describe('Transacoes initial render', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByText('Gerencie suas receitas, despesas e transferências')).not.toBeNull();
-    expect(screen.getByText('Carregando transações...')).not.toBeNull();
+    expect(screen.getByText(/Gerencie suas receitas, despesas e transfer/i)).not.toBeNull();
+    expect(screen.getByText(/Carregando transa/i)).not.toBeNull();
+  });
+
+  it('uses premium surfaces instead of hardcoded light wrappers', () => {
+    transactionsHookState.loading = false;
+
+    const { container } = render(
+      <MemoryRouter>
+        <Transacoes />
+      </MemoryRouter>,
+    );
+
+    const root = container.querySelector('.min-h-screen');
+    const searchInput = screen.getByPlaceholderText(/Pesquise por descr/i);
+    const searchCard = searchInput.closest('div[class*="rounded"]');
+    const listTitle = screen.getByText(/Todas as Transa/i);
+    const listCard = listTitle.closest('div[class*="rounded"]');
+
+    expect(root?.className).toContain('bg-background');
+    expect(root?.className).toContain('text-foreground');
+    expect(searchCard?.className).toContain('bg-card');
+    expect(searchCard?.className).not.toContain('bg-white');
+    expect(listCard?.className).toContain('bg-card');
   });
 });

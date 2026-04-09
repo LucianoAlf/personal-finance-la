@@ -162,22 +162,22 @@ export function CycleDialog({ open, onOpenChange, cycle, onSave, onDelete }: Cyc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto rounded-[1.7rem] border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
+        <DialogHeader className="border-b border-border/60 px-6 py-5">
+          <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-foreground">
             <Calendar className="h-5 w-5" />
             {cycle ? 'Editar Ciclo Financeiro' : 'Novo Ciclo Financeiro'}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
             {cycle
               ? 'Atualize as informações do seu ciclo'
               : 'Configure um novo ciclo financeiro (salário, aluguel, etc.)'}
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit(onSubmit)} className="px-6 py-5">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-2 rounded-[1.2rem] border border-border/70 bg-surface-elevated p-1">
               <TabsTrigger value="basic">Informações Básicas</TabsTrigger>
               <TabsTrigger value="advanced">Configurações Avançadas</TabsTrigger>
             </TabsList>
@@ -345,7 +345,7 @@ export function CycleDialog({ open, onOpenChange, cycle, onSave, onDelete }: Cyc
             </TabsContent>
           </Tabs>
 
-          <DialogFooter className="mt-6 gap-2">
+          <DialogFooter className="mt-6 gap-2 border-t border-border/60 pt-5">
             {cycle && onDelete && (
               <Button
                 type="button"

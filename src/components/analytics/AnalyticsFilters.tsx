@@ -1,6 +1,4 @@
-import { useState } from 'react';
 import { Filter, Calendar, CreditCard } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import {
   Select,
   SelectContent,
@@ -60,11 +58,15 @@ export function AnalyticsFilters({
   const dateRange = getDateRange(selectedPeriod);
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+    <div className="rounded-[28px] border border-border/70 bg-card/95 p-4 shadow-[0_18px_42px_rgba(3,8,20,0.16)] backdrop-blur-xl dark:shadow-[0_20px_48px_rgba(2,6,23,0.28)]">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-2 text-gray-700">
-          <Filter className="h-5 w-5" />
-          <span className="font-medium">Filtros</span>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-surface-elevated/75 text-muted-foreground shadow-sm">
+            <Filter className="h-4.5 w-4.5" />
+          </div>
+          <div>
+            <span className="text-sm font-semibold text-foreground">Filtros</span>
+          </div>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
@@ -73,8 +75,8 @@ export function AnalyticsFilters({
             value={selectedCardId || 'all'}
             onValueChange={(value) => onCardChange(value === 'all' ? null : value)}
           >
-            <SelectTrigger className="w-full sm:w-[200px]">
-              <CreditCard className="h-4 w-4 mr-2 text-gray-500" />
+            <SelectTrigger className="h-11 w-full rounded-xl border-border/70 bg-surface/80 text-foreground shadow-sm hover:bg-surface-elevated focus:ring-1 focus:ring-primary/20 sm:w-[220px] dark:bg-surface-elevated/70">
+              <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
               <SelectValue placeholder="Todos os cartões" />
             </SelectTrigger>
             <SelectContent>
@@ -98,8 +100,8 @@ export function AnalyticsFilters({
             value={selectedPeriod}
             onValueChange={(value) => onPeriodChange(value as PeriodOption)}
           >
-            <SelectTrigger className="w-full sm:w-[180px]">
-              <Calendar className="h-4 w-4 mr-2 text-gray-500" />
+            <SelectTrigger className="h-11 w-full rounded-xl border-border/70 bg-surface/80 text-foreground shadow-sm hover:bg-surface-elevated focus:ring-1 focus:ring-primary/20 sm:w-[220px] dark:bg-surface-elevated/70">
+              <Calendar className="mr-2 h-4 w-4 text-muted-foreground" />
               <SelectValue placeholder="Selecione o período" />
             </SelectTrigger>
             <SelectContent>
@@ -115,14 +117,14 @@ export function AnalyticsFilters({
 
       {/* Indicador de período selecionado */}
       {dateRange.start && (
-        <div className="mt-3 pt-3 border-t border-gray-100">
-          <p className="text-sm text-gray-500">
+        <div className="mt-4 border-t border-border/60 pt-4">
+          <p className="text-sm text-muted-foreground">
             Exibindo dados de{' '}
-            <span className="font-medium text-gray-700">
+            <span className="font-medium text-foreground">
               {format(dateRange.start, "MMMM 'de' yyyy", { locale: ptBR })}
             </span>
             {' '}até{' '}
-            <span className="font-medium text-gray-700">
+            <span className="font-medium text-foreground">
               {format(dateRange.end, "MMMM 'de' yyyy", { locale: ptBR })}
             </span>
           </p>

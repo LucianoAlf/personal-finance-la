@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ChevronRight, ChevronDown, ChevronUp, Eye, Edit2, Trash2, Clock, CheckCircle2, XCircle, AlertCircle, Package } from 'lucide-react';
+import { Fragment, useState } from 'react';
+import { ChevronRight, ChevronDown, ChevronUp, Eye, Edit2, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -9,6 +9,7 @@ import { ptBR } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { parseDateOnlyAsLocal } from '@/utils/dateOnly';
+import { SimpleInvoiceStatusBadge } from './InvoiceStatusBadge';
 
 interface Props {
   invoices: any[];
@@ -29,6 +30,9 @@ interface Props {
   onDeleteInvoice?: (invoiceId: string) => void;
 }
 
+const headerCellClassName =
+  'px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground';
+
 export function InvoiceHistoryTable({
   invoices,
   loading,
@@ -47,19 +51,19 @@ export function InvoiceHistoryTable({
 
   const toggleRow = async (invoiceId: string) => {
     const newExpanded = new Set(expandedRows);
-    
+
     if (newExpanded.has(invoiceId)) {
       newExpanded.delete(invoiceId);
     } else {
       newExpanded.add(invoiceId);
-      
-      // Lazy load das transações
+
       if (!transactions[invoiceId]) {
-        setLoadingTransactions(prev => new Set(prev).add(invoiceId));
-        
+        setLoadingTransactions((prev) => new Set(prev).add(invoiceId));
+
         const { data } = await supabase
           .from('credit_card_transactions')
-          .select(`
+          .select(
+            `
             purchase_date,
             description,
             amount,
@@ -68,77 +72,40 @@ export function InvoiceHistoryTable({
               color,
               icon
             )
-          `)
+          `,
+          )
           .eq('invoice_id', invoiceId)
           .order('purchase_date', { ascending: false });
 
-        setTransactions(prev => ({ ...prev, [invoiceId]: data || [] }));
-        setLoadingTransactions(prev => {
+        setTransactions((prev) => ({ ...prev, [invoiceId]: data || [] }));
+        setLoadingTransactions((prev) => {
           const next = new Set(prev);
           next.delete(invoiceId);
           return next;
         });
       }
     }
-    
+
     setExpandedRows(newExpanded);
-  };
-
-  const getStatusBadge = (status: string) => {
-    const config = {
-      paid: {
-        style: 'bg-green-100 text-green-800',
-        icon: CheckCircle2,
-        label: 'Pago'
-      },
-      open: {
-        style: 'bg-yellow-100 text-yellow-800',
-        icon: Clock,
-        label: 'Pendente'
-      },
-      overdue: {
-        style: 'bg-red-100 text-red-800',
-        icon: XCircle,
-        label: 'Atrasado'
-      },
-      partial: {
-        style: 'bg-orange-100 text-orange-800',
-        icon: AlertCircle,
-        label: 'Parcial'
-      },
-      closed: {
-        style: 'bg-blue-100 text-blue-800',
-        icon: Package,
-        label: 'Fechada'
-      },
-    } as const;
-
-    const statusConfig = config[status as keyof typeof config] || config.open;
-    const Icon = statusConfig.icon;
-
-    return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${statusConfig.style}`}>
-        <Icon className="h-3 w-3" />
-        {statusConfig.label}
-      </span>
-    );
   };
 
   const SortIcon = ({ column }: { column: string }) => {
     if (sorting.column !== column) return null;
-    return sorting.direction === 'asc' 
-      ? <ChevronUp className="inline h-4 w-4 ml-1" />
-      : <ChevronDown className="inline h-4 w-4 ml-1" />;
+    return sorting.direction === 'asc' ? (
+      <ChevronUp className="ml-1 inline h-4 w-4" />
+    ) : (
+      <ChevronDown className="ml-1 inline h-4 w-4" />
+    );
   };
 
   const totalPages = Math.ceil(pagination.totalItems / pagination.pageSize);
 
   if (loading) {
     return (
-      <Card className="p-6">
+      <Card className="rounded-[30px] border-border/70 bg-card/95 p-6 shadow-[0_18px_45px_rgba(3,8,20,0.16)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)]">
         <div className="space-y-4">
-          {[1, 2, 3, 4, 5].map(i => (
-            <Skeleton key={i} className="h-16 w-full" />
+          {[1, 2, 3, 4, 5].map((i) => (
+            <Skeleton key={i} className="h-16 w-full rounded-[18px]" />
           ))}
         </div>
       </Card>
@@ -147,72 +114,74 @@ export function InvoiceHistoryTable({
 
   if (invoices.length === 0) {
     return (
-      <Card className="p-12 text-center">
-        <p className="text-gray-700 font-medium">Nenhuma fatura encontrada com os filtros aplicados</p>
-        <p className="text-gray-500 mt-1 text-sm">Dicas: ajuste o período, selecione outros cartões, reduza a faixa de valores ou limpe a busca.</p>
+      <Card className="rounded-[30px] border-border/70 bg-card/95 p-12 text-center shadow-[0_18px_45px_rgba(3,8,20,0.16)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)]">
+        <p className="font-medium text-foreground">Nenhuma fatura encontrada com os filtros aplicados</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Dicas: ajuste o período, selecione outros cartões, reduza a faixa de valores ou limpe a busca.
+        </p>
       </Card>
     );
   }
 
   return (
-    <Card className="overflow-hidden">
+    <Card
+      data-testid="invoice-history-table"
+      className="overflow-hidden rounded-[30px] border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(3,8,20,0.16)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)]"
+    >
       <div className="overflow-x-auto">
         <table className="w-full">
-          <thead className="bg-gray-50 border-b">
+          <thead data-testid="invoice-history-head" className="border-b border-border/60 bg-surface/80">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-12"></th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+              <th className={`${headerCellClassName} w-12 text-left`}></th>
+              <th
+                className={`${headerCellClassName} cursor-pointer text-left transition-colors hover:bg-surface-elevated/70`}
                 onClick={() => onSortChange('reference_month')}
               >
                 Mês <SortIcon column="reference_month" />
               </th>
-              <th 
-                className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+              <th
+                className={`${headerCellClassName} cursor-pointer text-left transition-colors hover:bg-surface-elevated/70`}
                 onClick={() => onSortChange('credit_card_id')}
               >
                 Cartão <SortIcon column="credit_card_id" />
               </th>
-              <th 
-                className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+              <th
+                className={`${headerCellClassName} cursor-pointer text-right transition-colors hover:bg-surface-elevated/70`}
                 onClick={() => onSortChange('total_amount')}
               >
                 Total <SortIcon column="total_amount" />
               </th>
-              <th 
-                className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+              <th
+                className={`${headerCellClassName} cursor-pointer text-right transition-colors hover:bg-surface-elevated/70`}
                 onClick={() => onSortChange('paid_amount')}
               >
                 Pago <SortIcon column="paid_amount" />
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">
-                Restante
-              </th>
-              <th 
-                className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100"
+              <th className={`${headerCellClassName} text-right`}>Restante</th>
+              <th
+                className={`${headerCellClassName} cursor-pointer text-center transition-colors hover:bg-surface-elevated/70`}
                 onClick={() => onSortChange('status')}
               >
                 Status <SortIcon column="status" />
               </th>
-              <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
-                Ações
-              </th>
+              <th className={`${headerCellClassName} text-center`}>Ações</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
+          <tbody className="divide-y divide-border/50">
             {invoices.map((invoice) => {
               const isExpanded = expandedRows.has(invoice.id);
               const remaining = invoice.total_amount - (invoice.paid_amount || 0);
 
               return (
-                <>
-                  <tr key={invoice.id} className="hover:bg-gray-50">
+                <Fragment key={invoice.id}>
+                  <tr className="transition-colors hover:bg-surface-elevated/45">
                     <td className="px-4 py-3">
                       <Button
+                        data-testid={`invoice-history-expand-${invoice.id}`}
                         variant="ghost"
                         size="sm"
                         onClick={() => toggleRow(invoice.id)}
-                        className="p-1"
+                        className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:bg-surface hover:text-foreground"
                       >
                         {isExpanded ? (
                           <ChevronDown className="h-4 w-4" />
@@ -221,46 +190,46 @@ export function InvoiceHistoryTable({
                         )}
                       </Button>
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-900">
+                    <td className="px-4 py-3 text-sm text-foreground">
                       {format(parseDateOnlyAsLocal(invoice.reference_month), 'MMM/yyyy', { locale: ptBR })}
                     </td>
                     <td className="px-4 py-3">
                       <div>
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-foreground">
                           {invoice.credit_cards?.name || 'N/A'}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-muted-foreground">
                           {invoice.credit_cards?.brand || ''}
                         </p>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">
+                    <td className="px-4 py-3 text-right text-sm font-semibold text-foreground">
                       {formatCurrency(invoice.total_amount)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-right text-green-600">
+                    <td className="px-4 py-3 text-right text-sm text-success">
                       {formatCurrency(invoice.paid_amount || 0)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-right text-gray-900">
+                    <td className="px-4 py-3 text-right text-sm text-foreground">
                       {formatCurrency(remaining)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      {getStatusBadge(invoice.status)}
+                      <SimpleInvoiceStatusBadge status={invoice.status as any} size="sm" className="justify-center" />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="p-1 hover:bg-blue-50"
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:bg-surface hover:text-foreground"
                           onClick={() => toggleRow(invoice.id)}
                           title="Ver transações"
                         >
                           <Eye className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="p-1 hover:bg-gray-100"
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 rounded-lg p-0 text-muted-foreground hover:bg-surface hover:text-foreground"
                           onClick={() => {
                             if (onEditInvoice) {
                               onEditInvoice(invoice.id);
@@ -272,15 +241,19 @@ export function InvoiceHistoryTable({
                         >
                           <Edit2 className="h-4 w-4" />
                         </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="p-1 text-red-600 hover:bg-red-50"
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 rounded-lg p-0 text-danger hover:bg-danger/10 hover:text-danger"
                           onClick={() => {
                             if (onDeleteInvoice) {
                               onDeleteInvoice(invoice.id);
                             } else {
-                              toast({ title: 'Excluir fatura', description: 'Funcionalidade em desenvolvimento', variant: 'destructive' });
+                              toast({
+                                title: 'Excluir fatura',
+                                description: 'Funcionalidade em desenvolvimento',
+                                variant: 'destructive',
+                              });
                             }
                           }}
                           title="Excluir fatura"
@@ -291,77 +264,93 @@ export function InvoiceHistoryTable({
                     </td>
                   </tr>
 
-                  {/* Linha Expansível */}
-                  {isExpanded && (
+                  {isExpanded ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-4 bg-gray-50">
-                        <div className="space-y-2">
-                          <h4 className="font-semibold text-gray-900 mb-3">
+                      <td colSpan={8} className="bg-surface/45 p-0">
+                        <div
+                          data-testid={`invoice-history-expanded-${invoice.id}`}
+                          className="space-y-3 border-t border-border/60 bg-surface/45 px-6 py-5"
+                        >
+                          <h4 className="mb-3 font-semibold text-foreground">
                             Transações de {format(parseDateOnlyAsLocal(invoice.reference_month), 'MMMM/yyyy', { locale: ptBR })}
                           </h4>
 
                           {loadingTransactions.has(invoice.id) ? (
                             <div className="space-y-2">
-                              {[1, 2, 3].map(i => (
-                                <Skeleton key={i} className="h-12 w-full" />
+                              {[1, 2, 3].map((i) => (
+                                <Skeleton key={i} className="h-12 w-full rounded-[16px]" />
                               ))}
                             </div>
                           ) : transactions[invoice.id]?.length > 0 ? (
-                            <div className="overflow-x-auto">
-                              <table className="w-full text-sm">
-                                <thead className="bg-white">
-                                  <tr>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Data</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Descrição</th>
-                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500">Categoria</th>
-                                    <th className="px-3 py-2 text-right text-xs font-medium text-gray-500">Valor</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-gray-200">
-                                  {transactions[invoice.id].map((tx, idx) => (
-                                    <tr key={idx} className="bg-white">
-                                      <td className="px-3 py-2 text-gray-900">
-                                        {tx.purchase_date ? format(parseDateOnlyAsLocal(tx.purchase_date), 'dd/MM/yyyy') : ''}
+                            <div className="overflow-hidden rounded-[22px] border border-border/60 bg-surface-elevated/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                              <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-surface/75">
+                                    <tr>
+                                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                        Data
+                                      </th>
+                                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                        Descrição
+                                      </th>
+                                      <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                        Categoria
+                                      </th>
+                                      <th className="px-3 py-2 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                                        Valor
+                                      </th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-border/50">
+                                    {transactions[invoice.id].map((tx, idx) => (
+                                      <tr key={idx} className="bg-transparent transition-colors hover:bg-surface/55">
+                                        <td className="px-3 py-2 text-foreground">
+                                          {tx.purchase_date ? format(parseDateOnlyAsLocal(tx.purchase_date), 'dd/MM/yyyy') : ''}
+                                        </td>
+                                        <td className="px-3 py-2 text-foreground">{tx.description}</td>
+                                        <td className="px-3 py-2">
+                                          <span className="rounded-full border border-border/60 bg-surface px-2.5 py-1 text-xs text-muted-foreground">
+                                            {tx.categories?.name || 'Sem categoria'}
+                                          </span>
+                                        </td>
+                                        <td className="px-3 py-2 text-right font-medium text-foreground">
+                                          {formatCurrency(tx.amount)}
+                                        </td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                  <tfoot className="border-t border-border/60 bg-surface/70">
+                                    <tr>
+                                      <td colSpan={3} className="px-3 py-2 text-right font-semibold text-foreground">
+                                        Total:
                                       </td>
-                                      <td className="px-3 py-2 text-gray-900">{tx.description}</td>
-                                      <td className="px-3 py-2">
-                                        <span className="text-xs px-2 py-1 rounded-full bg-gray-100">
-                                          {tx.categories?.name || 'Sem categoria'}
-                                        </span>
-                                      </td>
-                                      <td className="px-3 py-2 text-right font-medium text-gray-900">
-                                        {formatCurrency(tx.amount)}
+                                      <td className="px-3 py-2 text-right font-bold text-foreground">
+                                        {formatCurrency(invoice.total_amount)}
                                       </td>
                                     </tr>
-                                  ))}
-                                </tbody>
-                                <tfoot className="bg-white border-t-2">
-                                  <tr>
-                                    <td colSpan={3} className="px-3 py-2 text-right font-semibold">Total:</td>
-                                    <td className="px-3 py-2 text-right font-bold text-gray-900">
-                                      {formatCurrency(invoice.total_amount)}
-                                    </td>
-                                  </tr>
-                                </tfoot>
-                              </table>
+                                  </tfoot>
+                                </table>
+                              </div>
                             </div>
                           ) : (
-                            <p className="text-gray-500 text-center py-4">Nenhuma transação encontrada</p>
+                            <p className="py-4 text-center text-muted-foreground">Nenhuma transação encontrada</p>
                           )}
                         </div>
                       </td>
                     </tr>
-                  )}
-                </>
+                  ) : null}
+                </Fragment>
               );
             })}
           </tbody>
         </table>
       </div>
 
-      {/* Paginação */}
-      <div className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between">
-        <div className="text-sm text-gray-600">
+      <div
+        data-testid="invoice-history-pagination"
+        className="flex items-center justify-between border-t border-border/60 bg-surface/55 px-4 py-3"
+      >
+        <div className="text-sm text-muted-foreground">
           Mostrando {(pagination.page - 1) * pagination.pageSize + 1}-
           {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de {pagination.totalItems}
         </div>
@@ -370,7 +359,7 @@ export function InvoiceHistoryTable({
           <select
             value={pagination.pageSize}
             onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="border rounded px-2 py-1 text-sm"
+            className="h-9 rounded-xl border border-border/70 bg-surface/80 px-3 text-sm text-foreground"
           >
             <option value="20">20</option>
             <option value="50">50</option>
@@ -382,11 +371,12 @@ export function InvoiceHistoryTable({
             size="sm"
             disabled={pagination.page === 1}
             onClick={() => onPageChange(pagination.page - 1)}
+            className="rounded-xl border-border/70 bg-surface/80 hover:bg-surface-elevated"
           >
             Anterior
           </Button>
 
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-muted-foreground">
             Página {pagination.page} de {totalPages}
           </span>
 
@@ -395,6 +385,7 @@ export function InvoiceHistoryTable({
             size="sm"
             disabled={pagination.page === totalPages}
             onClick={() => onPageChange(pagination.page + 1)}
+            className="rounded-xl border-border/70 bg-surface/80 hover:bg-surface-elevated"
           >
             Próxima
           </Button>

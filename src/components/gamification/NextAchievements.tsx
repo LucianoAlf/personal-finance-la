@@ -69,12 +69,20 @@ export function NextAchievements({ badges }: NextAchievementsProps) {
 
   if (badgesWithProgress.length === 0) {
     return (
-      <Card className="p-6">
+      <Card
+        data-testid="goals-progress-next-achievements-shell"
+        className="rounded-[28px] border border-border/70 bg-surface p-6 shadow-[0_18px_44px_rgba(8,15,32,0.14)] dark:shadow-[0_24px_56px_rgba(2,6,23,0.32)]"
+      >
         <div className="flex items-center gap-2 mb-4">
-          <Trophy className="h-5 w-5 text-yellow-600" />
-          <h3 className="text-lg font-semibold text-gray-900">Próximas Conquistas</h3>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-warning/25 bg-warning/10 text-warning shadow-sm">
+            <Trophy className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Próximas Conquistas</h3>
+            <p className="text-sm text-muted-foreground">Continue evoluindo no seu ritmo.</p>
+          </div>
         </div>
-        <p className="text-sm text-gray-600 text-center py-4">
+        <p className="rounded-2xl border border-dashed border-border/70 bg-surface-elevated/65 px-5 py-8 text-center text-sm text-muted-foreground">
           Continue usando o app para desbloquear conquistas! 🎯
         </p>
       </Card>
@@ -82,10 +90,18 @@ export function NextAchievements({ badges }: NextAchievementsProps) {
   }
 
   return (
-    <Card className="p-6">
+    <Card
+      data-testid="goals-progress-next-achievements-shell"
+      className="rounded-[28px] border border-border/70 bg-surface p-6 shadow-[0_18px_44px_rgba(8,15,32,0.14)] dark:shadow-[0_24px_56px_rgba(2,6,23,0.32)]"
+    >
       <div className="flex items-center gap-2 mb-4">
-        <TrendingUp className="h-5 w-5 text-indigo-600" />
-        <h3 className="text-lg font-semibold text-gray-900">Próximas Conquistas</h3>
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary shadow-sm">
+          <TrendingUp className="h-5 w-5" />
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">Próximas Conquistas</h3>
+          <p className="text-sm text-muted-foreground">Os próximos desbloqueios mais perto de acontecer.</p>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -106,41 +122,46 @@ export function NextAchievements({ badges }: NextAchievementsProps) {
               transition={{ delay: index * 0.1 }}
               className="relative"
             >
-              <div className="flex items-start gap-3 p-3 rounded-lg bg-gradient-to-r from-gray-50 to-gray-100 border border-gray-200 hover:border-indigo-300 transition-all">
-                {/* Ícone */}
+              <div className="flex items-start gap-3 rounded-[22px] border border-border/70 bg-surface-elevated/82 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/25 hover:bg-surface-elevated">
                 <div
-                  className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-200"
+                  className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl border bg-background/70 shadow-sm"
+                  style={
+                    tierConfig
+                      ? {
+                          color: tierConfig.color,
+                          borderColor: `${tierConfig.color}33`,
+                          backgroundColor: `${tierConfig.color}14`,
+                        }
+                      : undefined
+                  }
                 >
-                  <Icon className="h-5 w-5 text-gray-700" />
+                  <Icon className="h-5 w-5" />
                 </div>
 
-                {/* Conteúdo */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <h4 className="text-sm font-semibold text-gray-900 truncate">
+                    <h4 className="text-sm font-semibold text-foreground truncate">
                       {badge.name}
                     </h4>
                     {tierConfig && (
                       <span className="text-xs">{tierConfig.emoji}</span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-600 mb-2">{badge.description}</p>
+                  <p className="mb-2 text-xs leading-5 text-muted-foreground">{badge.description}</p>
 
-                  {/* Barra de progresso */}
                   <div className="space-y-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-gray-600">
+                      <span className="text-muted-foreground">
                         {badge.progress.toLocaleString('pt-BR')} / {badge.nextTarget.toLocaleString('pt-BR')}
                       </span>
-                      <span className="font-bold text-indigo-600">
+                      <span className="font-bold text-primary">
                         {Math.round(badge.progressPercentage)}%
                       </span>
                     </div>
 
-                    {/* Barra */}
-                    <div className="relative h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="relative h-2 rounded-full overflow-hidden bg-surface-overlay/85">
                       <motion.div
-                        className="absolute inset-y-0 left-0 rounded-full bg-indigo-600"
+                        className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-primary to-violet-400"
                         initial={{ width: 0 }}
                         animate={{ width: `${badge.progressPercentage}%` }}
                         transition={{
@@ -151,18 +172,17 @@ export function NextAchievements({ badges }: NextAchievementsProps) {
                       />
                     </div>
 
-                    {/* Texto de incentivo */}
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-muted-foreground">
                       Faltam{' '}
-                      <span className="font-semibold text-indigo-600">
+                      <span className="font-semibold text-primary">
                         {(badge.nextTarget - badge.progress).toLocaleString('pt-BR')}
                       </span>{' '}
                       para desbloquear
                     </p>
 
                     {insight && (
-                      <div className="mt-2 rounded-md bg-blue-50 px-3 py-2 border-l-4 border-blue-500">
-                        <p className="text-xs text-blue-800 flex items-center gap-2">
+                      <div className="mt-2 rounded-xl border border-info/20 bg-info/8 px-3 py-2">
+                        <p className="text-xs text-info flex items-center gap-2">
                           <Lightbulb className="h-4 w-4" />
                           {insight}
                         </p>
@@ -193,9 +213,8 @@ export function NextAchievements({ badges }: NextAchievementsProps) {
         })}
       </div>
 
-      {/* Footer motivacional */}
-      <div className="mt-4 pt-4 border-t text-center">
-        <p className="text-xs text-gray-600">
+      <div className="mt-4 border-t border-border/60 pt-4 text-center">
+        <p className="text-xs text-muted-foreground">
           Continue progredindo para desbloquear mais conquistas! 🚀
         </p>
       </div>

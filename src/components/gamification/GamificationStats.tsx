@@ -2,6 +2,7 @@ import { Trophy, Zap, Target, TrendingUp, Rocket, CheckCircle2, BarChart3 } from
 import type { LucideIcon } from 'lucide-react';
 import type { UserGamification } from '@/types/database.types';
 import { getLevelTitle } from '@/hooks/useGamification';
+import { cn } from '@/lib/cn';
 
 interface GamificationStatsProps {
   profile: UserGamification | null;
@@ -31,10 +32,13 @@ export function GamificationStats({
   const remaining = Math.max(0, (xpForNextLevel || 0) - (profile?.xp || 0));
 
   return (
-    <div className="space-y-4">
+    <div
+      data-testid="goals-progress-stats-shell"
+      className="space-y-4 rounded-[24px] border border-border/70 bg-surface-elevated p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+    >
       <div className="flex items-center gap-2">
-        <BarChart3 className="h-4 w-4 text-gray-700" />
-        <span className="text-sm font-semibold text-gray-700">Seu Progresso</span>
+        <BarChart3 className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold text-foreground">Seu Progresso</span>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -71,21 +75,24 @@ export function GamificationStats({
         />
       </div>
 
-      <div className="pt-3 border-t">
+      <div
+        data-testid="goals-progress-next-level-shell"
+        className="rounded-[20px] border border-border/70 bg-background/65 p-4"
+      >
         <div className="flex items-center gap-2 mb-2">
-          <Rocket className="h-4 w-4 text-blue-600" />
-          <span className="text-sm font-semibold text-gray-700">Próximo Nível</span>
+          <Rocket className="h-4 w-4 text-info" />
+          <span className="text-sm font-semibold text-foreground">Próximo Nível</span>
         </div>
         <div className="space-y-1">
-          <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+          <div className="h-2 bg-surface-overlay/85 rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-blue-500 to-purple-500 rounded-full transition-all"
+              className="h-full bg-gradient-to-r from-info to-primary rounded-full transition-all"
               style={{ width: `${Math.min(100, Math.max(0, xpProgress))}%` }}
             />
           </div>
-          <p className="text-xs text-gray-600">
-            Faltam <span className="font-semibold text-blue-600">{remaining.toLocaleString('pt-BR')} XP</span> para{' '}
-            <span className="font-semibold">Nível {nextLevel} - {nextTitle}</span>
+          <p className="text-xs text-muted-foreground">
+            Faltam <span className="font-semibold text-info">{remaining.toLocaleString('pt-BR')} XP</span> para{' '}
+            <span className="font-semibold text-foreground">Nível {nextLevel} - {nextTitle}</span>
           </p>
         </div>
       </div>
@@ -103,20 +110,20 @@ interface StatCardProps {
 
 function StatCard({ icon: Icon, label, value, subtitle, color }: StatCardProps) {
   const colorClasses: Record<StatCardProps['color'], string> = {
-    yellow: 'bg-yellow-50 text-yellow-700 border-yellow-200',
-    purple: 'bg-purple-50 text-purple-700 border-purple-200',
-    indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    green: 'bg-green-50 text-green-700 border-green-200',
+    yellow: 'border-warning/20 bg-warning/10 text-warning',
+    purple: 'border-primary/20 bg-primary/10 text-primary',
+    indigo: 'border-info/20 bg-info/10 text-info',
+    green: 'border-success/20 bg-success/10 text-success',
   };
 
   return (
-    <div className={`p-3 rounded-lg border ${colorClasses[color]} transition-all hover:scale-[1.02]`}>
+    <div className={cn('rounded-[20px] border p-3 transition-all hover:scale-[1.02]', colorClasses[color])}>
       <div className="flex items-center gap-2 mb-1">
         <Icon className="h-4 w-4" />
         <span className="text-xs font-medium">{label}</span>
       </div>
-      <div className="text-xl font-bold leading-6">{value}</div>
-      {subtitle && <div className="text-xs opacity-80">{subtitle}</div>}
+      <div className="text-xl font-bold leading-6 text-foreground">{value}</div>
+      {subtitle && <div className="text-xs opacity-80 text-foreground/80">{subtitle}</div>}
     </div>
   );
 }

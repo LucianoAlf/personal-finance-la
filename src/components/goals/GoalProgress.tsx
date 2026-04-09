@@ -39,8 +39,7 @@ export function GoalProgress({
 
   return (
     <div className={cn('space-y-2', className)}>
-      {/* Barra de progresso */}
-      <div className="relative h-3 bg-gray-200 rounded-full overflow-hidden">
+      <div className="relative h-3 overflow-hidden rounded-full bg-surface-overlay">
         <motion.div
           className={cn('h-full rounded-full', getColorClasses())}
           initial={{ width: 0 }}
@@ -52,23 +51,25 @@ export function GoalProgress({
       {/* Label com percentual */}
       {showLabel && (
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-600 font-medium">
+          <span className="font-medium text-muted-foreground">
             {percentage.toFixed(0)}%
           </span>
-          <span className={cn(
-            'font-semibold',
-            status === 'exceeded' && (inverse ? 'text-red-600' : 'text-green-600'),
-            status === 'warning' && (inverse ? 'text-orange-600' : 'text-yellow-600'),
-            status === 'safe' && (inverse ? 'text-green-600' : 'text-blue-600')
-          )}>
+          <span
+            className={cn(
+              'font-semibold',
+              status === 'exceeded' && (inverse ? 'text-danger' : 'text-success'),
+              status === 'warning' && (inverse ? 'text-warning' : 'text-warning'),
+              status === 'safe' && (inverse ? 'text-success' : 'text-primary')
+            )}
+          >
             {inverse ? (
-              percentage >= 100 ? '🚨 Limite excedido' : 
-              percentage >= 90 ? '⚠️ Perto do limite' : 
-              '✅ Dentro do limite'
+              percentage >= 100 ? 'Limite excedido' :
+              percentage >= 90 ? 'Perto do limite' :
+              'Dentro do limite'
             ) : (
-              percentage >= 100 ? '🎉 Meta alcançada!' : 
-              percentage >= 75 ? '🔥 Quase lá!' : 
-              '💪 Continue assim'
+              percentage >= 100 ? 'Meta alcançada' :
+              percentage >= 75 ? 'Quase lá' :
+              'Continue assim'
             )}
           </span>
         </div>

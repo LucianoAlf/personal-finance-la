@@ -204,7 +204,7 @@ describe('Dashboard widget premium polish regression', () => {
 
     renderInTheme(<BudgetComplianceWidget monthKey="2026-04" />);
 
-    const budgetCard = screen.getByText(/Metas de Gasto do M[eê]s/i).closest('.rounded-lg') as HTMLElement | null;
+    const budgetCard = screen.getByText(/Metas de Gasto/i).closest('.rounded-lg') as HTMLElement | null;
     const complianceLabel = screen.getByText(/Conformidade/i);
     const complianceRail = complianceLabel.parentElement?.nextElementSibling as HTMLElement | null;
     const okTile = screen.getByText('OK').closest('div[class*="rounded"]') as HTMLElement | null;

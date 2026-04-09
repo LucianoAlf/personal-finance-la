@@ -51,6 +51,8 @@ interface PurchaseFormProps {
 }
 
 export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: PurchaseFormProps) {
+  const primaryButtonClass =
+    'rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90';
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMode, setPaymentMode] = useState<'single' | 'installment'>('single');
   const { cardsSummary } = useCreditCards();
@@ -198,7 +200,7 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
                 </FormControl>
                 <FormMessage />
                 {hasInsufficientLimit && (
-                  <p className="text-xs text-red-600">
+                  <p className="text-xs text-danger">
                     ⚠️ Limite insuficiente (disponível: {formatCurrency(selectedCard?.available_limit || 0)})
                   </p>
                 )}
@@ -253,15 +255,15 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
         {/* Forma de pagamento */}
         {amount > 0 && (
           <div className="space-y-3">
-            <label className="text-sm font-medium text-gray-700 block">Forma de pagamento</label>
+            <label className="block text-sm font-medium text-foreground">Forma de pagamento</label>
             <div className="grid grid-cols-2 gap-3">
               <button
                 type="button"
                 onClick={() => handlePaymentModeChange('single')}
-                className={`flex items-center justify-center rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all ${
+                className={`flex items-center justify-center rounded-xl border px-4 py-3 text-sm font-medium transition-all ${
                   paymentMode === 'single'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                    ? 'border-primary/25 bg-primary/10 text-primary shadow-sm'
+                    : 'border-border/70 bg-surface/75 text-muted-foreground hover:bg-surface-elevated hover:text-foreground'
                 }`}
               >
                 A vista
@@ -269,10 +271,10 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
               <button
                 type="button"
                 onClick={() => handlePaymentModeChange('installment')}
-                className={`flex items-center justify-center rounded-lg border-2 px-4 py-3 text-sm font-medium transition-all ${
+                className={`flex items-center justify-center rounded-xl border px-4 py-3 text-sm font-medium transition-all ${
                   paymentMode === 'installment'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                    ? 'border-primary/25 bg-primary/10 text-primary shadow-sm'
+                    : 'border-border/70 bg-surface/75 text-muted-foreground hover:bg-surface-elevated hover:text-foreground'
                 }`}
               >
                 Parcelado
@@ -427,7 +429,7 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
                       key={tag.id}
                       variant="outline"
                       style={{ borderColor: tag.color, color: tag.color }}
-                      className="cursor-pointer hover:bg-gray-50"
+                      className="cursor-pointer hover:bg-surface-elevated hover:text-foreground"
                       onClick={() => setSelectedTags(prev => [...prev, tag.id])}
                     >
                       {tag.name}
@@ -437,7 +439,7 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
             )}
 
             {tags.length === 0 && !showTagInput && (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Nenhuma tag criada ainda. Clique em "Nova tag" para criar.
               </p>
             )}
@@ -446,35 +448,35 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
 
         {/* Resumo da Compra */}
         {amount > 0 && selectedCard && (
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+          <Card className="rounded-[24px] border border-border/70 bg-surface-elevated/55 shadow-sm">
             <CardContent className="pt-6">
-              <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-blue-600" />
+              <h3 className="mb-4 flex items-center gap-2 font-semibold text-foreground">
+                <DollarSign className="h-5 w-5 text-primary" />
                 Resumo da Compra
               </h3>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600 flex items-center gap-2">
+                  <span className="flex items-center gap-2 text-muted-foreground">
                     <CreditCardIcon className="h-4 w-4" />
                     Cartão
                   </span>
-                  <span className="font-medium text-gray-900">{selectedCard.name}</span>
+                  <span className="font-medium text-foreground">{selectedCard.name}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Valor Total</span>
-                  <span className="font-semibold text-lg text-gray-900">{formatCurrency(amount)}</span>
+                  <span className="text-muted-foreground">Valor Total</span>
+                  <span className="text-lg font-semibold text-foreground">{formatCurrency(amount)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Parcelamento</span>
-                  <span className="font-medium text-gray-900">
+                  <span className="text-muted-foreground">Parcelamento</span>
+                  <span className="font-medium text-foreground">
                     {effectiveInstallments === 1
                       ? 'A vista'
                       : `${effectiveInstallments}x de ${formatCurrency(amount / effectiveInstallments)}`}
                   </span>
                 </div>
-                <div className="flex justify-between items-center pt-2 border-t border-blue-200">
-                  <span className="text-gray-600">Limite Disponível Após</span>
-                  <span className="font-medium text-gray-900">
+                <div className="flex justify-between items-center pt-2 border-t border-border/60">
+                  <span className="text-muted-foreground">Limite Disponível Após</span>
+                  <span className="font-medium text-foreground">
                     {formatCurrency(selectedCard.available_limit - amount)}
                   </span>
                 </div>
@@ -484,11 +486,17 @@ export function PurchaseForm({ preSelectedCardId, onSubmit, onCancel }: Purchase
         )}
 
         {/* Botões */}
-        <div className="flex justify-end gap-3">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
+        <div className="flex justify-end gap-3 border-t border-border/60 pt-5">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={isSubmitting}
+            className="rounded-xl border-border/70 bg-surface/70 text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
+          >
             Cancelar
           </Button>
-          <Button type="submit" disabled={hasInsufficientLimit || isSubmitting}>
+          <Button type="submit" disabled={hasInsufficientLimit || isSubmitting} className={primaryButtonClass}>
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />

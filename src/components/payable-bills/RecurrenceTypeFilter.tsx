@@ -38,10 +38,10 @@ const RECURRENCE_OPTIONS: { value: RecurrenceTypeOption; label: string; icon: Re
 export function RecurrenceTypeFilter({ value, onChange }: RecurrenceTypeFilterProps) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as RecurrenceTypeOption)}>
-      <SelectTrigger className="w-[180px]">
+      <SelectTrigger className="h-11 w-[188px] rounded-xl border-border/70 bg-surface/85 text-sm font-semibold shadow-none">
         <SelectValue placeholder="Tipo" />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent className="rounded-xl border-border/70 bg-popover/98 shadow-[0_18px_44px_rgba(2,6,23,0.2)]">
         {RECURRENCE_OPTIONS.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             <div className="flex items-center gap-2">
