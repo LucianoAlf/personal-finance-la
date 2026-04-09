@@ -1,0 +1,1 @@
+ALTER TABLE public.payable_bills REPLICA IDENTITY FULL;;
