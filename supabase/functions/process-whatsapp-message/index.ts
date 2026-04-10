@@ -31,17 +31,28 @@ import { processarComandoAgenda } from './calendar-handler.ts';
 import { templateErroGenerico, templateComandoNaoReconhecido } from './response-templates.ts';
 import { isPrimeiraInteracaoDia } from './humanization.ts';
 import { 
-  templateBoasVindas,
-  templateSaudacaoPrimeiraVez,
-  templateSaudacaoRetorno,
   templateAjuda,
-  templateSobreSistema,
   templateAgradecimento,
   templateErro,
   templateUsuarioNaoCadastrado
 } from './templates-humanizados.ts';
 import { classificarIntencao, isAnalyticsQuery, isComandoEdicao, isComandoExclusao, extrairEntidadesEdicao } from './nlp-processor.ts';
-import { classificarIntencaoNLP, IntencaoClassificada } from './nlp-classifier.ts';
+import { classificarIntencaoNLP, IntencaoClassificada, AgentEnrichment } from './nlp-classifier.ts';
+import {
+  buildSoulPromptBlock,
+  DEFAULT_SOUL,
+  DEFAULT_AUTONOMY,
+  buildSoulGreeting,
+  buildSoulAboutSystem,
+  buildSoulFallbackReply,
+  resolvePreferredFirstName,
+} from '../_shared/ana-clara-soul.ts';
+import type { UserContext } from '../_shared/ana-clara-soul.ts';
+import { searchMemories, formatMemoriesForPrompt, saveMemory, logAgentAction } from '../_shared/agent-memory.ts';
+import { analyzeAndMergeTone } from '../_shared/tone-detector.ts';
+import { buildDayContext } from '../_shared/day-context-builder.ts';
+import { evaluateAutonomy } from '../_shared/autonomy-engine.ts';
+import { evaluateChallenge, logChallengeIssued } from '../_shared/challenge-engine.ts';
 import { processarIntencaoTransacao, processarIntencaoTransferencia, processarTransferenciaEntreContas, processarEdicao, processarExclusao } from './transaction-mapper.ts';
 import { processarAporteMetaViaMensagem, shouldHandleGoalContributionMessage } from './goal-contributions.ts';
 // Botões desativados - 100% conversacional
@@ -52,6 +63,22 @@ import * as imageReader from './image-reader.ts';
 import { detectarIntencaoConsulta, processarConsulta } from './consultas.ts';
 import { detectarIntencaoCartao, processarIntencaoCartao } from './cartao-credito.ts';
 import { processarIntencaoContaPagar, TipoIntencaoContaPagar } from './contas-pagar.ts';
+import {
+  detectDayContextQuery,
+  detectResumoFinanceiroPeriodo,
+  isHypotheticalFinancialMessage,
+  shouldBypassFlowContext,
+} from './agent-routing.ts';
+import {
+  buildOnboardingGreeting,
+  buildToneQuestion,
+  buildDataPrefQuestion,
+  buildOnboardingComplete,
+  parseToneReply,
+  parseDataPrefReply,
+  buildAgentIdentityPayload,
+  type OnboardingState,
+} from './onboarding.ts';
 
 // ============================================
 // MAIN HANDLER
@@ -231,6 +258,16 @@ serve(async (req: Request) => {
     }
     
     console.log('✅ Usuário:', user.full_name);
+
+    const { data: identitySnapshot } = await supabase
+      .from('agent_identity')
+      .select('soul_config, user_context, autonomy_rules')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const soulConfig = identitySnapshot?.soul_config ?? DEFAULT_SOUL;
+    const userContext: UserContext = identitySnapshot?.user_context ?? {};
+    const autonomyConfig = identitySnapshot?.autonomy_rules ?? DEFAULT_AUTONOMY;
     
     // ============================================
     // 3.1 RASTREAR INTERAÇÃO - ANA CLARA HUMANIZADA
@@ -238,7 +275,7 @@ serve(async (req: Request) => {
     const ultimaInteracao = await buscarUltimaInteracao(user.id);
     const primeiraVezAbsoluta = ultimaInteracao === null; // NUNCA falou com Ana Clara
     const primeiraVezHoje = isPrimeiraInteracaoDia(ultimaInteracao);
-    const nomeUsuario = user.full_name?.split(' ')[0] || 'amigo';
+    const nomeUsuario = resolvePreferredFirstName(userContext, user.full_name);
     
     console.log('🙋🏻‍♀️ Primeira vez ABSOLUTA?', primeiraVezAbsoluta);
     console.log('🙋🏻‍♀️ Primeira vez hoje?', primeiraVezHoje);
@@ -625,6 +662,91 @@ serve(async (req: Request) => {
     }
     
     // ============================================
+    // 5. PREFERÊNCIAS EXPLÍCITAS (BYPASS CONTEXTO)
+    // ============================================
+    if (shouldBypassFlowContext(content)) {
+      const textoNorm = content.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+      if (/pode me chamar de|me chama de/.test(textoNorm)) {
+        const nomePreferido = content.split(/pode me chamar de|me chama de/i)[1]?.trim();
+        if (nomePreferido) {
+          await supabase.rpc('ensure_agent_identity', { p_user_id: user.id });
+          const { data: identityAtual } = await supabase
+            .from('agent_identity')
+            .select('user_context')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+          const userContextAtual = (identityAtual?.user_context as Record<string, unknown> | null) ?? {};
+          await supabase
+            .from('agent_identity')
+            .update({
+              user_context: {
+                ...userContextAtual,
+                display_name: nomePreferido,
+                first_name: nomePreferido.split(' ')[0],
+              },
+            })
+            .eq('user_id', user.id);
+
+          await enviarViaEdgeFunction(
+            phone,
+            `Combinado, ${nomePreferido.split(' ')[0]}! Já atualizei isso aqui. Como posso te ajudar com suas finanças hoje?`,
+          );
+          return new Response(JSON.stringify({ success: true, type: 'user_naming_preference' }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+
+      if (/sempre que eu falar/.test(textoNorm) && /considera/.test(textoNorm)) {
+        const match = textoNorm.match(/sempre que eu falar\s+(.+?),?\s+considera\s+(.+)$/);
+        if (match) {
+          const gatilho = match[1].trim();
+          const categoria = match[2].trim();
+
+          await saveMemory(supabase, {
+            user_id: user.id,
+            memory_type: 'preference',
+            content: `Sempre que o usuário mencionar "${gatilho}", considerar a categoria "${categoria}".`,
+            metadata: { trigger: gatilho, categoria },
+            tags: ['preferencia_categoria', gatilho, categoria],
+            source: 'conversation',
+          });
+
+          await enviarViaEdgeFunction(
+            phone,
+            `Combinado! Já anotei aqui: sempre que você mencionar "${gatilho}", eu vou classificar automaticamente como ${categoria.charAt(0).toUpperCase() + categoria.slice(1)}.\n\nMais alguma coisa que eu precise saber pra facilitar seu controle?`,
+          );
+          return new Response(JSON.stringify({ success: true, type: 'categorization_preference' }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+      }
+    }
+
+    // ============================================
+    // 4.5 ONBOARDING: primeira vez absoluta sem agent_identity
+    // ============================================
+    if (primeiraVezAbsoluta && !identitySnapshot) {
+      console.log('🆕 Primeira interação — iniciando onboarding');
+      await enviarViaEdgeFunction(phone, buildOnboardingGreeting(user.full_name || 'amigo'));
+      await salvarContexto(user.id, 'onboarding_agent', {
+        step: 'ask_name',
+        onboarding: { step: 'ask_name', collected: {} },
+        phone,
+      }, phone);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'onboarding_start',
+        processed_at: new Date().toISOString(),
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'onboarding_start' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // ============================================
     // 5. VERIFICAR CONTEXTO ATIVO
     // ============================================
     const contexto = await buscarContexto(user.id);
@@ -636,6 +758,52 @@ serve(async (req: Request) => {
         'sufficient=',
         contexto.context_data.education_mentoring.hasSufficientData,
       );
+    }
+
+    // Handle onboarding context separately (multi-step preference collection)
+    if (contexto && isContextoAtivo(contexto) && contexto.context_type === 'onboarding_agent') {
+      const obState = contexto.context_data?.onboarding as OnboardingState | undefined;
+      const step = obState?.step || 'ask_name';
+      console.log('🆕 Onboarding step:', step);
+
+      if (step === 'ask_name') {
+        const firstName = content.trim().split(/\s+/)[0];
+        const collected = { ...obState?.collected, first_name: firstName };
+        await enviarViaEdgeFunction(phone, buildToneQuestion(firstName));
+        await salvarContexto(user.id, 'onboarding_agent', {
+          step: 'ask_tone',
+          onboarding: { step: 'ask_tone', collected },
+          phone,
+        }, phone);
+      } else if (step === 'ask_tone') {
+        const toneStyle = parseToneReply(content);
+        const collected = { ...obState?.collected, communication_style: toneStyle };
+        const firstName = collected.first_name || nomeUsuario;
+        await enviarViaEdgeFunction(phone, buildDataPrefQuestion(firstName));
+        await salvarContexto(user.id, 'onboarding_agent', {
+          step: 'ask_data_pref',
+          onboarding: { step: 'ask_data_pref', collected },
+          phone,
+        }, phone);
+      } else if (step === 'ask_data_pref') {
+        const dataPref = parseDataPrefReply(content);
+        const collected = { ...obState?.collected, data_preference: dataPref };
+        const firstName = collected.first_name || nomeUsuario;
+
+        const identityPayload = buildAgentIdentityPayload(user.id, collected);
+        await supabase.from('agent_identity').upsert(identityPayload, { onConflict: 'user_id' });
+        await limparContexto(user.id);
+        await enviarViaEdgeFunction(phone, buildOnboardingComplete(firstName));
+      }
+
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'onboarding_step',
+        processed_at: new Date().toISOString(),
+      }).eq('id', message.id);
+      return new Response(JSON.stringify({ success: true, type: 'onboarding' }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
 
     if (contexto && isContextoAtivo(contexto)) {
@@ -700,6 +868,30 @@ serve(async (req: Request) => {
         headers: { 'Content-Type': 'application/json' } 
       });
     }
+
+    // ============================================
+    // 6.3 CONTEXTO DO DIA (AGENDA + CONTAS + METAS)
+    // ============================================
+    const dayContextQuery = detectDayContextQuery(command);
+    if (dayContextQuery) {
+      const targetDate = new Date();
+      targetDate.setDate(targetDate.getDate() + dayContextQuery.dayOffset);
+      const dayContext = await buildDayContext(supabase, user.id, targetDate);
+
+      const saudacaoDia = dayContextQuery.dayOffset === 0 ? 'Hoje' : 'Amanhã';
+      const resposta = `${saudacaoDia}, seu foco financeiro e agenda estão assim:\n\n${dayContext.formatted}\n\nSe quiser, eu também posso te dizer o que priorizar primeiro.`;
+
+      await enviarViaEdgeFunction(phone, resposta);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'day_context',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+
+      return new Response(JSON.stringify({ success: true, type: 'day_context' }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
     
     // ============================================
     // 6.35 CALENDAR / AGENDA
@@ -716,6 +908,24 @@ serve(async (req: Request) => {
       
       return new Response(JSON.stringify({ success: true, type: 'calendar_command', command }), { 
         headers: { 'Content-Type': 'application/json' } 
+      });
+    }
+
+    // ============================================
+    // 6.36 MENSAGEM HIPOTÉTICA / PLANEJAMENTO
+    // ============================================
+    if (isHypotheticalFinancialMessage(command)) {
+      const respostaHipotetica = `Entendi. Isso ainda parece uma intenção ou hipótese, não um gasto já realizado.\n\nSe quiser, eu posso:\n• te ajudar a avaliar se esse gasto cabe no mês\n• comparar com suas metas\n• simular o impacto antes de você decidir`;
+
+      await enviarViaEdgeFunction(phone, respostaHipotetica);
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'financial_planning',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+
+      return new Response(JSON.stringify({ success: true, type: 'financial_planning' }), {
+        headers: { 'Content-Type': 'application/json' }
       });
     }
     
@@ -892,12 +1102,44 @@ serve(async (req: Request) => {
     // Usar o novo classificador com GPT-4 + Function Calling
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    
+
+    // Build agent enrichment (additive — wrapped in try/catch to never break flow)
+    let agentEnrichment: AgentEnrichment | undefined;
+    try {
+      const [memoriesResult, dayCtxResult] = await Promise.allSettled([
+        searchMemories(supabase, user.id, content, 5),
+        buildDayContext(supabase, user.id),
+      ]);
+
+      // Soul block
+      const soulBlock = buildSoulPromptBlock(soulConfig, userContext, autonomyConfig);
+
+      // Memory block
+      let memoriasRelevantes: string | undefined;
+      if (memoriesResult.status === 'fulfilled' && memoriesResult.value.length > 0) {
+        memoriasRelevantes = formatMemoriesForPrompt(memoriesResult.value);
+        console.log(`🧠 Agent memories found: ${memoriesResult.value.length}`);
+      }
+
+      // Day context block
+      let agendaHoje: string | undefined;
+      if (dayCtxResult.status === 'fulfilled' && dayCtxResult.value.items.length > 0) {
+        agendaHoje = dayCtxResult.value.formatted;
+        console.log(`📅 Day context items: ${dayCtxResult.value.items.length}`);
+      }
+
+      agentEnrichment = { soulBlock, memoriasRelevantes, agendaHoje };
+      console.log('🧬 Agent enrichment built (soul + memory + agenda)');
+    } catch (enrichErr) {
+      console.warn('⚠️ Agent enrichment failed (non-blocking):', enrichErr);
+    }
+
     const intencaoNLP = await classificarIntencaoNLP(
       content, 
       user.id, 
       SUPABASE_URL, 
-      SUPABASE_SERVICE_ROLE_KEY
+      SUPABASE_SERVICE_ROLE_KEY,
+      agentEnrichment,
     );
     
     console.log('📋 ========================================');
@@ -914,6 +1156,91 @@ serve(async (req: Request) => {
     intencaoNLP.entidades = validarEntidadesNLP(intencaoNLP.entidades, content);
     
     console.log('📋 Entidades (DEPOIS validação):', JSON.stringify(intencaoNLP.entidades));
+
+    // Non-blocking: log interaction + extract memories from high-confidence decisions
+    try {
+      await logAgentAction(supabase, user.id, 'nlp_classification', {
+        intent: intencaoNLP.intencao,
+        confidence: intencaoNLP.confianca,
+        has_soul: !!agentEnrichment?.soulBlock,
+        has_memories: !!agentEnrichment?.memoriasRelevantes,
+        has_agenda: !!agentEnrichment?.agendaHoje,
+      });
+
+      const memoryIntents = [
+        'REGISTRAR_DESPESA', 'REGISTRAR_RECEITA', 'MARCAR_CONTA_PAGA',
+        'CADASTRAR_CONTA_PAGAR', 'COMPRA_CARTAO',
+      ];
+      if (
+        intencaoNLP.confianca >= 0.85 &&
+        memoryIntents.includes(intencaoNLP.intencao)
+      ) {
+        saveMemory(supabase, {
+          user_id: user.id,
+          memory_type: 'pattern',
+          content: `Usuário disse: "${content.slice(0, 200)}" → classificado como ${intencaoNLP.intencao} (${intencaoNLP.confianca})`,
+          metadata: { intent: intencaoNLP.intencao, entities: intencaoNLP.entidades },
+          tags: [intencaoNLP.intencao.toLowerCase()],
+          source: 'conversation',
+        }).catch((e) => console.warn('[memory-save] non-blocking error:', e));
+      }
+    } catch (memErr) {
+      console.warn('⚠️ Memory/logging non-blocking error:', memErr);
+    }
+
+    // Observational autonomy evaluation (never blocks flow)
+    try {
+      evaluateAutonomy(
+        supabase, user.id, intencaoNLP.intencao, intencaoNLP.confianca,
+      ).catch(() => {/* fire and forget */});
+    } catch {
+      // never block
+    }
+
+    // Challenge engine: push back on risky spending decisions
+    try {
+      const challengeAmount = intencaoNLP.entidades?.valor
+        ? Number(intencaoNLP.entidades.valor)
+        : undefined;
+      const challengeCategory = intencaoNLP.entidades?.categoria as string | undefined;
+
+      const challenge = await evaluateChallenge(
+        supabase,
+        user.id,
+        intencaoNLP.intencao,
+        challengeAmount,
+        challengeCategory,
+      );
+
+      if (challenge.shouldChallenge && challenge.message) {
+        await logChallengeIssued(supabase, user.id, challenge, intencaoNLP.intencao);
+        await enviarViaEdgeFunction(phone, challenge.message);
+        console.log(`🏋️ Challenge issued: ${challenge.type} (${challenge.severity})`);
+      }
+    } catch (challengeErr) {
+      console.warn('⚠️ Challenge engine non-blocking error:', challengeErr);
+    }
+
+    // Passive tone adaptation: detect user's communication style and persist
+    try {
+      const updatedStyle = analyzeAndMergeTone(content, userContext?.communication_style);
+      if (updatedStyle) {
+        console.log(`🎭 Tone shift detected: "${updatedStyle}"`);
+        supabase
+          .from('agent_identity')
+          .update({
+            user_context: {
+              ...userContext,
+              communication_style: updatedStyle,
+            },
+          })
+          .eq('user_id', user.id)
+          .then(() => {})
+          .catch((e: unknown) => console.warn('[tone-update] non-blocking error:', e));
+      }
+    } catch {
+      // never block
+    }
 
     if (shouldHandleGoalContributionMessage(content, intencaoNLP.entidades.valor)) {
       const aporteMeta = await processarAporteMetaViaMensagem(
@@ -1260,21 +1587,14 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       });
     }
     
-    // Se é SAUDACAO, responder com template humanizado
+    // Se é SAUDACAO, responder com a soul em runtime
     if (intencaoNLP.intencao === 'SAUDACAO') {
-      let resposta: string;
-      
-      if (primeiraVezAbsoluta) {
-        // ONBOARDING - Primeira vez que fala com Ana Clara
-        resposta = templateBoasVindas(nomeUsuario);
-        console.log('🎉 ONBOARDING - Primeira vez absoluta!');
-      } else if (primeiraVezHoje) {
-        // Primeira vez do dia
-        resposta = templateSaudacaoPrimeiraVez(nomeUsuario);
-      } else {
-        // Retorno no mesmo dia
-        resposta = templateSaudacaoRetorno(nomeUsuario);
-      }
+      const resposta =
+        intencaoNLP.resposta_conversacional?.trim() ||
+        buildSoulGreeting(soulConfig, userContext, nomeUsuario, {
+          firstContactEver: primeiraVezAbsoluta,
+          firstContactToday: primeiraVezHoje,
+        });
       
       await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
@@ -1287,9 +1607,9 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       });
     }
     
-    // Se é AJUDA, responder com template humanizado
+    // Se é AJUDA, usar resposta_conversacional se disponível, template como fallback
     if (intencaoNLP.intencao === 'AJUDA') {
-      const resposta = templateAjuda(nomeUsuario, primeiraVezHoje);
+      const resposta = intencaoNLP.resposta_conversacional?.trim() || templateAjuda(nomeUsuario, primeiraVezHoje);
       await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
@@ -1426,46 +1746,24 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
     }
     
     // ✅ RESUMO FINANCEIRO - Visão 360° (HOJE, SEMANA, MÊS, TRIMESTRE)
-    const textoLowerResumo = content.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    
-    // Detectar tipo de resumo solicitado
-    const ehResumoHoje = textoLowerResumo.includes('resumo de hoje') || 
-                         textoLowerResumo.includes('resumo do dia') ||
-                         (textoLowerResumo.includes('como foi') && textoLowerResumo.includes('dia')) ||
-                         textoLowerResumo.includes('meu dia financeiro');
-    
-    const ehResumoSemana = textoLowerResumo.includes('resumo da semana') || 
-                           textoLowerResumo.includes('resumo semanal') ||
-                           (textoLowerResumo.includes('como foi') && textoLowerResumo.includes('semana')) ||
-                           textoLowerResumo.includes('semana financeira');
-    
-    const ehResumoMes = textoLowerResumo.includes('resumo do mes') || 
-                        textoLowerResumo.includes('resumo mensal') ||
-                        (textoLowerResumo.includes('como foi') && textoLowerResumo.includes('mes')) ||
-                        textoLowerResumo.includes('mes financeiro') ||
-                        /resumo de (janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/.test(textoLowerResumo);
-    
-    const ehResumoTrimestre = textoLowerResumo.includes('resumo do trimestre') || 
-                              textoLowerResumo.includes('resumo trimestral') ||
-                              textoLowerResumo.includes('ultimos 3 meses') ||
-                              textoLowerResumo.includes('trimestre financeiro');
+    const resumoPeriodo = detectResumoFinanceiroPeriodo(content);
     
     // Processar resumo se detectado
-    if (ehResumoHoje || ehResumoSemana || ehResumoMes || ehResumoTrimestre) {
+    if (resumoPeriodo) {
       const { gerarResumoFinanceiro } = await import('./insights-ana-clara.ts');
       
       let periodo: 'hoje' | 'semana' | 'mes' | 'trimestre' = 'hoje';
       let intentLabel = 'resumo_diario';
       
-      if (ehResumoTrimestre) {
+      if (resumoPeriodo === 'trimestre') {
         periodo = 'trimestre';
         intentLabel = 'resumo_trimestre';
         console.log('📅 Gerando RESUMO TRIMESTRAL completo (visão 360°)');
-      } else if (ehResumoMes) {
+      } else if (resumoPeriodo === 'mes') {
         periodo = 'mes';
         intentLabel = 'resumo_mensal';
         console.log('📅 Gerando RESUMO MENSAL completo (visão 360°)');
-      } else if (ehResumoSemana) {
+      } else if (resumoPeriodo === 'semana') {
         periodo = 'semana';
         intentLabel = 'resumo_semanal';
         console.log('📅 Gerando RESUMO SEMANAL completo (visão 360°)');
@@ -1861,9 +2159,9 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       });
     }
     
-    // Se é AGRADECIMENTO, responder com template humanizado
+    // Se é AGRADECIMENTO, usar resposta_conversacional se disponível, template como fallback
     if (intencaoNLP.intencao === 'AGRADECIMENTO') {
-      const resposta = templateAgradecimento(nomeUsuario);
+      const resposta = intencaoNLP.resposta_conversacional?.trim() || templateAgradecimento(nomeUsuario);
       await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
@@ -1895,13 +2193,15 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       let resposta: string;
       
       if (isPerguntaSobreSistema) {
-        // Usar TEMPLATE bonito para perguntas sobre o sistema
-        console.log('📋 Pergunta sobre o sistema - usando template');
-        resposta = templateSobreSistema(nomeUsuario);
+        // Usar resposta guiada pela soul
+        console.log('📋 Pergunta sobre o sistema - usando soul');
+        resposta =
+          intencaoNLP.resposta_conversacional?.trim() ||
+          buildSoulAboutSystem(soulConfig, userContext, nomeUsuario);
       } else {
-        // Usar resposta conversacional do NLP ou fallback
+        // Usar resposta conversacional do NLP ou fallback guiado pela soul
         resposta = intencaoNLP.resposta_conversacional || 
-          `Oi, ${nomeUsuario}! 😊\n\nNão entendi bem o que você quis dizer.\n\nPosso te ajudar com:\n• Registrar gastos e receitas\n• Consultar saldo\n• Ver extrato\n• Relatórios\n\nÉ só me contar! 🙋🏻‍♀️`;
+          buildSoulFallbackReply(soulConfig, userContext, nomeUsuario);
       }
       
       await enviarViaEdgeFunction(phone, resposta);
@@ -1980,11 +2280,20 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
     
     if (intencao.intencao === 'REGISTRAR_RECEITA' || intencao.intencao === 'REGISTRAR_DESPESA') {
       const resultado = await processarIntencaoTransacao(intencao, user.id, phone);
-      
+
+      // Prepend GPT opening line to successful transaction confirmations
+      if (resultado.success && !resultado.precisaConfirmacao && intencaoNLP.resposta_conversacional?.trim()) {
+        const gptLine = intencaoNLP.resposta_conversacional.trim();
+        const templateStart = resultado.mensagem.indexOf('⭐');
+        if (templateStart > 0) {
+          resultado.mensagem = `${gptLine}\n\n${resultado.mensagem.substring(templateStart)}`;
+        }
+      }
+
       // Se precisa confirmação (escolher conta ou método de pagamento), salvar contexto
       if (resultado.precisaConfirmacao) {
         await enviarViaEdgeFunction(phone, resultado.mensagem);
-        
+
         // Verificar qual tipo de confirmação é necessária
         const step = (resultado.dados?.step as string) || 'awaiting_account';
         

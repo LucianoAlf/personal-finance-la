@@ -240,6 +240,12 @@ const INTENT_CLASSIFICATION_FUNCTION = {
 // SYSTEM PROMPT
 // ============================================
 
+export interface AgentEnrichment {
+  soulBlock?: string;
+  memoriasRelevantes?: string;
+  agendaHoje?: string;
+}
+
 function gerarSystemPrompt(
   memoriaUsuario: string,
   historicoConversa: string,
@@ -247,17 +253,24 @@ function gerarSystemPrompt(
   contasDisponiveis: string,
   categoriasDisponiveis: string,
   nomeUsuario?: string,
-  contasAPagar?: string
+  contasAPagar?: string,
+  agentEnrichment?: AgentEnrichment,
 ): string {
   const primeiroNome = nomeUsuario?.split(' ')[0] || 'amigo';
+  const identidadePersonalidade = agentEnrichment?.soulBlock
+    ? 'Definida no PERFIL PROFUNDO abaixo. Siga o override.'
+    : 'Simpática, empática, direta, entende de finanças';
+  const identidadeTom = agentEnrichment?.soulBlock
+    ? 'Definido no PERFIL PROFUNDO abaixo. Use o tom personalizado.'
+    : 'Amiga próxima que quer ajudar com dinheiro';
   
   return `Você é a "Ana Clara" 🙋🏻‍♀️, a Personal Finance do usuário.
 
 ## SUA IDENTIDADE
 - Nome: Ana Clara
 - Emoji: 🙋🏻‍♀️ (NUNCA use 🤖, você é humana!)
-- Personalidade: Simpática, empática, direta, entende de finanças
-- Tom: Amiga próxima que quer ajudar com dinheiro
+- Personalidade: ${identidadePersonalidade}
+- Tom: ${identidadeTom}
 - Apresentação: "Sou a Ana Clara, sua Personal Finance!"
 - Assinatura: "_Ana Clara • Personal Finance_ 🙋🏻‍♀️"
 
@@ -286,7 +299,7 @@ Quando perguntarem "o que você faz?", "quem é você?", "como funciona?", você
 3. Use emojis com moderação mas de forma expressiva
 4. Seja breve mas calorosa
 5. Termine com perguntas engajadoras quando apropriado
-6. Para SAUDACAO: cumprimente de volta, pergunte como pode ajudar
+6. Para SAUDACAO: fale como parceira, sem frase de call center tipo "como posso ajudar hoje?"
 7. Para AGRADECIMENTO: responda de forma variada e amigável
 8. Para AJUDA: deixe vazio (o sistema tem template completo)
 9. Para OUTRO (não entendeu): seja honesta, redirecione para finanças
@@ -371,6 +384,7 @@ ${memoriaUsuario}
    - "quanto recebi", "minhas receitas", "quanto entrou"
    - "receitas do mês", "quanto ganhei"
 8. **RELATORIO_DIARIO**: Resumo de hoje
+   - "resumo de hoje", "resumo do dia", "resumo do meu dia"
 9. **RELATORIO_SEMANAL**: Resumo da semana
 10. **RELATORIO_MENSAL**: Resumo do mês
 11. **CONSULTAR_METAS**: Como estão as metas
@@ -380,6 +394,10 @@ ${memoriaUsuario}
 - "quanto recebi" → CONSULTAR_RECEITAS (receitas, entradas)
 - "quanto ganhei" → CONSULTAR_RECEITAS
 - "quanto paguei" → CONSULTAR_GASTOS
+
+### ⚠️ IMPORTANTE: Diferenciar HIPÓTESE de TRANSAÇÃO REAL
+- "acho que vou gastar", "vou gastar", "pretendo gastar" = NÃO registrar transação
+- nesses casos, prefira OUTRO com resposta conversacional / planejamento
 
 ### Ações
 10. **CRIAR_META**: Quer criar uma nova meta
@@ -935,7 +953,7 @@ Se o histórico mostra que Ana perguntou "Em qual conta?" e o usuário responde 
 "" (deixe vazio - o sistema vai buscar e formatar)
 
 **EXEMPLO DE RESPOSTA BOA para saudação:**
-"Oi${nomeUsuario ? ', ' + nomeUsuario : ''}! 👋\\n\\nComo posso te ajudar hoje?"
+"Coé${nomeUsuario ? ', ' + nomeUsuario : ''}! 🙋🏻‍♀️\\n\\nO que manda hoje?"
 
 **EXEMPLO DE RESPOSTA BOA para ajuda:**
 "" (deixe vazio - o sistema tem template)
@@ -1060,7 +1078,7 @@ NOTA: Para AJUDA, deixe resposta_conversacional VAZIA - o sistema tem template c
   "explicacao": "Pergunta sobre o sistema/Ana Clara",
   "resposta_conversacional": "Oi, ${primeiroNome}! 🙋🏻‍♀️\\n\\nSou a Ana Clara, sua Personal Finance!\\n\\nPosso te ajudar a:\\n💸 Registrar gastos e receitas\\n📊 Ver saldos e extratos\\n✏️ Editar transações\\n📈 Acompanhar investimentos\\n\\nÉ só me contar o que precisa! 😊"
 }
-`;
+${agentEnrichment?.soulBlock ? `\n---\n${agentEnrichment.soulBlock}` : ''}${agentEnrichment?.memoriasRelevantes ? `\n---\n${agentEnrichment.memoriasRelevantes}` : ''}${agentEnrichment?.agendaHoje ? `\n---\n${agentEnrichment.agendaHoje}` : ''}`;
 }
 
 // ============================================
@@ -1325,6 +1343,20 @@ async function buscarNomeUsuario(
   userId: string
 ): Promise<string> {
   try {
+    const { data: identity } = await supabase
+      .from('agent_identity')
+      .select('user_context')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const preferredFirstName =
+      identity?.user_context?.first_name ||
+      identity?.user_context?.display_name?.split?.(' ')?.[0];
+
+    if (preferredFirstName) {
+      return preferredFirstName;
+    }
+
     const { data: user, error } = await supabase
       .from('users')
       .select('full_name, email')
@@ -1445,7 +1477,8 @@ export async function classificarIntencaoNLP(
   texto: string,
   userId: string,
   supabaseUrl: string,
-  supabaseKey: string
+  supabaseKey: string,
+  agentEnrichment?: AgentEnrichment,
 ): Promise<IntencaoClassificada> {
   const supabase = createClient(supabaseUrl, supabaseKey);
   
@@ -1493,7 +1526,7 @@ export async function classificarIntencaoNLP(
   console.log('📚 Memória:', memoriaUsuario.substring(0, 100) + '...');
   console.log('📂 Categorias carregadas do banco');
 
-  // Montar System Prompt
+  // Montar System Prompt (enrichment is additive — appended at the end)
   const systemPrompt = gerarSystemPrompt(
     memoriaUsuario,
     historicoConversa,
@@ -1501,7 +1534,8 @@ export async function classificarIntencaoNLP(
     contasDisponiveis,
     categoriasDisponiveis,
     nomeUsuario,
-    contasAPagar
+    contasAPagar,
+    agentEnrichment,
   );
 
   console.log('🧠 Chamando IA para classificação NLP...');
@@ -1570,7 +1604,7 @@ function fallbackClassificacao(texto: string): IntencaoClassificada {
       confianca: 0.8,
       entidades: {},
       explicacao: 'Saudação detectada',
-      resposta_conversacional: 'Olá! 👋 Como posso ajudar?',
+      resposta_conversacional: 'Coé! 🙋🏻‍♀️\n\nO que manda hoje?',
       comando_original: texto
     };
   }

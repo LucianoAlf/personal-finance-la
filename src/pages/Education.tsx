@@ -2,9 +2,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { GraduationCap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-import { EducationAnaMentorshipCard } from '@/components/education/EducationAnaMentorshipCard';
-import { InvestorProfileQuestionnaire } from '@/components/education/InvestorProfileQuestionnaire';
 import { EducationAchievementsSection } from '@/components/education/EducationAchievementsSection';
+import { EducationAnaMentorshipCard } from '@/components/education/EducationAnaMentorshipCard';
 import { EducationDailyTipCard } from '@/components/education/EducationDailyTipCard';
 import { EducationEmptyState } from '@/components/education/EducationEmptyState';
 import { EducationGlossarySection } from '@/components/education/EducationGlossarySection';
@@ -12,6 +11,7 @@ import { EducationHero } from '@/components/education/EducationHero';
 import { EducationInvestorProfileCard } from '@/components/education/EducationInvestorProfileCard';
 import { EducationJourneySection } from '@/components/education/EducationJourneySection';
 import { EducationProgressSection } from '@/components/education/EducationProgressSection';
+import { InvestorProfileQuestionnaire } from '@/components/education/InvestorProfileQuestionnaire';
 import { Header } from '@/components/layout/Header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,22 +19,22 @@ import { useEducationIntelligence } from '@/hooks/useEducationIntelligence';
 import { useGamification } from '@/hooks/useGamification';
 import { useInvestorProfile } from '@/hooks/useInvestorProfile';
 import { useToast } from '@/hooks/use-toast';
+import { getEducationQualityLabel } from '@/utils/education/intelligence-contract';
 import {
   buildAnaMentorshipPresentation,
   buildDailyTipPresentation,
   buildEducationHeroSubtitle,
-  getLessonUrl,
   buildJourneyRows,
-  hasResolvedTrustedInvestorProfile,
   buildProgressSummaryLines,
+  getLessonUrl,
+  hasResolvedTrustedInvestorProfile,
   shouldPromptInvestorProfileReview,
   shouldShowEducationFirstRunEmptyState,
-  shouldShowInvestorProfileQuestionnaire,
   shouldShowGenericRecommendationNotice,
+  shouldShowInvestorProfileQuestionnaire,
   type EducationCatalogLesson,
   type LessonProgressStatus,
 } from '@/utils/education/view-model';
-import { getEducationQualityLabel } from '@/utils/education/intelligence-contract';
 
 export function Education() {
   const navigate = useNavigate();
@@ -57,34 +57,42 @@ export function Education() {
 
   const trackTitleBySlug = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const t of catalog?.tracks ?? []) {
-      map[t.slug] = t.title;
+    for (const track of catalog?.tracks ?? []) {
+      map[track.slug] = track.title;
     }
     return map;
   }, [catalog?.tracks]);
 
   const progressByLessonId = useMemo(() => {
-    const m = new Map<string, LessonProgressStatus>();
+    const progressMap = new Map<string, LessonProgressStatus>();
     for (const row of catalog?.progressRows ?? []) {
-      m.set(row.lessonId, row.status);
+      progressMap.set(row.lessonId, row.status);
     }
-    return m;
+    return progressMap;
   }, [catalog?.progressRows]);
 
   const lessonsByModuleId = useMemo(() => {
-    const acc: Record<string, EducationCatalogLesson[]> = {};
+    const lessonsMap: Record<string, EducationCatalogLesson[]> = {};
+
     for (const lesson of catalog?.lessons ?? []) {
-      if (!acc[lesson.moduleId]) acc[lesson.moduleId] = [];
-      acc[lesson.moduleId].push(lesson);
+      if (!lessonsMap[lesson.moduleId]) {
+        lessonsMap[lesson.moduleId] = [];
+      }
+      lessonsMap[lesson.moduleId].push(lesson);
     }
-    for (const k of Object.keys(acc)) {
-      acc[k].sort((a, b) => a.sortOrder - b.sortOrder);
+
+    for (const moduleId of Object.keys(lessonsMap)) {
+      lessonsMap[moduleId].sort((a, b) => a.sortOrder - b.sortOrder);
     }
-    return acc;
+
+    return lessonsMap;
   }, [catalog?.lessons]);
 
   const journeyRows = useMemo(() => {
-    if (!context || !catalog) return [];
+    if (!context || !catalog) {
+      return [];
+    }
+
     return buildJourneyRows({
       context,
       tracks: catalog.tracks,
@@ -92,32 +100,42 @@ export function Education() {
       lessons: catalog.lessons,
       progressByLessonId,
     });
-  }, [context, catalog, progressByLessonId]);
+  }, [catalog, context, progressByLessonId]);
 
   const heroSubtitle = useMemo(() => {
-    if (!context) return '';
+    if (!context) {
+      return '';
+    }
     return buildEducationHeroSubtitle(context, trackTitleBySlug);
   }, [context, trackTitleBySlug]);
 
   const progressLines = useMemo(() => {
-    if (!context) return [];
+    if (!context) {
+      return [];
+    }
     return buildProgressSummaryLines(context);
   }, [context]);
 
   const tipPresentation = useMemo(() => {
-    if (!context) return { narrativeText: null as string | null, deterministicReason: null as string | null };
-    const p = buildDailyTipPresentation(context);
+    if (!context) {
+      return { narrativeText: null as string | null, deterministicReason: null as string | null };
+    }
+
+    const presentation = buildDailyTipPresentation(context);
     return {
-      narrativeText: p?.narrativeText ?? null,
-      deterministicReason: p?.deterministicReason ?? null,
+      narrativeText: presentation?.narrativeText ?? null,
+      deterministicReason: presentation?.deterministicReason ?? null,
     };
   }, [context]);
 
   const nextLessonTitle = useMemo(() => {
-    const id = context?.progress?.nextLessonId;
-    if (!id || !catalog?.lessons) return null;
-    return catalog.lessons.find((l) => l.id === id)?.title ?? null;
-  }, [context?.progress?.nextLessonId, catalog?.lessons]);
+    const nextLessonId = context?.progress?.nextLessonId;
+    if (!nextLessonId || !catalog?.lessons) {
+      return null;
+    }
+
+    return catalog.lessons.find((lesson) => lesson.id === nextLessonId)?.title ?? null;
+  }, [catalog?.lessons, context?.progress?.nextLessonId]);
 
   const reviewInvestorProfile = useMemo(
     () =>
@@ -151,7 +169,10 @@ export function Education() {
   );
 
   const anaMentorshipPresentation = useMemo(() => {
-    if (!context) return null;
+    if (!context) {
+      return null;
+    }
+
     return buildAnaMentorshipPresentation(context, trackTitleBySlug, nextLessonTitle);
   }, [context, nextLessonTitle, trackTitleBySlug]);
 
@@ -164,13 +185,13 @@ export function Education() {
   const showGenericNotice = Boolean(context && shouldShowGenericRecommendationNotice(context));
 
   const wrapLessonAction = useCallback(
-    (fn: (id: string) => Promise<void>) => async (lessonId: string) => {
+    (fn: (lessonId: string) => Promise<void>) => async (lessonId: string) => {
       try {
         await fn(lessonId);
-      } catch (e) {
+      } catch (err) {
         toast({
           title: 'Não foi possível atualizar o progresso',
-          description: e instanceof Error ? e.message : 'Tente novamente.',
+          description: err instanceof Error ? err.message : 'Tente novamente.',
           variant: 'destructive',
         });
       }
@@ -178,39 +199,35 @@ export function Education() {
     [toast],
   );
 
-  const handleStartLesson = useMemo(
-    () => wrapLessonAction(startLesson),
-    [startLesson, wrapLessonAction],
-  );
-
-  const handleCompleteLesson = useMemo(
-    () => wrapLessonAction(completeLesson),
-    [completeLesson, wrapLessonAction],
-  );
+  const handleStartLesson = useMemo(() => wrapLessonAction(startLesson), [startLesson, wrapLessonAction]);
+  const handleCompleteLesson = useMemo(() => wrapLessonAction(completeLesson), [completeLesson, wrapLessonAction]);
 
   const handleContinueSuggested = useCallback(async () => {
-    const id = context?.progress?.nextLessonId;
-    if (!id) return;
-    await handleStartLesson(id);
-    navigate(getLessonUrl(id));
+    const nextLessonId = context?.progress?.nextLessonId;
+    if (!nextLessonId) {
+      return;
+    }
+
+    await handleStartLesson(nextLessonId);
+    navigate(getLessonUrl(nextLessonId));
   }, [context?.progress?.nextLessonId, handleStartLesson, navigate]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background">
       <Header
         title="Educação Financeira"
         subtitle="Aprenda a cuidar melhor do seu dinheiro"
         icon={<GraduationCap size={24} />}
       />
 
-      <div className="p-6 space-y-6">
-        {error && (
+      <div className="space-y-6 p-6">
+        {error ? (
           <Alert variant="destructive">
             <AlertDescription>
               Não foi possível carregar o hub educacional. Verifique sua conexão e tente novamente.
             </AlertDescription>
           </Alert>
-        )}
+        ) : null}
 
         <EducationHero
           loading={pageLoading}
@@ -219,7 +236,7 @@ export function Education() {
           streakDays={gamification.profile?.current_streak ?? null}
         />
 
-        {showEmptyState && <EducationEmptyState />}
+        {showEmptyState ? <EducationEmptyState /> : null}
 
         <EducationInvestorProfileCard
           loading={pageLoading || investorProfileLoading}

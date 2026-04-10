@@ -99,3 +99,72 @@ export function pareceMetodoPagamento(mensagem: string): boolean {
   
   return false;
 }
+
+export interface ParsedPaymentMethodReply {
+  method: 'credit' | 'debit' | 'pix' | 'cash';
+  label: string;
+  bankAlias: string | null;
+}
+
+function normalizeReply(mensagem: string): string {
+  return mensagem
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[.,!?]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function parsePaymentMethodReply(mensagem: string): ParsedPaymentMethodReply | null {
+  const texto = normalizeReply(mensagem);
+  if (!texto) return null;
+
+  let method: ParsedPaymentMethodReply['method'] | null = null;
+  let label: string | null = null;
+
+  if (texto === '1' || texto.startsWith('1 ')) {
+    method = 'credit';
+    label = 'Cartão de crédito';
+  } else if (texto === '2' || texto.startsWith('2 ')) {
+    method = 'debit';
+    label = 'Débito';
+  } else if (texto === '3' || texto.startsWith('3 ')) {
+    method = 'pix';
+    label = 'PIX';
+  } else if (texto === '4' || texto.startsWith('4 ')) {
+    method = 'cash';
+    label = 'Dinheiro';
+  } else if (texto.includes('credito') || texto.includes('cartao')) {
+    method = 'credit';
+    label = 'Cartão de crédito';
+  } else if (texto.includes('debito')) {
+    method = 'debit';
+    label = 'Débito';
+  } else if (texto.includes('pix')) {
+    method = 'pix';
+    label = 'PIX';
+  } else if (texto.includes('dinheiro') || texto.includes('cash')) {
+    method = 'cash';
+    label = 'Dinheiro';
+  }
+
+  if (!method || !label) return null;
+
+  let bankAlias: string | null = null;
+  if (/\bnubank\b|\bnu\b|\broxinho\b|\broxo\b/.test(texto)) {
+    bankAlias = 'nubank';
+  } else if (/\bita[uú]\b/.test(texto)) {
+    bankAlias = 'itau';
+  } else if (/\binter\b/.test(texto)) {
+    bankAlias = 'inter';
+  } else if (/\bc6\b/.test(texto)) {
+    bankAlias = 'c6';
+  } else if (/\bsantander\b/.test(texto)) {
+    bankAlias = 'santander';
+  } else if (/\bbradesco\b/.test(texto)) {
+    bankAlias = 'bradesco';
+  }
+
+  return { method, label, bankAlias };
+}

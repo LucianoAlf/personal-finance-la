@@ -1,29 +1,34 @@
-import { Info, AlertTriangle, Lightbulb, BookOpen, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, BookOpen, Info, Lightbulb, type LucideIcon } from 'lucide-react';
 
-const VARIANT_CONFIG: Record<string, { bg: string; border: string; icon: LucideIcon; iconColor: string }> = {
+import { cn } from '@/lib/utils';
+
+const VARIANT_CONFIG: Record<
+  string,
+  {
+    accent: string;
+    icon: LucideIcon;
+    iconClassName: string;
+  }
+> = {
   info: {
-    bg: 'bg-blue-50 dark:bg-blue-950/30',
-    border: 'border-blue-200 dark:border-blue-800',
+    accent: 'border-info-border/80',
     icon: Info,
-    iconColor: 'text-blue-600 dark:text-blue-400',
+    iconClassName: 'text-info',
   },
   warning: {
-    bg: 'bg-amber-50 dark:bg-amber-950/30',
-    border: 'border-amber-200 dark:border-amber-800',
+    accent: 'border-warning-border/80',
     icon: AlertTriangle,
-    iconColor: 'text-amber-600 dark:text-amber-400',
+    iconClassName: 'text-warning',
   },
   tip: {
-    bg: 'bg-emerald-50 dark:bg-emerald-950/30',
-    border: 'border-emerald-200 dark:border-emerald-800',
+    accent: 'border-success-border/80',
     icon: Lightbulb,
-    iconColor: 'text-emerald-600 dark:text-emerald-400',
+    iconClassName: 'text-success',
   },
   example: {
-    bg: 'bg-violet-50 dark:bg-violet-950/30',
-    border: 'border-violet-200 dark:border-violet-800',
+    accent: 'border-violet-500/30',
     icon: BookOpen,
-    iconColor: 'text-violet-600 dark:text-violet-400',
+    iconClassName: 'text-violet-300',
   },
 };
 
@@ -38,12 +43,19 @@ export function LessonCallout({ variant, title, text }: LessonCalloutProps) {
   const Icon = config.icon;
 
   return (
-    <div className={`rounded-lg border-l-4 p-4 ${config.bg} ${config.border}`}>
-      <div className="flex items-center gap-2 mb-2">
-        <Icon className={`h-5 w-5 shrink-0 ${config.iconColor}`} />
-        <span className="font-semibold text-sm">{title}</span>
+    <div
+      className={cn(
+        'rounded-[22px] border p-4 bg-surface-elevated/40 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]',
+        config.accent,
+      )}
+    >
+      <div className="mb-2 flex items-center gap-2">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-[14px] border border-border/60 bg-surface-elevated/60">
+          <Icon className={cn('h-4.5 w-4.5 shrink-0', config.iconClassName)} />
+        </span>
+        <span className="text-sm font-semibold tracking-tight text-foreground">{title}</span>
       </div>
-      <p className="text-sm leading-relaxed text-foreground/80 pl-7">{text}</p>
+      <p className="pl-11 text-sm leading-relaxed text-muted-foreground">{text}</p>
     </div>
   );
 }

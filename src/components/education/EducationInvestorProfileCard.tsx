@@ -1,9 +1,16 @@
 import { AlertTriangle, RefreshCcw, Shield } from 'lucide-react';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  educationBodyClassName,
+  educationPanelClassName,
+  educationShellClassName,
+  educationTonePanelClassName,
+} from '@/components/education/education-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import type { EducationInvestorProfileSection } from '@/utils/education/intelligence-contract';
 
 interface EducationInvestorProfileCardProps {
@@ -31,13 +38,14 @@ export function EducationInvestorProfileCard({
 }: EducationInvestorProfileCardProps) {
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-48" />
+      <Card className={educationShellClassName}>
+        <CardHeader className="space-y-4">
+          <Skeleton className="h-7 w-60" />
+          <Skeleton className="h-4 w-full max-w-xl" />
         </CardHeader>
-        <CardContent className="space-y-2">
-          <Skeleton className="h-4 w-full" />
-          <Skeleton className="h-4 w-3/4" />
+        <CardContent className="space-y-3">
+          <Skeleton className="h-10 w-full rounded-[18px]" />
+          <Skeleton className="h-16 w-full rounded-[20px]" />
         </CardContent>
       </Card>
     );
@@ -47,55 +55,85 @@ export function EducationInvestorProfileCard({
     return null;
   }
 
-  const label = section.profileKey ? profileKeyLabels[section.profileKey] ?? section.profileKey : null;
+  const profileLabel = section.profileKey ? profileKeyLabels[section.profileKey] ?? section.profileKey : null;
 
   return (
-    <Card className="border-l-4 border-emerald-600">
-      <CardHeader className="space-y-3 pb-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-center gap-2">
-            <Shield className="text-emerald-600" size={22} aria-hidden />
-            <CardTitle className="text-base">Perfil de investidor</CardTitle>
+    <Card className={educationShellClassName}>
+      <CardHeader className="space-y-4 pb-3">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-[18px] border border-emerald-500/20 bg-emerald-500/10 text-emerald-300">
+                <Shield className="h-5 w-5" aria-hidden />
+              </span>
+              <div>
+                <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
+                  Perfil de investidor
+                </CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Adequação de risco e jornada educacional calibradas para o seu momento atual.
+                </p>
+              </div>
+            </div>
           </div>
+
           {onOpenQuestionnaire ? (
-            <Button type="button" size="sm" variant={reviewRequired ? 'default' : 'outline'} onClick={onOpenQuestionnaire}>
+            <Button
+              type="button"
+              size="sm"
+              variant={reviewRequired ? 'default' : 'outline'}
+              onClick={onOpenQuestionnaire}
+            >
               <RefreshCcw className="mr-2 h-4 w-4" />
               {reviewRequired ? 'Atualizar perfil' : 'Refazer perfil'}
             </Button>
           ) : null}
         </div>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm text-gray-700">
-        {section.needsSuitabilityQuestionnaire && (
-          <p>
-            Complete o questionário para alinhar trilhas educacionais e alertas ao seu perfil de risco. Sem isso,
-            parte da personalização permanece genérica.
-          </p>
-        )}
+
+      <CardContent className="space-y-4">
         {reviewRequired ? (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-amber-900">
-            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0" aria-hidden />
-            <p className="text-xs leading-relaxed">
-              Seu perfil pode estar desatualizado. Vale revisar o questionário para manter adequação e mentoria coerentes
-              com seu momento atual.
+          <div className={cn(educationTonePanelClassName('warning'), 'flex gap-3 p-4')}>
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
+            <p className="text-sm leading-relaxed text-foreground/90">
+              Seu perfil pode estar desatualizado. Vale revisar o questionário para manter a adequação e a mentoria
+              coerentes com seu momento atual.
             </p>
           </div>
         ) : null}
-        {label && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-gray-600">Perfil estimado:</span>
-            <Badge variant="secondary">{label}</Badge>
-            {questionnaireVersion ? (
-              <Badge variant="outline">Versão {questionnaireVersion}</Badge>
+
+        <div className={cn(educationPanelClassName, 'grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_220px]')}>
+          <div className="space-y-3">
+            {section.needsSuitabilityQuestionnaire ? (
+              <p className={educationBodyClassName}>
+                Complete o questionário para alinhar trilhas educacionais e alertas ao seu perfil de risco. Sem isso,
+                parte da personalização permanece genérica.
+              </p>
             ) : null}
+
+            {profileLabel ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">Perfil estimado:</span>
+                <Badge variant="secondary">{profileLabel}</Badge>
+                {questionnaireVersion ? <Badge variant="outline">Versão {questionnaireVersion}</Badge> : null}
+              </div>
+            ) : null}
+
+            {section.summary ? <p className={educationBodyClassName}>{section.summary}</p> : null}
           </div>
-        )}
-        {section.summary && <p className="leading-relaxed">{section.summary}</p>}
-        {section.lastAssessmentAt && (
-          <p className="text-xs text-gray-500">
-            Última avaliação: {new Date(section.lastAssessmentAt).toLocaleDateString('pt-BR')}
-          </p>
-        )}
+
+          <div className={cn(educationTonePanelClassName('info'), 'p-4')}>
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-info">Confiança do perfil</p>
+            <p className="mt-2 text-sm leading-relaxed text-foreground/90">
+              {section.lastAssessmentAt
+                ? `Última avaliação: ${new Date(section.lastAssessmentAt).toLocaleDateString('pt-BR')}`
+                : 'Perfil sem data consolidada de avaliação.'}
+            </p>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Refaça a avaliação quando sua tolerância a risco, horizonte ou experiência mudarem.
+            </p>
+          </div>
+        </div>
       </CardContent>
     </Card>
   );

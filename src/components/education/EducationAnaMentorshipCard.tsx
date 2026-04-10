@@ -1,10 +1,17 @@
 import { Link } from 'react-router-dom';
 import { ArrowRight, Brain, Compass, Sparkles, TriangleAlert } from 'lucide-react';
 
+import {
+  educationBodyClassName,
+  educationPanelClassName,
+  educationShellClassName,
+  educationTonePanelClassName,
+} from '@/components/education/education-shell';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import { getLessonUrl } from '@/utils/education/view-model';
 import type { EducationAnaMentorshipPresentation } from '@/utils/education/view-model';
 
@@ -23,16 +30,16 @@ export function EducationAnaMentorshipCard({
 }: EducationAnaMentorshipCardProps) {
   if (loading) {
     return (
-      <Card className="border-violet-200 bg-gradient-to-br from-violet-50 to-white">
-        <CardHeader className="space-y-3">
-          <Skeleton className="h-6 w-56" />
-          <Skeleton className="h-4 w-40" />
+      <Card className={educationShellClassName}>
+        <CardHeader className="space-y-4">
+          <Skeleton className="h-7 w-64" />
+          <Skeleton className="h-4 w-full max-w-xl" />
         </CardHeader>
         <CardContent className="space-y-4">
-          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-28 w-full rounded-[24px]" />
           <div className="grid gap-4 lg:grid-cols-2">
-            <Skeleton className="h-24 w-full" />
-            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-24 w-full rounded-[20px]" />
+            <Skeleton className="h-24 w-full rounded-[20px]" />
           </div>
         </CardContent>
       </Card>
@@ -44,69 +51,93 @@ export function EducationAnaMentorshipCard({
   }
 
   return (
-    <Card className="border-violet-200 bg-gradient-to-br from-violet-50 via-white to-fuchsia-50 shadow-sm">
-      <CardHeader className="space-y-3">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Brain className="h-5 w-5 text-violet-600" aria-hidden />
-              <CardTitle className="text-lg">Ana Clara — mentoria educacional</CardTitle>
+    <Card className={educationShellClassName}>
+      <CardHeader className="space-y-4 pb-3">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-11 w-11 items-center justify-center rounded-[18px] border border-violet-500/20 bg-violet-500/10 text-violet-300">
+                <Brain className="h-5 w-5" aria-hidden />
+              </span>
+              <div>
+                <CardTitle className="text-lg font-semibold tracking-tight text-foreground">
+                  Ana Clara — mentoria educacional
+                </CardTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Uma leitura guiada do seu momento atual, usando o contexto da trilha e os sinais do app.
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Uma leitura guiada do seu momento atual, usando o contexto da trilha e os sinais do app.
-            </p>
           </div>
+
           {qualityLabel ? <Badge variant="outline">{qualityLabel}</Badge> : null}
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-5">
-        <div className="rounded-xl border border-violet-200 bg-white/90 p-4">
-          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-violet-700">
+      <CardContent className="space-y-4">
+        <div className={cn(educationTonePanelClassName('violet'), 'p-5')}>
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-violet-300">
             <Compass className="h-4 w-4" aria-hidden />
             Foco da semana
           </div>
-          <h3 className="mt-2 text-xl font-semibold text-slate-900">{presentation.focusTitle}</h3>
-          <p className="mt-3 text-sm leading-relaxed text-slate-700">{presentation.reasonWhy}</p>
+          <h3 className="mt-3 text-2xl font-semibold tracking-tight text-foreground">{presentation.focusTitle}</h3>
+          <p className={cn(educationBodyClassName, 'mt-3 text-base')}>{presentation.reasonWhy}</p>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
-              <TriangleAlert className="h-4 w-4 text-amber-600" aria-hidden />
+          <div className={cn(educationPanelClassName, 'p-4')}>
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <TriangleAlert className="h-4 w-4 text-warning" aria-hidden />
               Por que a Ana escolheu isso
             </div>
-            <ul className="mt-3 space-y-2 text-sm text-slate-700">
+            <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
               {presentation.attentionItems.length > 0 ? (
-                presentation.attentionItems.map((item) => <li key={item}>• {item}</li>)
+                presentation.attentionItems.map((item) => (
+                  <li key={item} className="flex gap-3">
+                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-warning/80" />
+                    <span>{item}</span>
+                  </li>
+                ))
               ) : (
-                <li>• Sem alertas adicionais. Continue sustentando o ritmo atual.</li>
+                <li className="flex gap-3">
+                  <span className="mt-2 h-1.5 w-1.5 rounded-full bg-success/80" />
+                  <span>Sem alertas adicionais. Continue sustentando o ritmo atual.</span>
+                </li>
               )}
             </ul>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-center gap-2 text-sm font-medium text-slate-900">
-              <Sparkles className="h-4 w-4 text-violet-600" aria-hidden />
+          <div className={cn(educationPanelClassName, 'p-4')}>
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Sparkles className="h-4 w-4 text-violet-300" aria-hidden />
               Próximos passos no app
             </div>
-            <ul className="mt-3 space-y-2 text-sm text-slate-700">
+            <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
               {presentation.recommendationItems.length > 0 ? (
-                presentation.recommendationItems.map((item) => <li key={item}>• {item}</li>)
+                presentation.recommendationItems.map((item) => (
+                  <li key={item} className="flex gap-3">
+                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary/70" />
+                    <span>{item}</span>
+                  </li>
+                ))
               ) : (
-                <li>• Continue na próxima aula sugerida para aprofundar esse foco.</li>
+                <li className="flex gap-3">
+                  <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary/70" />
+                  <span>Continue na próxima aula sugerida para aprofundar esse foco.</span>
+                </li>
               )}
             </ul>
           </div>
         </div>
 
-        <div className="flex flex-col gap-3 rounded-xl border border-dashed border-violet-300 bg-white/80 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className={cn(educationPanelClassName, 'flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between')}>
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-violet-700">Seu próximo passo no app</p>
-            <p className="mt-1 text-sm font-medium text-slate-900">
+            <p className="text-xs font-medium uppercase tracking-[0.18em] text-violet-300">Seu próximo passo no app</p>
+            <p className="mt-2 text-sm font-medium text-foreground">
               {presentation.nextStepTitle ?? 'Abra a próxima aula recomendada para continuar a trilha.'}
             </p>
           </div>
+
           {nextLessonId ? (
             <Button asChild>
               <Link to={getLessonUrl(nextLessonId)}>

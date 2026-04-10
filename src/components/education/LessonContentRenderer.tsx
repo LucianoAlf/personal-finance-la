@@ -1,12 +1,19 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Star, BookOpen, ArrowRight } from 'lucide-react';
+import { ArrowRight, BookOpen, Star } from 'lucide-react';
 
+import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import type { ContentBlock } from '@/utils/education/content-blocks';
 import { getLessonUrl } from '@/utils/education/lesson-navigation';
+import {
+  educationBodyClassName,
+  educationShellClassName,
+  educationSubtlePanelClassName,
+  educationTonePanelClassName,
+} from './education-shell';
 import { LessonCallout } from './LessonCallout';
 import { LessonChecklist } from './LessonChecklist';
 import { LessonExercise } from './LessonExercise';
@@ -20,9 +27,9 @@ function renderBlock(block: ContentBlock) {
   switch (block.type) {
     case 'heading':
       return block.level === 2 ? (
-        <h2 className="text-xl font-bold mt-8 mb-3">{block.text}</h2>
+        <h2 className="mb-3 mt-8 text-xl font-semibold tracking-tight text-foreground">{block.text}</h2>
       ) : (
-        <h3 className="text-lg font-semibold mt-6 mb-2">{block.text}</h3>
+        <h3 className="mb-2 mt-6 text-lg font-semibold tracking-tight text-foreground">{block.text}</h3>
       );
 
     case 'paragraph':
@@ -33,9 +40,9 @@ function renderBlock(block: ContentBlock) {
 
     case 'key_point':
       return (
-        <div className="bg-primary/5 border-l-4 border-primary p-4 rounded-r-lg flex items-start gap-3">
-          <Star className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-          <p className="text-sm leading-relaxed font-medium">{block.text}</p>
+        <div className={cn(educationTonePanelClassName('violet'), 'flex items-start gap-3 rounded-[22px] px-4 py-4')}>
+          <Star className="mt-0.5 h-5 w-5 shrink-0 text-violet-100" />
+          <p className="text-sm font-medium leading-relaxed text-violet-50">{block.text}</p>
         </div>
       );
 
@@ -47,8 +54,13 @@ function renderBlock(block: ContentBlock) {
 
     case 'glossary_link':
       return (
-        <span className="inline-flex items-center gap-1.5 text-sm bg-muted/50 rounded-md px-2.5 py-1.5 border border-border/50">
-          <BookOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span
+          className={cn(
+            educationSubtlePanelClassName,
+            'inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm',
+          )}
+        >
+          <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           <span className="text-foreground/80">{block.inline_definition}</span>
         </span>
       );
@@ -61,17 +73,17 @@ function renderBlock(block: ContentBlock) {
 
     case 'next_step':
       return (
-        <Card className="bg-primary/5 border-primary/20">
+        <Card className={educationShellClassName}>
           <CardContent className="flex items-center justify-between gap-4 p-4">
-            <p className="text-sm leading-relaxed">{block.text}</p>
-            {block.lesson_slug && (
-              <Button variant="outline" size="sm" asChild className="gap-1.5 shrink-0">
+            <p className={cn(educationBodyClassName, 'text-sm text-foreground/90')}>{block.text}</p>
+            {block.lesson_slug ? (
+              <Button variant="outline" size="sm" asChild className="shrink-0 gap-1.5">
                 <Link to={getLessonUrl(block.lesson_slug)}>
                   Próxima
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </Button>
-            )}
+            ) : null}
           </CardContent>
         </Card>
       );
@@ -84,9 +96,9 @@ function renderBlock(block: ContentBlock) {
 export function LessonContentRenderer({ blocks }: LessonContentRendererProps) {
   if (blocks.length === 0) {
     return (
-      <p className="text-muted-foreground text-center py-8">
-        Conteúdo desta lição será exibido aqui.
-      </p>
+      <div className={cn(educationSubtlePanelClassName, 'px-5 py-8 text-center')}>
+        <p className={educationBodyClassName}>Conteúdo desta lição será exibido aqui.</p>
+      </div>
     );
   }
 

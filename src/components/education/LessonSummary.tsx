@@ -1,6 +1,8 @@
-import { GraduationCap, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, GraduationCap } from 'lucide-react';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { educationShellClassName, educationTonePanelClassName } from './education-shell';
 
 interface LessonSummaryProps {
   points: string[];
@@ -8,19 +10,21 @@ interface LessonSummaryProps {
 
 export function LessonSummary({ points }: LessonSummaryProps) {
   return (
-    <Card className="relative overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary to-primary/60" />
-      <CardHeader className="pt-8 pb-3">
-        <CardTitle className="text-base font-bold flex items-center gap-2">
-          <GraduationCap className="h-5 w-5 text-primary shrink-0" />
+    <Card className={educationShellClassName}>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base font-bold">
+          <span className={cn(educationTonePanelClassName('violet'), 'flex h-9 w-9 items-center justify-center rounded-[14px]')}>
+            <GraduationCap className="h-4.5 w-4.5 shrink-0 text-violet-100" />
+          </span>
           O que você aprendeu
         </CardTitle>
       </CardHeader>
+
       <CardContent>
         <ul className="space-y-2.5">
-          {points.map((point, i) => (
-            <li key={i} className="flex items-start gap-2.5 text-sm leading-relaxed">
-              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+          {points.map((point, index) => (
+            <li key={index} className="flex items-start gap-2.5 text-sm leading-relaxed">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
               <span>{point}</span>
             </li>
           ))}

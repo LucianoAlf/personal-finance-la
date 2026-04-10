@@ -5,8 +5,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import type { EducationGlossaryTermRow } from '@/hooks/useEducationIntelligence';
 import { filterGlossaryTermsForSearch } from '@/utils/education/view-model';
+import {
+  educationBodyClassName,
+  educationHeadingClassName,
+  educationShellClassName,
+  educationSubtlePanelClassName,
+} from './education-shell';
 
 interface EducationGlossarySectionProps {
   loading: boolean;
@@ -36,7 +43,7 @@ export function EducationGlossarySection({ loading, terms }: EducationGlossarySe
 
   if (loading) {
     return (
-      <Card>
+      <Card className={educationShellClassName}>
         <CardHeader>
           <Skeleton className="h-6 w-40" />
         </CardHeader>
@@ -53,13 +60,17 @@ export function EducationGlossarySection({ loading, terms }: EducationGlossarySe
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Glossário</CardTitle>
+    <Card className={educationShellClassName}>
+      <CardHeader className="space-y-2">
+        <CardTitle className={educationHeadingClassName}>Glossário</CardTitle>
+        <p className={educationBodyClassName}>
+          Consulte termos do universo financeiro e entenda os conceitos mais citados ao longo das aulas.
+        </p>
       </CardHeader>
+
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="education-glossary-search" className="flex items-center gap-2">
+          <Label htmlFor="education-glossary-search" className="flex items-center gap-2 text-sm text-foreground">
             <Search size={16} aria-hidden />
             Buscar termo
           </Label>
@@ -71,18 +82,22 @@ export function EducationGlossarySection({ loading, terms }: EducationGlossarySe
             autoComplete="off"
           />
         </div>
-        <ul className="space-y-4 max-h-[420px] overflow-y-auto pr-1">
-          {rows.map((t) => (
-            <li key={t.slug} className="border-b border-gray-100 pb-4 last:border-0">
-              <p className="font-medium text-gray-900">{t.term}</p>
-              <p className="text-sm text-gray-700 mt-1">{t.short_definition}</p>
-              {t.extended_text && (
-                <p className="text-sm text-gray-600 mt-2 leading-relaxed">{t.extended_text}</p>
-              )}
+
+        <ul className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
+          {rows.map((term) => (
+            <li key={term.slug} className={cn(educationSubtlePanelClassName, 'px-4 py-4')}>
+              <p className="font-medium text-foreground">{term.term}</p>
+              <p className="mt-1 text-sm text-foreground/85">{term.short_definition}</p>
+              {term.extended_text ? (
+                <p className={cn(educationBodyClassName, 'mt-2')}>{term.extended_text}</p>
+              ) : null}
             </li>
           ))}
         </ul>
-        {rows.length === 0 && <p className="text-sm text-gray-500">Nenhum termo encontrado para esta busca.</p>}
+
+        {rows.length === 0 ? (
+          <p className={educationBodyClassName}>Nenhum termo encontrado para esta busca.</p>
+        ) : null}
       </CardContent>
     </Card>
   );

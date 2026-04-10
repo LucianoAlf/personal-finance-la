@@ -30,6 +30,14 @@ describe('calendar-intent-parser', () => {
       expect(isCalendarIntent('quero agendar uma consulta')).toBe(true);
     });
 
+    it('detects "o que eu tenho hoje" as an agenda lookup even without the word agenda', () => {
+      expect(isCalendarIntent('o que eu tenho hoje?')).toBe(true);
+    });
+
+    it('detects "o que tenho amanhã" as an agenda lookup even without the word agenda', () => {
+      expect(isCalendarIntent('o que tenho amanha?')).toBe(true);
+    });
+
     it('rejects unrelated messages', () => {
       expect(isCalendarIntent('gastei 50 no mercado')).toBe(false);
     });
@@ -96,6 +104,11 @@ describe('calendar-intent-parser', () => {
 
     it('parses list intent with "o que tenho"', () => {
       const result = parseCalendarIntent('o que tenho essa semana?');
+      expect(result.intent).toBe('list');
+    });
+
+    it('parses list intent with "o que eu tenho hoje"', () => {
+      const result = parseCalendarIntent('o que eu tenho hoje?');
       expect(result.intent).toBe('list');
     });
 

@@ -16,11 +16,13 @@ import {
   getAgendaSemanticChrome,
   calculateEventPosition,
   type EventPosition,
+  sortAgendaDayItems,
 } from './calendar-utils';
 import type { AgendaItem } from '@/types/calendar.types';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { AgendaHoverTooltip } from './AgendaHoverTooltip';
+import { AgendaSheetEventCard } from './AgendaSheetEventCard';
 
 interface WeekViewProps {
   anchor: Date;
@@ -220,9 +222,11 @@ export function WeekView({ anchor, items, isLoading, onItemClick, onEmptySlotCli
     if (!listSheetState) return [];
     const dayItems = getItemsForDay(items, listSheetState.day);
     const itemMap = new Map(dayItems.map((item) => [item.dedup_key, item]));
-    return listSheetState.itemKeys
+    return sortAgendaDayItems(
+      listSheetState.itemKeys
       .map((itemKey) => itemMap.get(itemKey))
-      .filter((item): item is AgendaItem => Boolean(item));
+      .filter((item): item is AgendaItem => Boolean(item)),
+    );
   }, [listSheetState, items]);
 
   return (
@@ -497,35 +501,7 @@ function WeekAllDayChip({ item, onClick }: { item: AgendaItem; onClick: (i: Agen
 }
 
 function WeekSheetEventCard({ item, onClick }: { item: AgendaItem; onClick: (i: AgendaItem) => void }) {
-  const chrome = getAgendaSemanticChrome(item.badge);
-  const presentation = getAgendaItemPresentation(item);
-  const timeLabel = presentation.allDay ? null : format(parseISO(presentation.startAt), 'HH:mm');
-
-  return (
-    <AgendaHoverTooltip item={item}>
-      <button
-        type="button"
-        data-testid={`week-sheet-item-${item.dedup_key}`}
-        onClick={() => onClick(item)}
-        className="group relative w-full shrink-0 overflow-hidden rounded-xl border border-border/40 px-4 py-3 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all duration-200 hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:translate-y-[-1px]"
-        style={{
-          backgroundColor: chrome.backgroundColor,
-          borderColor: chrome.borderColor,
-        }}
-      >
-        <div
-          className="absolute left-0 top-0 h-full w-1 rounded-l-xl"
-          style={{ backgroundColor: chrome.accentColor }}
-        />
-        <div className="flex items-start justify-between gap-3 pl-3">
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{item.title}</span>
-          {timeLabel ? (
-            <span className="shrink-0 tabular-nums text-xs text-muted-foreground">{timeLabel}</span>
-          ) : null}
-        </div>
-      </button>
-    </AgendaHoverTooltip>
-  );
+  return <AgendaSheetEventCard item={item} onClick={onClick} testIdPrefix="week-sheet" />;
 }
 
 function WeekTimedOverflowBlock({

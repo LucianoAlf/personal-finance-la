@@ -24,7 +24,7 @@ export const reportsChartTooltipProps: {
   contentStyle: CSSProperties;
   labelStyle: CSSProperties;
   itemStyle: CSSProperties;
-  cursor: SVGProps<SVGElement>;
+  cursor: boolean;
 } = {
   contentStyle: {
     borderRadius: 18,
@@ -43,10 +43,7 @@ export const reportsChartTooltipProps: {
     color: 'rgb(226, 232, 240)',
     fontSize: 12,
   },
-  cursor: {
-    stroke: 'rgba(148, 163, 184, 0.24)',
-    strokeWidth: 1,
-  },
+  cursor: false,
 };
 
 export function ReportsSectionHeading({

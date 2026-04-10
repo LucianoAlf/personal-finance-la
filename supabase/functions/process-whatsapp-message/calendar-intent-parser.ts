@@ -39,6 +39,7 @@ const CREATE_PATTERNS = [
 
 const LIST_PATTERNS = [
   /\b(agenda|o que tenho|meus compromissos|minha agenda|compromissos)\b/i,
+  /\b(o que (eu )?tenho)\b.*\b(hoje|amanh[aã])\b/i,
   /\b(essa semana|esta semana|hoje|amanhã|próximos dias)\b.*\b(agenda|compromisso)/i,
 ];
 
@@ -85,6 +86,7 @@ const RECURRENCE_FIXED: Array<{
 export function isCalendarIntent(text: string): boolean {
   if (!text || text.trim().length === 0) return false;
   const lower = text.toLowerCase().trim();
+  if (/\b(o que (eu )?tenho)\b.*\b(hoje|amanh[aã])\b/i.test(lower)) return true;
   const hasCalendarKeyword = CALENDAR_KEYWORDS.some((kw) => lower.includes(kw));
   if (!hasCalendarKeyword) return false;
 

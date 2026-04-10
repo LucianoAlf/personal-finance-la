@@ -407,6 +407,45 @@ describe('WeekView', () => {
     expect(onItemClick).toHaveBeenCalledWith(expect.objectContaining({ dedup_key: 'ad-sheet-3' }));
   });
 
+  it('renders the same rich card content as month view inside the weekly side sheet', async () => {
+    const user = userEvent.setup();
+    render(
+      <WeekView
+        anchor={ANCHOR}
+        items={[
+          baseItem({
+            dedup_key: 'week-rich-sheet',
+            title: 'Colégio Isaac',
+            subtitle: 'Não esquecer',
+            display_end_at: null,
+            badge: 'external',
+            metadata: {
+              event_kind: 'personal',
+              priority: 'high',
+              sync_provider: 'ticktick',
+              sync_status: 'synced',
+              ticktick_tags: ['escola', 'importante'],
+            },
+          }),
+        ]}
+        isLoading={false}
+        onItemClick={() => {}}
+      />,
+    );
+
+    await user.click(screen.getByTestId('week-all-day-count-2026-04-09'));
+
+    const card = screen.getByTestId('week-sheet-item-week-rich-sheet');
+    expect(card.className).toContain('rounded-xl');
+    expect(screen.getByTestId('week-sheet-description-week-rich-sheet').textContent).toContain('Não esquecer');
+    expect(screen.getByTestId('week-sheet-chips-week-rich-sheet').textContent).toContain('Pessoal');
+    expect(screen.getByTestId('week-sheet-chips-week-rich-sheet').textContent).toContain('Prioridade: Alta');
+    expect(screen.getByTestId('week-sheet-chips-week-rich-sheet').textContent).toContain('TickTick - Sincronizado');
+    expect(screen.getByTestId('week-sheet-meta-week-rich-sheet').textContent).toContain('Dia inteiro');
+    expect(screen.getByTestId('week-sheet-details-week-rich-sheet').textContent).toContain('escola');
+    expect(screen.getByTestId('week-sheet-details-week-rich-sheet').textContent).toContain('importante');
+  });
+
   it('Task 10: calls onEmptySlotClick with date and hour for an empty hour cell', async () => {
     const user = userEvent.setup();
     const onEmptySlotClick = vi.fn();

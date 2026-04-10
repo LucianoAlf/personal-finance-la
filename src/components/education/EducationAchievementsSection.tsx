@@ -7,13 +7,21 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getAchievementById, TIER_CONFIG } from '@/config/achievements';
-import { formatCurrency } from '@/utils/formatters';
+import { cn } from '@/lib/utils';
 import type { BadgeProgress } from '@/types/database.types';
+import { formatCurrency } from '@/utils/formatters';
 import {
   buildGroupedGamificationAchievementsForEducation,
   type AchievementTierRoadmapEntry,
   type GroupedEducationAchievementTile,
 } from '@/utils/education/view-model';
+import {
+  educationBodyClassName,
+  educationHeadingClassName,
+  educationShellClassName,
+  educationSubtlePanelClassName,
+  educationTonePanelClassName,
+} from './education-shell';
 
 interface EducationAchievementsSectionProps {
   badges: BadgeProgress[];
@@ -26,6 +34,7 @@ function formatTarget(target: number, category: string): string {
   if (MONETARY_CATEGORIES.has(category) && target >= 100) {
     return formatCurrency(target);
   }
+
   return target.toLocaleString('pt-BR');
 }
 
@@ -47,30 +56,28 @@ function TierRoadmap({
         return (
           <div
             key={entry.tier}
-            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
+            className={cn(
+              'flex items-center gap-3 rounded-[16px] border px-3 py-2 text-sm',
               isUnlocked
-                ? 'bg-violet-50 text-violet-900'
+                ? 'border-violet-500/30 bg-violet-500/12 text-violet-100'
                 : isCurrent
-                  ? 'bg-slate-50 text-slate-700'
-                  : 'text-slate-500'
-            }`}
+                  ? 'border-border/70 bg-surface-elevated/35 text-foreground'
+                  : 'border-border/60 bg-surface-elevated/18 text-muted-foreground',
+            )}
           >
-            <div className="flex items-center gap-2 min-w-[72px]">
+            <div className="flex min-w-[72px] items-center gap-2">
               {isUnlocked ? (
-                <Trophy size={14} className="text-violet-600" aria-hidden />
+                <Trophy size={14} className="text-violet-300" aria-hidden />
               ) : (
-                <Lock size={14} className="text-slate-400" aria-hidden />
+                <Lock size={14} className="text-muted-foreground" aria-hidden />
               )}
               <span className="font-medium" style={{ color: TIER_CONFIG[entry.tier].color }}>
                 {entry.label}
               </span>
             </div>
-            <span className="flex-1 text-xs">
-              Meta: {formatTarget(entry.target, category)}
-            </span>
-            <span className="text-xs text-slate-400">
-              +{entry.xpReward} XP
-            </span>
+
+            <span className="flex-1 text-xs">Meta: {formatTarget(entry.target, category)}</span>
+            <span className="text-xs text-muted-foreground">+{entry.xpReward} XP</span>
           </div>
         );
       })}
@@ -88,52 +95,65 @@ function AchievementCard({ tile }: { tile: GroupedEducationAchievementTile }) {
   const isComplete = !tile.nextTier;
 
   return (
-    <Card className={`transition-shadow ${tile.currentTierUnlocked ? 'border-violet-300' : 'border-slate-200'} ${expanded ? 'shadow-md' : ''}`}>
-      <CardContent className="p-4 space-y-3">
+    <Card
+      className={cn(
+        educationShellClassName,
+        'transition-all',
+        tile.currentTierUnlocked ? 'border-violet-400/35' : 'border-border/70',
+        expanded && 'shadow-[0_18px_35px_rgba(2,6,23,0.22)]',
+      )}
+    >
+      <CardContent className="space-y-4 p-4">
         <button
           type="button"
-          className="flex items-start justify-between gap-3 w-full text-left"
+          className="flex w-full items-start justify-between gap-3 text-left"
           onClick={() => setExpanded((prev) => !prev)}
           aria-expanded={expanded}
         >
-          <div className="flex items-start gap-3 min-w-0">
+          <div className="flex min-w-0 items-start gap-3">
             {Icon ? (
-              <div className="rounded-lg bg-violet-50 p-2 shrink-0">
+              <div
+                className={cn(
+                  tile.currentTierUnlocked ? educationTonePanelClassName('violet') : educationSubtlePanelClassName,
+                  'shrink-0 rounded-[18px] p-2.5',
+                )}
+              >
                 <Icon
                   size={20}
-                  className={tile.currentTierUnlocked ? 'text-violet-600' : 'text-slate-400'}
+                  className={tile.currentTierUnlocked ? 'text-violet-100' : 'text-muted-foreground'}
                   aria-hidden
                 />
               </div>
             ) : null}
+
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900 leading-tight">{tile.name}</p>
-              <p className="text-xs text-gray-500 mt-1">{tile.description}</p>
+              <p className="text-sm font-semibold leading-tight text-foreground">{tile.name}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{tile.description}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+
+          <div className="flex shrink-0 items-center gap-2">
             {currentTierLabel ? (
-              <Badge variant="secondary" style={{ borderColor: TIER_CONFIG[tile.currentTier!].color }}>
+              <Badge
+                variant="secondary"
+                style={{ borderColor: TIER_CONFIG[tile.currentTier!].color }}
+              >
                 {currentTierLabel}
               </Badge>
             ) : (
               <Badge variant="outline">Em progresso</Badge>
             )}
             {expanded ? (
-              <ChevronUp size={16} className="text-slate-400" aria-hidden />
+              <ChevronUp size={16} className="text-muted-foreground" aria-hidden />
             ) : (
-              <ChevronDown size={16} className="text-slate-400" aria-hidden />
+              <ChevronDown size={16} className="text-muted-foreground" aria-hidden />
             )}
           </div>
         </button>
 
         <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-3 text-xs text-gray-600">
-            <span>
-              {isComplete
-                ? 'Todas as fases conquistadas'
-                : `Próximo: ${nextTierLabel}`}
-            </span>
+          <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>{isComplete ? 'Todas as fases conquistadas' : `Próximo: ${nextTierLabel}`}</span>
             <span className="tabular-nums">
               {formatTarget(tile.progress, tile.category)}/{formatTarget(tile.target, tile.category)}
             </span>
@@ -142,20 +162,26 @@ function AchievementCard({ tile }: { tile: GroupedEducationAchievementTile }) {
         </div>
 
         {!isComplete && tile.insight ? (
-          <p className="text-xs text-violet-700 bg-violet-50 rounded-md px-2.5 py-1.5 leading-relaxed">
+          <p className={cn(educationTonePanelClassName('violet'), 'px-2.5 py-1.5 text-xs leading-relaxed text-violet-100')}>
             {tile.insight}
           </p>
         ) : null}
 
         {expanded ? (
-          <div className="pt-2 border-t border-slate-100 space-y-3">
+          <div className="space-y-3 border-t border-border/60 pt-3">
             <div>
-              <p className="text-xs font-medium text-slate-700 mb-2">Roadmap de tiers</p>
-              <TierRoadmap roadmap={tile.roadmap} category={tile.category} currentTier={tile.currentTier} />
+              <p className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                Roadmap de tiers
+              </p>
+              <TierRoadmap
+                roadmap={tile.roadmap}
+                category={tile.category}
+                currentTier={tile.currentTier}
+              />
             </div>
             {isComplete ? (
-              <p className="text-xs text-emerald-700 bg-emerald-50 rounded-md px-2.5 py-1.5">
-                Parabens! Voce completou todos os degraus desta conquista.
+              <p className={cn(educationTonePanelClassName('emerald'), 'rounded-xl px-2.5 py-1.5 text-xs text-emerald-100')}>
+                Parabéns! Você completou todos os degraus desta conquista.
               </p>
             ) : null}
           </div>
@@ -173,14 +199,14 @@ export function EducationAchievementsSection({ badges, loading }: EducationAchie
   if (loading) {
     return (
       <div>
-        <Skeleton className="h-7 w-44 mb-4" />
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        <Skeleton className="mb-4 h-7 w-44" />
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Card key={i}>
+            <Card key={i} className={educationShellClassName}>
               <CardContent className="p-4">
                 <Skeleton className="h-8 w-8 rounded-full" />
-                <Skeleton className="h-3 w-full mt-3" />
-                <Skeleton className="h-3 w-2/3 mt-2" />
+                <Skeleton className="mt-3 h-3 w-full" />
+                <Skeleton className="mt-2 h-3 w-2/3" />
               </CardContent>
             </Card>
           ))}
@@ -190,14 +216,15 @@ export function EducationAchievementsSection({ badges, loading }: EducationAchie
   }
 
   return (
-    <div>
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <section className="space-y-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-gray-900">Suas conquistas</h3>
-          <p className="text-sm text-gray-600">
+          <h3 className={educationHeadingClassName}>Suas conquistas</h3>
+          <p className={educationBodyClassName}>
             Clique em qualquer conquista para ver o roadmap completo de tiers e o que falta para avançar.
           </p>
         </div>
+
         {tiles.length > 6 ? (
           <Button type="button" variant="outline" size="sm" onClick={() => setShowAll((prev) => !prev)}>
             {showAll ? 'Mostrar menos' : `Ver todas (${tiles.length})`}
@@ -205,11 +232,11 @@ export function EducationAchievementsSection({ badges, loading }: EducationAchie
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visibleTiles.map((tile) => (
           <AchievementCard key={tile.id} tile={tile} />
         ))}
       </div>
-    </div>
+    </section>
   );
 }

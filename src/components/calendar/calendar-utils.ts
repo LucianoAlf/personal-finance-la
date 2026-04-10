@@ -62,6 +62,17 @@ export function getItemsForDay(items: AgendaItem[], day: Date): AgendaItem[] {
   });
 }
 
+export function sortAgendaDayItems(dayItems: AgendaItem[]): AgendaItem[] {
+  return [...dayItems].sort((left, right) => {
+    const leftPresentation = getAgendaItemPresentation(left);
+    const rightPresentation = getAgendaItemPresentation(right);
+    const leftAllDay = leftPresentation.allDay;
+    const rightAllDay = rightPresentation.allDay;
+    if (leftAllDay !== rightAllDay) return leftAllDay ? -1 : 1;
+    return leftPresentation.startAt.localeCompare(rightPresentation.startAt);
+  });
+}
+
 export function getHourFromISO(iso: string): number {
   const d = parseISO(iso);
   return d.getHours() + d.getMinutes() / 60;

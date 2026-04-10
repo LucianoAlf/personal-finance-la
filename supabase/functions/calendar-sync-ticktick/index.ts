@@ -971,7 +971,7 @@ async function processInboundTickTickForUser(
     if (linkRow?.origin_id && linkRow.origin_type === 'payable_bill') {
       const { data: bill } = await supabase
         .from('payable_bills')
-        .select('id, updated_at')
+        .select('id, updated_at, amount, status')
         .eq('id', linkRow.origin_id)
         .maybeSingle();
 
@@ -1009,6 +1009,39 @@ async function processInboundTickTickForUser(
           .from('calendar_external_event_links')
           .update(buildPayableBillInboundUpdateObservationUpdate(remoteModified, task.projectId))
           .eq('id', linkRow.id);
+
+        // When TickTick task is completed (status 2), propagate to payable_bills
+        if (
+          task.status === 2 &&
+          linkRow.origin_id &&
+          bill &&
+          (bill.status === 'pending' || bill.status === 'overdue')
+        ) {
+          const paidAmount = Number(bill.amount) || 0;
+          const { error: billUpdateErr } = await supabase
+            .from('payable_bills')
+            .update({
+              status: 'paid',
+              paid_at: new Date().toISOString(),
+              paid_amount: paidAmount,
+            })
+            .eq('id', linkRow.origin_id)
+            .eq('user_id', userId)
+            .in('status', ['pending', 'overdue']);
+
+          if (!billUpdateErr) {
+            console.log(
+              `[ticktick-sync] Marked payable_bill ${linkRow.origin_id} as paid (R$${paidAmount}) from TickTick task ${task.id}`,
+            );
+            stats.updatedEvents++;
+          } else {
+            console.error(
+              `[ticktick-sync] Failed to mark payable_bill ${linkRow.origin_id} as paid:`,
+              billUpdateErr,
+            );
+          }
+        }
+
         continue;
       }
 

@@ -9,6 +9,7 @@ import {
   getCategoryStyle,
   isAgendaItemAllDay,
   isSelectableAgendaCategoryKey,
+  sortAgendaDayItems,
 } from '../calendar-utils';
 import type { AgendaItem } from '@/types/calendar.types';
 
@@ -258,6 +259,33 @@ describe('calendar-utils / isAgendaItemAllDay', () => {
         }),
       ),
     ).toBe(false);
+  });
+});
+
+describe('calendar-utils / sortAgendaDayItems', () => {
+  it('orders all-day items first and then timed items by start time', () => {
+    const sorted = sortAgendaDayItems([
+      agendaItem({
+        dedup_key: 'late',
+        title: 'Tarde',
+        display_start_at: '2026-04-09T14:00:00',
+        display_end_at: '2026-04-09T15:00:00',
+      }),
+      agendaItem({
+        dedup_key: 'all-day',
+        title: 'Dia inteiro',
+        display_start_at: '2026-04-09T00:00:00',
+        display_end_at: null,
+      }),
+      agendaItem({
+        dedup_key: 'early',
+        title: 'Manhã',
+        display_start_at: '2026-04-09T08:00:00',
+        display_end_at: '2026-04-09T09:00:00',
+      }),
+    ]);
+
+    expect(sorted.map((item) => item.dedup_key)).toEqual(['all-day', 'early', 'late']);
   });
 });
 

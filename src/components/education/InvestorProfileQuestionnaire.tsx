@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { useInvestorProfile } from '@/hooks/useInvestorProfile';
 import type {
@@ -17,6 +18,12 @@ import type {
   InvestorExperience,
   InvestorHorizon,
 } from '@/utils/education/investor-suitability';
+import {
+  educationBodyClassName,
+  educationHeadingClassName,
+  educationShellClassName,
+  educationSubtlePanelClassName,
+} from './education-shell';
 
 const horizonOptions: { value: InvestorHorizon; label: string }[] = [
   { value: 'short', label: 'Até 1 ano — preciso do dinheiro no curto prazo' },
@@ -55,6 +62,7 @@ export function InvestorProfileQuestionnaire({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!horizon || !drawdownComfort || !experience) {
       toast({
         title: 'Responda todas as perguntas',
@@ -63,6 +71,7 @@ export function InvestorProfileQuestionnaire({
       });
       return;
     }
+
     try {
       await submitAssessment({ horizon, drawdownComfort, experience });
       toast({
@@ -86,30 +95,35 @@ export function InvestorProfileQuestionnaire({
   };
 
   return (
-    <Card className="border-l-4 border-violet-500">
+    <Card className={educationShellClassName}>
       <CardHeader>
-        <CardTitle>{mode === 'review' ? 'Revisar perfil de investidor' : 'Perfil de investidor'}</CardTitle>
-        <CardDescription>
+        <CardTitle className={educationHeadingClassName}>
+          {mode === 'review' ? 'Revisar perfil de investidor' : 'Perfil de investidor'}
+        </CardTitle>
+        <CardDescription className={educationBodyClassName}>
           Respostas objetivas para adequar dicas educacionais e sugestões de mentoria ao seu perfil. O cálculo é
           determinístico e cada nova avaliação entra no histórico sem apagar as anteriores.
         </CardDescription>
       </CardHeader>
+
       <CardContent>
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Carregando…</p>
+          <p className="text-sm text-muted-foreground">Carregando...</p>
         ) : trustedAssessment?.profileKey ? (
-          <p className="text-sm text-gray-700 mb-4">
-            Último perfil confiável: <span className="font-medium">{trustedAssessment.profileKey}</span>
-            {trustedAssessment.effectiveAt
-              ? ` (válido em ${new Date(trustedAssessment.effectiveAt).toLocaleDateString('pt-BR')})`
-              : null}
-            {latestAssessment?.questionnaire_version
-              ? ` • versão ${latestAssessment.questionnaire_version}`
-              : ''}
-            . Revise abaixo apenas se seu momento, tolerância a risco ou horizonte tiverem mudado.
-          </p>
+          <div className={cn(educationSubtlePanelClassName, 'mb-4 px-4 py-3')}>
+            <p className="text-sm text-foreground/85">
+              Último perfil confiável: <span className="font-medium text-foreground">{trustedAssessment.profileKey}</span>
+              {trustedAssessment.effectiveAt
+                ? ` (válido em ${new Date(trustedAssessment.effectiveAt).toLocaleDateString('pt-BR')})`
+                : null}
+              {latestAssessment?.questionnaire_version
+                ? ` • versão ${latestAssessment.questionnaire_version}`
+                : ''}
+              . Revise abaixo apenas se seu momento, tolerância a risco ou horizonte tiverem mudado.
+            </p>
+          </div>
         ) : (
-          <p className="text-sm text-gray-700 mb-4">
+          <p className={cn(educationBodyClassName, 'mb-4')}>
             Você ainda não tem um perfil registrado. Responda às três perguntas para ativarmos os guardrails de
             adequação.
           </p>
@@ -118,17 +132,14 @@ export function InvestorProfileQuestionnaire({
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <Label htmlFor="inv-horizon">Quando você pretende usar a maior parte desse dinheiro?</Label>
-            <Select
-              value={horizon || undefined}
-              onValueChange={(v) => setHorizon(v as InvestorHorizon)}
-            >
+            <Select value={horizon || undefined} onValueChange={(v) => setHorizon(v as InvestorHorizon)}>
               <SelectTrigger id="inv-horizon">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
-                {horizonOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
+                {horizonOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -145,9 +156,9 @@ export function InvestorProfileQuestionnaire({
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
-                {drawdownOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
+                {drawdownOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -156,17 +167,14 @@ export function InvestorProfileQuestionnaire({
 
           <div className="space-y-2">
             <Label htmlFor="inv-exp">Experiência com investimentos</Label>
-            <Select
-              value={experience || undefined}
-              onValueChange={(v) => setExperience(v as InvestorExperience)}
-            >
+            <Select value={experience || undefined} onValueChange={(v) => setExperience(v as InvestorExperience)}>
               <SelectTrigger id="inv-exp">
                 <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
-                {experienceOptions.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
-                    {o.label}
+                {experienceOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -175,7 +183,7 @@ export function InvestorProfileQuestionnaire({
 
           <div className="flex flex-wrap gap-3">
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Salvando…' : mode === 'review' ? 'Salvar revisão' : 'Salvar perfil'}
+              {isSubmitting ? 'Salvando...' : mode === 'review' ? 'Salvar revisão' : 'Salvar perfil'}
             </Button>
             {mode === 'review' && onCancel ? (
               <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>

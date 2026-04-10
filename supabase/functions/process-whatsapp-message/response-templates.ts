@@ -298,8 +298,9 @@ export function templateTransacaoRegistrada(data: {
   description?: string;
   account?: string;
   data?: Date | string;
-  paymentMethod?: string; // ✅ NOVO: forma de pagamento
-  saldoConta?: number; // ✅ NOVO: saldo atualizado da conta
+  paymentMethod?: string;
+  saldoConta?: number;
+  openingLine?: string;
 }): string {
   const emojiTipo = data.type === 'income' ? '🟢' : '🔴';
   const tipoLabel = data.type === 'income' ? 'Receita' : 'Despesa';
@@ -307,7 +308,7 @@ export function templateTransacaoRegistrada(data: {
   const emojiConta = getEmojiConta(data.account || '');
   const valorFormatado = formatarValor(data.amount);
   const dataFormatada = data.data ? formatarData(data.data) : formatarData(new Date());
-  const frase = getFraseMotivacional(data.type, data.category || '');
+  const frase = data.openingLine?.trim() || getFraseMotivacional(data.type, data.category || '');
   const statusEmoji = data.type === 'income' ? '✔️' : '✔️';
   const statusLabel = data.type === 'income' ? 'Recebido' : 'Pago';
   const formaPagamento = getFormaPagamentoInfo(data.paymentMethod);

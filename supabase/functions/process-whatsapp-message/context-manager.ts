@@ -81,7 +81,9 @@ export type ContextType =
   // Contexto de ações rápidas de cartão
   | 'credit_card_context'                  // Contexto de cartão para ações rápidas
   // Contexto de referência para faturas vencidas
-  | 'faturas_vencidas_context';            // Contexto de faturas vencidas para follow-ups
+  | 'faturas_vencidas_context'            // Contexto de faturas vencidas para follow-ups
+  // Onboarding do agente
+  | 'onboarding_agent';                   // Fluxo de onboarding (nome, tom, preferências)
 
 export interface ContextData {
   intencao_pendente?: IntencaoClassificada;
@@ -1980,29 +1982,11 @@ async function processarSelecaoMetodoPagamento(
   console.log('[PAYMENT_METHOD] Resposta original:', resposta);
   console.log('[PAYMENT_METHOD] Resposta normalizada:', respostaNorm);
   
-  // Detectar método de pagamento por palavras-chave
-  let metodo: { method: 'credit' | 'debit' | 'pix' | 'cash', label: string } | null = null;
-  
-  // Verificar por número primeiro
-  if (respostaNorm === '1') {
-    metodo = { method: 'credit', label: 'Cartão de crédito' };
-  } else if (respostaNorm === '2') {
-    metodo = { method: 'debit', label: 'Débito' };
-  } else if (respostaNorm === '3') {
-    metodo = { method: 'pix', label: 'PIX' };
-  } else if (respostaNorm === '4') {
-    metodo = { method: 'cash', label: 'Dinheiro' };
-  }
-  // Verificar por palavras-chave (ordem importa!)
-  else if (respostaNorm.includes('credito') || respostaNorm.includes('cartao de credito') || respostaNorm.includes('cartao')) {
-    metodo = { method: 'credit', label: 'Cartão de crédito' };
-  } else if (respostaNorm.includes('debito')) {
-    metodo = { method: 'debit', label: 'Débito' };
-  } else if (respostaNorm.includes('pix')) {
-    metodo = { method: 'pix', label: 'PIX' };
-  } else if (respostaNorm.includes('dinheiro') || respostaNorm.includes('cash')) {
-    metodo = { method: 'cash', label: 'Dinheiro' };
-  }
+  const { parsePaymentMethodReply } = await import('../shared/context-detector.ts');
+  const parsedPaymentReply = parsePaymentMethodReply(resposta);
+  const metodo = parsedPaymentReply
+    ? { method: parsedPaymentReply.method, label: parsedPaymentReply.label }
+    : null;
   
   console.log('[PAYMENT_METHOD] Método detectado:', metodo);
   
@@ -2014,7 +1998,8 @@ async function processarSelecaoMetodoPagamento(
   const respostaLower = resposta.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   
   // ✅ BUG #14: Verificar se já tem banco no contexto ANTES de detectar na resposta
-  let contaDetectada: string | null = dados?.conta || intencao?.entidades?.conta || null;
+  let contaDetectada: string | null =
+    dados?.conta || intencao?.entidades?.conta || parsedPaymentReply?.bankAlias || null;
   if (contaDetectada) {
     console.log('[PAYMENT_METHOD] 🏦 Banco do contexto:', contaDetectada);
   }
