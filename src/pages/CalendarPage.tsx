@@ -139,6 +139,7 @@ export function CalendarPage() {
 
   const handleAgendaMutationSuccess = useCallback(() => {
     void (async () => {
+      await refetch();
       await requestTickTickSync({ reason: 'calendar-mutation' });
       await refetch();
     })();
@@ -169,6 +170,17 @@ export function CalendarPage() {
       }),
     [rawItems, enabledCategories, advancedFilters],
   );
+
+  const selectedAgendaItem = useMemo(() => {
+    if (!selectedItem) return null;
+    return (
+      rawItems.find(
+        (item) =>
+          item.dedup_key === selectedItem.dedup_key ||
+          (item.origin_type === selectedItem.origin_type && item.origin_id === selectedItem.origin_id),
+      ) ?? selectedItem
+    );
+  }, [rawItems, selectedItem]);
 
   const goToday = useCallback(() => setAnchor(new Date()), []);
   const goPrev = useCallback(() => setAnchor((a) => navigateDate(a, view, -1)), [view]);
@@ -350,8 +362,8 @@ export function CalendarPage() {
       </div>
 
       <AgendaItemSheet
-        item={selectedItem}
-        open={!!selectedItem}
+        item={selectedAgendaItem}
+        open={!!selectedAgendaItem}
         onClose={() => setSelectedItem(null)}
         onMutationSuccess={handleAgendaMutationSuccess}
       />

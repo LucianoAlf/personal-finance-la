@@ -738,11 +738,18 @@ export function resolveInboundCalendarEventKind(params: {
   currentEventKind?: string | null;
   remoteTitle: string;
 }): string {
-  const mappedEventKind = params.mappedEventKind?.trim() || 'external';
-  if (isFinancialTitle(params.remoteTitle) || isFinancialEventKind(mappedEventKind)) {
+  const explicitMapping = params.mappedEventKind?.trim() || null;
+
+  if (isFinancialTitle(params.remoteTitle) || isFinancialEventKind(explicitMapping)) {
     return params.currentEventKind?.trim() || 'external';
   }
-  return mappedEventKind;
+
+  if (explicitMapping) return explicitMapping;
+
+  const current = params.currentEventKind?.trim();
+  if (current && current !== 'external') return current;
+
+  return 'external';
 }
 
 export function buildPayableBillInboundUpdateObservationUpdate(

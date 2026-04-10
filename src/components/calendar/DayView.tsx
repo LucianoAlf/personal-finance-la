@@ -11,6 +11,8 @@ import {
 } from './calendar-utils';
 import { Clock, MapPin, Lock, Pencil, CheckCircle2, ArrowUpRight } from 'lucide-react';
 import type { AgendaItem } from '@/types/calendar.types';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { AgendaHoverTooltip } from './AgendaHoverTooltip';
 
 interface DayViewProps {
   anchor: Date;
@@ -56,7 +58,8 @@ export function DayView({ anchor, items, isLoading, onItemClick, onEmptySlotClic
   const dayKey = format(anchor, 'yyyy-MM-dd');
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/60 bg-surface shadow-[0_8px_32px_rgba(0,0,0,0.08)]">
+    <TooltipProvider delayDuration={200}>
+      <div className="overflow-hidden rounded-2xl border border-border/60 bg-surface shadow-[0_8px_32px_rgba(0,0,0,0.08)]">
       {/* Day header */}
       <div className="flex items-center gap-3 border-b border-border/50 bg-surface-elevated/50 px-5 py-4">
         <div
@@ -165,7 +168,8 @@ export function DayView({ anchor, items, isLoading, onItemClick, onEmptySlotClic
           })
         )}
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -189,94 +193,96 @@ function DayEventCard({
   const location = (item.metadata as Record<string, unknown> | null)?.location_text as string | undefined;
 
   return (
-    <button
-      type="button"
-      onClick={() => onClick(item)}
-      aria-label={continuation ? `Continuação ${item.title}` : undefined}
-      className={cn(
-        'group relative z-[1] w-full text-left transition-all duration-200',
-        continuation &&
-          'rounded-lg border border-border/40 bg-surface-elevated/40 px-3 py-2 text-sm shadow-none',
-        compact
-          ? cn(
-              'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium',
-              badge.bg,
-              badge.text,
-            )
-          : cn(
-              'relative overflow-hidden rounded-xl border p-3.5',
-              isDerived
-                ? 'border-border/50 bg-surface-elevated/40'
-                : cn('border-border/40 bg-surface-elevated/80 shadow-[0_4px_16px_rgba(0,0,0,0.06)]', indicator.border),
-              'hover:shadow-[0_6px_24px_rgba(0,0,0,0.1)] hover:translate-y-[-1px]',
-            ),
-      )}
-    >
-      {!compact && (
-        <div className={cn('absolute left-0 top-0 h-full w-1 rounded-l-xl', isDerived ? 'bg-muted-foreground/30' : indicator.dot.replace('bg-', 'bg-'))} />
-      )}
-
-      <div className={cn(compact ? 'flex items-center gap-1.5' : 'pl-2.5')}>
-        {continuation && (
-          <div className="mb-1 flex items-center gap-2 pl-2.5 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
-            <span>Continua</span>
-            {endTime ? <span className="tabular-nums">até {endTime}</span> : null}
-          </div>
+    <AgendaHoverTooltip item={item}>
+      <button
+        type="button"
+        onClick={() => onClick(item)}
+        aria-label={continuation ? `Continuação ${item.title}` : undefined}
+        className={cn(
+          'group relative z-[1] w-full text-left transition-all duration-200',
+          continuation &&
+            'rounded-lg border border-border/40 bg-surface-elevated/40 px-3 py-2 text-sm shadow-none',
+          compact
+            ? cn(
+                'inline-flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium',
+                badge.bg,
+                badge.text,
+              )
+            : cn(
+                'relative overflow-hidden rounded-xl border p-3.5',
+                isDerived
+                  ? 'border-border/50 bg-surface-elevated/40'
+                  : cn('border-border/40 bg-surface-elevated/80 shadow-[0_4px_16px_rgba(0,0,0,0.06)]', indicator.border),
+                'hover:shadow-[0_6px_24px_rgba(0,0,0,0.1)] hover:translate-y-[-1px]',
+              ),
         )}
+      >
         {!compact && (
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className={cn('inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.65rem] font-semibold', badge.bg, badge.text)}>
-              {badge.label}
-            </span>
-            {isDerived && (
-              <span className="inline-flex items-center gap-0.5 text-[0.6rem] text-muted-foreground">
-                <Lock className="h-2.5 w-2.5" /> Somente leitura
+          <div className={cn('absolute left-0 top-0 h-full w-1 rounded-l-xl', isDerived ? 'bg-muted-foreground/30' : indicator.dot.replace('bg-', 'bg-'))} />
+        )}
+
+        <div className={cn(compact ? 'flex items-center gap-1.5' : 'pl-2.5')}>
+          {continuation && (
+            <div className="mb-1 flex items-center gap-2 pl-2.5 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground">
+              <span>Continua</span>
+              {endTime ? <span className="tabular-nums">até {endTime}</span> : null}
+            </div>
+          )}
+          {!compact && (
+            <div className="mb-1.5 flex items-center gap-2">
+              <span className={cn('inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.65rem] font-semibold', badge.bg, badge.text)}>
+                {badge.label}
               </span>
-            )}
-            {item.status === 'completed' && (
-              <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-            )}
-          </div>
-        )}
+              {isDerived && (
+                <span className="inline-flex items-center gap-0.5 text-[0.6rem] text-muted-foreground">
+                  <Lock className="h-2.5 w-2.5" /> Somente leitura
+                </span>
+              )}
+              {item.status === 'completed' && (
+                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+              )}
+            </div>
+          )}
 
-        <p className={cn('font-semibold text-foreground', compact ? 'text-sm' : 'text-base')}>
-          {item.title}
-        </p>
+          <p className={cn('font-semibold text-foreground', compact ? 'text-sm' : 'text-base')}>
+            {item.title}
+          </p>
 
-        {!compact && (
-          <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1 tabular-nums">
-              <Clock className="h-3 w-3" />
-              {time}
-              {endTime && <> — {endTime}</>}
-            </span>
-            {location && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                {location}
+          {!compact && (
+            <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1 tabular-nums">
+                <Clock className="h-3 w-3" />
+                {time}
+                {endTime && <> — {endTime}</>}
               </span>
-            )}
-            {item.subtitle && <span>{item.subtitle}</span>}
-          </div>
-        )}
+              {location && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  {location}
+                </span>
+              )}
+              {item.subtitle && <span>{item.subtitle}</span>}
+            </div>
+          )}
 
-        {!compact && !isDerived && (
-          <div className="mt-2 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-            <span className="inline-flex items-center gap-0.5 rounded-md bg-primary/10 px-2 py-0.5 text-[0.6rem] font-medium text-primary">
-              <Pencil className="h-2.5 w-2.5" /> Editar
-            </span>
-          </div>
-        )}
+          {!compact && !isDerived && (
+            <div className="mt-2 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+              <span className="inline-flex items-center gap-0.5 rounded-md bg-primary/10 px-2 py-0.5 text-[0.6rem] font-medium text-primary">
+                <Pencil className="h-2.5 w-2.5" /> Editar
+              </span>
+            </div>
+          )}
 
-        {!compact && isDerived && item.edit_route && (
-          <div className="mt-2 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
-            <span className="inline-flex items-center gap-0.5 rounded-md bg-muted px-2 py-0.5 text-[0.6rem] font-medium text-muted-foreground">
-              <ArrowUpRight className="h-2.5 w-2.5" /> Ver origem
-            </span>
-          </div>
-        )}
-      </div>
-    </button>
+          {!compact && isDerived && item.edit_route && (
+            <div className="mt-2 flex items-center gap-1.5 opacity-0 transition-opacity group-hover:opacity-100">
+              <span className="inline-flex items-center gap-0.5 rounded-md bg-muted px-2 py-0.5 text-[0.6rem] font-medium text-muted-foreground">
+                <ArrowUpRight className="h-2.5 w-2.5" /> Ver origem
+              </span>
+            </div>
+          )}
+        </div>
+      </button>
+    </AgendaHoverTooltip>
   );
 }
 

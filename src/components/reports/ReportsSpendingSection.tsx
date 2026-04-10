@@ -6,20 +6,25 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts';
+import { PieChartIcon } from 'lucide-react';
 
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
 import type { ReportIntelligenceContext } from '@/utils/reports/intelligence-contract';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { getReportsSectionMeta } from '@/utils/reports/view-model';
+import {
+  reportsChartTooltipProps,
+  reportsPanelClassName,
+  reportsShellClassName,
+  ReportsSectionHeading,
+  ReportsInsightNotice,
+} from './reports-shell';
 
 interface ReportsSpendingSectionProps {
   context: ReportIntelligenceContext | null;
@@ -34,13 +39,13 @@ export function ReportsSpendingSection({
 }: ReportsSpendingSectionProps) {
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-52" />
-          <Skeleton className="h-4 w-72" />
+      <Card className={reportsShellClassName}>
+        <CardHeader className="space-y-3 pb-4">
+          <Skeleton className="h-8 w-64 rounded-full" />
+          <Skeleton className="h-4 w-80 rounded-full" />
         </CardHeader>
-        <CardContent>
-          <Skeleton className="h-72 w-full" />
+        <CardContent className="space-y-4 pt-0">
+          <Skeleton className="h-[360px] w-full rounded-[24px]" />
         </CardContent>
       </Card>
     );
@@ -55,12 +60,16 @@ export function ReportsSpendingSection({
 
   if (!section || section.categoryBreakdown.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <SectionHeading title="Composição das despesas" metaLabel={meta.label} />
-          <CardDescription>{meta.description}</CardDescription>
+      <Card className={reportsShellClassName}>
+        <CardHeader className="space-y-3 pb-4">
+          <ReportsSectionHeading
+            title="Composição das despesas"
+            description={meta.description}
+            metaLabel={meta.label}
+            icon={<PieChartIcon className="h-5 w-5" />}
+          />
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
+        <CardContent className="pt-0 text-sm text-muted-foreground">
           Nenhuma despesa categorizada foi encontrada para este período.
         </CardContent>
       </Card>
@@ -75,104 +84,138 @@ export function ReportsSpendingSection({
   }));
 
   return (
-    <Card>
-      <CardHeader>
-        <SectionHeading title="Composição das despesas" metaLabel={meta.label} partial={meta.isPartial} />
-        <CardDescription>{meta.description}</CardDescription>
+    <Card className={reportsShellClassName}>
+      <CardHeader className="space-y-3 pb-4">
+        <ReportsSectionHeading
+          title="Composição das despesas"
+          description={meta.description}
+          metaLabel={meta.label}
+          partial={meta.isPartial}
+          icon={<PieChartIcon className="h-5 w-5" />}
+        />
       </CardHeader>
-      <CardContent className="space-y-6">
-        {meta.isPartial && (
-          <Alert>
-            <AlertTitle>Visualização parcial</AlertTitle>
-            <AlertDescription>{meta.description}</AlertDescription>
-          </Alert>
-        )}
+      <CardContent className="space-y-5 pt-0">
+        {meta.isPartial ? (
+          <ReportsInsightNotice title="Leitura parcial">
+            Esta leitura usa apenas os dados já consolidados para o período selecionado.
+          </ReportsInsightNotice>
+        ) : null}
 
-        {section.uncategorizedShare > 0 && (
-          <Alert>
+        {section.uncategorizedShare > 0 ? (
+          <Alert className="rounded-[22px] border-amber-500/25 bg-amber-500/10 text-amber-100">
             <AlertTitle>Parte do gasto ainda está sem categoria</AlertTitle>
             <AlertDescription>
               {formatPercentage(section.uncategorizedShare)} das despesas seguem sem classificação.
             </AlertDescription>
           </Alert>
-        )}
+        ) : null}
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(280px,0.85fr)]">
-          <div className="h-72">
-            {meta.isAvailable ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
-                    {chartData.map((entry) => (
-                      <Cell key={entry.name} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-                Gráfico indisponível para este período.
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+          <div className={reportsPanelClassName}>
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.92fr)_minmax(230px,0.38fr)] lg:items-center">
+              <div className="h-[320px]">
+                {meta.isAvailable ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={78} outerRadius={118}>
+                        {chartData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.fill} />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        {...reportsChartTooltipProps}
+                        formatter={(value: number) => formatCurrency(Number(value))}
+                      />
+                      <Legend />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-[20px] border border-dashed border-border/60 text-sm text-muted-foreground">
+                    Gráfico indisponível para este período.
+                  </div>
+                )}
               </div>
-            )}
+
+              <div className="grid gap-3">
+                {section.topCategories.slice(0, 3).map((category, index) => (
+                  <div
+                    key={`${category.categoryId ?? 'sem-categoria'}-${category.categoryName}`}
+                    className="rounded-[22px] border border-border/60 bg-surface/50 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 rounded-full"
+                            style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                          />
+                          <p className="font-medium text-foreground">{category.categoryName}</p>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {category.transactionCount} lançamentos
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-semibold text-foreground">{formatCurrency(category.amount)}</p>
+                        <p className="text-sm text-muted-foreground">{formatPercentage(category.share)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
-          <div className="space-y-3">
-            {section.topCategories.map((category, index) => (
-              <div
-                key={`${category.categoryId ?? 'sem-categoria'}-${category.categoryName}`}
-                className="rounded-lg border p-4"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+          <div className={reportsPanelClassName}>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Leitura rápida
+                </p>
+                <p className="mt-1 text-lg font-semibold tracking-tight text-foreground">
+                  Onde o período concentrou mais gasto
+                </p>
+              </div>
+              <span className="rounded-full border border-border/60 bg-surface/60 px-3 py-1 text-xs font-medium text-muted-foreground">
+                {section.topCategories.length} categorias
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {section.topCategories.map((category, index) => (
+                <div
+                  key={`detail-${category.categoryId ?? 'sem-categoria'}-${category.categoryName}`}
+                  className="rounded-[20px] border border-border/60 bg-surface/50 p-4"
+                >
+                  <div className="mb-2 flex items-center justify-between gap-4 text-sm">
+                    <span className="flex items-center gap-2 font-medium text-foreground">
                       <span
                         className="h-2.5 w-2.5 rounded-full"
                         style={{ backgroundColor: COLORS[index % COLORS.length] }}
                       />
-                      <p className="font-medium text-gray-900">{category.categoryName}</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {category.transactionCount} lançamentos
-                    </p>
+                      {category.categoryName}
+                    </span>
+                    <span className="font-semibold text-foreground">{formatCurrency(category.amount)}</span>
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-gray-900">{formatCurrency(category.amount)}</p>
-                    <p className="text-sm text-muted-foreground">{formatPercentage(category.share)}</p>
+                  <div className="h-2 overflow-hidden rounded-full bg-surface-overlay/75">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${Math.min(category.share * 100, 100)}%`,
+                        backgroundColor: COLORS[index % COLORS.length],
+                      }}
+                    />
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                    <span>{category.transactionCount} lançamentos</span>
+                    <span>{formatPercentage(category.share)}</span>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </CardContent>
     </Card>
-  );
-}
-
-function SectionHeading({
-  title,
-  metaLabel,
-  partial = false,
-}: {
-  title: string;
-  metaLabel: string;
-  partial?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <CardTitle className="text-xl">{title}</CardTitle>
-      <span
-        className={cn(
-          'inline-flex w-fit rounded-full border px-3 py-1 text-xs font-medium',
-          partial
-            ? 'border-amber-200 bg-amber-50 text-amber-700'
-            : 'border-emerald-200 bg-emerald-50 text-emerald-700',
-        )}
-      >
-        {metaLabel}
-      </span>
-    </div>
   );
 }

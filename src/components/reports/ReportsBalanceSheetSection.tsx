@@ -7,20 +7,26 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { Landmark } from 'lucide-react';
 
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
 import type { ReportIntelligenceContext } from '@/utils/reports/intelligence-contract';
 import { formatCurrency, formatPercentage } from '@/utils/formatters';
 import { getReportsSectionMeta } from '@/utils/reports/view-model';
+import {
+  formatReportsAxisCurrency,
+  reportsChartTooltipProps,
+  reportsPanelClassName,
+  reportsShellClassName,
+  ReportsInsightNotice,
+  ReportsMetricTile,
+  ReportsSectionHeading,
+} from './reports-shell';
 
 interface ReportsBalanceSheetSectionProps {
   context: ReportIntelligenceContext | null;
@@ -33,13 +39,13 @@ export function ReportsBalanceSheetSection({
 }: ReportsBalanceSheetSectionProps) {
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <Skeleton className="h-6 w-56" />
-          <Skeleton className="h-4 w-80" />
+      <Card className={reportsShellClassName}>
+        <CardHeader className="space-y-3 pb-4">
+          <Skeleton className="h-8 w-64 rounded-full" />
+          <Skeleton className="h-4 w-80 rounded-full" />
         </CardHeader>
-        <CardContent>
-          <Skeleton className="h-72 w-full" />
+        <CardContent className="space-y-4 pt-0">
+          <Skeleton className="h-[360px] w-full rounded-[24px]" />
         </CardContent>
       </Card>
     );
@@ -54,12 +60,16 @@ export function ReportsBalanceSheetSection({
 
   if (!section) {
     return (
-      <Card>
-        <CardHeader>
-          <SectionHeading title="Balanço patrimonial" metaLabel={meta.label} />
-          <CardDescription>{meta.description}</CardDescription>
+      <Card className={reportsShellClassName}>
+        <CardHeader className="space-y-3 pb-4">
+          <ReportsSectionHeading
+            title="Balanço patrimonial"
+            description={meta.description}
+            metaLabel={meta.label}
+            icon={<Landmark className="h-5 w-5" />}
+          />
         </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
+        <CardContent className="pt-0 text-sm text-muted-foreground">
           O patrimônio líquido só aparece quando o backend consegue consolidar ativos e passivos do período.
         </CardContent>
       </Card>
@@ -79,68 +89,83 @@ export function ReportsBalanceSheetSection({
   const hasSingleHistoryPoint = historyData.length === 1;
 
   return (
-    <Card>
-      <CardHeader>
-        <SectionHeading title="Balanço patrimonial" metaLabel={meta.label} partial={meta.isPartial} />
-        <CardDescription>{meta.description}</CardDescription>
+    <Card className={reportsShellClassName}>
+      <CardHeader className="space-y-3 pb-4">
+        <ReportsSectionHeading
+          title="Balanço patrimonial"
+          description={meta.description}
+          metaLabel={meta.label}
+          partial={meta.isPartial}
+          icon={<Landmark className="h-5 w-5" />}
+        />
       </CardHeader>
-      <CardContent className="space-y-6">
-        {(meta.isPartial || hasSingleHistoryPoint) && (
-          <Alert>
-            <AlertTitle>Evolução patrimonial conservadora</AlertTitle>
-            <AlertDescription>
-              {hasSingleHistoryPoint
-                ? 'A série histórica ainda tem apenas um ponto, então a evolução mostra somente o snapshot consolidado disponível.'
-                : meta.description}
-            </AlertDescription>
-          </Alert>
-        )}
+      <CardContent className="space-y-5 pt-0">
+        {(meta.isPartial || hasSingleHistoryPoint) ? (
+          <ReportsInsightNotice title="Evolução patrimonial conservadora" tone="warning">
+            {hasSingleHistoryPoint
+              ? 'A série histórica ainda tem apenas um ponto, então a evolução mostra somente o snapshot consolidado disponível.'
+              : meta.description}
+          </ReportsInsightNotice>
+        ) : null}
 
         <div className="grid gap-3 md:grid-cols-3">
-          <SummaryMetric label="Ativos totais" value={formatCurrency(section.totalAssets)} />
-          <SummaryMetric label="Passivos totais" value={formatCurrency(section.totalLiabilities)} />
-          <SummaryMetric label="Patrimônio líquido" value={formatCurrency(section.netWorth)} />
+          <ReportsMetricTile label="Ativos totais" value={formatCurrency(section.totalAssets)} />
+          <ReportsMetricTile label="Passivos totais" value={formatCurrency(section.totalLiabilities)} />
+          <ReportsMetricTile label="Patrimônio líquido" value={formatCurrency(section.netWorth)} tone="positive" />
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(280px,0.95fr)]">
-          <div className="h-72 rounded-lg border p-4">
-            {meta.isAvailable ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={comparisonData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis tickFormatter={formatAxisCurrency} />
-                  <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
-                  <Bar dataKey="value" fill="#2563eb" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-                Comparativo indisponível para este período.
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.05fr)_minmax(320px,0.95fr)]">
+          <div className={reportsPanelClassName}>
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Snapshot consolidado
+                </p>
+                <p className="mt-1 text-lg font-semibold tracking-tight text-foreground">
+                  Relação entre ativos, passivos e patrimônio
+                </p>
               </div>
-            )}
+            </div>
+
+            <div className="h-[320px]">
+              {meta.isAvailable ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={comparisonData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.22)" />
+                    <XAxis dataKey="name" stroke="rgba(148, 163, 184, 0.6)" />
+                    <YAxis tickFormatter={formatReportsAxisCurrency} stroke="rgba(148, 163, 184, 0.6)" />
+                    <Tooltip {...reportsChartTooltipProps} formatter={(value: number) => formatCurrency(Number(value))} />
+                    <Bar dataKey="value" fill="#3b82f6" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center rounded-[20px] border border-dashed border-border/60 text-sm text-muted-foreground">
+                  Comparativo indisponível para este período.
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-lg border p-4">
-              <p className="mb-3 font-medium text-gray-900">Evolução patrimonial</p>
+            <div className={reportsPanelClassName}>
+              <p className="mb-3 text-base font-semibold tracking-tight text-foreground">Evolução patrimonial</p>
               {meta.isAvailable ? (
                 hasEvolutionHistory ? (
-                  <div className="h-56">
+                  <div className="h-[220px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={historyData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis tickFormatter={formatAxisCurrency} />
-                        <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
-                        <Bar dataKey="netWorth" fill="#0f766e" radius={[6, 6, 0, 0]} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.22)" />
+                        <XAxis dataKey="month" stroke="rgba(148, 163, 184, 0.6)" />
+                        <YAxis tickFormatter={formatReportsAxisCurrency} stroke="rgba(148, 163, 184, 0.6)" />
+                        <Tooltip {...reportsChartTooltipProps} formatter={(value: number) => formatCurrency(Number(value))} />
+                        <Bar dataKey="netWorth" fill="#14b8a6" radius={[8, 8, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <div className="rounded-lg bg-slate-50 p-4">
+                  <div className="rounded-[20px] border border-border/60 bg-surface/50 p-4">
                     <p className="text-sm text-muted-foreground">Último ponto consolidado</p>
-                    <p className="mt-2 text-2xl font-semibold text-gray-900">
+                    <p className="mt-2 text-[2rem] font-semibold tracking-tight text-foreground">
                       {formatCurrency(historyData[0]?.netWorth ?? section.netWorth)}
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
@@ -149,22 +174,12 @@ export function ReportsBalanceSheetSection({
                   </div>
                 )
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  Evolução patrimonial indisponível para este período.
-                </p>
+                <p className="text-sm text-muted-foreground">Evolução patrimonial indisponível para este período.</p>
               )}
             </div>
 
-            <BucketList
-              title="Composição dos ativos"
-              emptyLabel="Nenhum ativo consolidado"
-              items={section.assetBreakdown}
-            />
-            <BucketList
-              title="Composição dos passivos"
-              emptyLabel="Nenhum passivo consolidado"
-              items={section.liabilityBreakdown}
-            />
+            <BucketList title="Composição dos ativos" emptyLabel="Nenhum ativo consolidado" items={section.assetBreakdown} accent="bg-blue-500" />
+            <BucketList title="Composição dos passivos" emptyLabel="Nenhum passivo consolidado" items={section.liabilityBreakdown} accent="bg-violet-500" />
           </div>
         </div>
       </CardContent>
@@ -172,53 +187,20 @@ export function ReportsBalanceSheetSection({
   );
 }
 
-function SectionHeading({
-  title,
-  metaLabel,
-  partial = false,
-}: {
-  title: string;
-  metaLabel: string;
-  partial?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <CardTitle className="text-xl">{title}</CardTitle>
-      <span
-        className={cn(
-          'inline-flex w-fit rounded-full border px-3 py-1 text-xs font-medium',
-          partial
-            ? 'border-amber-200 bg-amber-50 text-amber-700'
-            : 'border-emerald-200 bg-emerald-50 text-emerald-700',
-        )}
-      >
-        {metaLabel}
-      </span>
-    </div>
-  );
-}
-
-function SummaryMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border bg-slate-50 p-4">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-2xl font-semibold text-gray-900">{value}</p>
-    </div>
-  );
-}
-
 function BucketList({
   title,
   emptyLabel,
   items,
+  accent,
 }: {
   title: string;
   emptyLabel: string;
   items: Array<{ label: string; amount: number; share: number }>;
+  accent: string;
 }) {
   return (
-    <div className="rounded-lg border p-4">
-      <p className="mb-3 font-medium text-gray-900">{title}</p>
+    <div className={reportsPanelClassName}>
+      <p className="mb-3 text-base font-semibold tracking-tight text-foreground">{title}</p>
       {items.length === 0 ? (
         <p className="text-sm text-muted-foreground">{emptyLabel}</p>
       ) : (
@@ -226,11 +208,11 @@ function BucketList({
           {items.map((item) => (
             <div key={item.label}>
               <div className="mb-1 flex items-center justify-between gap-4 text-sm">
-                <span className="text-gray-700">{item.label}</span>
-                <span className="font-medium text-gray-900">{formatCurrency(item.amount)}</span>
+                <span className="text-muted-foreground">{item.label}</span>
+                <span className="font-medium text-foreground">{formatCurrency(item.amount)}</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full rounded-full bg-blue-500" style={{ width: `${Math.min(item.share, 100)}%` }} />
+              <div className="h-2 overflow-hidden rounded-full bg-surface-overlay/75">
+                <div className={`h-full rounded-full ${accent}`} style={{ width: `${Math.min(item.share, 100)}%` }} />
               </div>
               <p className="mt-1 text-xs text-muted-foreground">{formatPercentage(item.share)}</p>
             </div>
@@ -239,8 +221,4 @@ function BucketList({
       )}
     </div>
   );
-}
-
-function formatAxisCurrency(value: number) {
-  return value >= 1000 ? `R$ ${(value / 1000).toFixed(0)}k` : `R$ ${value}`;
 }

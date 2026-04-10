@@ -180,6 +180,56 @@ describe('WeekView', () => {
     expect(btnB.style.width).toMatch(/calc\(/);
   });
 
+  it('summarizes dense same-slot timed clusters with four visible items and +N mais', () => {
+    const items = Array.from({ length: 7 }, (_, index) =>
+      baseItem({
+        dedup_key: `dense-${index + 1}`,
+        title: `Denso ${index + 1}`,
+        display_start_at: '2026-04-09T09:00:00',
+        display_end_at: '2026-04-09T10:00:00',
+      }),
+    );
+
+    const { container } = render(
+      <WeekView anchor={ANCHOR} items={items} isLoading={false} onItemClick={() => {}} />,
+    );
+
+    const col = container.querySelector('[data-week-timed-column="2026-04-09"]') as HTMLElement;
+    expect(within(col).getByRole('button', { name: /09:00 Denso 1/i })).toBeTruthy();
+    expect(within(col).getByRole('button', { name: /09:00 Denso 4/i })).toBeTruthy();
+    expect(within(col).queryByRole('button', { name: /09:00 Denso 5/i })).toBeNull();
+    expect(within(col).getByTestId('week-timed-overflow-more-2026-04-09-09:00').textContent?.trim()).toBe('+3 mais');
+  });
+
+  it('shows hidden timed cluster items in tooltip and opens sheet from +N mais', async () => {
+    const user = userEvent.setup();
+    const onItemClick = vi.fn();
+    const items = Array.from({ length: 7 }, (_, index) =>
+      baseItem({
+        dedup_key: `dense-open-${index + 1}`,
+        title: `Abrir ${index + 1}`,
+        display_start_at: '2026-04-09T09:00:00',
+        display_end_at: '2026-04-09T10:00:00',
+      }),
+    );
+
+    render(<WeekView anchor={ANCHOR} items={items} isLoading={false} onItemClick={onItemClick} />);
+
+    const moreButton = screen.getByTestId('week-timed-overflow-more-2026-04-09-09:00');
+    await user.hover(moreButton);
+    expect((await screen.findAllByText('Abrir 5')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Abrir 6').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Abrir 7').length).toBeGreaterThan(0);
+
+    await user.click(moreButton);
+    const body = await screen.findByTestId('week-day-list-sheet-body');
+    expect(within(body).getByTestId('week-sheet-item-dense-open-1')).toBeTruthy();
+    expect(within(body).getByTestId('week-sheet-item-dense-open-7')).toBeTruthy();
+
+    await user.click(within(body).getByText('Abrir 3'));
+    expect(onItemClick).toHaveBeenCalledWith(expect.objectContaining({ dedup_key: 'dense-open-3' }));
+  });
+
   it('restores full width for a later standalone event after an overlap cluster', () => {
     const a = baseItem({
       dedup_key: 'cluster-a',
@@ -258,6 +308,24 @@ describe('WeekView', () => {
     expect(onItemClick).toHaveBeenCalledWith(expect.objectContaining({ dedup_key: 'click-me' }));
   });
 
+  it('shows a hover tooltip with the hidden subtitle for timed week cards', async () => {
+    const user = userEvent.setup();
+    const item = baseItem({
+      dedup_key: 'week-tooltip',
+      title: 'Evento semanal',
+      subtitle: 'Descrição escondida da semana',
+    });
+
+    const { container } = render(
+      <WeekView anchor={ANCHOR} items={[item]} isLoading={false} onItemClick={() => {}} />,
+    );
+
+    const col = container.querySelector('[data-week-timed-column="2026-04-09"]') as HTMLElement;
+    expect(screen.queryByText('Descrição escondida da semana')).toBeNull();
+    await user.hover(within(col).getByRole('button', { name: /09:00 Evento semanal/i }));
+    expect((await screen.findAllByText('Descrição escondida da semana')).length).toBeGreaterThan(0);
+  });
+
   it('calls onItemClick when an all-day event is clicked', async () => {
     const user = userEvent.setup();
     const onItemClick = vi.fn();
@@ -271,6 +339,72 @@ describe('WeekView', () => {
 
     await user.click(screen.getByRole('button', { name: /All day click/i }));
     expect(onItemClick).toHaveBeenCalledWith(expect.objectContaining({ dedup_key: 'ad-click' }));
+  });
+
+  it('shows only four all-day items in a week cell and summarizes the rest with +N mais', () => {
+    const items = Array.from({ length: 7 }, (_, index) =>
+      baseItem({
+        dedup_key: `ad-overflow-${index + 1}`,
+        title: `Conta ${index + 1}`,
+        display_end_at: null,
+      }),
+    );
+
+    const { container } = render(
+      <WeekView anchor={ANCHOR} items={items} isLoading={false} onItemClick={() => {}} />,
+    );
+
+    const cell = container.querySelector('[data-week-all-day-cell="2026-04-09"]') as HTMLElement;
+    expect(cell).toBeTruthy();
+    expect(within(cell).getByTestId('week-all-day-count-2026-04-09').textContent).toContain('7 itens');
+    expect(within(cell).getAllByRole('button').length).toBe(6);
+    expect(within(cell).getByRole('button', { name: /Conta 1/i })).toBeTruthy();
+    expect(within(cell).getByRole('button', { name: /Conta 4/i })).toBeTruthy();
+    expect(within(cell).queryByRole('button', { name: /Conta 5/i })).toBeNull();
+    expect(within(cell).getByTestId('week-overflow-more-2026-04-09').textContent?.trim()).toBe('+3 mais');
+  });
+
+  it('shows hidden week all-day items inside a tooltip when hovering +N mais', async () => {
+    const user = userEvent.setup();
+    const items = Array.from({ length: 7 }, (_, index) =>
+      baseItem({
+        dedup_key: `ad-tooltip-${index + 1}`,
+        title: `Conta ${index + 1}`,
+        display_end_at: null,
+      }),
+    );
+
+    render(<WeekView anchor={ANCHOR} items={items} isLoading={false} onItemClick={() => {}} />);
+
+    await user.hover(screen.getByTestId('week-overflow-more-2026-04-09'));
+
+    expect((await screen.findAllByText('Conta 5')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Conta 6').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Conta 7').length).toBeGreaterThan(0);
+  });
+
+  it('opens a day sheet with all week all-day items when clicking the item count', async () => {
+    const user = userEvent.setup();
+    const onItemClick = vi.fn();
+    const items = Array.from({ length: 7 }, (_, index) =>
+      baseItem({
+        dedup_key: `ad-sheet-${index + 1}`,
+        title: `Conta ${index + 1}`,
+        display_end_at: null,
+      }),
+    );
+
+    render(<WeekView anchor={ANCHOR} items={items} isLoading={false} onItemClick={onItemClick} />);
+
+    await user.click(screen.getByTestId('week-all-day-count-2026-04-09'));
+
+    const body = await screen.findByTestId('week-day-list-sheet-body');
+    expect(within(body).getAllByRole('button').length).toBe(7);
+    expect(within(body).getByTestId('week-sheet-item-ad-sheet-1')).toBeTruthy();
+    expect(within(body).getByTestId('week-sheet-item-ad-sheet-7')).toBeTruthy();
+
+    await user.click(within(body).getByText('Conta 3'));
+    expect(onItemClick).toHaveBeenCalledWith(expect.objectContaining({ dedup_key: 'ad-sheet-3' }));
   });
 
   it('Task 10: calls onEmptySlotClick with date and hour for an empty hour cell', async () => {

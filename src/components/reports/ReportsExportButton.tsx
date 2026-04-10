@@ -63,15 +63,16 @@ export function ReportsExportButton({
       type="button"
       size="sm"
       variant="outline"
+      className="rounded-xl border-border/70 bg-surface/85 px-4 shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay"
       disabled={!canExport || isExporting}
       onClick={() => {
         void handleExport();
       }}
     >
       {isExporting ? (
-        <Loader2 size={16} className="animate-spin" />
+        <Loader2 size={16} className="mr-1 animate-spin" />
       ) : (
-        <Download size={16} />
+        <Download size={16} className="mr-1" />
       )}
       Exportar PDF
     </Button>

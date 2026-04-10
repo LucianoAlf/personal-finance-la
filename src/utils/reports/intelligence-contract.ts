@@ -71,7 +71,6 @@ export interface ReportSpendingChange {
   changePercentage: number | null;
 }
 
-/** Tag usage across bank + card expense lines in the report window (canonical `tags` table). */
 export interface ReportSpendingTagStat {
   tagId: string;
   tagName: string;
@@ -181,7 +180,7 @@ export const RENDERABLE_REPORT_SECTION_KEYS: Array<Exclude<ReportDataSectionKey,
   'obligations',
   'goals',
   'investments',
-];
+] as const;
 
 export interface ReportIntelligenceContext {
   overview: ReportOverviewSection;
@@ -254,6 +253,6 @@ export function hasRenderableReportData(context: ReportIntelligenceContext) {
       RENDERABLE_REPORT_SECTION_KEYS.some((key) => {
         const quality = context.quality?.[key];
         return quality ? isReportSectionReliable(quality) : false;
-      })
+      }),
   );
 }

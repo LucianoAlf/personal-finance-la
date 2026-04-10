@@ -18,10 +18,11 @@ import {
   getAgendaSemanticChrome,
   getBadgeStyle,
   getItemIndicator,
+  isFinancialAgendaItem,
 } from './calendar-utils';
 import type { AgendaItem } from '@/types/calendar.types';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, Clock, Lock } from 'lucide-react';
+import { CheckCircle2, Clock, Flag, Globe, Lock } from 'lucide-react';
 import {
   Sheet,
   SheetContent,
@@ -30,6 +31,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { AgendaHoverTooltip } from './AgendaHoverTooltip';
 
 interface MonthViewProps {
   anchor: Date;
@@ -42,8 +44,19 @@ interface MonthViewProps {
 const WEEKDAY_HEADERS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const MAX_CHIPS_PER_DAY = 4;
 
+function sortMonthDayItems(dayItems: AgendaItem[]) {
+  return [...dayItems].sort((left, right) => {
+    const leftPresentation = getAgendaItemPresentation(left);
+    const rightPresentation = getAgendaItemPresentation(right);
+    const leftAllDay = leftPresentation.allDay;
+    const rightAllDay = rightPresentation.allDay;
+    if (leftAllDay !== rightAllDay) return leftAllDay ? -1 : 1;
+    return leftPresentation.startAt.localeCompare(rightPresentation.startAt);
+  });
+}
+
 export function MonthView({ anchor, items, isLoading, onDayClick, onItemClick }: MonthViewProps) {
-  const [dayListSheet, setDayListSheet] = useState<{ day: Date; items: AgendaItem[] } | null>(null);
+  const [dayListSheetDay, setDayListSheetDay] = useState<Date | null>(null);
 
   const calendarDays = useMemo(() => {
     const monthStart = startOfMonth(anchor);
@@ -52,6 +65,11 @@ export function MonthView({ anchor, items, isLoading, onDayClick, onItemClick }:
     const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
     return eachDayOfInterval({ start: gridStart, end: gridEnd });
   }, [anchor]);
+
+  const dayListSheetItems = useMemo(() => {
+    if (!dayListSheetDay) return [];
+    return sortMonthDayItems(getItemsForDay(items, dayListSheetDay));
+  }, [dayListSheetDay, items]);
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -74,14 +92,7 @@ export function MonthView({ anchor, items, isLoading, onDayClick, onItemClick }:
         {calendarDays.map((day, idx) => {
           const inMonth = isSameMonth(day, anchor);
           const today = isToday(day);
-          const dayItems = getItemsForDay(items, day).sort((left, right) => {
-            const leftPresentation = getAgendaItemPresentation(left);
-            const rightPresentation = getAgendaItemPresentation(right);
-            const leftAllDay = leftPresentation.allDay;
-            const rightAllDay = rightPresentation.allDay;
-            if (leftAllDay !== rightAllDay) return leftAllDay ? -1 : 1;
-            return leftPresentation.startAt.localeCompare(rightPresentation.startAt);
-          });
+          const dayItems = sortMonthDayItems(getItemsForDay(items, day));
           const overflow = dayItems.length > MAX_CHIPS_PER_DAY;
           const visibleItems = overflow ? dayItems.slice(0, MAX_CHIPS_PER_DAY) : dayItems;
           const hiddenItems = overflow ? dayItems.slice(MAX_CHIPS_PER_DAY) : [];
@@ -124,7 +135,7 @@ export function MonthView({ anchor, items, isLoading, onDayClick, onItemClick }:
                     data-testid={`month-day-count-${dayKey}`}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setDayListSheet({ day, items: dayItems });
+                      setDayListSheetDay(day);
                     }}
                     className="pt-1 text-left text-[0.58rem] font-medium uppercase tracking-[0.16em] text-muted-foreground/80 underline-offset-2 hover:text-foreground hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   >
@@ -205,33 +216,33 @@ export function MonthView({ anchor, items, isLoading, onDayClick, onItemClick }:
       </div>
     </div>
 
-    <Sheet open={dayListSheet !== null} onOpenChange={(open) => !open && setDayListSheet(null)}>
+    <Sheet open={dayListSheetDay !== null} onOpenChange={(open) => !open && setDayListSheetDay(null)}>
       <SheetContent
         side="right"
         className="flex w-full flex-col border-border/60 bg-surface sm:max-w-md"
       >
-        {dayListSheet ? (
+        {dayListSheetDay ? (
           <>
             <SheetHeader>
               <SheetTitle className="text-foreground">
-                {format(dayListSheet.day, "EEEE, d 'de' MMMM", { locale: ptBR })}
+                {format(dayListSheetDay, "EEEE, d 'de' MMMM", { locale: ptBR })}
               </SheetTitle>
               <SheetDescription className="text-muted-foreground">
-                {dayListSheet.items.length}{' '}
-                {dayListSheet.items.length === 1 ? 'compromisso' : 'compromissos'}
+                {dayListSheetItems.length}{' '}
+                {dayListSheetItems.length === 1 ? 'compromisso' : 'compromissos'}
               </SheetDescription>
             </SheetHeader>
             <div
               className="mt-4 flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1"
               data-testid="month-day-list-sheet-body"
             >
-              {dayListSheet.items.map((item) => (
+              {dayListSheetItems.map((item) => (
                 <MonthSheetEventCard
                   key={item.dedup_key}
                   item={item}
                   onClick={(i) => {
                     onItemClick(i);
-                    setDayListSheet(null);
+                    setDayListSheetDay(null);
                   }}
                 />
               ))}
@@ -254,6 +265,24 @@ function monthSheetStatusLabel(status: string): string | null {
   return null;
 }
 
+function monthSheetPriorityLabel(priority: string | null | undefined): string | null {
+  if (!priority) return null;
+  if (priority === 'high') return 'Alta';
+  if (priority === 'medium') return 'Média';
+  if (priority === 'low') return 'Baixa';
+  return priority;
+}
+
+function monthSheetSyncLabel(provider: string | null | undefined, status: string | null | undefined): string | null {
+  if (!provider) return null;
+  const providerLabel = provider === 'ticktick' ? 'TickTick' : provider;
+  if (status === 'synced') return `${providerLabel} - Sincronizado`;
+  if (status === 'pending') return `${providerLabel} - Pendente`;
+  if (status === 'failed') return `${providerLabel} - Falha`;
+  if (status === 'remote_deleted') return `${providerLabel} - Removido`;
+  return providerLabel;
+}
+
 function getAgendaTickTickTags(metadata: Record<string, unknown> | null): string[] {
   if (!metadata || !Array.isArray(metadata.ticktick_tags)) return [];
   return (metadata.ticktick_tags as unknown[]).filter((t): t is string => typeof t === 'string' && t.trim().length > 0);
@@ -270,87 +299,149 @@ function MonthSheetEventCard({
   item: AgendaItem;
   onClick: (item: AgendaItem) => void;
 }) {
-  const badge = getBadgeStyle(item.badge);
+  const metadata = item.metadata as Record<string, unknown> | null;
+  const eventKind = (metadata?.event_kind as string | undefined) ?? item.badge;
+  const badge = getBadgeStyle(eventKind);
   const indicator = getItemIndicator(item.agenda_item_type);
   const isDerived = item.agenda_item_type === 'derived_projection';
   const readOnly = item.is_read_only || isDerived;
+  const isFinancial = isFinancialAgendaItem(item);
+
   const presentation = getAgendaItemPresentation(item);
-  const start = format(parseISO(presentation.startAt), 'HH:mm');
-  const endTime = presentation.endAt ? format(parseISO(presentation.endAt), 'HH:mm') : null;
+  const dateLabel = format(parseISO(item.display_start_at), "EEEE, d 'de' MMMM", { locale: ptBR });
   const statusLine = monthSheetStatusLabel(item.status);
   const tags = getAgendaTickTickTags(item.metadata);
-  const location = (item.metadata as Record<string, unknown> | null)?.location_text as string | undefined;
+  const priorityLabel = monthSheetPriorityLabel(
+    metadata?.priority as string | undefined,
+  );
+  const syncLabel = monthSheetSyncLabel(
+    metadata?.sync_provider as string | undefined,
+    metadata?.sync_status as string | undefined,
+  );
+  const location = metadata?.location_text as string | undefined;
   const detailText =
     item.subtitle && normalizeComparableLabel(item.subtitle) !== normalizeComparableLabel(statusLine)
       ? item.subtitle
       : null;
 
+  const showTime = !presentation.allDay;
+  const timeStart = showTime ? format(parseISO(presentation.startAt), 'HH:mm') : null;
+  const timeEnd = showTime && presentation.endAt ? format(parseISO(presentation.endAt), 'HH:mm') : null;
+
   return (
-    <button
-      type="button"
-      data-testid={`month-sheet-item-${item.dedup_key}`}
-      onClick={() => onClick(item)}
-      className={cn(
-        'group relative min-h-[8.5rem] w-full overflow-hidden rounded-xl border border-border/40 px-4 pt-4 pb-5 text-left shadow-[0_4px_16px_rgba(0,0,0,0.06)] transition-all duration-200',
-        isDerived ? 'border-border/50 bg-surface-elevated/55' : 'bg-surface-elevated/80',
-        'hover:shadow-[0_6px_24px_rgba(0,0,0,0.1)] hover:translate-y-[-1px]',
-      )}
-    >
-      <div
+    <AgendaHoverTooltip item={item}>
+      <button
+        type="button"
+        data-testid={`month-sheet-item-${item.dedup_key}`}
+        onClick={() => onClick(item)}
         className={cn(
-          'absolute left-0 top-0 h-full w-1 rounded-l-xl',
-          isDerived ? 'bg-muted-foreground/35' : indicator.dot,
+          'group relative w-full shrink-0 overflow-hidden rounded-xl border border-border/40 px-4 py-3.5 text-left shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all duration-200',
+          isDerived ? 'border-border/50 bg-surface-elevated/55' : 'bg-surface-elevated/80',
+          'hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)] hover:translate-y-[-1px]',
         )}
-      />
-      <div className="flex flex-col gap-3.5 pl-3">
-        <div className="flex flex-wrap items-center gap-2">
+      >
+        <div
+          className={cn(
+            'absolute left-0 top-0 h-full w-1 rounded-l-xl',
+            isDerived ? 'bg-muted-foreground/35' : indicator.dot,
+          )}
+        />
+        <div className="flex flex-col gap-2 pl-3">
+        {/* Header: title + read-only badge */}
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-[0.95rem] font-semibold leading-snug text-foreground">{item.title}</p>
+          <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+            {readOnly && (
+              <span className="inline-flex items-center gap-0.5 text-[0.6rem] text-muted-foreground">
+                <Lock className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                Somente leitura
+              </span>
+            )}
+            {item.status === 'completed' && (
+              <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-label="Concluído" />
+            )}
+          </div>
+        </div>
+
+        {/* Description */}
+        {detailText && (
+          <p
+            className="line-clamp-2 text-sm leading-relaxed text-muted-foreground"
+            data-testid={`month-sheet-description-${item.dedup_key}`}
+          >
+            {detailText}
+          </p>
+        )}
+
+        {/* Chips row: category + priority + sync */}
+        <div
+          className="flex flex-wrap items-center gap-1.5"
+          data-testid={`month-sheet-chips-${item.dedup_key}`}
+        >
           <span
             className={cn(
-              'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[0.65rem] font-semibold',
+              'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[0.7rem] font-medium',
               badge.bg,
               badge.text,
             )}
           >
+            <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
             {badge.label}
           </span>
-          {readOnly ? (
-            <span className="inline-flex items-center gap-0.5 text-[0.6rem] text-muted-foreground">
-              <Lock className="h-2.5 w-2.5 shrink-0" aria-hidden />
-              Somente leitura
+          {priorityLabel && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface-elevated px-2 py-0.5 text-[0.7rem] font-medium text-foreground ring-1 ring-border/50">
+              <Flag className="h-3 w-3 text-muted-foreground" />
+              Prioridade: {priorityLabel}
             </span>
-          ) : null}
-          {item.status === 'completed' ? (
-            <CheckCircle2 className="h-3.5 w-3.5 text-success" aria-label="Concluído" />
-          ) : null}
+          )}
+          {syncLabel && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-surface-elevated px-2 py-0.5 text-[0.7rem] font-medium text-muted-foreground ring-1 ring-border/50">
+              <Globe className="h-3 w-3 shrink-0" aria-hidden />
+              {syncLabel}
+            </span>
+          )}
         </div>
 
-        <p className="text-base font-semibold leading-snug text-foreground">{item.title}</p>
-
+        {/* Date/time footer */}
         <div
-          className="flex min-h-[1.75rem] flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5 text-muted-foreground"
+          className="flex flex-col gap-1.5 border-t border-border/20 pt-2.5"
           data-testid={`month-sheet-meta-${item.dedup_key}`}
         >
-          <span className="inline-flex items-center gap-1 tabular-nums">
-            <Clock className="h-3 w-3 shrink-0" aria-hidden />
-            {presentation.allDay ? (
-              <span>Dia inteiro</span>
-            ) : (
-              <>
-                {start}
-                {endTime ? <> — {endTime}</> : null}
-              </>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span className="text-[0.6rem] font-semibold uppercase tracking-[0.14em] text-muted-foreground/70">
+              {isFinancial ? 'Vencimento' : 'Quando'}
+            </span>
+            <span className="capitalize text-sm font-medium text-foreground">{dateLabel}</span>
+            {showTime && timeStart && (
+              <span className="inline-flex items-center gap-1 tabular-nums text-sm">
+                <Clock className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="text-muted-foreground">
+                  {timeStart}
+                  {timeEnd ? <> — {timeEnd}</> : null}
+                </span>
+              </span>
             )}
-          </span>
-          {statusLine ? <span>{statusLine}</span> : null}
-          {location ? <span className="truncate">{location}</span> : null}
+            {!isFinancial && presentation.allDay && (
+              <span className="inline-flex items-center gap-1 text-sm">
+                <Clock className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="text-muted-foreground">Dia inteiro</span>
+              </span>
+            )}
+          </div>
+          {(statusLine || location) && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              {statusLine && <span className="text-muted-foreground">{statusLine}</span>}
+              {location && <span className="truncate text-muted-foreground">{location}</span>}
+            </div>
+          )}
         </div>
 
-        {(detailText || tags.length > 0) && (
+        {/* Tags */}
+        {tags.length > 0 && (
           <div
-            className="flex flex-wrap items-center gap-1.5 border-t border-border/20 pt-3 text-xs leading-5"
+            className="flex flex-wrap items-center gap-1.5 border-t border-border/20 pt-2.5"
             data-testid={`month-sheet-details-${item.dedup_key}`}
           >
-            {detailText ? <span className="text-muted-foreground">{detailText}</span> : null}
             {tags.map((tag) => (
               <Badge
                 key={tag}
@@ -362,8 +453,9 @@ function MonthSheetEventCard({
             ))}
           </div>
         )}
-      </div>
-    </button>
+        </div>
+      </button>
+    </AgendaHoverTooltip>
   );
 }
 
@@ -380,35 +472,36 @@ function MonthEventRow({
   const timeLabel = presentation.allDay ? null : format(parseISO(presentation.startAt), 'HH:mm');
 
   return (
-    <button
-      type="button"
-      data-testid={`month-item-${item.dedup_key}`}
-      data-month-item-kind={presentation.allDay ? 'all-day' : 'timed'}
-      data-agenda-chrome="semantic-border-left"
-      data-agenda-accent="left"
-      onClick={(e) => {
-        e.stopPropagation();
-        onClick(item);
-      }}
-      title={item.title}
-      className={cn(
-        'group flex w-full min-w-0 items-center gap-1 rounded-sm border border-l-4 px-1.5 py-0.5 text-left text-[0.6rem] font-medium leading-tight text-foreground transition-all sm:text-[0.64rem]',
-        isDerived && 'opacity-90',
-        !isDerived && 'shadow-[0_1px_3px_rgba(0,0,0,0.08)]',
-        'hover:brightness-[0.98] hover:shadow-[0_2px_8px_rgba(0,0,0,0.10)]',
-      )}
-      style={{
-        backgroundColor: chrome.backgroundColor,
-        borderColor: chrome.borderColor,
-        borderLeftColor: chrome.accentColor,
-      }}
-    >
-      <span className="min-w-0 flex-1 truncate font-medium text-foreground">{item.title}</span>
-      {timeLabel ? (
-        <span className="shrink-0 tabular-nums text-[0.52rem] text-muted-foreground sm:text-[0.58rem]">
-          {timeLabel}
-        </span>
-      ) : null}
-    </button>
+    <AgendaHoverTooltip item={item}>
+      <button
+        type="button"
+        data-testid={`month-item-${item.dedup_key}`}
+        data-month-item-kind={presentation.allDay ? 'all-day' : 'timed'}
+        data-agenda-chrome="semantic-border-left"
+        data-agenda-accent="left"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick(item);
+        }}
+        className={cn(
+          'group flex w-full min-w-0 items-center gap-1 rounded-sm border border-l-4 px-1.5 py-0.5 text-left text-[0.6rem] font-medium leading-tight text-foreground transition-all sm:text-[0.64rem]',
+          isDerived && 'opacity-90',
+          !isDerived && 'shadow-[0_1px_3px_rgba(0,0,0,0.08)]',
+          'hover:brightness-[0.98] hover:shadow-[0_2px_8px_rgba(0,0,0,0.10)]',
+        )}
+        style={{
+          backgroundColor: chrome.backgroundColor,
+          borderColor: chrome.borderColor,
+          borderLeftColor: chrome.accentColor,
+        }}
+      >
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">{item.title}</span>
+        {timeLabel ? (
+          <span className="shrink-0 tabular-nums text-[0.52rem] text-muted-foreground sm:text-[0.58rem]">
+            {timeLabel}
+          </span>
+        ) : null}
+      </button>
+    </AgendaHoverTooltip>
   );
 }

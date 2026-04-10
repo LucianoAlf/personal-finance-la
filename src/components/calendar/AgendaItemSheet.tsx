@@ -163,13 +163,15 @@ export function AgendaItemSheet({ item, open, onClose, onMutationSuccess }: Agen
 
           {/* Date/time */}
           <DetailRow icon={<Clock className="h-4 w-4 text-primary" />} label="Quando">
-            <span className="capitalize">
-              {format(startDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-            </span>
-            <span className="tabular-nums text-muted-foreground">
-              {format(startDate, 'HH:mm')}
-              {endDate && <> — {format(endDate, 'HH:mm')}</>}
-            </span>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="capitalize">
+                {format(startDate, "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+              </span>
+              <span className="tabular-nums text-muted-foreground">
+                {format(startDate, 'HH:mm')}
+                {endDate && <> — {format(endDate, 'HH:mm')}</>}
+              </span>
+            </div>
           </DetailRow>
 
           {/* Location */}
@@ -204,14 +206,25 @@ export function AgendaItemSheet({ item, open, onClose, onMutationSuccess }: Agen
             </DetailRow>
           )}
 
-          {/* Origin link for derived items (SPA) */}
-          {isDerived && item.edit_route && (
-            <Button variant="outline" size="sm" className="h-auto w-full justify-start gap-2 rounded-xl py-2.5" asChild>
-              <Link to={item.edit_route}>
-                <ArrowUpRight className="h-4 w-4 shrink-0 text-primary" />
-                Ver item original
-              </Link>
-            </Button>
+          {/* Info for read-only derived items */}
+          {isDerived && (
+            <div className="rounded-xl border border-border/60 bg-surface-elevated/50 p-4">
+              <p className="mb-3 text-sm text-muted-foreground">
+                Este item é uma projeção de uma conta/fatura e não pode ser editado diretamente na agenda.
+                Para alterar dados, valor ou vencimento, acesse a página de Contas a Pagar.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-auto w-full justify-start gap-2 rounded-xl py-2.5"
+                asChild
+              >
+                <Link to="/contas-pagar">
+                  <ArrowUpRight className="h-4 w-4 shrink-0 text-primary" />
+                  Ir para Contas a Pagar
+                </Link>
+              </Button>
+            </div>
           )}
         </div>
 

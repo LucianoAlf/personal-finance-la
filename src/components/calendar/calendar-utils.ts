@@ -86,6 +86,18 @@ export function isAgendaItemAllDay(item: AgendaItem): boolean {
   const endMinutes = end.getHours() * 60 + end.getMinutes();
   const endSeconds = end.getSeconds();
 
+  // TickTick all-day tasks can reach the agenda window as same-day 00:00 -> 00:00
+  // external events without an explicit `metadata.all_day` flag.
+  if (
+    item.origin_type === 'calendar_event' &&
+    item.badge === 'external' &&
+    startMinutes === 0 &&
+    endMinutes === 0 &&
+    endSeconds === 0
+  ) {
+    return true;
+  }
+
   return startMinutes === 0 && (endMinutes > 23 * 60 + 58 || (endMinutes === 23 * 60 + 58 && endSeconds >= 59));
 }
 

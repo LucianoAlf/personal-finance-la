@@ -196,6 +196,29 @@ describe('DayView', () => {
     expect(within(hourRow).getByText('09:00')).toBeTruthy();
   });
 
+  it('shows a hover tooltip with the hidden subtitle for compact day cards', async () => {
+    const user = userEvent.setup();
+    const item = baseItem({
+      dedup_key: 'day-tooltip',
+      title: 'Evento do dia',
+      subtitle: 'Descrição escondida do dia',
+      display_end_at: null,
+    });
+
+    render(
+      <DayView
+        anchor={ANCHOR}
+        items={[item]}
+        isLoading={false}
+        onItemClick={() => {}}
+      />,
+    );
+
+    expect(screen.queryByText('Descrição escondida do dia')).toBeNull();
+    await user.hover(screen.getByRole('button', { name: /evento do dia/i }));
+    expect((await screen.findAllByText('Descrição escondida do dia')).length).toBeGreaterThan(0);
+  });
+
   it('renders derived day entries with solid borders', () => {
     const item = baseItem({
       dedup_key: 'derived-day',

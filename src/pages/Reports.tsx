@@ -16,16 +16,19 @@ import { ReportsTrendSection } from '@/components/reports/ReportsTrendSection';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useReportAnaInsights } from '@/hooks/useReportAnaInsights';
-import { hasRenderableReportData } from '@/utils/reports/intelligence-contract';
-import { hasDisplayableDeterministicReportData } from '@/utils/reports/view-model';
 import {
   buildReportsPeriod,
   getDefaultReportsPeriod,
   useReportsIntelligence,
   type ReportsPeriodPreset,
 } from '@/hooks/useReportsIntelligence';
+import { hasRenderableReportData } from '@/utils/reports/intelligence-contract';
+import { hasDisplayableDeterministicReportData } from '@/utils/reports/view-model';
 
 export function Reports() {
+  const secondaryButtonClass =
+    'rounded-xl border-border/70 bg-surface/85 px-4 shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay';
+
   const [periodPreset, setPeriodPreset] = useState<ReportsPeriodPreset>(
     getDefaultReportsPeriod().preset,
   );
@@ -107,7 +110,8 @@ export function Reports() {
     );
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="relative min-h-screen bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.08),transparent_32%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.06),transparent_28%)]" />
       <Header
         title="Relatórios"
         subtitle="Análises detalhadas da sua vida financeira"
@@ -118,6 +122,7 @@ export function Reports() {
               type="button"
               size="sm"
               variant="outline"
+              className={secondaryButtonClass}
               onClick={() => {
                 void Promise.all([refetch(), refetchAna()]);
               }}
@@ -135,7 +140,7 @@ export function Reports() {
         }
       />
 
-      <div className="space-y-6 p-6">
+      <div className="relative space-y-6 p-6">
         <ReportsPeriodFilter
           value={periodPreset}
           onChange={setPeriodPreset}
@@ -143,8 +148,11 @@ export function Reports() {
           disabled={isFetching}
         />
 
-        {error && (
-          <Alert variant="destructive">
+        {error ? (
+          <Alert
+            variant="destructive"
+            className="rounded-[24px] border border-danger/25 bg-danger-subtle/80 shadow-[0_18px_42px_rgba(220,38,38,0.1)]"
+          >
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Não foi possível atualizar o relatório agora</AlertTitle>
             <AlertDescription>
@@ -153,11 +161,11 @@ export function Reports() {
                 : 'O contexto canônico de relatórios falhou para este período.'}
             </AlertDescription>
           </Alert>
-        )}
+        ) : null}
 
-        {showEmptyState && <ReportsEmptyState periodLabel={period.label} />}
+        {showEmptyState ? <ReportsEmptyState periodLabel={period.label} /> : null}
 
-        {showRenderableSections && (
+        {showRenderableSections ? (
           <>
             <ReportsOverviewCards context={context} loading={isLoading} />
             <ReportsSpendingSection context={context} loading={isLoading} />
@@ -167,14 +175,14 @@ export function Reports() {
             <ReportsGoalsSection context={context} loading={isLoading} />
             <ReportsInvestmentsSection context={context} loading={isLoading} />
           </>
-        )}
+        ) : null}
 
-        {showAnaSection && (
+        {showAnaSection ? (
           <ReportsAnaSection
             context={exportContext}
             loading={isLoading || (hasDeterministicContext && isAnaLoading)}
           />
-        )}
+        ) : null}
       </div>
     </div>
   );

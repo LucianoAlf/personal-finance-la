@@ -104,13 +104,16 @@ describe('OpportunityFeed and SmartRebalanceWidget', () => {
       <OpportunityCard
         opportunity={{
           id: 'opp-1',
+          user_id: 'user-1',
           title: 'Rebalancear ações nacionais',
           description: 'Sua carteira concentra demais em uma única classe.',
+          type: 'rebalance',
           risk_level: 'medium',
           confidence_score: 88,
           expected_return: 12.5,
           asset_class: 'stocks',
           expires_at: '2026-04-20T12:00:00.000Z',
+          created_at: '2026-04-09T12:00:00.000Z',
         }}
         onDismiss={vi.fn()}
       />,
