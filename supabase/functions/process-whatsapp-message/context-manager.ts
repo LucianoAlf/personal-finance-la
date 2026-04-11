@@ -39,6 +39,7 @@ import {
   detectarPagamentoPorAlias,
   CONTEXT_TIMEOUT_MINUTES as MAPPINGS_TIMEOUT
 } from '../shared/mappings.ts';
+import { shouldStayInCreditCardContext } from '../shared/context-detector.ts';
 import { resolveCanonicalCategory } from '../_shared/canonical-categorization.ts';
 
 // TTL do contexto: 60 minutos (1 hora)
@@ -83,7 +84,9 @@ export type ContextType =
   // Contexto de referência para faturas vencidas
   | 'faturas_vencidas_context'            // Contexto de faturas vencidas para follow-ups
   // Onboarding do agente
-  | 'onboarding_agent';                   // Fluxo de onboarding (nome, tom, preferências)
+  | 'onboarding_agent'                   // Fluxo de onboarding (nome, tom, preferências)
+  // Sessão curta no WhatsApp (grupo) — não entra na prioridade de fluxos do DM em buscarContexto
+  | 'ana_clara_group_session';
 
 export interface ContextData {
   intencao_pendente?: IntencaoClassificada;
@@ -285,6 +288,7 @@ export async function buscarContexto(userId: string): Promise<ContextoConversa |
     .from('conversation_context')
     .select('*')
     .eq('user_id', userId)
+    .neq('context_type', 'ana_clara_group_session')
     .gt('expires_at', new Date().toISOString())
     .order('last_interaction', { ascending: false });
   
@@ -325,12 +329,14 @@ export async function salvarContexto(
   userId: string,
   contextType: ContextType,
   contextData: ContextData,
-  phone?: string
+  phone?: string,
+  options?: { expirationMinutes?: number },
 ): Promise<void> {
   const supabase = getSupabase();
   
   const expiresAt = new Date();
-  expiresAt.setMinutes(expiresAt.getMinutes() + CONTEXT_EXPIRATION_MINUTES);
+  const ttl = options?.expirationMinutes ?? CONTEXT_EXPIRATION_MINUTES;
+  expiresAt.setMinutes(expiresAt.getMinutes() + ttl);
   
   const phoneValue = phone || contextData.phone || '';
   
@@ -666,6 +672,11 @@ export async function processarNoContexto(
   
   // AÇÕES RÁPIDAS DE CARTÃO DE CRÉDITO
   if (contextType === 'credit_card_context') {
+    if (!shouldStayInCreditCardContext(texto)) {
+      console.log('[CARTAO-3CAMADAS] Contexto de referência liberado para fluxo normal:', texto);
+      await limparContexto(userId);
+      return '';
+    }
     return await processarAcaoRapidaCartao(texto, contexto, userId);
   }
   
@@ -2061,6 +2072,7 @@ async function processarSelecaoMetodoPagamento(
       });
       // ✅ Salvar ID da transação no contexto para exclusão posterior
       if (resultado.sucesso && resultado.transactionId) {
+        await limparContexto(userId);
         await salvarContexto(userId, 'credit_card_context', {
           transacao_id: resultado.transactionId,
           transacao_tipo: 'credit_card_transaction'
@@ -2083,6 +2095,7 @@ async function processarSelecaoMetodoPagamento(
       });
       // ✅ Salvar ID da transação no contexto para exclusão posterior
       if (resultado.sucesso && resultado.transactionId) {
+        await limparContexto(userId);
         await salvarContexto(userId, 'credit_card_context', {
           transacao_id: resultado.transactionId,
           transacao_tipo: 'credit_card_transaction'

@@ -31,6 +31,9 @@ import { processarComandoAgenda } from './calendar-handler.ts';
 import { templateErroGenerico, templateComandoNaoReconhecido } from './response-templates.ts';
 import { isPrimeiraInteracaoDia } from './humanization.ts';
 import { 
+  templateBoasVindas,
+  templateSaudacaoPrimeiraVez,
+  templateSaudacaoRetorno,
   templateAjuda,
   templateAgradecimento,
   templateErro,
@@ -44,11 +47,23 @@ import {
   DEFAULT_AUTONOMY,
   buildSoulGreeting,
   buildSoulAboutSystem,
+  buildSoulHelpReply,
   buildSoulFallbackReply,
   resolvePreferredFirstName,
 } from '../_shared/ana-clara-soul.ts';
 import type { UserContext } from '../_shared/ana-clara-soul.ts';
-import { searchMemories, formatMemoriesForPrompt, saveMemory, logAgentAction } from '../_shared/agent-memory.ts';
+import {
+  searchMemories,
+  formatMemoriesForPrompt,
+  saveMemory,
+  logAgentAction,
+  type MemorySearchResult,
+} from '../_shared/agent-memory.ts';
+import {
+  formatAgentMemoryContextForPrompt,
+  loadUnifiedAgentContext,
+  saveAgentMemoryEpisode,
+} from '../_shared/agent-memory-context.ts';
 import { analyzeAndMergeTone } from '../_shared/tone-detector.ts';
 import { buildDayContext } from '../_shared/day-context-builder.ts';
 import { evaluateAutonomy } from '../_shared/autonomy-engine.ts';
@@ -80,6 +95,70 @@ import {
   type OnboardingState,
 } from './onboarding.ts';
 
+function recordEpisode(
+  supabase: ReturnType<typeof getSupabase>,
+  userId: string,
+  summary: string,
+  options: {
+    importance?: number;
+    source?: string;
+    outcome?: string;
+    entities?: Record<string, unknown>;
+    expiresInHours?: number;
+  } = {},
+): void {
+  saveAgentMemoryEpisode(supabase, {
+    userId,
+    summary,
+    importance: options.importance,
+    source: options.source ?? 'whatsapp',
+    outcome: options.outcome,
+    entities: options.entities,
+    expiresInHours: options.expiresInHours,
+  }).catch((e) => console.warn('[episode-memory] non-blocking error:', e));
+}
+
+function mergeRelevantMemories(
+  semanticMemories: MemorySearchResult[],
+  unifiedFacts: Array<{
+    id: string;
+    memory_type: string;
+    content: string;
+    metadata: Record<string, unknown>;
+    tags: string[];
+    confidence: number;
+  }>,
+  maxCount = 5,
+): MemorySearchResult[] {
+  const merged: MemorySearchResult[] = [];
+  const seen = new Set<string>();
+
+  for (const memory of semanticMemories) {
+    const key = `${memory.id}:${memory.content}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(memory);
+    if (merged.length >= maxCount) return merged;
+  }
+
+  for (const fact of unifiedFacts) {
+    const key = `${fact.id}:${fact.content}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({
+      id: fact.id,
+      memory_type: fact.memory_type,
+      content: fact.content,
+      metadata: fact.metadata,
+      tags: fact.tags,
+      similarity: fact.confidence,
+    });
+    if (merged.length >= maxCount) break;
+  }
+
+  return merged;
+}
+
 // ============================================
 // MAIN HANDLER
 // ============================================
@@ -106,7 +185,17 @@ serve(async (req: Request) => {
     // Payload do webhook-uazapi (já processado):
     // { message_id, user_id, content, from_number }
     // ✅ Content pode estar vazio para imagens, então verificar from_number
-    const isInternalPayload = payload.message_id && payload.user_id && payload.from_number;
+    const isInternalPayload = Boolean(
+      payload.message_id &&
+        payload.user_id &&
+        (payload.from_number || payload.is_group === true),
+    );
+    const internalGroup = Boolean(
+      isInternalPayload &&
+        payload.is_group === true &&
+        typeof payload.group_jid === 'string' &&
+        payload.group_jid.endsWith('@g.us'),
+    );
     
     // Payload direto UAZAPI ou N8N
     const isN8NPayload = payload.body && payload.body.EventType;
@@ -349,21 +438,27 @@ serve(async (req: Request) => {
         
         if (!audioMessageId) {
           console.error('❌ messageId do áudio não encontrado no payload');
-          await enviarViaEdgeFunction(phone, '⚠️ Erro ao processar áudio. Tente novamente ou envie texto.');
+          if (!internalGroup) {
+            await enviarViaEdgeFunction(phone, '⚠️ Erro ao processar áudio. Tente novamente ou envie texto.');
+          }
           return new Response(JSON.stringify({ ok: true, error: 'messageId not found' }), { 
             headers: { 'Content-Type': 'application/json' } 
           });
         }
         
         // Feedback imediato ao usuário
-        await enviarViaEdgeFunction(phone, '🎤 Processando seu áudio...');
+        if (!internalGroup) {
+          await enviarViaEdgeFunction(phone, '🎤 Processando seu áudio...');
+        }
         
         // Transcrever via UAZAPI + Whisper
         const transcricao = await processarAudioPTT(payload, audioMessageId);
         
         if (!transcricao.success || !transcricao.texto) {
           console.error('❌ Falha na transcrição:', transcricao.erro);
-          await enviarViaEdgeFunction(phone, '⚠️ Não consegui entender o áudio. Pode repetir ou digitar?');
+          if (!internalGroup) {
+            await enviarViaEdgeFunction(phone, '⚠️ Não consegui entender o áudio. Pode repetir ou digitar?');
+          }
           
           await supabase.from('whatsapp_messages').update({
             processing_status: 'failed',
@@ -395,6 +490,36 @@ serve(async (req: Request) => {
       // Continuar fluxo normal com o texto transcrito (não retornar aqui!)
     }
     
+    // ============================================
+    // 5.15 MODO GRUPO (Ana Clara) — antes da pipeline de imagem/DM
+    // ============================================
+    if (internalGroup) {
+      const { handleAnaClaraGroupInbound } = await import('./ana-clara-group-handler.ts');
+      const gid = String(payload.group_jid);
+      const groupResult = await handleAnaClaraGroupInbound({
+        supabase,
+        user,
+        message,
+        groupJid: gid,
+        participantPhone: phone,
+        participantName: typeof payload.participant_name === 'string'
+          ? payload.participant_name
+          : null,
+        groupName: typeof payload.group_name === 'string' ? payload.group_name : null,
+        content,
+        messageType,
+        isAudio,
+        isImage,
+        imageMessageId: typeof imageMessageId === 'string' ? imageMessageId : undefined,
+        soulConfig,
+        userContext,
+        autonomyConfig,
+      });
+      if (groupResult.handled) {
+        return groupResult.response;
+      }
+    }
+
     // ============================================
     // 5.2 PROCESSAR IMAGEM
     // ============================================
@@ -730,6 +855,9 @@ serve(async (req: Request) => {
     // ============================================
     if (primeiraVezAbsoluta && !identitySnapshot) {
       console.log('🆕 Primeira interação — iniciando onboarding');
+      // Step 1: Send the original full onboarding (shows everything Ana can do)
+      await enviarViaEdgeFunction(phone, templateBoasVindas(user.full_name || 'amigo'));
+      // Step 2: Follow up with preference collection question
       await enviarViaEdgeFunction(phone, buildOnboardingGreeting(user.full_name || 'amigo'));
       await salvarContexto(user.id, 'onboarding_agent', {
         step: 'ask_name',
@@ -792,6 +920,51 @@ serve(async (req: Request) => {
 
         const identityPayload = buildAgentIdentityPayload(user.id, collected);
         await supabase.from('agent_identity').upsert(identityPayload, { onConflict: 'user_id' });
+        await Promise.allSettled([
+          collected.communication_style
+            ? saveMemory(supabase, {
+                user_id: user.id,
+                memory_type: 'preference',
+                content: `Usuário prefere o estilo de comunicação: ${collected.communication_style}.`,
+                metadata: {
+                  preference_type: 'communication_style',
+                  communication_style: collected.communication_style,
+                  source: 'onboarding',
+                },
+                tags: ['communication_style', 'onboarding'],
+                source: 'conversation',
+              })
+            : Promise.resolve(null),
+          collected.data_preference
+            ? saveMemory(supabase, {
+                user_id: user.id,
+                memory_type: 'preference',
+                content: `Usuário prefere confirmações ${collected.data_preference}.`,
+                metadata: {
+                  preference_type: 'response_detail',
+                  data_preference: collected.data_preference,
+                  source: 'onboarding',
+                },
+                tags: ['response_detail', 'onboarding'],
+                source: 'conversation',
+              })
+            : Promise.resolve(null),
+        ]).catch((e) => console.warn('[onboarding-memory] non-blocking error:', e));
+        recordEpisode(
+          supabase,
+          user.id,
+          `Concluiu onboarding inicial com tom ${collected.communication_style || 'adaptável'} e preferência ${collected.data_preference || 'padrão'}.`,
+          {
+            importance: 0.6,
+            outcome: 'onboarding_completed',
+            entities: {
+              communication_style: collected.communication_style || null,
+              data_preference: collected.data_preference || null,
+              source: 'onboarding',
+            },
+            expiresInHours: 24 * 14,
+          },
+        );
         await limparContexto(user.id);
         await enviarViaEdgeFunction(phone, buildOnboardingComplete(firstName));
       }
@@ -882,6 +1055,20 @@ serve(async (req: Request) => {
       const resposta = `${saudacaoDia}, seu foco financeiro e agenda estão assim:\n\n${dayContext.formatted}\n\nSe quiser, eu também posso te dizer o que priorizar primeiro.`;
 
       await enviarViaEdgeFunction(phone, resposta);
+      recordEpisode(
+        supabase,
+        user.id,
+        `Respondeu um resumo contextual de ${dayContextQuery.dayOffset === 0 ? 'hoje' : 'amanhã'} com agenda e foco financeiro.`,
+        {
+          importance: 0.4,
+          outcome: 'day_context_answered',
+          entities: {
+            scope: dayContextQuery.dayOffset === 0 ? 'today' : 'tomorrow',
+            item_count: dayContext.items.length,
+          },
+          expiresInHours: 72,
+        },
+      );
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
         intent: 'day_context',
@@ -899,6 +1086,17 @@ serve(async (req: Request) => {
     if (isCalendarIntent(command)) {
       console.log('📅 Comando de agenda detectado:', command);
       await processarComandoAgenda(command, user.id, phone);
+      recordEpisode(
+        supabase,
+        user.id,
+        `Tratou um comando de agenda com o texto "${command.slice(0, 80)}".`,
+        {
+          importance: 0.35,
+          outcome: 'calendar_query_handled',
+          entities: { command: command.slice(0, 80) },
+          expiresInHours: 72,
+        },
+      );
       
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
@@ -1106,7 +1304,8 @@ serve(async (req: Request) => {
     // Build agent enrichment (additive — wrapped in try/catch to never break flow)
     let agentEnrichment: AgentEnrichment | undefined;
     try {
-      const [memoriesResult, dayCtxResult] = await Promise.allSettled([
+      const [unifiedContextResult, memoriesResult, dayCtxResult] = await Promise.allSettled([
+        loadUnifiedAgentContext(supabase, user.id, { maxFacts: 5, maxEpisodes: 4 }),
         searchMemories(supabase, user.id, content, 5),
         buildDayContext(supabase, user.id),
       ]);
@@ -1114,11 +1313,38 @@ serve(async (req: Request) => {
       // Soul block
       const soulBlock = buildSoulPromptBlock(soulConfig, userContext, autonomyConfig);
 
-      // Memory block
+      // Memory block: merge semantic hits with top reinforced facts
       let memoriasRelevantes: string | undefined;
-      if (memoriesResult.status === 'fulfilled' && memoriesResult.value.length > 0) {
-        memoriasRelevantes = formatMemoriesForPrompt(memoriesResult.value);
-        console.log(`🧠 Agent memories found: ${memoriesResult.value.length}`);
+      let episodiosRecentes: string | undefined;
+      const semanticMemories =
+        memoriesResult.status === 'fulfilled' && Array.isArray(memoriesResult.value)
+          ? memoriesResult.value
+          : [];
+      if (unifiedContextResult.status === 'fulfilled' && unifiedContextResult.value) {
+        const mergedMemories = mergeRelevantMemories(
+          semanticMemories,
+          unifiedContextResult.value.facts,
+          5,
+        );
+        if (mergedMemories.length > 0) {
+          memoriasRelevantes = formatMemoriesForPrompt(mergedMemories);
+        }
+        if (unifiedContextResult.value.episodes.length > 0) {
+          episodiosRecentes = formatAgentMemoryContextForPrompt({
+            facts: [],
+            episodes: unifiedContextResult.value.episodes,
+          });
+        }
+        if (unifiedContextResult.value.facts.length > 0 || unifiedContextResult.value.episodes.length > 0) {
+          console.log(
+            `🧠 Unified agent context loaded: ${unifiedContextResult.value.facts.length} facts, ` +
+              `${unifiedContextResult.value.episodes.length} episodes`,
+          );
+        }
+      }
+      if (!memoriasRelevantes && semanticMemories.length > 0) {
+        memoriasRelevantes = formatMemoriesForPrompt(semanticMemories);
+        console.log(`🧠 Agent memories fallback found: ${semanticMemories.length}`);
       }
 
       // Day context block
@@ -1128,8 +1354,8 @@ serve(async (req: Request) => {
         console.log(`📅 Day context items: ${dayCtxResult.value.items.length}`);
       }
 
-      agentEnrichment = { soulBlock, memoriasRelevantes, agendaHoje };
-      console.log('🧬 Agent enrichment built (soul + memory + agenda)');
+      agentEnrichment = { soulBlock, memoriasRelevantes, episodiosRecentes, agendaHoje };
+      console.log('🧬 Agent enrichment built (soul + memory + episodes + agenda)');
     } catch (enrichErr) {
       console.warn('⚠️ Agent enrichment failed (non-blocking):', enrichErr);
     }
@@ -1164,6 +1390,7 @@ serve(async (req: Request) => {
         confidence: intencaoNLP.confianca,
         has_soul: !!agentEnrichment?.soulBlock,
         has_memories: !!agentEnrichment?.memoriasRelevantes,
+        has_episodes: !!agentEnrichment?.episodiosRecentes,
         has_agenda: !!agentEnrichment?.agendaHoje,
       });
 
@@ -1237,6 +1464,18 @@ serve(async (req: Request) => {
           .eq('user_id', user.id)
           .then(() => {})
           .catch((e: unknown) => console.warn('[tone-update] non-blocking error:', e));
+        saveMemory(supabase, {
+          user_id: user.id,
+          memory_type: 'preference',
+          content: `Usuário prefere o estilo de comunicação: ${updatedStyle}.`,
+          metadata: {
+            preference_type: 'communication_style',
+            communication_style: updatedStyle,
+            source: 'tone_detector',
+          },
+          tags: ['communication_style', 'tone_detector'],
+          source: 'conversation',
+        }).catch((e) => console.warn('[tone-memory] non-blocking error:', e));
       }
     } catch {
       // never block
@@ -1587,15 +1826,24 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       });
     }
     
-    // Se é SAUDACAO, responder com a soul em runtime
+    // Se é SAUDACAO: GPT (com soul) -> Soul greeting -> Template original
     if (intencaoNLP.intencao === 'SAUDACAO') {
-      const resposta =
-        intencaoNLP.resposta_conversacional?.trim() ||
-        buildSoulGreeting(soulConfig, userContext, nomeUsuario, {
+      let resposta: string;
+
+      if (primeiraVezAbsoluta) {
+        resposta = templateBoasVindas(nomeUsuario);
+      } else if (intencaoNLP.resposta_conversacional?.trim()) {
+        resposta = intencaoNLP.resposta_conversacional.trim();
+      } else {
+        resposta = buildSoulGreeting(soulConfig, userContext, nomeUsuario, {
           firstContactEver: primeiraVezAbsoluta,
           firstContactToday: primeiraVezHoje,
-        });
-      
+          userMessage: content,
+        }) || (primeiraVezHoje
+          ? templateSaudacaoPrimeiraVez(nomeUsuario)
+          : templateSaudacaoRetorno(nomeUsuario));
+      }
+
       await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
@@ -1609,7 +1857,16 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
     
     // Se é AJUDA, usar resposta_conversacional se disponível, template como fallback
     if (intencaoNLP.intencao === 'AJUDA') {
-      const resposta = intencaoNLP.resposta_conversacional?.trim() || templateAjuda(nomeUsuario, primeiraVezHoje);
+      const respostaConversacional = intencaoNLP.resposta_conversacional?.trim();
+      const ajudaSoaRobotica =
+        !!respostaConversacional &&
+        /como sua personal finance|simplificar sua vida financeira|como posso te apoiar hoje|gerenciar suas contas a pagar/i.test(
+          respostaConversacional,
+        );
+      const resposta =
+        (!ajudaSoaRobotica && respostaConversacional) ||
+        buildSoulHelpReply(soulConfig, userContext, nomeUsuario) ||
+        templateAjuda(nomeUsuario, primeiraVezHoje);
       await enviarViaEdgeFunction(phone, resposta);
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
@@ -1671,6 +1928,21 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       }
       
       await enviarViaEdgeFunction(phone, resposta);
+      recordEpisode(
+        supabase,
+        user.id,
+        contaFiltro
+          ? `Consultou saldo filtrado da conta ${contaFiltro}.`
+          : 'Consultou saldo consolidado das contas.',
+        {
+          importance: 0.35,
+          outcome: 'balance_query_answered',
+          entities: {
+            account_filter: contaFiltro || null,
+          },
+          expiresInHours: 72,
+        },
+      );
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
         intent: 'consultar_saldo',
@@ -1735,6 +2007,21 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       });
       
       await enviarViaEdgeFunction(phone, resposta);
+      recordEpisode(
+        supabase,
+        user.id,
+        'Respondeu uma consulta de receitas com filtros de período e conta.',
+        {
+          importance: 0.32,
+          outcome: 'income_query_answered',
+          entities: {
+            period: periodoConfig,
+            account_filter: contaFiltro || null,
+            payment_method: metodo || null,
+          },
+          expiresInHours: 72,
+        },
+      );
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
         intent: 'consultar_receitas',
@@ -1774,6 +2061,20 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       const resposta = await gerarResumoFinanceiro(user.id, periodo);
       
       await enviarViaEdgeFunction(phone, resposta);
+      recordEpisode(
+        supabase,
+        user.id,
+        `Entregou resumo financeiro de ${periodo}.`,
+        {
+          importance: 0.42,
+          outcome: 'financial_summary_answered',
+          entities: {
+            period: periodo,
+            source: 'insights_ana_clara',
+          },
+          expiresInHours: 96,
+        },
+      );
       await supabase.from('whatsapp_messages').update({
         processing_status: 'completed',
         intent: intentLabel,

@@ -8,6 +8,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 export interface SendWhatsAppRequest {
   user_id?: string;
   phone_number?: string;
+  /** Destino grupo WhatsApp (ex.: 5521...@g.us). Exige user_id para resolver a conexão. */
+  chat_jid?: string;
   message_type?: string;
   content?: string;
 }
@@ -63,6 +65,27 @@ export function resolveOutboundWhatsAppConfig(
 
   if (connection.connected !== true || connection.status !== "connected") {
     throw new Error("WhatsApp connection is not ready");
+  }
+
+  const trimmedJid = request.chat_jid?.trim();
+  if (trimmedJid) {
+    if (!request.user_id?.trim()) {
+      throw new Error("user_id is required when sending to chat_jid");
+    }
+    const phoneNumber = trimmedJid;
+    const token = connection.instance_token ||
+      env.UAZAPI_INSTANCE_TOKEN ||
+      env.UAZAPI_TOKEN ||
+      env.UAZAPI_API_KEY;
+    if (!token?.trim()) {
+      throw new Error("UAZAPI token missing");
+    }
+    const baseUrl = (
+      env.UAZAPI_BASE_URL ||
+      env.UAZAPI_SERVER_URL ||
+      "https://api.uazapi.com"
+    ).replace(/\/$/, "");
+    return { baseUrl, token, phoneNumber };
   }
 
   const phoneNumber = cleanPhoneNumber(request.phone_number) ||
@@ -165,8 +188,8 @@ export async function handleRequest(req: Request): Promise<Response> {
     if (!content) {
       throw new Error("content é obrigatório");
     }
-    if (!request.user_id && !request.phone_number) {
-      throw new Error("user_id ou phone_number é obrigatório");
+    if (!request.user_id && !request.phone_number && !request.chat_jid?.trim()) {
+      throw new Error("user_id ou phone_number ou chat_jid é obrigatório");
     }
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);

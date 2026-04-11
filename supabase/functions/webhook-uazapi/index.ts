@@ -320,17 +320,32 @@ async function handleMessageReceived(supabase: any, payload: UazapiPayload) {
     return;
   }
 
-  // Extrair telefone (formato UAZAPI)
-  const fromNumber = (
-    payload.chat?.phone ||
-    message.sender?.replace('@s.whatsapp.net', '').replace('@c.us', '') ||
-    ''
-  ).replace(/\D/g, '');
+  const chatIdRaw = (message.chatid || payload.chat?.wa_chatid || '').trim();
+  const isGroup = chatIdRaw.endsWith('@g.us');
+  const senderRaw = (message.sender || '').trim();
+  const participantPhone = senderRaw
+    .replace(/@s\.whatsapp\.net/gi, '')
+    .replace(/@c\.us/gi, '')
+    .replace(/\D/g, '');
 
-  console.log('[webhook-uazapi] Telefone:', fromNumber);
+  // DM: chat.phone / sender. Grupo: sempre o remetente (participante), para satisfazer valid_phone_number.
+  const fromNumber = isGroup
+    ? participantPhone
+    : (
+        payload.chat?.phone ||
+        message.sender?.replace('@s.whatsapp.net', '').replace('@c.us', '') ||
+        ''
+      ).replace(/\D/g, '');
+
+  console.log('[webhook-uazapi] Telefone:', fromNumber, '| Grupo?', isGroup, '| chatid:', chatIdRaw);
 
   if (!fromNumber) {
     console.warn('[webhook-uazapi] Telefone não encontrado');
+    return;
+  }
+
+  if (isGroup && !participantPhone) {
+    console.warn('[webhook-uazapi] Grupo sem telefone do remetente — ignorando');
     return;
   }
 
@@ -448,10 +463,14 @@ async function handleMessageReceived(supabase: any, payload: UazapiPayload) {
             : message.messageTimestamp * 1000
         ).toISOString() 
       : new Date().toISOString(),
-    metadata: { 
+    metadata: {
       senderName: message.senderName,
       chatid: message.chatid,
-      raw: payload 
+      is_group: isGroup,
+      group_jid: isGroup ? chatIdRaw : undefined,
+      group_name: payload.chat?.wa_name,
+      participant_phone: isGroup ? participantPhone : undefined,
+      raw: payload,
     },
   };
 
@@ -486,6 +505,11 @@ async function handleMessageReceived(supabase: any, payload: UazapiPayload) {
         message_type: msgType,
         is_audio: isAudio,
         whatsapp_message_id: message.messageid,
+        is_group: isGroup,
+        group_jid: isGroup ? chatIdRaw : undefined,
+        group_name: isGroup ? (payload.chat?.wa_name ?? null) : undefined,
+        participant_name: message.senderName ?? null,
+        raw_payload: payload,
       }),
     });
 

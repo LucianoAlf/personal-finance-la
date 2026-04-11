@@ -187,8 +187,10 @@ export async function enviarViaEdgeFunction(
   phone: string,
   content: string,
   userId?: string,
+  options?: { chatJid?: string },
 ): Promise<void> {
-  console.log('📤 Enviando via Edge Function para:', phone);
+  const dest = options?.chatJid ?? phone;
+  console.log('📤 Enviando via Edge Function para:', dest);
   console.log('📝 Conteúdo:', content.substring(0, 100) + '...');
   
   try {
@@ -200,7 +202,9 @@ export async function enviarViaEdgeFunction(
       },
       body: JSON.stringify({
         ...(userId ? { user_id: userId } : {}),
-        phone_number: phone,
+        ...(options?.chatJid
+          ? { chat_jid: options.chatJid }
+          : { phone_number: phone }),
         message_type: 'text',
         content
       })
