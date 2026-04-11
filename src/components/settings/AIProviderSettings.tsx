@@ -27,6 +27,10 @@ export function AIProviderSettings() {
   const [selectedProvider, setSelectedProvider] = useState<AIProviderType | null>(null);
 
   const providersList: AIProviderType[] = ['openai', 'gemini', 'claude', 'openrouter'];
+  const successAlertClassName =
+    'rounded-[22px] border-success-border/70 bg-success-subtle/70 text-success shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]';
+  const warningAlertClassName =
+    'rounded-[22px] border-warning-border/70 bg-warning-subtle/70 text-warning shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]';
 
   const handleCardClick = (provider: AIProviderType) => {
     setSelectedProvider(provider);
@@ -63,9 +67,9 @@ export function AIProviderSettings() {
         </CardHeader>
         <CardContent>
           {defaultProvider ? (
-            <Alert className="border-green-200 bg-green-50">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-700">
+            <Alert className={successAlertClassName}>
+              <CheckCircle className="h-4 w-4 text-success" />
+              <AlertDescription className="text-success">
                 <strong>Provedor Padrão:</strong> {LABELS.aiProvider[defaultProvider.provider]} ({defaultProvider.model_name})
                 {defaultProvider.is_validated && (
                   <span className="ml-2">✓ Validado</span>
@@ -73,16 +77,16 @@ export function AIProviderSettings() {
               </AlertDescription>
             </Alert>
           ) : providers.length > 0 ? (
-            <Alert className="border-amber-200 bg-amber-50">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-700">
+            <Alert className={warningAlertClassName}>
+              <AlertCircle className="h-4 w-4 text-warning" />
+              <AlertDescription className="text-warning">
                 Nenhum provedor padrão definido. Selecione um provedor para ser usado por padrão.
               </AlertDescription>
             </Alert>
           ) : (
-            <Alert className="border-amber-200 bg-amber-50">
-              <AlertCircle className="h-4 w-4 text-amber-600" />
-              <AlertDescription className="text-amber-700">
+            <Alert className={warningAlertClassName}>
+              <AlertCircle className="h-4 w-4 text-warning" />
+              <AlertDescription className="text-warning">
                 Nenhum provedor de IA configurado. Configure pelo menos um provedor para usar a Ana Clara.
               </AlertDescription>
             </Alert>

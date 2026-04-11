@@ -34,6 +34,7 @@ interface UazapiPayload {
     type?: string;
     fromMe?: boolean;
     sender?: string;
+    sender_pn?: string;
     senderName?: string;
     messageTimestamp?: number;
     text?: string;
@@ -61,6 +62,11 @@ interface UazapiEnvConfig {
   UAZAPI_API_KEY?: string;
 }
 
+interface UazapiMessageLike {
+  sender?: string;
+  sender_pn?: string;
+}
+
 export function getConnectionLookupToken(
   payload: Pick<UazapiPayload, 'token'>,
   fallbackToken?: string | null,
@@ -77,6 +83,22 @@ export function getTranscriptionToken(
     env.UAZAPI_TOKEN ||
     env.UAZAPI_API_KEY ||
     null;
+}
+
+export function getInboundSenderPhone(message: UazapiMessageLike): string {
+  const senderPn = (message.sender_pn || '')
+    .replace(/@s\.whatsapp\.net/gi, '')
+    .replace(/@c\.us/gi, '')
+    .replace(/\D/g, '');
+
+  if (senderPn) {
+    return senderPn;
+  }
+
+  return (message.sender || '')
+    .replace(/@s\.whatsapp\.net/gi, '')
+    .replace(/@c\.us/gi, '')
+    .replace(/\D/g, '');
 }
 
 async function findConnectionForPayload(
@@ -322,11 +344,7 @@ async function handleMessageReceived(supabase: any, payload: UazapiPayload) {
 
   const chatIdRaw = (message.chatid || payload.chat?.wa_chatid || '').trim();
   const isGroup = chatIdRaw.endsWith('@g.us');
-  const senderRaw = (message.sender || '').trim();
-  const participantPhone = senderRaw
-    .replace(/@s\.whatsapp\.net/gi, '')
-    .replace(/@c\.us/gi, '')
-    .replace(/\D/g, '');
+  const participantPhone = getInboundSenderPhone(message);
 
   // DM: chat.phone / sender. Grupo: sempre o remetente (participante), para satisfazer valid_phone_number.
   const fromNumber = isGroup

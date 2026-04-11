@@ -15,6 +15,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -88,6 +98,19 @@ describe('premium dark-mode primitives', () => {
           </DialogContent>
         </Dialog>
 
+        <AlertDialog open>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Premium alert</AlertDialogTitle>
+              <AlertDialogDescription>Semantic destructive surface</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction>Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <DropdownMenu open modal={false}>
           <DropdownMenuTrigger asChild>
             <button type="button">Menu</button>
@@ -125,6 +148,9 @@ describe('premium dark-mode primitives', () => {
     expect(screen.getByTestId('select-trigger').className).toContain('border-border');
     expect(screen.getByRole('dialog', { hidden: true }).className).toContain('bg-surface-overlay');
     expect(screen.getByRole('dialog', { hidden: true }).className).toContain('border-border');
+    expect(screen.getByRole('alertdialog', { hidden: true }).className).toContain('bg-surface-overlay');
+    expect(screen.getByRole('alertdialog', { hidden: true }).className).toContain('border-border');
+    expect(screen.getByText('Semantic destructive surface').className).toContain('text-muted-foreground');
     expect(screen.getByRole('menu', { hidden: true }).className).toContain('bg-surface-overlay');
     expect(screen.getByRole('menu', { hidden: true }).className).toContain('border-border');
     expect(screen.getByTestId('premium-table').className).toContain('bg-surface');

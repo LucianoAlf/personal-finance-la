@@ -128,11 +128,9 @@ export function GeneralSettings() {
     void persistTheme(newTheme, { showSuccessToast: false });
   };
 
-  // Avatar cache-busting
+  // Keep the avatar source stable across unrelated settings updates, like theme changes.
   const resolvedAvatarUrl = resolveUserAvatarUrl(profile, userSettings);
-  const avatarSrc = resolvedAvatarUrl
-    ? `${resolvedAvatarUrl}?v=${encodeURIComponent(userSettings?.updated_at || '')}`
-    : undefined;
+  const avatarSrc = resolvedAvatarUrl || undefined;
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -215,11 +213,7 @@ export function GeneralSettings() {
           {/* Avatar */}
           <div className="flex items-center gap-4">
             <Avatar className="h-20 w-20">
-              <AvatarImage
-                key={avatarSrc || 'no-avatar'}
-                src={avatarSrc}
-                alt="Foto do perfil"
-              />
+              <AvatarImage src={avatarSrc} alt="Foto do perfil" />
               <AvatarFallback className="bg-gradient-to-br from-purple-500 to-purple-600 text-white text-2xl">
                 {getUserInitials(displayName, userEmail)}
               </AvatarFallback>

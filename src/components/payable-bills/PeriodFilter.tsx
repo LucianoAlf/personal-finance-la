@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Calendar, Clock, CalendarDays, Repeat, Hash, Pin } from 'lucide-react';
+import { PAYABLE_BILLS_FILTER_SELECT_CONTENT_CLASS } from './filterSelectStyles';
 
 export type PeriodOption = 'all' | 'next_7_days' | 'this_month' | 'recurring' | 'installments' | 'one_time';
 
@@ -40,7 +41,7 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
           </div>
         </SelectValue>
       </SelectTrigger>
-      <SelectContent className="rounded-xl border-border/70 bg-popover/98 shadow-[0_18px_44px_rgba(2,6,23,0.2)]">
+      <SelectContent className={PAYABLE_BILLS_FILTER_SELECT_CONTENT_CLASS}>
         {/* Todas */}
         <SelectItem value="all">
           <div className="flex items-center gap-2">

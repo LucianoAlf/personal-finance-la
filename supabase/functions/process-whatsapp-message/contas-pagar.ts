@@ -4976,7 +4976,7 @@ export async function processarResumoPagamentosMes(
   
   const inicioMes = new Date(anoRef, mesRef, 1).toISOString().split('T')[0];
   const fimMes = new Date(anoRef, mesRef + 1, 0).toISOString().split('T')[0];
-  const nomeMesRef = obterNomeMes(mesRef);
+  const nomeMesRef = obterNomeMes(new Date(anoRef, mesRef, 1));
   
   // Buscar contas pagas no mês
   const { data: contasPagas } = await supabase

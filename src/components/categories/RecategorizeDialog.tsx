@@ -1,11 +1,16 @@
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useCategories } from '@/hooks/useCategories';
-import { useRecategorize } from '@/hooks/useRecategorize';
-import type { Category } from '@/types/categories';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -13,6 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useCategories } from '@/hooks/useCategories';
+import { useRecategorize } from '@/hooks/useRecategorize';
+import type { Category } from '@/types/categories';
 
 interface RecategorizeDialogProps {
   open: boolean;
@@ -37,10 +45,12 @@ export function RecategorizeDialog({
   const { recategorizeTransaction, recategorizeBulk, loading } = useRecategorize();
   const [newCategoryId, setNewCategoryId] = useState('');
   const [applyToSimilar, setApplyToSimilar] = useState(false);
+
   const allowedCategoryType =
     transaction.ledgerEntity === 'credit_card_transaction' ? 'expense' : currentCategory.type;
+
   const availableCategories = categories.filter(
-    (cat) => cat.id !== currentCategory.id && cat.type === allowedCategoryType,
+    (item) => item.id !== currentCategory.id && item.type === allowedCategoryType,
   );
 
   const handleRecategorize = async () => {
@@ -70,53 +80,64 @@ export function RecategorizeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Recategorizar Transação</DialogTitle>
+      <DialogContent className="max-w-md rounded-[28px] border-border/70 bg-surface-overlay p-0">
+        <DialogHeader className="border-b border-border/60 px-6 pb-5 pt-6">
+          <DialogTitle className="text-xl">Recategorizar lançamento</DialogTitle>
+          <DialogDescription>
+            Troque a categoria deste lançamento ou aplique a mesma regra aos lançamentos
+            semelhantes.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div>
-            <Label className="text-gray-600">Transação:</Label>
-            <p className="font-medium text-gray-900">{transaction.description}</p>
+        <div className="space-y-5 px-6 py-6">
+          <div className="space-y-3 rounded-[22px] border border-border/70 bg-surface/65 p-4">
+            <div>
+              <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Lançamento
+              </Label>
+              <p className="mt-1 text-sm font-medium text-foreground">{transaction.description}</p>
+            </div>
+            <div>
+              <Label className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                Categoria atual
+              </Label>
+              <p className="mt-1 text-sm font-medium text-foreground">{currentCategory.name}</p>
+            </div>
           </div>
 
-          <div>
-            <Label className="text-gray-600">Categoria atual:</Label>
-            <p className="font-medium text-gray-900">{currentCategory.name}</p>
-          </div>
-
-          <div>
-            <Label htmlFor="new-category">Nova categoria:</Label>
+          <div className="space-y-2">
+            <Label htmlFor="new-category">Nova categoria</Label>
             <Select value={newCategoryId} onValueChange={setNewCategoryId}>
-              <SelectTrigger id="new-category" className="mt-1">
+              <SelectTrigger id="new-category">
                 <SelectValue placeholder="Selecione uma categoria" />
               </SelectTrigger>
               <SelectContent>
-                {availableCategories.map(cat => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name}
+                {availableCategories.map((item) => (
+                  <SelectItem key={item.id} value={item.id}>
+                    {item.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="flex items-center space-x-2 bg-gray-50 p-3 rounded-lg">
+          <div className="flex items-start gap-3 rounded-[20px] border border-border/70 bg-surface/55 p-4">
             <Checkbox
               id="apply-similar"
               checked={applyToSimilar}
               onCheckedChange={(checked) => setApplyToSimilar(checked as boolean)}
+              className="mt-0.5"
             />
             <label
               htmlFor="apply-similar"
-              className="text-sm text-gray-700 cursor-pointer"
+              className="cursor-pointer text-sm leading-6 text-muted-foreground"
             >
-              Aplicar a todas as transações similares (descrição: "{transaction.description}")
+              Aplicar a todos os lançamentos semelhantes com a descrição{' '}
+              <span className="font-medium text-foreground">"{transaction.description}"</span>.
             </label>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <DialogFooter className="border-t border-border/60 px-0 pt-4">
             <Button
               type="button"
               variant="outline"
@@ -128,10 +149,11 @@ export function RecategorizeDialog({
             <Button
               onClick={handleRecategorize}
               disabled={loading || !newCategoryId}
+              className="h-11 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground shadow-[0_14px_28px_rgba(139,92,246,0.24)] hover:bg-primary/90"
             >
               {loading ? 'Recategorizando...' : 'Recategorizar'}
             </Button>
-          </div>
+          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>

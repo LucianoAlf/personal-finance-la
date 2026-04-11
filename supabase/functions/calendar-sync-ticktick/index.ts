@@ -71,7 +71,9 @@ import {
 import { resolveTickTickApiToken } from '../_shared/integration-token.ts';
 import {
   processUnlinkedInboundTask,
+  resolveCompletedBillPaidAmount,
   resolveInboundSyncProjectIds,
+  shouldFetchMissingLinkedTaskById,
   shouldSweepLinkForRemoteDeleted,
 } from './inbound-worker.ts';
 import { processOutboundUpsertLink } from './outbound-worker.ts';
@@ -449,6 +451,21 @@ async function fetchTickTickTasksForProject(
   return [Array.isArray(tasks) ? (tasks as Record<string, unknown>[]) : [], true];
 }
 
+async function fetchTickTickTaskById(
+  token: string,
+  projectId: string,
+  taskId: string,
+): Promise<Record<string, unknown> | null> {
+  const { ok, data, status } = await tickTickRequest('GET', `/project/${projectId}/task/${taskId}`, token);
+  if (!ok) {
+    if (status !== 404) {
+      console.warn(`[ticktick-inbound] task fetch failed for ${projectId}/${taskId} (status ${status})`);
+    }
+    return null;
+  }
+  return data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
+}
+
 function parseTickTickDateInbound(dateStr: string): string {
   const normalized = dateStr.replace(/\+0000$/, 'Z');
   const ms = new Date(normalized).getTime();
@@ -489,6 +506,14 @@ function calendarFieldsFromTickTickTask(task: TickTickTaskInbound): {
 }
 
 function remoteModifiedIso(task: TickTickTaskInbound): string {
+  const completed = (task as TickTickTaskInbound & { completedTime?: string }).completedTime?.trim();
+  if (completed) {
+    try {
+      return parseTickTickDateInbound(completed);
+    } catch {
+      /* fall through */
+    }
+  }
   const mt = task.modifiedTime?.trim();
   if (mt) {
     try {
@@ -575,6 +600,7 @@ function normalizeRawTickTickTask(
     projectId,
     modifiedTime,
     status: statusNum,
+    completedTime: raw.completedTime != null ? String(raw.completedTime) : undefined,
     repeatFlag,
     reminders,
     priority,
@@ -1017,12 +1043,15 @@ async function processInboundTickTickForUser(
           bill &&
           (bill.status === 'pending' || bill.status === 'overdue')
         ) {
-          const paidAmount = Number(bill.amount) || 0;
+          const paidAmount = resolveCompletedBillPaidAmount(bill.amount);
+          const observedAt = new Date().toISOString();
           const { error: billUpdateErr } = await supabase
             .from('payable_bills')
             .update({
               status: 'paid',
-              paid_at: new Date().toISOString(),
+              paid_at: (task as TickTickTaskInbound & { completedTime?: string }).completedTime
+                ? parseTickTickDateInbound((task as TickTickTaskInbound & { completedTime?: string }).completedTime!)
+                : observedAt,
               paid_amount: paidAmount,
             })
             .eq('id', linkRow.origin_id)
@@ -1030,10 +1059,21 @@ async function processInboundTickTickForUser(
             .in('status', ['pending', 'overdue']);
 
           if (!billUpdateErr) {
+            await supabase
+              .from('calendar_external_event_links')
+              .update(
+                buildInboundHealSuccessLinkUpdate(
+                  remoteModified,
+                  currentHash,
+                  task.projectId,
+                  observedAt,
+                ),
+              )
+              .eq('id', linkRow.id);
             console.log(
-              `[ticktick-sync] Marked payable_bill ${linkRow.origin_id} as paid (R$${paidAmount}) from TickTick task ${task.id}`,
+              `[ticktick-sync] Marked payable_bill ${linkRow.origin_id} as paid from TickTick task ${task.id}`,
             );
-            stats.updatedEvents++;
+            stats.updated++;
           } else {
             console.error(
               `[ticktick-sync] Failed to mark payable_bill ${linkRow.origin_id} as paid:`,
@@ -1171,9 +1211,8 @@ async function processInboundTickTickForUser(
 
   const { data: allLinks } = await supabase
     .from('calendar_external_event_links')
-    .select('id, external_object_id, event_id, origin_id, external_list_id, sync_status')
+    .select('id, external_object_id, event_id, origin_id, origin_type, external_list_id, sync_status')
     .eq('provider', 'ticktick')
-    .neq('sync_status', 'remote_deleted');
 
   const scopedLinks = (allLinks ?? []).filter((l) => {
     const ownEvent = l.event_id && eventIdSet.has(l.event_id as string);
@@ -1194,6 +1233,79 @@ async function processInboundTickTickForUser(
   } else {
     for (const link of scopedLinks) {
       if (seenIds.has(link.external_object_id as string)) continue;
+
+      if (
+        shouldFetchMissingLinkedTaskById({
+          originId: (link.origin_id as string | null) ?? null,
+          eventId: (link.event_id as string | null) ?? null,
+          originType: (link as { origin_type?: string | null }).origin_type ?? null,
+          externalObjectId: (link.external_object_id as string | null) ?? null,
+          syncStatus: (link.sync_status as string | null) ?? null,
+        })
+      ) {
+        const remoteTaskRaw = await fetchTickTickTaskById(
+          token,
+          String(link.external_list_id ?? ''),
+          String(link.external_object_id ?? ''),
+        );
+        const remoteTask = remoteTaskRaw
+          ? normalizeRawTickTickTask(remoteTaskRaw, String(link.external_list_id ?? ''))
+          : null;
+
+        if (remoteTask) {
+          const remoteModified = remoteModifiedIso(remoteTask);
+          const currentHash = buildExternalPayloadHash(hashableTaskFromInbound(remoteTask));
+          const observedAt = new Date().toISOString();
+
+          await supabase
+            .from('calendar_external_event_links')
+            .update(
+              buildInboundHealSuccessLinkUpdate(
+                remoteModified,
+                currentHash,
+                String(link.external_list_id ?? ''),
+                observedAt,
+              ),
+            )
+            .eq('id', link.id);
+
+          if (remoteTask.status === 2 && link.origin_id) {
+            const { data: bill } = await supabase
+              .from('payable_bills')
+              .select('id, amount, status')
+              .eq('id', link.origin_id)
+              .maybeSingle();
+
+            if (bill && (bill.status === 'pending' || bill.status === 'overdue')) {
+              const paidAmount = resolveCompletedBillPaidAmount(bill.amount);
+              const { error: billUpdateErr } = await supabase
+                .from('payable_bills')
+                .update({
+                  status: 'paid',
+                  paid_at: remoteTask.completedTime
+                    ? parseTickTickDateInbound(remoteTask.completedTime)
+                    : new Date().toISOString(),
+                  paid_amount: paidAmount,
+                })
+                .eq('id', link.origin_id)
+                .eq('user_id', userId)
+                .in('status', ['pending', 'overdue']);
+
+              if (billUpdateErr) {
+                console.error(
+                  `[ticktick-sync] Failed to mark payable_bill ${link.origin_id} as paid from missing-task lookup:`,
+                  billUpdateErr,
+                );
+              } else {
+                stats.updated++;
+                continue;
+              }
+            }
+          }
+
+          continue;
+        }
+      }
 
       await supabase
         .from('calendar_external_event_links')

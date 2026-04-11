@@ -22,14 +22,9 @@ vi.mock('./CategoryTransactionsDialog', () => ({
     categoryTransactionsDialogMock(props);
     const typed = props as {
       open: boolean;
-      onRecategorizeSuccess?: () => void;
     };
 
-    return typed.open ? (
-      <button type="button" onClick={() => typed.onRecategorizeSuccess?.()}>
-        Trigger transactions changed
-      </button>
-    ) : null;
+    return typed.open ? <div>Dialog aberto</div> : null;
   },
 }));
 
@@ -38,16 +33,45 @@ describe('CategoryCard', () => {
     categoryTransactionsDialogMock.mockClear();
   });
 
-  it('forwards transaction-change callback into the category transactions dialog', async () => {
+  it('renders category metadata in a compact manager layout', () => {
+    render(
+      <CategoryCard
+        category={{
+          id: 'cat-1',
+          user_id: 'user-1',
+          name: 'Alimentação',
+          type: 'expense',
+          parent_id: null,
+          color: '#ef4444',
+          icon: 'Utensils',
+          is_default: false,
+          created_at: '2026-04-01T00:00:00.000Z',
+          keywords: ['mercado', 'restaurante'],
+        }}
+        stats={{
+          transactionCount: 1,
+          totalAmount: 100,
+          payableBillsCount: 0,
+          financialGoalsCount: 0,
+          legacyBudgetsCount: 0,
+        }}
+        isDefault={false}
+      />,
+    );
+
+    expect(screen.getByText('1 lançamento • R$ 100,00')).toBeTruthy();
+    expect(screen.getByText(/Palavras-chave: mercado, restaurante/i)).toBeTruthy();
+  });
+
+  it('opens the category transactions dialog from the view action', async () => {
     const user = userEvent.setup();
-    const onTransactionsChanged = vi.fn();
 
     render(
       <CategoryCard
         category={{
           id: 'cat-1',
           user_id: 'user-1',
-          name: 'Alimentacao',
+          name: 'Alimentação',
           type: 'expense',
           parent_id: null,
           color: '#ef4444',
@@ -64,14 +88,21 @@ describe('CategoryCard', () => {
           legacyBudgetsCount: 0,
         }}
         isDefault={false}
-        onTransactionsChanged={onTransactionsChanged}
       />,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Ver' }));
-    await user.click(await screen.findByRole('button', { name: 'Trigger transactions changed' }));
+    await user.click(screen.getAllByRole('button', { name: 'Ver' })[0]);
 
-    expect(onTransactionsChanged).toHaveBeenCalledTimes(1);
     expect(categoryTransactionsDialogMock).toHaveBeenCalled();
+    expect(categoryTransactionsDialogMock.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({
+        open: true,
+        category: expect.objectContaining({
+          id: 'cat-1',
+          name: 'Alimentação',
+        }),
+      }),
+    );
+    expect(screen.getByText('Dialog aberto')).toBeTruthy();
   });
 });

@@ -134,6 +134,10 @@ export function normalizeForTriggerMatch(text: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export function groupSessionPhoneKey(groupJid: string): string {
   return groupJid.replace(/@g\.us$/i, '').replace(/\D/g, '');
 }
@@ -163,7 +167,17 @@ export function isParticipantAllowed(
 
 export function textContainsAgentTrigger(text: string, triggers: string[]): boolean {
   const n = normalizeForTriggerMatch(text);
-  return triggers.some((t) => n.includes(normalizeForTriggerMatch(t)));
+  return triggers.some((trigger) => {
+    const t = escapeRegExp(normalizeForTriggerMatch(trigger).trim());
+    if (!t) return false;
+
+    const directPatterns = [
+      new RegExp(`^@?${t}(?:$|[\\s,!.?;:])`, 'i'),
+      new RegExp(`^(?:oi|ola|fala|ei|opa|hey|e ai)\\s+@?${t}(?:$|[\\s,!.?;:])`, 'i'),
+    ];
+
+    return directPatterns.some((pattern) => pattern.test(n));
+  });
 }
 
 export function isDismissPhrase(text: string, phrases: string[]): boolean {

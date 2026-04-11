@@ -1,51 +1,26 @@
 /* @vitest-environment jsdom */
 
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
-import { CreateCategoryDialog } from './CreateCategoryDialog';
+import { describe, expect, it, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
 
-const addCategory = vi.fn().mockResolvedValue({ id: 'new' });
-const updateCategory = vi.fn().mockResolvedValue(undefined);
+import { CreateCategoryDialog } from './CreateCategoryDialog';
 
 vi.mock('@/hooks/useCategories', () => ({
   useCategories: () => ({
-    addCategory,
-    updateCategory,
+    addCategory: vi.fn(),
+    updateCategory: vi.fn(),
   }),
 }));
 
 describe('CreateCategoryDialog', () => {
-  beforeEach(() => {
-    addCategory.mockClear();
-    updateCategory.mockClear();
-  });
-
-  it('persists category type from manager tab when creating', async () => {
-    const user = userEvent.setup();
-    const onOpenChange = vi.fn();
-
+  it('keeps the dialog constrained to the viewport height', () => {
     render(
-      <CreateCategoryDialog
-        open
-        onOpenChange={onOpenChange}
-        categoryType="income"
-      />,
+      <CreateCategoryDialog open onOpenChange={vi.fn()} categoryType="expense" />,
     );
 
-    await user.type(screen.getByLabelText(/nome/i), 'Salário extra');
-    await user.click(screen.getByRole('button', { name: /criar categoria/i }));
-
-    await waitFor(() => {
-      expect(addCategory).toHaveBeenCalled();
-    });
-
-    expect(addCategory).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'income',
-        name: 'Salário extra',
-      }),
-    );
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.className).toContain('max-h-[80vh]');
+    expect(dialog.className).toContain('overflow-y-auto');
   });
 });

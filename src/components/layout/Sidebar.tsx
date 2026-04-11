@@ -82,9 +82,7 @@ export function Sidebar() {
 
   const resolvedDisplayName = resolveUserDisplayName(profile, userSettings, user);
   const resolvedAvatarUrl = resolveUserAvatarUrl(profile, userSettings);
-  const avatarSrc = resolvedAvatarUrl
-    ? `${resolvedAvatarUrl}?v=${encodeURIComponent(userSettings?.updated_at || '')}`
-    : undefined;
+  const avatarSrc = resolvedAvatarUrl || undefined;
 
   const handleQuickCreate = (action: (typeof quickCreateItems)[number]['action']) => {
     openQuickCreate(action);
@@ -234,11 +232,7 @@ export function Sidebar() {
         <div className="mt-auto border-t border-border p-4">
           <div className="flex items-center space-x-3 rounded-2xl border border-border/70 bg-surface-elevated/70 px-4 py-3">
             <Avatar className="h-10 w-10">
-              <AvatarImage
-                key={avatarSrc || 'no-avatar'}
-                src={avatarSrc}
-                alt="Avatar"
-              />
+              <AvatarImage src={avatarSrc} alt="Avatar" />
               <AvatarFallback className="border border-primary/20 bg-primary/15 text-primary">
                 {getUserInitials(resolvedDisplayName, user?.email)}
               </AvatarFallback>

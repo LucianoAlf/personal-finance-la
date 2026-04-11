@@ -910,6 +910,7 @@ export interface TickTickTaskInbound {
   timeZone?: string;
   projectId: string;
   modifiedTime?: string;
+  completedTime?: string;
   /** 0 = normal, 2 = completed (TickTick API) */
   status: number;
   /** RRULE string when task repeats. */

@@ -49,6 +49,26 @@ export function shouldSweepLinkForRemoteDeleted(params: {
   return successfulProjectIds.has(externalListId);
 }
 
+export function shouldFetchMissingLinkedTaskById(params: {
+  originId: string | null;
+  eventId: string | null;
+  originType: string | null;
+  externalObjectId: string | null;
+  syncStatus: string | null;
+}): boolean {
+  const hasExternalObjectId = !!params.externalObjectId?.trim();
+  const isFinancialLink = params.originType === 'payable_bill' && !!params.originId;
+  return hasExternalObjectId && isFinancialLink && !params.eventId;
+}
+
+export function resolveCompletedBillPaidAmount(amount: number | string | null | undefined): number | null {
+  if (amount == null) return null;
+  if (typeof amount === 'string' && amount.trim() === '') return null;
+  const parsed = typeof amount === 'number' ? amount : Number(amount);
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
+}
+
 export async function processUnlinkedInboundTask(params: {
   task: TickTickTaskInbound;
   userId: string;

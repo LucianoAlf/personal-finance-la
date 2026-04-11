@@ -78,6 +78,7 @@ import * as imageReader from './image-reader.ts';
 import { detectarIntencaoConsulta, processarConsulta } from './consultas.ts';
 import { detectarIntencaoCartao, processarIntencaoCartao } from './cartao-credito.ts';
 import { processarIntencaoContaPagar, TipoIntencaoContaPagar } from './contas-pagar.ts';
+import { executeAnaClaraCoreFlow } from './ana-clara-core-executor.ts';
 import {
   detectDayContextQuery,
   detectResumoFinanceiroPeriodo,
@@ -1503,6 +1504,27 @@ serve(async (req: Request) => {
           headers: { 'Content-Type': 'application/json' }
         });
       }
+    }
+
+    const coreResponse = await executeAnaClaraCoreFlow({
+      supabase,
+      user,
+      message,
+      phone,
+      content,
+      intencaoNLP,
+      primeiraVezAbsoluta,
+      primeiraVezHoje,
+      nomeUsuario,
+      soulConfig,
+      userContext,
+      sendReply: async (text) => {
+        await enviarViaEdgeFunction(phone, text);
+      },
+    });
+
+    if (coreResponse) {
+      return coreResponse;
     }
     
     // ============================================

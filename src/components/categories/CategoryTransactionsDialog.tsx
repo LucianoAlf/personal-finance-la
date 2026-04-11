@@ -1,13 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { formatCurrency } from '@/utils/formatters';
+import { useCallback, useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/lib/supabase';
 import type { Category } from '@/types/categories';
-import { Skeleton } from '@/components/ui/skeleton';
+import { formatCurrency } from '@/utils/formatters';
 import { RecategorizeDialog } from './RecategorizeDialog';
 
 interface CategoryTransactionsDialogProps {
@@ -34,8 +41,8 @@ const SOURCE_LABEL: Record<LedgerEntity, string> = {
 
 function parseSortDate(iso: string | null | undefined): string {
   if (!iso) return new Date(0).toISOString();
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? new Date(0).toISOString() : d.toISOString();
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? new Date(0).toISOString() : date.toISOString();
 }
 
 export function CategoryTransactionsDialog({
@@ -52,7 +59,9 @@ export function CategoryTransactionsDialog({
   const fetchRows = useCallback(async () => {
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         setRows([]);
         return;
@@ -74,27 +83,21 @@ export function CategoryTransactionsDialog({
       if (bankRes.error) throw bankRes.error;
       if (cardRes.error) throw cardRes.error;
 
-      const bankMapped: LedgerRow[] = (bankRes.data ?? []).map((t: any) => {
-        const sortRaw = t.transaction_date || t.created_at;
-        return {
-          id: t.id,
-          description: t.description ?? '',
-          amount: Number(t.amount) || 0,
-          sortAt: parseSortDate(sortRaw),
-          ledgerEntity: 'transaction' as const,
-        };
-      });
+      const bankMapped: LedgerRow[] = (bankRes.data ?? []).map((item: any) => ({
+        id: item.id,
+        description: item.description ?? '',
+        amount: Number(item.amount) || 0,
+        sortAt: parseSortDate(item.transaction_date || item.created_at),
+        ledgerEntity: 'transaction',
+      }));
 
-      const cardMapped: LedgerRow[] = (cardRes.data ?? []).map((t: any) => {
-        const sortRaw = t.purchase_date || t.created_at;
-        return {
-          id: t.id,
-          description: t.description ?? '',
-          amount: Number(t.amount) || 0,
-          sortAt: parseSortDate(sortRaw),
-          ledgerEntity: 'credit_card_transaction' as const,
-        };
-      });
+      const cardMapped: LedgerRow[] = (cardRes.data ?? []).map((item: any) => ({
+        id: item.id,
+        description: item.description ?? '',
+        amount: Number(item.amount) || 0,
+        sortAt: parseSortDate(item.purchase_date || item.created_at),
+        ledgerEntity: 'credit_card_transaction',
+      }));
 
       const merged = [...bankMapped, ...cardMapped].sort((a, b) =>
         a.sortAt < b.sortAt ? 1 : a.sortAt > b.sortAt ? -1 : 0,
@@ -102,7 +105,7 @@ export function CategoryTransactionsDialog({
 
       setRows(merged);
     } catch (error) {
-      console.error('Erro ao buscar transações:', error);
+      console.error('Erro ao buscar transações da categoria:', error);
     } finally {
       setLoading(false);
     }
@@ -124,25 +127,26 @@ export function CategoryTransactionsDialog({
     await onRecategorizeSuccess?.();
   };
 
-  const totalAmount = rows.reduce((sum, t) => sum + t.amount, 0);
+  const totalAmount = rows.reduce((sum, item) => sum + item.amount, 0);
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {category.name} - Transações
-            </DialogTitle>
+        <DialogContent className="max-h-[80vh] max-w-2xl overflow-y-auto rounded-[28px] border-border/70 bg-surface-overlay p-0">
+          <DialogHeader className="border-b border-border/60 px-6 pb-5 pt-6">
+            <DialogTitle className="text-xl">{category.name} • lançamentos</DialogTitle>
+            <DialogDescription>
+              Revise os lançamentos vinculados a esta categoria e recategorize quando necessário.
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-600">
-                  {rows.length} {rows.length === 1 ? 'lançamento' : 'lançamentos'} (conta + cartão)
+          <div className="space-y-4 px-6 py-6">
+            <div className="rounded-[22px] border border-border/70 bg-surface/65 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-muted-foreground">
+                  {rows.length} {rows.length === 1 ? 'lançamento' : 'lançamentos'} no extrato
                 </span>
-                <span className="text-lg font-semibold text-gray-900">
+                <span className="text-lg font-semibold text-foreground">
                   {formatCurrency(totalAmount)}
                 </span>
               </div>
@@ -150,42 +154,43 @@ export function CategoryTransactionsDialog({
 
             {loading ? (
               <div className="space-y-3">
-                {[1, 2, 3].map(i => (
-                  <Skeleton key={i} className="h-20 w-full" />
+                {[1, 2, 3].map((index) => (
+                  <Skeleton key={index} className="h-24 w-full rounded-[22px]" />
                 ))}
               </div>
             ) : rows.length === 0 ? (
-              <div className="text-center py-12 text-gray-500">
-                Nenhum lançamento nesta categoria
+              <div className="rounded-[24px] border border-dashed border-border/70 bg-surface/55 px-6 py-14 text-center text-sm text-muted-foreground">
+                Nenhum lançamento encontrado para esta categoria.
               </div>
             ) : (
               <div className="space-y-3">
-                {rows.map(row => (
+                {rows.map((row) => (
                   <div
                     key={`${row.ledgerEntity}-${row.id}`}
-                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow"
+                    className="rounded-[22px] border border-border/70 bg-card/95 p-4 shadow-[0_18px_44px_rgba(15,23,42,0.08)] dark:shadow-[0_22px_46px_rgba(2,6,23,0.24)]"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <span className="text-sm text-gray-500">
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          <span className="text-sm text-muted-foreground">
                             {format(new Date(row.sortAt), 'dd/MM/yyyy', { locale: ptBR })}
                           </span>
-                          <Badge variant="secondary" className="text-xs">
+                          <Badge variant="secondary" className="rounded-full px-2.5 py-0.5 text-xs">
                             {SOURCE_LABEL[row.ledgerEntity]}
                           </Badge>
                         </div>
-                        <p className="font-medium text-gray-900 mb-1 break-words">
+                        <p className="break-words text-base font-medium text-foreground">
                           {row.description}
                         </p>
-                        <p className="text-lg font-semibold text-gray-900">
+                        <p className="mt-2 text-lg font-semibold text-foreground">
                           {formatCurrency(row.amount)}
                         </p>
                       </div>
+
                       <Button
                         variant="outline"
                         size="sm"
-                        className="shrink-0"
+                        className="shrink-0 rounded-xl"
                         onClick={() => handleRecategorize(row)}
                       >
                         Recategorizar
@@ -196,8 +201,8 @@ export function CategoryTransactionsDialog({
               </div>
             )}
 
-            <div className="flex justify-end pt-4 border-t">
-              <Button onClick={() => onOpenChange(false)}>
+            <div className="flex justify-end border-t border-border/60 pt-4">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Fechar
               </Button>
             </div>
@@ -205,7 +210,7 @@ export function CategoryTransactionsDialog({
         </DialogContent>
       </Dialog>
 
-      {selectedRow && (
+      {selectedRow ? (
         <RecategorizeDialog
           open={recategorizeOpen}
           onOpenChange={setRecategorizeOpen}
@@ -217,7 +222,7 @@ export function CategoryTransactionsDialog({
           currentCategory={category}
           onSuccess={handleRecategorizeSuccess}
         />
-      )}
+      ) : null}
     </>
   );
 }

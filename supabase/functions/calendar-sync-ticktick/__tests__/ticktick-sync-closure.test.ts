@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
   processUnlinkedInboundTask,
+  resolveCompletedBillPaidAmount,
   resolveInboundSyncProjectIds,
+  shouldFetchMissingLinkedTaskById,
   shouldSweepLinkForRemoteDeleted,
 } from '../inbound-worker';
 import { processOutboundUpsertLink } from '../outbound-worker';
@@ -728,6 +730,45 @@ describe('ticktick-sync-closure (worker behavior)', () => {
         visibleProjectIds: ['list-a', 'list-b', 'list-c'],
       }),
     ).toEqual(['list-a', 'list-b', 'list-c']);
+  });
+
+  it('rechecks missing financial links individually before marking them remote_deleted', () => {
+    expect(
+      shouldFetchMissingLinkedTaskById({
+        originId: 'bill-1',
+        eventId: null,
+        originType: 'payable_bill',
+        externalObjectId: 'tt-1',
+        syncStatus: 'synced',
+      }),
+    ).toBe(true);
+
+    expect(
+      shouldFetchMissingLinkedTaskById({
+        originId: null,
+        eventId: 'evt-1',
+        originType: null,
+        externalObjectId: 'tt-2',
+        syncStatus: 'synced',
+      }),
+    ).toBe(false);
+
+    expect(
+      shouldFetchMissingLinkedTaskById({
+        originId: 'bill-2',
+        eventId: null,
+        originType: 'payable_bill',
+        externalObjectId: '',
+        syncStatus: 'synced',
+      }),
+    ).toBe(false);
+  });
+
+  it('keeps paid_amount null when a completed imported bill has no known amount', () => {
+    expect(resolveCompletedBillPaidAmount(null)).toBeNull();
+    expect(resolveCompletedBillPaidAmount(undefined)).toBeNull();
+    expect(resolveCompletedBillPaidAmount('')).toBeNull();
+    expect(resolveCompletedBillPaidAmount('150.45')).toBe(150.45);
   });
 
   it('routes neutral-title tasks on financial-mapped projects to payable_bills instead of calendar_events', async () => {

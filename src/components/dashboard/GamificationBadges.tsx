@@ -34,7 +34,6 @@ export function GamificationBadges({ meta }: GamificationBadgesProps) {
   // Badge "Investidor Disciplinado": retorno positivo
   const isInvestidorDisciplinado = useMemo(() => {
     const rate = meta?.bills?.onTimeRate ?? 0;
-    console.log('[GamificationBadges] onTimeRate:', rate, 'meta.bills:', meta?.bills);
     return rate >= 80;
   }, [meta?.bills]);
 
@@ -59,7 +58,7 @@ export function GamificationBadges({ meta }: GamificationBadgesProps) {
           animate={{ scale: 1 }}
           transition={{ type: 'spring', stiffness: 300 }}
         >
-          <Badge variant="outline" className="flex items-center gap-1 bg-orange-100 text-orange-700 border-orange-300">
+          <Badge variant="warning" className="flex items-center gap-1">
             <Flame className="h-3 w-3" />
             {billsStreak} {billsStreak === 1 ? 'dia' : 'dias'} sem atraso
           </Badge>
@@ -73,7 +72,7 @@ export function GamificationBadges({ meta }: GamificationBadgesProps) {
           animate={{ scale: 1 }}
           transition={{ type: 'spring', stiffness: 300, delay: 0.1 }}
         >
-          <Badge variant="outline" className="flex items-center gap-1 bg-green-100 text-green-700 border-green-300">
+          <Badge variant="success" className="flex items-center gap-1">
             <PiggyBank className="h-3 w-3" />
             Poupador Ninja
           </Badge>
@@ -87,7 +86,7 @@ export function GamificationBadges({ meta }: GamificationBadgesProps) {
           animate={{ scale: 1 }}
           transition={{ type: 'spring', stiffness: 300, delay: 0.2 }}
         >
-          <Badge variant="outline" className="flex items-center gap-1 bg-blue-100 text-blue-700 border-blue-300">
+          <Badge variant="info" className="flex items-center gap-1">
             <TrendingUp className="h-3 w-3" />
             Investidor Disciplinado
           </Badge>

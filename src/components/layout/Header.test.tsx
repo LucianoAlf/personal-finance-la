@@ -9,23 +9,26 @@ import { ThemeProvider } from '@/contexts/ThemeContext';
 import { Header } from './Header';
 
 const signOutMock = vi.fn();
+let mockAuthState: any;
+let mockSettingsState: any;
 
 vi.mock('@/hooks/useAuth', () => ({
-  useAuth: () => ({
-    user: { email: 'luciano@example.com' },
-    profile: { full_name: 'Luciano Alf', avatar_url: null },
-    signOut: signOutMock,
-  }),
+  useAuth: () => mockAuthState,
 }));
 
 vi.mock('@/hooks/useSettings', () => ({
-  useSettings: () => ({
-    userSettings: {
-      display_name: 'Luciano Alf',
-      avatar_url: null,
-      updated_at: '2026-04-07T00:00:00.000Z',
-    },
-  }),
+  useSettings: () => mockSettingsState,
+}));
+
+vi.mock('@/components/ui/avatar', () => ({
+  Avatar: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div className={className}>{children}</div>
+  ),
+  AvatarImage: ({ src, alt }: { src?: string; alt?: string }) =>
+    src ? <img src={src} alt={alt} /> : null,
+  AvatarFallback: ({ children, className }: { children: React.ReactNode; className?: string }) => (
+    <div className={className}>{children}</div>
+  ),
 }));
 
 function LocationProbe() {
@@ -33,8 +36,8 @@ function LocationProbe() {
   return <div data-testid="location">{location.pathname}</div>;
 }
 
-function renderHeader() {
-  return render(
+function buildHeaderTree() {
+  return (
     <ThemeProvider defaultTheme="light">
       <MemoryRouter initialEntries={['/dashboard']}>
         <Routes>
@@ -49,14 +52,31 @@ function renderHeader() {
           />
         </Routes>
       </MemoryRouter>
-    </ThemeProvider>,
+    </ThemeProvider>
   );
+}
+
+function renderHeader() {
+  return render(buildHeaderTree());
 }
 
 describe('Header user menu', () => {
   beforeEach(() => {
     signOutMock.mockReset();
     signOutMock.mockResolvedValue(undefined);
+    mockAuthState = {
+      user: { email: 'luciano@example.com' },
+      profile: { full_name: 'Luciano Alf', avatar_url: null },
+      signOut: signOutMock,
+    };
+    mockSettingsState = {
+      userSettings: {
+        display_name: 'Luciano Alf',
+        avatar_url: null,
+        updated_at: '2026-04-07T00:00:00.000Z',
+      },
+      setTheme: vi.fn(),
+    };
   });
 
   afterEach(() => {
@@ -119,5 +139,38 @@ describe('Header user menu', () => {
     expect(logoutItem.className).toContain('text-danger');
     expect(logoutItem.className).toContain('focus:bg-danger-subtle');
     expect(logoutItem.className).not.toContain('text-danger-foreground');
+  });
+
+  it('keeps the avatar image src stable when unrelated settings metadata changes', () => {
+    mockAuthState = {
+      ...mockAuthState,
+      profile: { full_name: 'Luciano Alf', avatar_url: 'https://example.com/avatar.png' },
+    };
+    mockSettingsState = {
+      ...mockSettingsState,
+      userSettings: {
+        ...mockSettingsState.userSettings,
+        avatar_url: 'https://example.com/avatar.png',
+        updated_at: '2026-04-07T00:00:00.000Z',
+      },
+    };
+
+    const { rerender } = renderHeader();
+    const avatarBefore = screen.getByAltText('Avatar');
+
+    expect(avatarBefore.getAttribute('src')).toBe('https://example.com/avatar.png');
+
+    mockSettingsState = {
+      ...mockSettingsState,
+      userSettings: {
+        ...mockSettingsState.userSettings,
+        updated_at: '2026-04-08T00:00:00.000Z',
+      },
+    };
+
+    rerender(buildHeaderTree());
+
+    const avatarAfter = screen.getByAltText('Avatar');
+    expect(avatarAfter.getAttribute('src')).toBe('https://example.com/avatar.png');
   });
 });

@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import React from 'react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
 import { CategoryTransactionsDialog } from './CategoryTransactionsDialog';
@@ -86,7 +86,7 @@ describe('CategoryTransactionsDialog', () => {
         category={{
           id: 'cat-1',
           user_id: 'user-1',
-          name: 'Alimentacao',
+          name: 'Alimentação',
           type: 'expense',
           parent_id: null,
           color: '#ef4444',

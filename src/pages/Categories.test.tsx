@@ -2,12 +2,14 @@
 
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import Categories from './Categories';
 
 const categoryCardMock = vi.fn();
 const refetchStatsMock = vi.fn();
+const createDialogMock = vi.fn();
 
 vi.mock('@/components/layout/Header', () => ({
   Header: () => <div>Header</div>,
@@ -25,7 +27,13 @@ vi.mock('@/components/ui/tabs', () => ({
   Tabs: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   TabsTrigger: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
-  TabsContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TabsContent: ({
+    children,
+    value,
+  }: {
+    children: React.ReactNode;
+    value: string;
+  }) => (value === 'expense' ? <div>{children}</div> : null),
 }));
 
 vi.mock('@/components/ui/skeleton', () => ({
@@ -38,12 +46,24 @@ vi.mock('@/hooks/useCategories', () => ({
       {
         id: 'cat-1',
         user_id: 'user-1',
-        name: 'Alimentacao',
+        name: 'Alimentação',
         type: 'expense',
         parent_id: null,
         color: '#ef4444',
         icon: 'Utensils',
-        is_default: false,
+        is_default: true,
+        created_at: '2026-04-01T00:00:00.000Z',
+        keywords: [],
+      },
+      {
+        id: 'cat-2',
+        user_id: 'user-1',
+        name: 'Salário',
+        type: 'income',
+        parent_id: null,
+        color: '#22c55e',
+        icon: 'Wallet',
+        is_default: true,
         created_at: '2026-04-01T00:00:00.000Z',
         keywords: [],
       },
@@ -77,13 +97,17 @@ vi.mock('@/components/categories/CategoryCard', () => ({
 }));
 
 vi.mock('@/components/categories/CreateCategoryDialog', () => ({
-  CreateCategoryDialog: () => null,
+  CreateCategoryDialog: (props: unknown) => {
+    createDialogMock(props);
+    return null;
+  },
 }));
 
 describe('Categories page', () => {
   beforeEach(() => {
     categoryCardMock.mockClear();
     refetchStatsMock.mockClear();
+    createDialogMock.mockClear();
   });
 
   it('passes category stats refetch down to category cards for drill-down updates', () => {
@@ -93,6 +117,22 @@ describe('Categories page', () => {
     expect(categoryCardMock.mock.calls[0][0]).toEqual(
       expect.objectContaining({
         onTransactionsChanged: refetchStatsMock,
+      }),
+    );
+  });
+
+  it('keeps a local create action in the custom categories empty state', async () => {
+    const user = userEvent.setup();
+
+    render(<Categories />);
+
+    expect(screen.getAllByText('Nenhuma categoria nesta seção').length).toBeGreaterThan(0);
+    await user.click(screen.getAllByRole('button', { name: 'Criar categoria agora' })[0]);
+
+    expect(createDialogMock).toHaveBeenCalled();
+    expect(createDialogMock.mock.calls.at(-1)?.[0]).toEqual(
+      expect.objectContaining({
+        open: true,
       }),
     );
   });

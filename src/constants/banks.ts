@@ -183,7 +183,7 @@ const BANK_LOGO_SIZES: Record<BankCode, { card: string; details: string }> = {
   'btg': { card: 'h-10', details: 'h-12' },
   'xp': { card: 'h-10', details: 'h-12' },
   'picpay': { card: 'h-10', details: 'h-12' },
-  'mercadopago': { card: 'h-20', details: 'h-24' },
+  'mercadopago': { card: 'h-10', details: 'h-12' },
   'other': { card: 'h-10', details: 'h-12' },
 };
 
@@ -199,7 +199,7 @@ const BANK_LOGO_POSITION_CLASSES: Record<BankCode, { card: string; details: stri
   'btg': { card: '', details: '' },
   'xp': { card: '', details: '' },
   'picpay': { card: '', details: '' },
-  'mercadopago': { card: '-ml-3 -mt-3 h-24', details: '-ml-3 -mt-3 h-28' },
+  'mercadopago': { card: '', details: '' },
   'other': { card: '', details: '' },
 };
 
@@ -230,7 +230,7 @@ export function getBankLogoPath(cardName: string): string | null {
   if (!bank.hasLogo || !bank.logoFile) return null;
 
   if (bankCode === 'mercadopago') {
-    return `/logos/${bank.logoFile}`;
+    return '/logos/Mercado Pago.svg';
   }
 
   return `/logos/banks/${bank.logoFile}`;

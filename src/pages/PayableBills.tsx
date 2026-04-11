@@ -751,7 +751,7 @@ export default function PayableBills() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <Trash2 className="h-5 w-5 text-red-500" />
+              <Trash2 className="h-5 w-5 text-danger" />
               Deletar Conta
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -764,7 +764,7 @@ export default function PayableBills() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDelete}
-              className="bg-red-500 hover:bg-red-600"
+              className="border-danger-border bg-danger text-danger-foreground hover:bg-danger/90"
             >
               Deletar
             </AlertDialogAction>
@@ -859,7 +859,7 @@ export default function PayableBills() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
+              <AlertTriangle className="h-5 w-5 text-danger" />
               Deletar Parcelamento Completo
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -872,7 +872,7 @@ export default function PayableBills() {
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmDeleteGroup}
-              className="bg-red-500 hover:bg-red-600"
+              className="border-danger-border bg-danger text-danger-foreground hover:bg-danger/90"
             >
               Deletar Tudo
             </AlertDialogAction>

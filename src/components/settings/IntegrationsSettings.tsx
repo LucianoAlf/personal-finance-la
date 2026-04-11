@@ -111,15 +111,15 @@ export function IntegrationsSettings() {
             <div className="flex items-center gap-2">
               {isConnected ? (
                 <>
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <Badge className="bg-green-100 text-green-700 border-green-200">
+                  <CheckCircle className="h-5 w-5 text-success" />
+                  <Badge variant="success">
                     Conectado
                   </Badge>
                 </>
               ) : (
                 <>
-                  <XCircle className="h-5 w-5 text-red-600" />
-                  <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                  <XCircle className="h-5 w-5 text-danger" />
+                  <Badge variant="danger">
                     Desconectado
                   </Badge>
                 </>
@@ -231,8 +231,8 @@ export function IntegrationsSettings() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-amber-600" />
-              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+              <XCircle className="h-5 w-5 text-warning" />
+              <Badge variant="warning">
                 Em planejamento
               </Badge>
             </div>
@@ -272,8 +272,8 @@ export function IntegrationsSettings() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-amber-600" />
-              <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+              <XCircle className="h-5 w-5 text-warning" />
+              <Badge variant="warning">
                 Em planejamento
               </Badge>
             </div>

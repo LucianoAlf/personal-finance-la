@@ -168,3 +168,69 @@ export function parsePaymentMethodReply(mensagem: string): ParsedPaymentMethodRe
 
   return { method, label, bankAlias };
 }
+
+/**
+ * credit_card_context é um contexto de REFERÊNCIA, não um fluxo obrigatório.
+ * Só deve capturar mensagens que realmente pareçam consultas/ações de cartão.
+ * Qualquer mensagem genérica ("me ajuda", "saldo", "agenda", etc.) deve voltar
+ * ao pipeline normal do WhatsApp.
+ */
+export function shouldStayInCreditCardContext(mensagem: string): boolean {
+  const texto = normalizeReply(mensagem);
+  if (!texto) return false;
+
+  const explicitGlobalIntents = [
+    'me ajuda',
+    'ajuda',
+    'meu saldo',
+    'saldo',
+    'extrato',
+    'o que eu tenho hoje',
+    'o que tenho hoje',
+    'agenda',
+    'resumo do meu dia',
+    'resumo de hoje',
+    'valeu',
+    'obrigado',
+    'obrigada',
+    'oi',
+    'ola',
+    'olá',
+    'bom dia',
+    'boa tarde',
+    'boa noite',
+  ];
+
+  if (explicitGlobalIntents.some((term) => texto.includes(term))) {
+    return false;
+  }
+
+  if (pareceNovaTransacao(mensagem)) {
+    return false;
+  }
+
+  const cardSpecificPatterns = [
+    /\bcartao\b/,
+    /\bcartão\b/,
+    /\bfatura\b/,
+    /\blimite\b/,
+    /\bcompra\b/,
+    /\bcompras\b/,
+    /\bparcela\b/,
+    /\bparcelas\b/,
+    /\bfechamento\b/,
+    /\bvencimento\b/,
+    /\bgastei\b/,
+    /\bquanto gastei\b/,
+    /\bcompare\b/,
+    /\bcomparar\b/,
+    /\bnubank\b/,
+    /\bitau\b/,
+    /\bsantander\b/,
+    /\bc6\b/,
+    /\bmercado pago\b/,
+    /\bc6 bank\b/,
+  ];
+
+  return cardSpecificPatterns.some((pattern) => pattern.test(texto));
+}

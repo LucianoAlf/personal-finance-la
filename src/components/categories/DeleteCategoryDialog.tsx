@@ -1,10 +1,17 @@
 import { useMemo, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { AlertTriangle } from 'lucide-react';
-import { useCategories } from '@/hooks/useCategories';
-import type { Category } from '@/types/categories';
+import { toast } from 'sonner';
+
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -12,15 +19,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useCategories } from '@/hooks/useCategories';
 import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
+import type { Category } from '@/types/categories';
 
 export interface CategoryDeleteDependencies {
-  /** Bank + credit card ledger rows (unified count). */
   ledgerTransactionCount: number;
   payableBillsCount: number;
   financialGoalsCount: number;
-  /** Legacy `budgets` rows, if any. */
   legacyBudgetsCount: number;
 }
 
@@ -42,25 +48,28 @@ export function DeleteCategoryDialog({
   const [targetCategoryId, setTargetCategoryId] = useState<string>('');
 
   const replacementCategories = useMemo(
-    () => categories.filter((c) => c.id !== category.id && c.type === category.type),
+    () => categories.filter((item) => item.id !== category.id && item.type === category.type),
     [categories, category.id, category.type],
   );
 
   const totalDependents = useMemo(() => {
-    const d = dependencies;
+    const data = dependencies;
     return (
-      d.ledgerTransactionCount +
-      d.payableBillsCount +
-      d.financialGoalsCount +
-      d.legacyBudgetsCount
+      data.ledgerTransactionCount +
+      data.payableBillsCount +
+      data.financialGoalsCount +
+      data.legacyBudgetsCount
     );
   }, [dependencies]);
 
   const needsReassignment = totalDependents > 0;
   const canReassign = !needsReassignment || replacementCategories.length > 0;
-  const deleteBlockedReason = needsReassignment && !canReassign
-    ? `Esta categoria está em uso (${totalDependents} ${totalDependents === 1 ? 'registro' : 'registros'}) e não há outra categoria do mesmo tipo (${category.type === 'income' ? 'receita' : 'despesa'}) para realocar os vínculos. Crie outra categoria antes de excluir.`
-    : null;
+  const deleteBlockedReason =
+    needsReassignment && !canReassign
+      ? `Esta categoria está em uso (${totalDependents} ${
+          totalDependents === 1 ? 'registro' : 'registros'
+        }) e não há outra categoria do mesmo tipo para realocar os vínculos. Crie outra categoria antes de excluir.`
+      : null;
 
   const handleDelete = async () => {
     if (needsReassignment && !targetCategoryId) return;
@@ -103,8 +112,7 @@ export function DeleteCategoryDialog({
             .eq('category_id', fromId),
         ]);
 
-        const coreError =
-          txRes.error || cardRes.error || billsRes.error || goalsRes.error;
+        const coreError = txRes.error || cardRes.error || billsRes.error || goalsRes.error;
         if (coreError) throw coreError;
 
         const budgetsRes = await supabase
@@ -114,9 +122,8 @@ export function DeleteCategoryDialog({
           .eq('category_id', fromId);
 
         if (budgetsRes.error) {
-          const msg = budgetsRes.error.message || '';
-          const benign =
-            /relation|does not exist|permission denied|not find/i.test(msg);
+          const message = budgetsRes.error.message || '';
+          const benign = /relation|does not exist|permission denied|not find/i.test(message);
           if (!benign) throw budgetsRes.error;
           console.warn('Reatribuição em budgets legados ignorada:', budgetsRes.error);
         }
@@ -127,7 +134,7 @@ export function DeleteCategoryDialog({
       onOpenChange(false);
       setTargetCategoryId('');
     } catch (error) {
-      console.error('Erro ao deletar categoria:', error);
+      console.error('Erro ao excluir categoria:', error);
       toast.error(
         error instanceof Error ? error.message : 'Não foi possível excluir a categoria.',
       );
@@ -138,30 +145,34 @@ export function DeleteCategoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-red-600">
+      <DialogContent className="max-w-lg rounded-[28px] border-border/70 bg-surface-overlay p-0">
+        <DialogHeader className="border-b border-border/60 px-6 pb-5 pt-6">
+          <DialogTitle className="flex items-center gap-2 text-xl text-danger">
             <AlertTriangle className="h-5 w-5" />
-            Deletar Categoria
+            Excluir categoria
           </DialogTitle>
+          <DialogDescription>
+            Revise os vínculos antes de remover <strong>{category.name}</strong>.
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <p className="text-gray-700">
-            Tem certeza que deseja deletar a categoria <strong>&quot;{category.name}&quot;</strong>?
-          </p>
+        <div className="space-y-5 px-6 py-6">
+          <div className="rounded-[22px] border border-border/70 bg-surface/65 p-4">
+            <p className="text-sm text-muted-foreground">
+              Você está prestes a excluir a categoria{' '}
+              <strong className="text-foreground">{category.name}</strong>.
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">Essa ação não pode ser desfeita.</p>
+          </div>
 
-          <p className="text-sm text-gray-600">
-            Esta ação não pode ser desfeita.
-          </p>
-
-          {needsReassignment && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 space-y-3">
-              <p className="text-sm font-medium text-yellow-900">
-                Esta categoria ainda está vinculada a registros. Escolha outra categoria do mesmo tipo para
-                realocar antes de excluir.
+          {needsReassignment ? (
+            <div className="space-y-4 rounded-[22px] border border-warning/30 bg-warning-subtle/70 p-4">
+              <p className="text-sm font-medium text-foreground">
+                Esta categoria ainda está vinculada a registros. Escolha outra categoria do mesmo
+                tipo para realocar tudo antes da exclusão.
               </p>
-              <ul className="text-sm text-yellow-900 list-disc pl-5 space-y-1">
+
+              <ul className="space-y-1 text-sm text-muted-foreground">
                 {dependencies.ledgerTransactionCount > 0 && (
                   <li>
                     {dependencies.ledgerTransactionCount}{' '}
@@ -179,7 +190,9 @@ export function DeleteCategoryDialog({
                 {dependencies.financialGoalsCount > 0 && (
                   <li>
                     {dependencies.financialGoalsCount}{' '}
-                    {dependencies.financialGoalsCount === 1 ? 'meta financeira' : 'metas financeiras'}
+                    {dependencies.financialGoalsCount === 1
+                      ? 'meta financeira'
+                      : 'metas financeiras'}
                   </li>
                 )}
                 {dependencies.legacyBudgetsCount > 0 && (
@@ -193,30 +206,28 @@ export function DeleteCategoryDialog({
               </ul>
 
               {deleteBlockedReason ? (
-                <p className="text-sm text-red-800 font-medium">{deleteBlockedReason}</p>
+                <p className="text-sm font-medium text-danger">{deleteBlockedReason}</p>
               ) : (
-                <>
-                  <Label htmlFor="target-category" className="text-yellow-900">
-                    Mover todos os vínculos para:
-                  </Label>
+                <div className="space-y-2">
+                  <Label htmlFor="target-category">Mover todos os vínculos para</Label>
                   <Select value={targetCategoryId} onValueChange={setTargetCategoryId}>
-                    <SelectTrigger id="target-category" className="mt-1">
+                    <SelectTrigger id="target-category">
                       <SelectValue placeholder="Selecione uma categoria" />
                     </SelectTrigger>
                     <SelectContent>
-                      {replacementCategories.map((cat) => (
-                        <SelectItem key={cat.id} value={cat.id}>
-                          {cat.name}
+                      {replacementCategories.map((item) => (
+                        <SelectItem key={item.id} value={item.id}>
+                          {item.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                </>
+                </div>
               )}
             </div>
-          )}
+          ) : null}
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <DialogFooter className="border-t border-border/60 px-0 pt-4">
             <Button
               type="button"
               variant="outline"
@@ -227,16 +238,12 @@ export function DeleteCategoryDialog({
             </Button>
             <Button
               onClick={handleDelete}
-              disabled={
-                loading ||
-                !canReassign ||
-                (needsReassignment && !targetCategoryId)
-              }
-              className="bg-red-600 hover:bg-red-700"
+              disabled={loading || !canReassign || (needsReassignment && !targetCategoryId)}
+              className="h-11 rounded-xl bg-danger px-4 text-sm font-semibold text-white hover:bg-danger/90"
             >
-              {loading ? 'Deletando...' : 'Deletar Categoria'}
+              {loading ? 'Excluindo...' : 'Excluir categoria'}
             </Button>
-          </div>
+          </DialogFooter>
         </div>
       </DialogContent>
     </Dialog>

@@ -21,6 +21,8 @@ Deno.test('textContainsAgentTrigger handles accents', () => {
   const triggers = ['ana clara', 'aninha'];
   assertEquals(textContainsAgentTrigger('Oi Ana Clara, tá aí?', triggers), true);
   assertEquals(textContainsAgentTrigger('fala aninha', triggers), true);
+  assertEquals(textContainsAgentTrigger('@107508014252114 explica pra Ana Clara como faz', triggers), false);
+  assertEquals(textContainsAgentTrigger('o Alfredo falou com a Ana Clara ontem', triggers), false);
   assertEquals(textContainsAgentTrigger('só oi', triggers), false);
 });
 

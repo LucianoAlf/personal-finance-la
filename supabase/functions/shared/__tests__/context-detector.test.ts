@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { parsePaymentMethodReply } from '../context-detector';
+import {
+  parsePaymentMethodReply,
+  shouldStayInCreditCardContext,
+} from '../context-detector';
 
 describe('context-detector payment reply parsing', () => {
   it('parses "1, Nu" as credit card + nubank alias', () => {
@@ -33,5 +36,20 @@ describe('context-detector payment reply parsing', () => {
       label: 'PIX',
       bankAlias: null,
     });
+  });
+});
+
+describe('context-detector credit card context guard', () => {
+  it('keeps explicit credit card follow-up inside credit_card_context', () => {
+    expect(shouldStayInCreditCardContext('qual meu limite do nubank?')).toBe(true);
+    expect(shouldStayInCreditCardContext('me mostra a fatura')).toBe(true);
+    expect(shouldStayInCreditCardContext('compras de novembro')).toBe(true);
+  });
+
+  it('releases generic help and global intents from credit_card_context', () => {
+    expect(shouldStayInCreditCardContext('me ajuda')).toBe(false);
+    expect(shouldStayInCreditCardContext('meu saldo')).toBe(false);
+    expect(shouldStayInCreditCardContext('o que eu tenho hoje?')).toBe(false);
+    expect(shouldStayInCreditCardContext('valeu aninha')).toBe(false);
   });
 });

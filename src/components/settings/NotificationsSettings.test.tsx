@@ -102,4 +102,20 @@ describe('NotificationsSettings', () => {
       'true',
     );
   });
+
+  it('renders the notification channels advisory with premium warning tokens instead of light amber surfaces', () => {
+    render(<NotificationsSettings />);
+
+    const advisory = screen
+      .getByText(/os agendamentos automáticos desta versão usam principalmente a conexão do whatsapp/i)
+      .closest('[role="alert"]');
+
+    expect(advisory).not.toBeNull();
+    expect(advisory?.className).toContain('border-warning-border');
+    expect(advisory?.className).toContain('bg-warning-subtle');
+    expect(advisory?.className).toContain('text-warning');
+    expect(advisory?.className).not.toContain('border-amber-200');
+    expect(advisory?.className).not.toContain('bg-amber-50');
+    expect(advisory?.className).not.toContain('text-amber-900');
+  });
 });

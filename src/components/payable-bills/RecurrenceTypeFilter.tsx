@@ -6,6 +6,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Repeat, TrendingUp, Layers } from 'lucide-react';
+import { PAYABLE_BILLS_FILTER_SELECT_CONTENT_CLASS } from './filterSelectStyles';
 
 export type RecurrenceTypeOption = 'all' | 'fixed' | 'variable';
 
@@ -41,7 +42,7 @@ export function RecurrenceTypeFilter({ value, onChange }: RecurrenceTypeFilterPr
       <SelectTrigger className="h-11 w-[188px] rounded-xl border-border/70 bg-surface/85 text-sm font-semibold shadow-none">
         <SelectValue placeholder="Tipo" />
       </SelectTrigger>
-      <SelectContent className="rounded-xl border-border/70 bg-popover/98 shadow-[0_18px_44px_rgba(2,6,23,0.2)]">
+      <SelectContent className={PAYABLE_BILLS_FILTER_SELECT_CONTENT_CLASS}>
         {RECURRENCE_OPTIONS.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             <div className="flex items-center gap-2">

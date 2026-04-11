@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Bell, Clock, Calendar, TrendingUp, Target, Sparkles, Save, AlertTriangle, DollarSign, TrendingDown, Wallet, PieChart } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { DayOfWeekSelector } from './DayOfWeekSelector';
@@ -243,10 +244,13 @@ export function NotificationsSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <Alert className="rounded-[22px] border-warning-border/70 bg-warning-subtle/70 text-warning shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <AlertDescription className="text-warning">
             Os agendamentos automáticos desta versão usam principalmente a conexão do WhatsApp.
             As preferências de Push e E-mail já ficam salvas, mas ainda não dirigem todos os envios automatizados.
-          </div>
+            </AlertDescription>
+          </Alert>
 
           <div className="flex items-center justify-between rounded-lg border p-4">
             <div className="space-y-0.5">

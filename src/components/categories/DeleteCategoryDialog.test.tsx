@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 
 import React from 'react';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -118,8 +118,7 @@ describe('DeleteCategoryDialog', () => {
 
     await user.click(screen.getByRole('combobox'));
     await user.click(screen.getByRole('option', { name: 'Outra' }));
-
-    await user.click(screen.getByRole('button', { name: /Deletar Categoria/i }));
+    await user.click(screen.getByRole('button', { name: /Excluir categoria/i }));
 
     await waitFor(() => expect(mocks.deleteCategoryMock).toHaveBeenCalledWith('cat-old'));
     expect(mocks.fromMock).toHaveBeenCalledWith('transactions');

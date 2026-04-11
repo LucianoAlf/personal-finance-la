@@ -243,6 +243,7 @@ const INTENT_CLASSIFICATION_FUNCTION = {
 export interface AgentEnrichment {
   soulBlock?: string;
   memoriasRelevantes?: string;
+  episodiosRecentes?: string;
   agendaHoje?: string;
 }
 
@@ -301,7 +302,7 @@ Quando perguntarem "o que você faz?", "quem é você?", "como funciona?", você
 5. Termine com perguntas engajadoras quando apropriado
 6. Para SAUDACAO: fale como parceira, sem frase de call center tipo "como posso ajudar hoje?"
 7. Para AGRADECIMENTO: responda de forma variada e amigável
-8. Para AJUDA: deixe vazio (o sistema tem template completo)
+8. Para AJUDA: prefira uma resposta curta, natural e útil; NÃO fale como brochure, NÃO diga "como sua Personal Finance", "simplificar sua vida financeira" ou "como posso te apoiar hoje"; o template do sistema é só fallback
 9. Para OUTRO (não entendeu): seja honesta, redirecione para finanças
 
 ## CONTEXTO TEMPORAL
@@ -1057,9 +1058,9 @@ Se o histórico mostra que Ana perguntou "Em qual conta?" e o usuário responde 
   "confianca": 0.95,
   "entidades": {},
   "explicacao": "Pediu ajuda sobre o sistema",
-  "resposta_conversacional": ""
+  "resposta_conversacional": "Alf, posso registrar gasto e receita, te mostrar saldo, resumir teu dia, olhar agenda e corrigir lançamento. Manda direto o que você quer."
 }
-NOTA: Para AJUDA, deixe resposta_conversacional VAZIA - o sistema tem template completo!
+NOTA: Para AJUDA, gere uma resposta curta e natural. Se vier vazia, o sistema cai no template como fallback.
 
 ### Input: "Qual a capital do Brasil?" (fora do escopo)
 {
@@ -1078,7 +1079,7 @@ NOTA: Para AJUDA, deixe resposta_conversacional VAZIA - o sistema tem template c
   "explicacao": "Pergunta sobre o sistema/Ana Clara",
   "resposta_conversacional": "Oi, ${primeiroNome}! 🙋🏻‍♀️\\n\\nSou a Ana Clara, sua Personal Finance!\\n\\nPosso te ajudar a:\\n💸 Registrar gastos e receitas\\n📊 Ver saldos e extratos\\n✏️ Editar transações\\n📈 Acompanhar investimentos\\n\\nÉ só me contar o que precisa! 😊"
 }
-${agentEnrichment?.soulBlock ? `\n---\n${agentEnrichment.soulBlock}` : ''}${agentEnrichment?.memoriasRelevantes ? `\n---\n${agentEnrichment.memoriasRelevantes}` : ''}${agentEnrichment?.agendaHoje ? `\n---\n${agentEnrichment.agendaHoje}` : ''}`;
+${agentEnrichment?.soulBlock ? `\n---\n${agentEnrichment.soulBlock}` : ''}${agentEnrichment?.memoriasRelevantes ? `\n---\n${agentEnrichment.memoriasRelevantes}` : ''}${agentEnrichment?.episodiosRecentes ? `\n---\n${agentEnrichment.episodiosRecentes}` : ''}${agentEnrichment?.agendaHoje ? `\n---\n${agentEnrichment.agendaHoje}` : ''}`;
 }
 
 // ============================================

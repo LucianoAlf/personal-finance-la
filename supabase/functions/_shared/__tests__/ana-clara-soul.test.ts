@@ -4,6 +4,7 @@ import {
   buildSoulAboutSystem,
   buildSoulFallbackReply,
   buildSoulGreeting,
+  buildSoulHelpReply,
   DEFAULT_AUTONOMY,
   DEFAULT_SOUL,
   resolvePreferredFirstName,
@@ -27,12 +28,12 @@ describe('ana-clara-soul', () => {
     expect(greeting).not.toMatch(/como posso te ajudar hoje|no que posso ajudar/i);
   });
 
-  it('mirrors "coé" when the user greets with "coé"', () => {
+  it('does not force "coé" just because the user used it', () => {
     const greeting = buildSoulGreeting(DEFAULT_SOUL, { first_name: 'Alf' }, 'Luciano', {
       userMessage: 'coé aninha',
     });
 
-    expect(greeting).toMatch(/co[eé]/i);
+    expect(greeting).not.toMatch(/co[eé]/i);
   });
 
   it('does not force emoji when allowEmoji is false', () => {
@@ -44,9 +45,18 @@ describe('ana-clara-soul', () => {
     expect(greeting).not.toContain('🙋🏻‍♀️');
   });
 
-  it('includes emoji by default', () => {
+  it('does not include emoji by default', () => {
     const greeting = buildSoulGreeting(DEFAULT_SOUL, { first_name: 'Alf' }, 'Luciano', {
       firstContactToday: true,
+    });
+
+    expect(greeting).not.toContain('🙋🏻‍♀️');
+  });
+
+  it('includes emoji when explicitly allowed', () => {
+    const greeting = buildSoulGreeting(DEFAULT_SOUL, { first_name: 'Alf' }, 'Luciano', {
+      firstContactToday: true,
+      allowEmoji: true,
     });
 
     expect(greeting).toContain('🙋🏻‍♀️');
@@ -66,6 +76,14 @@ describe('ana-clara-soul', () => {
     expect(reply).toContain('Alf');
     expect(reply).not.toMatch(/como posso te ajudar|no que posso ajudar/i);
     expect(reply).toContain('não peguei direito');
+  });
+
+  it('builds a direct help reply without institutional tone', () => {
+    const reply = buildSoulHelpReply(DEFAULT_SOUL, { first_name: 'Alf' }, 'Luciano');
+
+    expect(reply).toContain('Alf');
+    expect(reply).toContain('registrar gasto');
+    expect(reply).not.toMatch(/como sua personal finance|simplificar sua vida financeira|como posso te apoiar hoje/i);
   });
 
   it('injects an override section into the soul prompt block', () => {

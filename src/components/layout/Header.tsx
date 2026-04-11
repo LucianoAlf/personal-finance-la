@@ -49,9 +49,7 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
 
   const resolvedDisplayName = resolveUserDisplayName(profile, userSettings, user);
   const resolvedAvatarUrl = resolveUserAvatarUrl(profile, userSettings);
-  const avatarSrc = resolvedAvatarUrl
-    ? `${resolvedAvatarUrl}?v=${encodeURIComponent(userSettings?.updated_at || '')}`
-    : undefined;
+  const avatarSrc = resolvedAvatarUrl || undefined;
 
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-surface/95 px-6 py-6 text-foreground shadow-[0_1px_0_rgba(255,255,255,0.03)] backdrop-blur supports-[backdrop-filter]:bg-surface/85">
@@ -100,11 +98,7 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
                 aria-label="Abrir menu do usuario"
               >
                 <Avatar className="h-10 w-10">
-                  <AvatarImage
-                    key={avatarSrc || 'no-avatar'}
-                    src={avatarSrc}
-                    alt="Avatar"
-                  />
+                  <AvatarImage src={avatarSrc} alt="Avatar" />
                   <AvatarFallback className="border border-primary/20 bg-primary/15 text-primary">
                     {getUserInitials(resolvedDisplayName, user?.email)}
                   </AvatarFallback>

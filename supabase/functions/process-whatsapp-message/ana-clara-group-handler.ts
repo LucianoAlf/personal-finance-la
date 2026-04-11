@@ -3,7 +3,7 @@
  */
 
 import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { enviarViaEdgeFunction } from './utils.ts';
+import { buscarUltimaInteracao, enviarViaEdgeFunction } from './utils.ts';
 import * as imageReader from './image-reader.ts';
 import {
   loadAnaClaraGroupConfig,
@@ -12,18 +12,26 @@ import {
   textContainsAgentTrigger,
   isDismissPhrase,
   isEnabledGroupJid,
+  normalizeForTriggerMatch,
   type AnaClaraGroupRuntimeConfig,
 } from './ana-clara-group-config.ts';
 import { insertGroupPassiveMemory, fetchRecentGroupMemoryLines } from './ana-clara-group-memory.ts';
 import { salvarContexto } from './context-manager.ts';
 import { classificarIntencaoNLP, type AgentEnrichment } from './nlp-classifier.ts';
-import { marcarComoPago } from './contas-pagar.ts';
+import { marcarComoPago, type TipoIntencaoContaPagar } from './contas-pagar.ts';
+import {
+  executeAnaClaraCoreFlow,
+  resolveAnaClaraCoreRoute,
+  type AnaClaraCoreRoute,
+} from './ana-clara-core-executor.ts';
 import {
   buildSoulPromptBlock,
+  resolvePreferredFirstName,
   type SoulConfig,
   type UserContext,
   type AutonomyRules,
 } from '../_shared/ana-clara-soul.ts';
+import { isPrimeiraInteracaoDia } from './humanization.ts';
 
 export interface AnaClaraGroupInboundParams {
   supabase: SupabaseClient;
@@ -41,6 +49,153 @@ export interface AnaClaraGroupInboundParams {
   soulConfig: SoulConfig;
   userContext: UserContext;
   autonomyConfig: AutonomyRules;
+}
+
+const GROUP_CONTAS_PAGAR_INTENTS = new Set<TipoIntencaoContaPagar>([
+  'LISTAR_CONTAS_PAGAR',
+  'CONTAS_VENCENDO',
+  'CONTAS_VENCIDAS',
+  'CONTAS_DO_MES',
+  'RESUMO_CONTAS_MES',
+  'CADASTRAR_CONTA_PAGAR',
+  'EDITAR_CONTA_PAGAR',
+  'EXCLUIR_CONTA_PAGAR',
+  'MARCAR_CONTA_PAGA',
+  'VALOR_CONTA_VARIAVEL',
+  'HISTORICO_CONTA',
+  'PAGAR_FATURA_CARTAO',
+  'DESFAZER_PAGAMENTO',
+  'RESUMO_PAGAMENTOS_MES',
+  'CONTAS_AMBIGUO',
+  'CADASTRAR_CONTA_AMBIGUO',
+]);
+
+export function getGroupReplyStrategy(
+  nlp: { intencao: string; resposta_conversacional?: string | null },
+): AnaClaraCoreRoute | 'conversation' {
+  const route = resolveAnaClaraCoreRoute(
+    { intencao: nlp.intencao, confianca: 0.99, entidades: {} as Record<string, unknown> },
+    '',
+  );
+  return route === 'other' || route === 'unknown' ? 'conversation' : route;
+}
+
+const GROUP_COMMON_NON_NAMES = new Set([
+  'sim', 'nao', 'não', 'ok', 'beleza', 'blz', 'bom', 'boa', 'bem', 'mal',
+  'mas', 'pois', 'entao', 'então', 'tipo', 'cara', 'mano', 'pow', 'po', 'pô',
+  'legal', 'show', 'top', 'massa', 'verdade', 'claro', 'certo', 'isso', 'aquilo',
+  'esse', 'essa', 'este', 'esta', 'aqui', 'ali', 'bora', 'vamos', 'pode',
+  'pronto', 'feito', 'tudo', 'nada', 'algo', 'obrigado', 'obrigada', 'valeu',
+  'brigado', 'brigada', 'tmj', 'vlw', 'ah', 'ahh', 'eita', 'uai', 'ue', 'ué',
+  'hum', 'hmm', 'aham', 'uhum', 'pera', 'perai', 'calma', 'espera', 'olha',
+  'veja', 'enfim', 'inclusive', 'porem', 'porém', 'contudo', 'todavia',
+]);
+
+export function removeAgentTriggerNames(text: string, triggerNames: string[]): string {
+  let out = text;
+  for (const trigger of triggerNames) {
+    const escaped = trigger.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(escaped, 'ig'), ' ');
+  }
+  return out.replace(/\s+/g, ' ').replace(/\s+([,!.?;:])/g, '$1').trim();
+}
+
+export function isCallingAnotherPerson(text: string, triggerNames: string[]): boolean {
+  if (!text) return false;
+  const lower = normalizeForTriggerMatch(text).trim();
+  const callingPatterns = [
+    /^(?:fala|oi|e\s*a[ií]|opa|hey|ei|salve|ola)\s+([a-záàâãéèêíïóôõöúçñ]+)/i,
+    /^([a-záàâãéèêíïóôõöúçñ]{2,})\s*,/i,
+  ];
+
+  for (const pattern of callingPatterns) {
+    const match = lower.match(pattern);
+    if (!match) continue;
+    const calledName = match[1].trim();
+    if (GROUP_COMMON_NON_NAMES.has(calledName)) continue;
+    const isAgent = triggerNames.some((n) => normalizeForTriggerMatch(n) === calledName);
+    if (!isAgent && calledName.length >= 2) return true;
+  }
+
+  return false;
+}
+
+export function isSimpleGroupGreeting(text: string): boolean {
+  const normalized = normalizeForTriggerMatch(text)
+    .replace(/[!?.,;:]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!normalized) return true;
+
+  const greetings = new Set(['fala', 'oi', 'e ai', 'opa', 'hey', 'ei', 'salve', 'ola']);
+  if (greetings.has(normalized)) return true;
+
+  const words = normalized.split(' ').filter(Boolean);
+  if (words.length <= 3 && words.includes('aqui')) return true;
+
+  return false;
+}
+
+export function buildDeterministicGroupGreeting(): string {
+  return 'Oi. Tô por aqui. Manda o que você precisa.';
+}
+
+export function sanitizeGroupReply(reply: string): string {
+  let out = reply.trim();
+  out = out.replace(/_?\s*Ana Clara\s*•\s*Personal Finance_?\s*🙋🏻‍♀️?/gi, '');
+  out = out.replace(/🙋🏻‍♀️/g, '');
+  out = out.replace(/^co[eé],?\s+/i, 'Oi, ');
+  out = out.replace(/^fala,?\s+/i, 'Oi, ');
+  out = out.replace(/^e aí,?\s+/i, 'Oi, ');
+  out = out.replace(/me chama no privado pra detalhar\.?/gi, 'se precisar, eu continuo por aqui.');
+  out = out.replace(/\n{3,}/g, '\n\n');
+  return out.trim();
+}
+
+export function detectBalanceAccountFilter(
+  text: string,
+  nlpConta?: string | null,
+): string | null {
+  if (nlpConta?.trim()) return nlpConta.trim();
+
+  const textoLower = normalizeForTriggerMatch(text);
+  const bancosConhecidos = [
+    { nome: 'nubank', aliases: ['nubank', 'roxinho', 'roxo', 'nu'] },
+    { nome: 'itau', aliases: ['itau', 'laranjinha'] },
+    { nome: 'bradesco', aliases: ['bradesco', 'brades'] },
+    { nome: 'santander', aliases: ['santander', 'san'] },
+    { nome: 'inter', aliases: ['inter', 'banco inter'] },
+    { nome: 'c6', aliases: ['c6', 'c6 bank'] },
+    { nome: 'caixa', aliases: ['caixa', 'cef'] },
+    { nome: 'bb', aliases: ['bb', 'banco do brasil', 'brasil'] },
+    { nome: 'original', aliases: ['original'] },
+    { nome: 'next', aliases: ['next'] },
+    { nome: 'picpay', aliases: ['picpay'] },
+    { nome: 'mercadopago', aliases: ['mercadopago', 'mercado pago'] },
+  ];
+
+  for (const banco of bancosConhecidos) {
+    if (banco.aliases.some((alias) => textoLower.includes(alias))) return banco.nome;
+  }
+
+  return null;
+}
+
+export function isSessionOwnedByParticipant(
+  priorData: Record<string, unknown> | null,
+  participantPhone: string,
+): boolean {
+  const sessionPhone = String(priorData?.activated_by_phone || '').replace(/\D/g, '');
+  const currentPhone = String(participantPhone || '').replace(/\D/g, '');
+
+  if (!sessionPhone || !currentPhone) return true;
+
+  return (
+    sessionPhone === currentPhone ||
+    sessionPhone.endsWith(currentPhone) ||
+    currentPhone.endsWith(sessionPhone)
+  );
 }
 
 function jsonResponse(data: Record<string, unknown>, status = 200) {
@@ -230,6 +385,7 @@ export async function handleAnaClaraGroupInbound(
   const sessionRow = await loadGroupSession(supabase, user.id, groupKey);
   const sessionActive = Boolean(sessionRow);
   const priorData = (sessionRow?.context_data as Record<string, unknown>) ?? null;
+  const sessionOwnedByParticipant = isSessionOwnedByParticipant(priorData, participantPhone);
 
   const hasUsefulText = Boolean(
     content?.trim() && !content.startsWith('[ÁUDIO'),
@@ -256,12 +412,12 @@ export async function handleAnaClaraGroupInbound(
       content: content || null,
       mediaSummary: isReceipt ? 'image:inbound' : null,
       triggerDetected,
-      metadata: { session_active: sessionActive },
+      metadata: { session_active: sessionActive, session_owned: sessionOwnedByParticipant },
     },
     cfg,
   );
 
-  if (isDismissPhrase(content, cfg.dismiss_phrases) && sessionActive) {
+  if (isDismissPhrase(content, cfg.dismiss_phrases) && sessionActive && sessionOwnedByParticipant) {
     await clearGroupSession(supabase, user.id, groupKey);
     await enviarViaEdgeFunction(
       participantPhone,
@@ -282,6 +438,19 @@ export async function handleAnaClaraGroupInbound(
     if (!hasTextTrigger && !isReceipt) {
       return finishSilent('group_hibernating_silent');
     }
+  }
+
+  const processedText = hasUsefulText
+    ? removeAgentTriggerNames(content, cfg.agent_trigger_names)
+    : content;
+
+  if (sessionActive && !sessionOwnedByParticipant && !hasTextTrigger && !isReceipt) {
+    return finishSilent('group_session_other_participant_silent');
+  }
+
+  if (sessionActive && isCallingAnotherPerson(content, cfg.agent_trigger_names)) {
+    await clearGroupSession(supabase, user.id, groupKey);
+    return finishSilent('group_session_calling_other_person');
   }
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -369,7 +538,7 @@ export async function handleAnaClaraGroupInbound(
     return { handled: true, response: jsonResponse({ ok: true, type: 'group_receipt' }) };
   }
 
-  if (sessionActive && hasUsefulText) {
+  if (sessionActive && sessionOwnedByParticipant && hasUsefulText) {
     await persistGroupSession(
       user.id,
       groupKey,
@@ -400,27 +569,44 @@ export async function handleAnaClaraGroupInbound(
     const enrichment: AgentEnrichment = {
       soulBlock: buildSoulPromptBlock(soulConfig, userContext, autonomyConfig),
       memoriasRelevantes: lines
-        ? `## Canal: grupo WhatsApp (${cfg.group_label})\n${lines}\nResponda de forma breve. É um grupo: seja objetiva.`
-        : `## Canal: grupo WhatsApp (${cfg.group_label})\nResponda de forma breve.`,
+        ? `## Canal: grupo WhatsApp (${cfg.group_label})\n${lines}\nRegras do grupo: responda curto e objetivo; nao invente apelidos; nao assuma nome de quem escreveu; se nao tiver certeza do nome, nao use nome; no maximo 1 emoji e nunca assinatura; nao use "coé" nem giria forcada; nao ofereca privado por padrao; foque em resolver o pedido.`
+        : `## Canal: grupo WhatsApp (${cfg.group_label})\nResponda curto e objetivo; sem assinatura; sem apelidos; sem "coé"; no maximo 1 emoji.`,
     };
 
     const nlp = await classificarIntencaoNLP(
-      content,
+      processedText || content,
       user.id,
       SUPABASE_URL,
       SUPABASE_SERVICE_ROLE_KEY,
       enrichment,
     );
+    const ultimaInteracao = await buscarUltimaInteracao(user.id);
+    const primeiraVezAbsoluta = ultimaInteracao === null;
+    const primeiraVezHoje = isPrimeiraInteracaoDia(ultimaInteracao);
+    const nomeUsuario = resolvePreferredFirstName(userContext, user.full_name);
 
-    let reply = nlp.resposta_conversacional?.trim();
-    if (!reply) {
-      reply =
-        'Oi! Sou a Ana Clara. Se precisar de algo nas finanças, diz em uma frase — ou me chama no privado pra detalhar.\n\n_Ana Clara • Personal Finance_ 🙋🏻‍♀️';
-    }
-
-    await enviarViaEdgeFunction(participantPhone, reply, user.id, {
-      chatJid: groupJid,
+    const response = await executeAnaClaraCoreFlow({
+      supabase,
+      user,
+      message,
+      phone: participantPhone,
+      content: processedText || content,
+      intencaoNLP: nlp,
+      primeiraVezAbsoluta,
+      primeiraVezHoje,
+      nomeUsuario,
+      soulConfig,
+      userContext,
+      sendReply: async (text) => {
+        await enviarViaEdgeFunction(participantPhone, sanitizeGroupReply(text), user.id, {
+          chatJid: groupJid,
+        });
+      },
     });
+
+    if (response) {
+      return { handled: true, response };
+    }
   }
 
   await markMessage(supabase, message.id, 'group_message_handled');

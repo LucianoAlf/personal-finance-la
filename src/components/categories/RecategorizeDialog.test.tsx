@@ -62,7 +62,7 @@ describe('RecategorizeDialog', () => {
     categoriesMock.mockReturnValue([
       { ...baseCategory, id: 'expense-current', name: 'Mercado', type: 'expense' },
       { ...baseCategory, id: 'expense-other', name: 'Transporte', type: 'expense' },
-      { ...baseCategory, id: 'income-other', name: 'Salario', type: 'income' },
+      { ...baseCategory, id: 'income-other', name: 'Salário', type: 'income' },
     ]);
   });
 
@@ -73,7 +73,7 @@ describe('RecategorizeDialog', () => {
         onOpenChange={vi.fn()}
         transaction={{
           id: 'card-1',
-          description: 'Compra no cartao',
+          description: 'Compra no cartão',
           ledgerEntity: 'credit_card_transaction',
         }}
         currentCategory={{ ...baseCategory, id: 'expense-current', name: 'Mercado', type: 'expense' }}
@@ -82,7 +82,7 @@ describe('RecategorizeDialog', () => {
     );
 
     expect(screen.getByText('Transporte')).toBeTruthy();
-    expect(screen.queryByText('Salario')).toBeNull();
+    expect(screen.queryByText('Salário')).toBeNull();
   });
 
   it('offers only categories matching the current category type for bank transactions', () => {
@@ -100,7 +100,7 @@ describe('RecategorizeDialog', () => {
       />,
     );
 
-    expect(screen.getByText('Salario')).toBeTruthy();
+    expect(screen.getByText('Salário')).toBeTruthy();
     expect(screen.queryByText('Transporte')).toBeNull();
   });
 });

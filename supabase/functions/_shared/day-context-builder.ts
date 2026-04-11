@@ -138,14 +138,14 @@ function formatDayContextForPrompt(
   items: DayContextItem[],
 ): string {
   if (items.length === 0) {
-    return `## AGENDA DE HOJE (${dateStr})\nNada programado para hoje.`;
+    return `*AGENDA DE HOJE (${dateStr})*\nNada programado para hoje.`;
   }
 
-  const lines: string[] = [`## AGENDA DE HOJE (${dateStr})`];
+  const lines: string[] = [`*AGENDA DE HOJE (${dateStr})*`];
 
   const events = items.filter((i) => i.type === 'event');
   if (events.length > 0) {
-    lines.push('\n### Eventos');
+    lines.push('\n*Eventos*');
     for (const ev of events) {
       lines.push(`- ${ev.time ? `${ev.time} — ` : ''}${ev.label}`);
     }
@@ -154,7 +154,7 @@ function formatDayContextForPrompt(
   const bills = items.filter((i) => i.type === 'bill');
   if (bills.length > 0) {
     const totalBills = bills.reduce((s, b) => s + (b.amount || 0), 0);
-    lines.push(`\n### Contas (${bills.length} | total: ${formatCurrency(totalBills)})`);
+    lines.push(`\n*Contas* (${bills.length} | total: ${formatCurrency(totalBills)})`);
     for (const bill of bills) {
       lines.push(
         `- ${bill.label}${bill.amount ? ` — ${formatCurrency(bill.amount)}` : ''}`,
@@ -164,7 +164,7 @@ function formatDayContextForPrompt(
 
   const goals = items.filter((i) => i.type === 'goal');
   if (goals.length > 0) {
-    lines.push('\n### Metas vencendo');
+    lines.push('\n*Metas vencendo*');
     for (const goal of goals) {
       lines.push(
         `- ${goal.label}${goal.amount ? ` (faltam ${formatCurrency(goal.amount)})` : ''}`,

@@ -22,6 +22,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { ReactNode } from 'react';
+import { PAYABLE_BILLS_FILTER_SELECT_CONTENT_CLASS } from './filterSelectStyles';
 
 export type SortOption = 
   | 'recent' 
@@ -86,7 +87,7 @@ export function BillSortSelect({ value, onChange }: BillSortSelectProps) {
           {ALL_OPTIONS_LABELS[value]}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent className="rounded-xl border-border/70 bg-popover/98 shadow-[0_18px_44px_rgba(2,6,23,0.2)]">
+      <SelectContent className={PAYABLE_BILLS_FILTER_SELECT_CONTENT_CLASS}>
         <SelectGroup>
           <SelectLabel className="text-xs text-muted-foreground">Ordenar por</SelectLabel>
           {SORT_OPTIONS.map(({ key, label, icon }) => (

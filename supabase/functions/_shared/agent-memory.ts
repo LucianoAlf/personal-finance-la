@@ -11,6 +11,10 @@
  */
 
 import { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import {
+  shouldReinforceMemoryType,
+  type ReinforcementRolloutStage,
+} from './agent-memory-reinforcement.ts';
 
 export type MemoryType =
   | 'decision'
@@ -46,6 +50,14 @@ const MAX_MEMORY_TOKENS = 400;
 const DEDUP_THRESHOLD = 0.85;
 const DEFAULT_MATCH_THRESHOLD = 0.5;
 const PATTERN_TTL_DAYS = 90;
+const ACTIVE_REINFORCEMENT_STAGE: ReinforcementRolloutStage = 'stage2';
+
+interface ReinforcementRpcRow {
+  id: string;
+  reinforcement_count: number;
+  confidence: number;
+  created_new: boolean;
+}
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
@@ -86,6 +98,35 @@ export async function saveMemory(
       embedding = await generateEmbedding(entry.content);
     } catch (embErr) {
       console.warn('[agent-memory] Embedding failed, saving without vector:', embErr);
+    }
+
+    if (shouldReinforceMemoryType(entry.memory_type, ACTIVE_REINFORCEMENT_STAGE)) {
+      try {
+        const { data, error } = await supabase.rpc('learn_or_reinforce_fact', {
+          p_user_id: entry.user_id,
+          p_memory_type: entry.memory_type,
+          p_content: entry.content,
+          p_metadata: entry.metadata || {},
+          p_tags: entry.tags || [],
+          p_source: entry.source || 'system',
+          p_query_embedding: embedding,
+        });
+
+        if (!error) {
+          const reinforced = (data as ReinforcementRpcRow[] | null)?.[0];
+          if (reinforced?.id) {
+            console.log(
+              `[agent-memory] Reinforced ${entry.memory_type} memory ${reinforced.id} ` +
+                `(count=${reinforced.reinforcement_count}, confidence=${reinforced.confidence})`,
+            );
+            return reinforced.id;
+          }
+        } else {
+          console.warn('[agent-memory] Reinforcement RPC failed, falling back:', error);
+        }
+      } catch (rpcErr) {
+        console.warn('[agent-memory] Reinforcement RPC threw, falling back:', rpcErr);
+      }
     }
 
     // Deduplication: check for similar existing memory

@@ -71,6 +71,9 @@ export const DEFAULT_SOUL: SoulConfig = {
       'nunca fingir entusiasmo que não sente',
       'nunca dizer "não sei" sem antes esgotar alternativas',
       'nunca responder "como posso te ajudar hoje?" ou "no que posso ajudar?" como um bot genérico',
+      'nunca inventar apelido, intimidade ou nome da pessoa sem certeza',
+      'nunca usar assinatura fixa ou emoji em toda resposta',
+      'nunca forçar gíria como "coé" ou "qual é" sem contexto real do usuário',
     ],
   },
 };
@@ -114,7 +117,7 @@ export function resolvePreferredFirstName(
   );
 }
 
-const GREETING_OPENERS = ['Fala', 'E aí', 'Oi', 'Diz aí', 'Tô aqui'];
+const GREETING_OPENERS = ['Oi', 'Tô por aqui', 'Diz'];
 
 export function buildSoulGreeting(
   soul: SoulConfig,
@@ -123,16 +126,11 @@ export function buildSoulGreeting(
   options: SoulGreetingOptions = {},
 ): string {
   const firstName = resolvePreferredFirstName(userCtx, fallbackName);
-  const emoji = options.allowEmoji !== false ? ` ${soul.emoji}` : '';
+  const emoji = options.allowEmoji === true ? ` ${soul.emoji}` : '';
   const userMsg = (options.userMessage || '').toLowerCase().trim();
 
   if (options.firstContactEver) {
     return `E aí, ${firstName}!${emoji}\n\nEu sou a ${soul.name}, teu copiloto financeiro aqui no WhatsApp.\n\nManda do teu jeito: gasto, conta, meta, agenda, prioridade do dia... que eu organizo contigo sem enrolação.`;
-  }
-
-  // Mirror the user's greeting style
-  if (userMsg.match(/co[eé]/i)) {
-    return `Coé, ${firstName}!${emoji}\n\nO que manda?`;
   }
 
   if (options.firstContactToday) {
@@ -161,6 +159,16 @@ export function buildSoulFallbackReply(
   const firstName = resolvePreferredFirstName(userCtx, fallbackName);
 
   return `${firstName}, não peguei direito o que você quis dizer. Me manda do jeito mais direto possível que eu resolvo contigo.`;
+}
+
+export function buildSoulHelpReply(
+  soul: SoulConfig,
+  userCtx: UserContext,
+  fallbackName?: string,
+): string {
+  const firstName = resolvePreferredFirstName(userCtx, fallbackName);
+
+  return `${firstName}, posso fazer isso aqui contigo:\n• registrar gasto e receita\n• te mostrar saldo\n• resumir teu dia\n• olhar agenda e contas\n• corrigir ou excluir lançamento\n\nManda direto o que você quer fazer.`;
 }
 
 export function buildSoulPromptBlock(
