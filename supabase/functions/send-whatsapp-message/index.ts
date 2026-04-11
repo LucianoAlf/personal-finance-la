@@ -179,8 +179,10 @@ export async function handleRequest(req: Request): Promise<Response> {
     }
 
     const request = await req.json() as SendWhatsAppRequest;
+    const destinoLog =
+      request.chat_jid?.trim() || request.phone_number || "(via conexão)";
     console.log("📤 Enviando mensagem WhatsApp");
-    console.log("📱 Destino:", request.phone_number);
+    console.log("📱 Destino:", destinoLog);
     console.log("💬 Tipo:", request.message_type);
     console.log("📝 Preview:", request.content?.substring(0, 50) + "...");
 
@@ -200,9 +202,11 @@ export async function handleRequest(req: Request): Promise<Response> {
       readUazapiEnv(),
     );
 
+    // UAZAPI POST /send/text: campo `number` aceita E.164 (só dígitos) ou JID completo.
+    // Grupos WhatsApp: usar JID terminado em @g.us (ex.: 5521981278047-1555326211@g.us).
     console.log("🔄 Chamando UAZAPI...");
     console.log("📍 URL:", `${baseUrl}/send/text`);
-    console.log("📞 Número limpo:", phoneNumber);
+    console.log("📞 Recipient (number):", phoneNumber);
 
     const response = await fetch(`${baseUrl}/send/text`, {
       method: "POST",
@@ -213,6 +217,7 @@ export async function handleRequest(req: Request): Promise<Response> {
       body: JSON.stringify({
         number: phoneNumber,
         text: content,
+        linkPreview: false,
       }),
     });
     const statusCode = response.status;
