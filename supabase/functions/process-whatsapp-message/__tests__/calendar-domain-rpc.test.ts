@@ -6,8 +6,10 @@ import {
   buildSetCalendarEventRecurrenceRpcArgs,
   buildSetCalendarEventRemindersRpcArgs,
   buildSetCalendarEventStatusRpcArgs,
+  describeReminderOffsets,
   describeReminderOffset,
   formatZonedYmdHms,
+  getNextWeekdayDateInTimezone,
   getTomorrowDateInTimezone,
   instantUtcIsoForWallClockInTimeZone,
 } from '../calendar-domain-rpc.ts';
@@ -19,6 +21,8 @@ describe('calendar-domain-rpc helpers', () => {
       title: 'Dentista',
       date: '2026-04-10',
       timezone: 'America/Sao_Paulo',
+      startTime: '11:00:00',
+      endTime: '12:00:00',
     });
 
     expect(args).toEqual({
@@ -27,8 +31,8 @@ describe('calendar-domain-rpc helpers', () => {
       p_timezone: 'America/Sao_Paulo',
       p_all_day: false,
       p_description: null,
-      p_start_time: '09:00:00',
-      p_end_time: '10:00:00',
+      p_start_time: '11:00:00',
+      p_end_time: '12:00:00',
       p_location_text: null,
       p_event_kind: 'personal',
       p_created_by: 'ana_clara',
@@ -75,10 +79,20 @@ describe('calendar-domain-rpc helpers', () => {
     expect(describeReminderOffset(120)).toBe('Lembrete 2h antes');
   });
 
+  it('describeReminderOffsets joins multiple reminder labels in creation order', () => {
+    expect(describeReminderOffsets([1440, 60])).toBe('Lembretes: 1 dia antes, 1h antes');
+  });
+
   it('getTomorrowDateInTimezone advances one calendar day in target timezone', () => {
     expect(
       getTomorrowDateInTimezone('America/Sao_Paulo', new Date('2026-04-08T23:30:00.000Z')),
     ).toBe('2026-04-09');
+  });
+
+  it('getNextWeekdayDateInTimezone resolves próxima segunda-feira in target timezone', () => {
+    expect(
+      getNextWeekdayDateInTimezone('America/Sao_Paulo', 1, new Date('2026-04-08T23:30:00.000Z')),
+    ).toBe('2026-04-13');
   });
 
   it('buildSetCalendarEventRecurrenceRpcArgs forwards service-role user and recurrence fields', () => {

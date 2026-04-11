@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Header } from '@/components/layout/Header';
+import { PageContent } from '@/components/layout/PageContent';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { TransactionItem } from '@/components/dashboard/TransactionItem';
 import { MonthSelector } from '@/components/shared/MonthSelector';
@@ -129,7 +130,7 @@ export function Dashboard() {
         }
       />
 
-      <div className="relative mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
+      <PageContent className="space-y-8 py-8">
         {/* Stat Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
           <StatCard
@@ -292,8 +293,7 @@ export function Dashboard() {
           {/* Cartões de Crédito */}
           <CreditCardsWidget />
         </div>
-
-      </div>
+      </PageContent>
     </div>
   );
 }

@@ -27,7 +27,7 @@ import {
 import { processarBotao } from './button-handler.ts';
 import { isComandoRapido, processarComandoRapido } from './quick-commands.ts';
 import { isCalendarIntent } from './calendar-intent-parser.ts';
-import { processarComandoAgenda } from './calendar-handler.ts';
+import { hasPendingCalendarCreateConfirm, processarComandoAgenda } from './calendar-handler.ts';
 import { templateErroGenerico, templateComandoNaoReconhecido } from './response-templates.ts';
 import { isPrimeiraInteracaoDia } from './humanization.ts';
 import { 
@@ -875,6 +875,37 @@ serve(async (req: Request) => {
       });
     }
 
+    const command = content.toLowerCase().trim();
+
+    // ============================================
+    // 5.1 CALENDAR CONFIRMATION PENDENTE
+    // ============================================
+    if (await hasPendingCalendarCreateConfirm(user.id, phone)) {
+      console.log('📅 Confirmação pendente de agenda detectada:', command);
+      await processarComandoAgenda(command, user.id, phone);
+      recordEpisode(
+        supabase,
+        user.id,
+        `Tratou uma confirmação pendente de agenda com o texto "${command.slice(0, 80)}".`,
+        {
+          importance: 0.35,
+          outcome: 'calendar_confirm_handled',
+          entities: { command: command.slice(0, 80) },
+          expiresInHours: 72,
+        },
+      );
+
+      await supabase.from('whatsapp_messages').update({
+        processing_status: 'completed',
+        intent: 'calendar_command',
+        processed_at: new Date().toISOString()
+      }).eq('id', message.id);
+
+      return new Response(JSON.stringify({ success: true, type: 'calendar_command', command }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // ============================================
     // 5. VERIFICAR CONTEXTO ATIVO
     // ============================================
@@ -1019,8 +1050,6 @@ serve(async (req: Request) => {
     // ============================================
     // 6. COMANDO RÁPIDO
     // ============================================
-    const command = content.toLowerCase().trim();
-    
     if (!command) {
       console.log('⚠️ Comando vazio');
       return new Response(JSON.stringify({ success: true, message: 'Conteúdo vazio' }), { 

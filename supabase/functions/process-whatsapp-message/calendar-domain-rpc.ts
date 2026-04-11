@@ -7,6 +7,8 @@ export function buildCreateCalendarEventRpcArgs(params: {
   title: string;
   date: string;
   timezone: string;
+  startTime?: string;
+  endTime?: string;
 }) {
   return {
     p_title: params.title,
@@ -14,8 +16,8 @@ export function buildCreateCalendarEventRpcArgs(params: {
     p_timezone: params.timezone,
     p_all_day: false,
     p_description: null,
-    p_start_time: DEFAULT_EVENT_START_TIME,
-    p_end_time: DEFAULT_EVENT_END_TIME,
+    p_start_time: params.startTime ?? DEFAULT_EVENT_START_TIME,
+    p_end_time: params.endTime ?? DEFAULT_EVENT_END_TIME,
     p_location_text: null,
     p_event_kind: 'personal',
     p_created_by: 'ana_clara',
@@ -132,12 +134,29 @@ export function buildSetCalendarEventRecurrenceRpcArgs(params: {
 export function describeReminderOffset(reminderOffsetMinutes?: number): string | undefined {
   if (!reminderOffsetMinutes) return undefined;
 
+  if (reminderOffsetMinutes % 1440 === 0) {
+    const days = Math.floor(reminderOffsetMinutes / 1440);
+    return `Lembrete ${days} dia${days > 1 ? 's' : ''} antes`;
+  }
+
   if (reminderOffsetMinutes >= 60) {
     const hours = Math.floor(reminderOffsetMinutes / 60);
     return `Lembrete ${hours}h antes`;
   }
 
   return `Lembrete ${reminderOffsetMinutes} min antes`;
+}
+
+export function describeReminderOffsets(reminderOffsetsMinutes: number[] | undefined): string | undefined {
+  if (!reminderOffsetsMinutes || reminderOffsetsMinutes.length === 0) return undefined;
+
+  const labels = reminderOffsetsMinutes
+    .map((minutes) => describeReminderOffset(minutes)?.replace(/^Lembrete\s+/, ''))
+    .filter((label): label is string => Boolean(label));
+
+  if (labels.length === 0) return undefined;
+  if (labels.length === 1) return `Lembrete: ${labels[0]}`;
+  return `Lembretes: ${labels.join(', ')}`;
 }
 
 export function getTomorrowDateInTimezone(timezone: string, now: Date = new Date()): string {
@@ -158,6 +177,50 @@ export function getTomorrowDateInTimezone(timezone: string, now: Date = new Date
 
   const anchor = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12, 0, 0));
   anchor.setUTCDate(anchor.getUTCDate() + 1);
+  return anchor.toISOString().slice(0, 10);
+}
+
+export function getDateInTimezone(timezone: string, now: Date = new Date()): string {
+  const dateParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+
+  const year = dateParts.find((part) => part.type === 'year')?.value;
+  const month = dateParts.find((part) => part.type === 'month')?.value;
+  const day = dateParts.find((part) => part.type === 'day')?.value;
+
+  if (!year || !month || !day) {
+    throw new Error('Unable to resolve timezone date');
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
+export function getNextWeekdayDateInTimezone(
+  timezone: string,
+  weekday: number,
+  now: Date = new Date(),
+): string {
+  const currentYmd = getDateInTimezone(timezone, now);
+  const anchor = new Date(`${currentYmd}T12:00:00.000Z`);
+  const currentWeekday = new Date(instantUtcIsoForWallClockInTimeZone(currentYmd, '12:00:00', timezone)).getUTCDay();
+  let daysAhead = (weekday - currentWeekday + 7) % 7;
+  if (daysAhead === 0) daysAhead = 7;
+  anchor.setUTCDate(anchor.getUTCDate() + daysAhead);
+  return anchor.toISOString().slice(0, 10);
+}
+
+export function getEndOfWeekDateInTimezone(timezone: string, now: Date = new Date()): string {
+  const currentYmd = getDateInTimezone(timezone, now);
+  const anchor = new Date(`${currentYmd}T12:00:00.000Z`);
+  const currentWeekday = new Date(
+    instantUtcIsoForWallClockInTimeZone(currentYmd, '12:00:00', timezone),
+  ).getUTCDay();
+  const daysAhead = currentWeekday === 0 ? 0 : 7 - currentWeekday;
+  anchor.setUTCDate(anchor.getUTCDate() + daysAhead);
   return anchor.toISOString().slice(0, 10);
 }
 

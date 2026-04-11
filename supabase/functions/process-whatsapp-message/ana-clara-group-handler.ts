@@ -19,6 +19,8 @@ import { insertGroupPassiveMemory, fetchRecentGroupMemoryLines } from './ana-cla
 import { salvarContexto } from './context-manager.ts';
 import { classificarIntencaoNLP, type AgentEnrichment } from './nlp-classifier.ts';
 import { marcarComoPago, type TipoIntencaoContaPagar } from './contas-pagar.ts';
+import { isCalendarIntent } from './calendar-intent-parser.ts';
+import { hasPendingCalendarCreateConfirm, processarComandoAgenda } from './calendar-handler.ts';
 import {
   executeAnaClaraCoreFlow,
   resolveAnaClaraCoreRoute,
@@ -103,6 +105,7 @@ export function removeAgentTriggerNames(text: string, triggerNames: string[]): s
 export function isCallingAnotherPerson(text: string, triggerNames: string[]): boolean {
   if (!text) return false;
   const lower = normalizeForTriggerMatch(text).trim();
+  if (/^@\d{6,}\b/.test(lower)) return true;
   const callingPatterns = [
     /^(?:fala|oi|e\s*a[ií]|opa|hey|ei|salve|ola)\s+([a-záàâãéèêíïóôõöúçñ]+)/i,
     /^([a-záàâãéèêíïóôõöúçñ]{2,})\s*,/i,
@@ -196,6 +199,22 @@ export function isSessionOwnedByParticipant(
     sessionPhone.endsWith(currentPhone) ||
     currentPhone.endsWith(sessionPhone)
   );
+}
+
+export function isDirectedToAnotherAgentOrPerson(
+  text: string,
+  triggerNames: string[],
+): boolean {
+  const normalized = normalizeForTriggerMatch(text).trim();
+  if (!normalized) return false;
+
+  if (/^@\d{6,}\b/.test(normalized)) return true;
+
+  return isCallingAnotherPerson(text, triggerNames);
+}
+
+export function isGroupCalendarCommand(text: string): boolean {
+  return isCalendarIntent(text);
 }
 
 function jsonResponse(data: Record<string, unknown>, status = 200) {
@@ -448,9 +467,9 @@ export async function handleAnaClaraGroupInbound(
     return finishSilent('group_session_other_participant_silent');
   }
 
-  if (sessionActive && isCallingAnotherPerson(content, cfg.agent_trigger_names)) {
+  if (sessionActive && isDirectedToAnotherAgentOrPerson(content, cfg.agent_trigger_names)) {
     await clearGroupSession(supabase, user.id, groupKey);
-    return finishSilent('group_session_calling_other_person');
+    return finishSilent('group_session_redirected_elsewhere');
   }
 
   const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -565,6 +584,17 @@ export async function handleAnaClaraGroupInbound(
   }
 
   if (hasUsefulText) {
+    if (
+      (await hasPendingCalendarCreateConfirm(user.id, participantPhone)) ||
+      isGroupCalendarCommand(processedText || content)
+    ) {
+      await processarComandoAgenda(processedText || content, user.id, participantPhone, {
+        chatJid: groupJid,
+      });
+      await markMessage(supabase, message.id, 'calendar_command');
+      return { handled: true, response: jsonResponse({ ok: true, type: 'calendar_command' }) };
+    }
+
     const lines = await fetchRecentGroupMemoryLines(supabase, user.id, groupJid, cfg);
     const enrichment: AgentEnrichment = {
       soulBlock: buildSoulPromptBlock(soulConfig, userContext, autonomyConfig),

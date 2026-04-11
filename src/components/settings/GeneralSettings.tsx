@@ -19,6 +19,7 @@ import {
   resolveUserAvatarUrl,
   resolveUserDisplayName,
 } from '@/utils/profileIdentity';
+import { settingsSectionCardClassName } from './settingsSemantics';
 
 export function GeneralSettings() {
   const { userSettings, updateUserSettings, setTheme: persistTheme, loading } = useSettings();
@@ -199,7 +200,7 @@ export function GeneralSettings() {
   return (
     <div className="space-y-6">
       {/* Perfil */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <User className="h-5 w-5 text-primary" />
@@ -281,7 +282,7 @@ export function GeneralSettings() {
 
 
       {/* Preferências Gerais */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Globe className="h-5 w-5 text-primary" />
@@ -372,7 +373,7 @@ export function GeneralSettings() {
       </Card>
 
       {/* Tema */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Monitor className="h-5 w-5 text-primary" />

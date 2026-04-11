@@ -10,6 +10,12 @@ import { AIProviderCard } from './AIProviderCard';
 import { CreateAIProviderDialog } from './CreateAIProviderDialog';
 import type { AIProviderType } from '@/types/settings.types';
 import { LABELS } from '@/types/settings.types';
+import {
+  settingsCalloutSuccessClassName,
+  settingsCalloutWarningClassName,
+  settingsMetricTileClassName,
+  settingsSectionCardClassName,
+} from './settingsSemantics';
 
 export function AIProviderSettings() {
   const {
@@ -27,10 +33,6 @@ export function AIProviderSettings() {
   const [selectedProvider, setSelectedProvider] = useState<AIProviderType | null>(null);
 
   const providersList: AIProviderType[] = ['openai', 'gemini', 'claude', 'openrouter'];
-  const successAlertClassName =
-    'rounded-[22px] border-success-border/70 bg-success-subtle/70 text-success shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]';
-  const warningAlertClassName =
-    'rounded-[22px] border-warning-border/70 bg-warning-subtle/70 text-warning shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]';
 
   const handleCardClick = (provider: AIProviderType) => {
     setSelectedProvider(provider);
@@ -54,7 +56,7 @@ export function AIProviderSettings() {
   return (
     <div className="space-y-6">
       {/* Header Card */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
@@ -67,7 +69,7 @@ export function AIProviderSettings() {
         </CardHeader>
         <CardContent>
           {defaultProvider ? (
-            <Alert className={successAlertClassName}>
+            <Alert className={settingsCalloutSuccessClassName}>
               <CheckCircle className="h-4 w-4 text-success" />
               <AlertDescription className="text-success">
                 <strong>Provedor Padrão:</strong> {LABELS.aiProvider[defaultProvider.provider]} ({defaultProvider.model_name})
@@ -77,14 +79,14 @@ export function AIProviderSettings() {
               </AlertDescription>
             </Alert>
           ) : providers.length > 0 ? (
-            <Alert className={warningAlertClassName}>
+            <Alert className={settingsCalloutWarningClassName}>
               <AlertCircle className="h-4 w-4 text-warning" />
               <AlertDescription className="text-warning">
                 Nenhum provedor padrão definido. Selecione um provedor para ser usado por padrão.
               </AlertDescription>
             </Alert>
           ) : (
-            <Alert className={warningAlertClassName}>
+            <Alert className={settingsCalloutWarningClassName}>
               <AlertCircle className="h-4 w-4 text-warning" />
               <AlertDescription className="text-warning">
                 Nenhum provedor de IA configurado. Configure pelo menos um provedor para usar a Ana Clara.
@@ -94,16 +96,16 @@ export function AIProviderSettings() {
 
           {/* Resumo */}
           <div className="mt-4 grid grid-cols-3 gap-4 text-center">
-            <div>
+            <div className={settingsMetricTileClassName}>
               <p className="text-2xl font-bold text-primary">{providers.length}</p>
               <p className="text-xs text-muted-foreground">Provedores configurados</p>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-green-600">{validatedProviders.length}</p>
+            <div className={settingsMetricTileClassName}>
+              <p className="text-2xl font-bold text-success">{validatedProviders.length}</p>
               <p className="text-xs text-muted-foreground">API Keys validadas</p>
             </div>
-            <div>
-              <p className="text-2xl font-bold text-blue-600">{defaultProvider ? 1 : 0}</p>
+            <div className={settingsMetricTileClassName}>
+              <p className="text-2xl font-bold text-info">{defaultProvider ? 1 : 0}</p>
               <p className="text-xs text-muted-foreground">Provedor padrão</p>
             </div>
           </div>
@@ -135,7 +137,7 @@ export function AIProviderSettings() {
       </div>
 
       {/* Informações */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <CardTitle className="text-base">Como funciona?</CardTitle>
         </CardHeader>

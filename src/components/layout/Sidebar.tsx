@@ -23,7 +23,6 @@ import {
   Plus,
   Menu,
   X,
-  HelpCircle,
   Bot,
   MoreHorizontal,
   Tag,
@@ -246,10 +245,6 @@ export function Sidebar() {
               </p>
             </div>
           </div>
-          <button className="mt-3 flex w-full items-center space-x-3 rounded-xl px-4 py-3 text-muted-foreground transition-colors hover:bg-surface-elevated hover:text-foreground">
-            <HelpCircle size={20} />
-            <span>Ajuda</span>
-          </button>
         </div>
       </aside>
 

@@ -3,9 +3,9 @@
 
 import { useState } from 'react';
 import { Header } from '@/components/layout/Header';
+import { PageContent } from '@/components/layout/PageContent';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings as SettingsIcon, User, Sparkles, Link, Webhook, Bell } from 'lucide-react';
-import { useSettings } from '@/hooks/useSettings';
 
 // Settings tabs components
 import { AIProviderSettings } from '@/components/settings/AIProviderSettings';
@@ -13,10 +13,13 @@ import { GeneralSettings } from '@/components/settings/GeneralSettings';
 import { NotificationsSettings } from '@/components/settings/NotificationsSettings';
 import { IntegrationsSettings } from '@/components/settings/IntegrationsSettings';
 import { WebhooksSettings } from '@/components/settings/WebhooksSettings';
+import {
+  settingsTabsListClassName,
+  settingsTabsTriggerClassName,
+} from '@/components/settings/settingsSemantics';
 
 export function Settings() {
   const [activeTab, setActiveTab] = useState('general');
-  const { loading } = useSettings();
 
   return (
     <div className="min-h-screen bg-background">
@@ -26,26 +29,26 @@ export function Settings() {
         icon={<SettingsIcon size={24} />}
       />
 
-      <div className="container mx-auto max-w-7xl p-6">
+      <PageContent className="py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="general" className="gap-2">
+          <TabsList className={`${settingsTabsListClassName} grid-cols-5`}>
+            <TabsTrigger value="general" className={settingsTabsTriggerClassName}>
               <User className="h-4 w-4" />
               Geral
             </TabsTrigger>
-            <TabsTrigger value="ai" className="gap-2">
+            <TabsTrigger value="ai" className={settingsTabsTriggerClassName}>
               <Sparkles className="h-4 w-4" />
               IA
             </TabsTrigger>
-            <TabsTrigger value="integrations" className="gap-2">
+            <TabsTrigger value="integrations" className={settingsTabsTriggerClassName}>
               <Link className="h-4 w-4" />
               Integrações
             </TabsTrigger>
-            <TabsTrigger value="webhooks" className="gap-2">
+            <TabsTrigger value="webhooks" className={settingsTabsTriggerClassName}>
               <Webhook className="h-4 w-4" />
               Webhooks
             </TabsTrigger>
-            <TabsTrigger value="notifications" className="gap-2">
+            <TabsTrigger value="notifications" className={settingsTabsTriggerClassName}>
               <Bell className="h-4 w-4" />
               Notificações
             </TabsTrigger>
@@ -71,7 +74,7 @@ export function Settings() {
             <NotificationsSettings />
           </TabsContent>
         </Tabs>
-      </div>
+      </PageContent>
     </div>
   );
 }

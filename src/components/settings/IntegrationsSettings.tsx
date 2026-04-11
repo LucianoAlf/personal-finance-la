@@ -20,6 +20,13 @@ import { MessageHistory } from '@/components/whatsapp/MessageHistory';
 import { WhatsAppStats } from '@/components/whatsapp/WhatsAppStats';
 import { WhatsAppOnboarding } from '@/components/whatsapp/WhatsAppOnboarding';
 import { WhatsAppCommands } from '@/components/whatsapp/WhatsAppCommands';
+import {
+  settingsCalloutWarningClassName,
+  settingsInsetPanelClassName,
+  settingsSectionCardClassName,
+  settingsTabsListClassName,
+  settingsTabsTriggerClassName,
+} from './settingsSemantics';
 
 const COMING_SOON_COPY =
   'Esta integração ainda não está conectada ao backend real nesta versão. Quando estiver pronta, o status e as ações daqui passarão a refletir a conexão real.';
@@ -70,7 +77,7 @@ export function IntegrationsSettings() {
   return (
     <div className="space-y-6">
       {/* WhatsApp */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -92,7 +99,7 @@ export function IntegrationsSettings() {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Status */}
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+          <div className={`flex items-center justify-between ${settingsInsetPanelClassName}`}>
             <div className="space-y-1">
               <p className="font-semibold text-sm">Status da Conexão</p>
               {isConnected ? (
@@ -146,7 +153,11 @@ export function IntegrationsSettings() {
                 </Button>
               </>
             ) : (
-              <Button onClick={handleWhatsAppConnect} disabled={isLoading} className="bg-green-600 hover:bg-green-700">
+              <Button
+                onClick={handleWhatsAppConnect}
+                disabled={isLoading}
+                className="border-success-border/70 bg-success text-success-foreground shadow-[0_16px_28px_rgba(34,197,94,0.22)] hover:bg-success/90"
+              >
                 <QrCode className="h-4 w-4 mr-2" />
                 Conectar WhatsApp
               </Button>
@@ -156,16 +167,16 @@ export function IntegrationsSettings() {
           {/* Tabs WhatsApp (se conectado) */}
           {isConnected && (
             <Tabs value={whatsappTab} onValueChange={setWhatsappTab} className="mt-6">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="overview" className="gap-2">
+              <TabsList className={`${settingsTabsListClassName} grid-cols-3`}>
+                <TabsTrigger value="overview" className={settingsTabsTriggerClassName}>
                   <BarChart3 className="h-4 w-4" />
                   Estatísticas
                 </TabsTrigger>
-                <TabsTrigger value="history" className="gap-2">
+                <TabsTrigger value="history" className={settingsTabsTriggerClassName}>
                   <History className="h-4 w-4" />
                   Histórico
                 </TabsTrigger>
-                <TabsTrigger value="commands" className="gap-2">
+                <TabsTrigger value="commands" className={settingsTabsTriggerClassName}>
                   <MessageCircleMore className="h-4 w-4" />
                   Comandos
                 </TabsTrigger>
@@ -206,7 +217,7 @@ export function IntegrationsSettings() {
       />
 
       {/* Google Calendar */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <CalendarIcon className="h-5 w-5 text-blue-600" />
@@ -217,13 +228,13 @@ export function IntegrationsSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert>
-            <Clock className="h-4 w-4" />
-            <AlertDescription>{COMING_SOON_COPY}</AlertDescription>
+          <Alert className={settingsCalloutWarningClassName}>
+            <Clock className="h-4 w-4 text-warning" />
+            <AlertDescription className="text-warning">{COMING_SOON_COPY}</AlertDescription>
           </Alert>
 
           {/* Status */}
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+          <div className={`flex items-center justify-between ${settingsInsetPanelClassName}`}>
             <div className="space-y-1">
               <p className="font-semibold text-sm">Status da Sincronização</p>
               <p className="text-sm text-muted-foreground">
@@ -247,7 +258,7 @@ export function IntegrationsSettings() {
       </Card>
 
       {/* Tick Tick */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <CheckSquare className="h-5 w-5 text-purple-600" />
@@ -258,13 +269,13 @@ export function IntegrationsSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert>
-            <Clock className="h-4 w-4" />
-            <AlertDescription>{COMING_SOON_COPY}</AlertDescription>
+          <Alert className={settingsCalloutWarningClassName}>
+            <Clock className="h-4 w-4 text-warning" />
+            <AlertDescription className="text-warning">{COMING_SOON_COPY}</AlertDescription>
           </Alert>
 
           {/* Status */}
-          <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
+          <div className={`flex items-center justify-between ${settingsInsetPanelClassName}`}>
             <div className="space-y-1">
               <p className="font-semibold text-sm">Status da Conexão</p>
               <p className="text-sm text-muted-foreground">
@@ -312,7 +323,7 @@ export function IntegrationsSettings() {
       </Card>
 
       {/* Informações */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <CardTitle className="text-base">Sobre as Integrações</CardTitle>
         </CardHeader>

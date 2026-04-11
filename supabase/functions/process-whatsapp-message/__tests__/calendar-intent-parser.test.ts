@@ -110,6 +110,28 @@ describe('calendar-intent-parser', () => {
     it('parses list intent with "o que eu tenho hoje"', () => {
       const result = parseCalendarIntent('o que eu tenho hoje?');
       expect(result.intent).toBe('list');
+      expect(result.queryWindow).toBe('today');
+    });
+
+    it('parses weekly agenda query with title filter for mentorias', () => {
+      const result = parseCalendarIntent('Aninha, quais são as minhas mentorias dessa semana?');
+      expect(result.intent).toBe('list');
+      expect(result.queryWindow).toBe('week');
+      expect(result.titleFilter).toBe('mentoria');
+    });
+
+    it('parses weekly agenda query with title filter for coordenadores', () => {
+      const result = parseCalendarIntent('Que dia que eu tenho compromisso marcado com os meus coordenadores essa semana?');
+      expect(result.intent).toBe('list');
+      expect(result.queryWindow).toBe('week');
+      expect(result.titleFilter).toBe('coordenadores');
+    });
+
+    it('parses real-world coordenadores query without duplicated "que"', () => {
+      const result = parseCalendarIntent('que dia eu tenho compromisso com os meus coordenadores essa semana?');
+      expect(result.intent).toBe('list');
+      expect(result.queryWindow).toBe('week');
+      expect(result.titleFilter).toBe('coordenadores');
     });
 
     it('parses cancel intent', () => {
@@ -143,6 +165,28 @@ describe('calendar-intent-parser', () => {
     it('keeps existing list regression for agenda wording', () => {
       const result = parseCalendarIntent('minha agenda de amanha');
       expect(result.intent).toBe('list');
+    });
+
+    it('parses structured create intent with next weekday, time and multiple reminders', () => {
+      const result = parseCalendarIntent(
+        'tenho um compromisso na próxima segunda-feira com os meus coordenadores às 11 horas da manhã. me lembre um dia antes às 11 horas e no dia uma hora antes',
+      );
+      expect(result.intent).toBe('create');
+      expect(result.weekdayHint).toBe(1);
+      expect(result.startTime).toBe('11:00:00');
+      expect(result.reminderOffsetsMinutes).toEqual([1440, 60]);
+      expect(result.title).toBe('Compromisso com os meus coordenadores');
+    });
+
+    it('parses "agenda um compromisso" as create instead of list', () => {
+      const result = parseCalendarIntent(
+        'Aninha, agenda um compromisso com o pessoal do marketing na próxima terça de 14h às 17h',
+      );
+      expect(result.intent).toBe('create');
+      expect(result.weekdayHint).toBe(2);
+      expect(result.startTime).toBe('14:00:00');
+      expect(result.endTime).toBe('17:00:00');
+      expect(result.title).toContain('marketing');
     });
   });
 });

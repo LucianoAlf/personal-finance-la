@@ -10,10 +10,16 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { TimeSelect } from '@/components/ui/time-select';
 import { Bell, Clock, Calendar, TrendingUp, Target, Sparkles, Save, AlertTriangle, DollarSign, TrendingDown, Wallet, PieChart } from 'lucide-react';
 import { useSettings } from '@/hooks/useSettings';
 import { DayOfWeekSelector } from './DayOfWeekSelector';
 import { MultipleDaysSelector } from './MultipleDaysSelector';
+import {
+  settingsCalloutWarningClassName,
+  settingsInsetPanelClassName,
+  settingsSectionCardClassName,
+} from './settingsSemantics';
 
 export function NotificationsSettings() {
   const { notificationPreferences, updateNotificationPreferences, loading } = useSettings();
@@ -233,7 +239,7 @@ export function NotificationsSettings() {
   return (
     <div className="space-y-6">
       {/* Canais de Notificação */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Bell className="h-5 w-5 text-primary" />
@@ -244,7 +250,7 @@ export function NotificationsSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Alert className="rounded-[22px] border-warning-border/70 bg-warning-subtle/70 text-warning shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+          <Alert className={settingsCalloutWarningClassName}>
             <AlertTriangle className="h-4 w-4 text-warning" />
             <AlertDescription className="text-warning">
             Os agendamentos automáticos desta versão usam principalmente a conexão do WhatsApp.
@@ -252,7 +258,7 @@ export function NotificationsSettings() {
             </AlertDescription>
           </Alert>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className={`flex items-center justify-between ${settingsInsetPanelClassName}`}>
             <div className="space-y-0.5">
               <Label htmlFor="push">Notificações Push</Label>
               <p className="text-sm text-muted-foreground">
@@ -266,7 +272,7 @@ export function NotificationsSettings() {
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className={`flex items-center justify-between ${settingsInsetPanelClassName}`}>
             <div className="space-y-0.5">
               <Label htmlFor="email">E-mail</Label>
               <p className="text-sm text-muted-foreground">
@@ -280,7 +286,7 @@ export function NotificationsSettings() {
             />
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className={`flex items-center justify-between ${settingsInsetPanelClassName}`}>
             <div className="space-y-0.5">
               <Label htmlFor="whatsapp">WhatsApp</Label>
               <p className="text-sm text-muted-foreground">
@@ -297,7 +303,7 @@ export function NotificationsSettings() {
       </Card>
 
       {/* Modo Não Perturbe */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Clock className="h-5 w-5 text-primary" />
@@ -308,7 +314,7 @@ export function NotificationsSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className={`flex items-center justify-between ${settingsInsetPanelClassName}`}>
             <div className="space-y-0.5">
               <Label htmlFor="dnd">Ativar Modo Não Perturbe</Label>
               <p className="text-sm text-muted-foreground">
@@ -327,20 +333,26 @@ export function NotificationsSettings() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="dndStart">Início</Label>
-                  <Input
+                  <TimeSelect
                     id="dndStart"
-                    type="time"
+                    label="InÃ­cio"
                     value={dndStartTime}
-                    onChange={(e) => setDndStartTime(e.target.value)}
+                    onChange={setDndStartTime}
+                    minuteStep={5}
+                    hideLabel
+                    ariaLabel={'In\u00edcio'}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dndEnd">Fim</Label>
-                  <Input
+                  <TimeSelect
                     id="dndEnd"
-                    type="time"
+                    label=""
                     value={dndEndTime}
-                    onChange={(e) => setDndEndTime(e.target.value)}
+                    onChange={setDndEndTime}
+                    minuteStep={5}
+                    hideLabel
+                    ariaLabel="Fim"
                   />
                 </div>
               </div>
@@ -355,7 +367,7 @@ export function NotificationsSettings() {
       </Card>
 
       {/* Resumos Automáticos */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />
@@ -385,12 +397,15 @@ export function NotificationsSettings() {
               <div className="space-y-4 pl-4">
                 <div className="space-y-2">
                   <Label htmlFor="dailyTime">Horário</Label>
-                  <Input
+                  <TimeSelect
                     id="dailyTime"
-                    type="time"
+                    label=""
                     value={dailySummaryTime}
-                    onChange={(e) => setDailySummaryTime(e.target.value)}
-                    className="max-w-[200px]"
+                    onChange={setDailySummaryTime}
+                    className="max-w-[240px]"
+                    minuteStep={5}
+                    hideLabel
+                    ariaLabel={'Hor\u00e1rio'}
                   />
                 </div>
                 <DayOfWeekSelector
@@ -421,12 +436,15 @@ export function NotificationsSettings() {
               <div className="space-y-4 pl-4">
                 <div className="space-y-2">
                   <Label htmlFor="weeklyTime">Horário</Label>
-                  <Input
+                  <TimeSelect
                     id="weeklyTime"
-                    type="time"
+                    label=""
                     value={weeklySummaryTime}
-                    onChange={(e) => setWeeklySummaryTime(e.target.value)}
-                    className="max-w-[200px]"
+                    onChange={setWeeklySummaryTime}
+                    className="max-w-[240px]"
+                    minuteStep={5}
+                    hideLabel
+                    ariaLabel={'Hor\u00e1rio'}
                   />
                 </div>
                 <DayOfWeekSelector
@@ -457,12 +475,15 @@ export function NotificationsSettings() {
               <div className="space-y-4 pl-4">
                 <div className="space-y-2">
                   <Label htmlFor="monthlyTime">Horário</Label>
-                  <Input
+                  <TimeSelect
                     id="monthlyTime"
-                    type="time"
+                    label=""
                     value={monthlySummaryTime}
-                    onChange={(e) => setMonthlySummaryTime(e.target.value)}
-                    className="max-w-[200px]"
+                    onChange={setMonthlySummaryTime}
+                    className="max-w-[240px]"
+                    minuteStep={5}
+                    hideLabel
+                    ariaLabel={'Hor\u00e1rio'}
                   />
                 </div>
                 <MultipleDaysSelector
@@ -484,7 +505,7 @@ export function NotificationsSettings() {
       </Card>
 
       {/* Alertas Específicos */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-primary" />
@@ -514,12 +535,15 @@ export function NotificationsSettings() {
               <div className="space-y-4 pl-4">
                 <div className="space-y-2">
                   <Label htmlFor="billTime">Horário dos lembretes</Label>
-                  <Input
+                  <TimeSelect
                     id="billTime"
-                    type="time"
+                    label=""
                     value={billReminderTime}
-                    onChange={(e) => setBillReminderTime(e.target.value)}
-                    className="max-w-[200px]"
+                    onChange={setBillReminderTime}
+                    className="max-w-[240px]"
+                    minuteStep={5}
+                    hideLabel
+                    ariaLabel={'Hor\u00e1rio dos lembretes'}
                   />
                 </div>
                 <MultipleDaysSelector
@@ -617,7 +641,7 @@ export function NotificationsSettings() {
           </div>
 
           {/* Conquistas */}
-          <div className="flex items-center justify-between rounded-lg border p-4">
+          <div className={`flex items-center justify-between ${settingsInsetPanelClassName}`}>
             <div className="space-y-0.5">
               <Label htmlFor="achievements">Conquistas</Label>
               <p className="text-sm text-muted-foreground">
@@ -667,11 +691,14 @@ export function NotificationsSettings() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="anaTipsTime">Horário</Label>
-                    <Input
+                    <TimeSelect
                       id="anaTipsTime"
-                      type="time"
+                      label=""
                       value={anaTipsTime}
-                      onChange={(e) => setAnaTipsTime(e.target.value)}
+                      onChange={setAnaTipsTime}
+                      minuteStep={5}
+                      hideLabel
+                      ariaLabel={'Hor\u00e1rio'}
                     />
                   </div>
                 </div>
@@ -715,7 +742,7 @@ export function NotificationsSettings() {
       </Card>
 
       {/* Novos Alertas Avançados */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-primary" />
@@ -874,11 +901,14 @@ export function NotificationsSettings() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="investTime">Horário</Label>
-                    <Input
+                    <TimeSelect
                       id="investTime"
-                      type="time"
+                      label=""
                       value={investmentSummaryTime}
-                      onChange={(e) => setInvestmentSummaryTime(e.target.value)}
+                      onChange={setInvestmentSummaryTime}
+                      minuteStep={5}
+                      hideLabel
+                      ariaLabel={'Hor\u00e1rio'}
                     />
                   </div>
                 </div>

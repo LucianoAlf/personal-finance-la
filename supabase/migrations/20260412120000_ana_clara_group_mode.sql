@@ -19,12 +19,15 @@ CREATE INDEX IF NOT EXISTS idx_ana_clara_config_enabled
 
 ALTER TABLE ana_clara_config ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users read own ana_clara_config" ON ana_clara_config;
 CREATE POLICY "Users read own ana_clara_config"
   ON ana_clara_config FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users update own ana_clara_config" ON ana_clara_config;
 CREATE POLICY "Users update own ana_clara_config"
   ON ana_clara_config FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Service role full access ana_clara_config" ON ana_clara_config;
 CREATE POLICY "Service role full access ana_clara_config"
   ON ana_clara_config FOR ALL
   USING ((SELECT current_setting('role', true)) = 'service_role');
@@ -52,9 +55,11 @@ CREATE INDEX IF NOT EXISTS idx_ana_clara_group_memory_expires
 
 ALTER TABLE ana_clara_group_message_memory ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users read own ana_clara_group_message_memory" ON ana_clara_group_message_memory;
 CREATE POLICY "Users read own ana_clara_group_message_memory"
   ON ana_clara_group_message_memory FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Service role full access ana_clara_group_message_memory" ON ana_clara_group_message_memory;
 CREATE POLICY "Service role full access ana_clara_group_message_memory"
   ON ana_clara_group_message_memory FOR ALL
   USING ((SELECT current_setting('role', true)) = 'service_role');

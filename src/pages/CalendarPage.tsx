@@ -17,6 +17,7 @@ import { ptBR } from 'date-fns/locale';
 import { CalendarDays, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
+import { PageContent } from '@/components/layout/PageContent';
 import { Button } from '@/components/ui/button';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { cn } from '@/lib/cn';
@@ -259,7 +260,7 @@ export function CalendarPage() {
         }
       />
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <PageContent className="py-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <ToggleGroup
             type="single"
@@ -359,7 +360,7 @@ export function CalendarPage() {
             )}
           </motion.div>
         </AnimatePresence>
-      </div>
+      </PageContent>
 
       <AgendaItemSheet
         item={selectedAgendaItem}

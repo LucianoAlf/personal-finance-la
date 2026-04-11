@@ -16,6 +16,7 @@ import {
 import { format } from 'date-fns';
 
 import { Header } from '@/components/layout/Header';
+import { PageContent } from '@/components/layout/PageContent';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -356,7 +357,7 @@ export const Transacoes = () => {
           actions={headerActions}
         />
 
-        <div className="relative mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
+        <PageContent className="space-y-8 py-8">
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <Card key={index} className="rounded-[28px] border border-border/70 bg-card/90">
@@ -374,7 +375,7 @@ export const Transacoes = () => {
               Carregando transações...
             </CardContent>
           </Card>
-        </div>
+        </PageContent>
       </div>
     );
   }
@@ -391,7 +392,7 @@ export const Transacoes = () => {
         actions={headerActions}
       />
 
-      <div className="relative mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
+      <PageContent className="space-y-8 py-8">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
           <TransactionSummaryCard
             title="Receitas do Mês"
@@ -688,7 +689,7 @@ export const Transacoes = () => {
             )}
           </CardContent>
         </Card>
-      </div>
+      </PageContent>
 
       {dialogOpen ? (
         <TransactionDialog

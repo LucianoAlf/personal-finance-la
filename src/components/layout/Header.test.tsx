@@ -141,6 +141,22 @@ describe('Header user menu', () => {
     expect(logoutItem.className).not.toContain('text-danger-foreground');
   });
 
+  it('renders the account email in lowercase without inherited uppercase label styling', async () => {
+    const user = userEvent.setup();
+    renderHeader();
+
+    await user.click(screen.getByRole('button', { name: /abrir menu do usuario/i }));
+
+    const email = screen.getByText('luciano@example.com');
+    const accountSummary = email.parentElement?.parentElement as HTMLElement | null;
+
+    expect(accountSummary).not.toBeNull();
+    expect(accountSummary?.className).not.toContain('uppercase');
+    expect(accountSummary?.className).not.toContain('tracking-[0.18em]');
+    expect(email.className).toContain('lowercase');
+    expect(email.className).toContain('truncate');
+  });
+
   it('keeps the avatar image src stable when unrelated settings metadata changes', () => {
     mockAuthState = {
       ...mockAuthState,

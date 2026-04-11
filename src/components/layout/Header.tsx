@@ -105,13 +105,16 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>
-                <div className="flex flex-col space-y-1">
-                  <p className="text-sm font-medium leading-none">
+            <DropdownMenuContent align="end" className="w-64">
+              <DropdownMenuLabel className="px-3 py-2 text-left normal-case tracking-normal">
+                <div className="flex min-w-0 flex-col space-y-1">
+                  <p className="truncate text-sm font-medium leading-none text-foreground">
                     {resolvedDisplayName}
                   </p>
-                  <p className="text-xs leading-none text-muted-foreground">
+                  <p
+                    className="truncate text-[11px] leading-none lowercase text-muted-foreground"
+                    title={user?.email}
+                  >
                     {user?.email}
                   </p>
                 </div>

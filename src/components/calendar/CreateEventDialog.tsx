@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { DatePickerInput } from '@/components/ui/date-picker-input';
-import { TimeSelect } from '@/components/calendar/TimeSelect';
+import { TimeSelect } from '@/components/ui/time-select';
 import { CategorySelect } from '@/components/calendar/CategorySelect';
 import {
   PrioritySelect,

@@ -118,4 +118,63 @@ describe('NotificationsSettings', () => {
     expect(advisory?.className).not.toContain('bg-amber-50');
     expect(advisory?.className).not.toContain('text-amber-900');
   });
+
+  it('uses the shared design-system time select instead of native time inputs across notification schedules', () => {
+    mockSettingsState = {
+      ...mockSettingsState,
+      notificationPreferences: {
+        push_enabled: true,
+        email_enabled: true,
+        whatsapp_enabled: false,
+        do_not_disturb_enabled: true,
+        do_not_disturb_start_time: '22:10',
+        do_not_disturb_end_time: '08:25',
+        do_not_disturb_days_of_week: [0, 1, 2, 3, 4, 5, 6],
+        daily_summary_enabled: true,
+        daily_summary_time: '20:05',
+        daily_summary_days_of_week: [1, 2, 3, 4, 5],
+        weekly_summary_enabled: true,
+        weekly_summary_day_of_week: 0,
+        weekly_summary_days_of_week: [0],
+        weekly_summary_time: '09:35',
+        monthly_summary_enabled: true,
+        monthly_summary_day_of_month: 1,
+        monthly_summary_days_of_month: [1],
+        monthly_summary_time: '09:55',
+        bill_reminders_enabled: true,
+        bill_reminders_days_before: 3,
+        bill_reminders_days_before_array: [3, 1, 0],
+        bill_reminders_time: '09:15',
+        budget_alerts_enabled: true,
+        budget_alert_threshold_percentage: 80,
+        budget_alert_thresholds: [80, 100],
+        budget_alert_cooldown_hours: 24,
+        goal_milestones_enabled: true,
+        goal_milestone_percentages: [25, 50, 75, 100],
+        achievements_enabled: true,
+        ana_tips_enabled: true,
+        ana_tips_frequency: 'daily',
+        ana_tips_time: '10:20',
+        ana_tips_day_of_week: 1,
+        ana_tips_day_of_month: 1,
+        overdue_bill_alerts_enabled: true,
+        overdue_bill_alert_days: [1, 3, 7],
+        low_balance_alerts_enabled: false,
+        low_balance_threshold: 100,
+        large_transaction_alerts_enabled: false,
+        large_transaction_threshold: 1000,
+        investment_summary_enabled: true,
+        investment_summary_frequency: 'weekly',
+        investment_summary_day_of_week: 5,
+        investment_summary_time: '18:40',
+      },
+    };
+
+    const { container } = render(<NotificationsSettings />);
+
+    expect(container.querySelector('input[type="time"]')).toBeNull();
+    expect(screen.getByRole('combobox', { name: /início — hora/i })).toBeTruthy();
+    expect(screen.getByRole('combobox', { name: /fim — hora/i })).toBeTruthy();
+    expect(screen.getAllByRole('combobox', { name: /— (hora|minutos)/i })).toHaveLength(16);
+  });
 });

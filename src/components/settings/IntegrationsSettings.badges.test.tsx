@@ -92,4 +92,18 @@ describe('IntegrationsSettings badges', () => {
       expect(badge.className).not.toContain('border-amber-200');
     }
   });
+
+  it('uses the premium tabs rail semantics for the connected WhatsApp workspace', () => {
+    render(<IntegrationsSettings />);
+
+    const tabsList = screen.getAllByRole('tablist')[0];
+    const activeTab = screen.getByRole('tab', { name: /estat/i });
+
+    expect(tabsList.className).toContain('rounded-[1.4rem]');
+    expect(tabsList.className).toContain('border-border/70');
+    expect(tabsList.className).toContain('bg-card/95');
+    expect(activeTab.className).toContain('rounded-[1rem]');
+    expect(activeTab.className).toContain('data-[state=active]:bg-surface');
+    expect(activeTab.className).toContain('data-[state=active]:ring-primary/15');
+  });
 });

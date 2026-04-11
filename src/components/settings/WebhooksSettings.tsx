@@ -30,6 +30,13 @@ import {
   mapWebhookFormToUpdateInput,
   type WebhookFormPayload,
 } from '@/utils/webhookPayload';
+import {
+  settingsCodeChipClassName,
+  settingsDangerMenuItemClassName,
+  settingsMetricTileClassName,
+  settingsSectionCardClassName,
+  settingsTableShellClassName,
+} from './settingsSemantics';
 
 export function WebhooksSettings() {
   const { webhooks, logs, loading, testWebhook, deleteWebhook, createWebhook, updateWebhook, fetchLogs } = useWebhooks();
@@ -81,7 +88,7 @@ export function WebhooksSettings() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -101,25 +108,25 @@ export function WebhooksSettings() {
         </CardHeader>
         <CardContent>
           {/* Estatísticas */}
-          <div className="grid grid-cols-4 gap-4">
-            <div className="text-center p-4 bg-muted rounded-lg">
+          <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+            <div className={settingsMetricTileClassName}>
               <p className="text-2xl font-bold text-primary">{webhooks.length}</p>
               <p className="text-xs text-muted-foreground">Total de Webhooks</p>
             </div>
-            <div className="text-center p-4 bg-muted rounded-lg">
-              <p className="text-2xl font-bold text-green-600">
+            <div className={settingsMetricTileClassName}>
+              <p className="text-2xl font-bold text-success">
                 {webhooks.filter(w => w.is_active).length}
               </p>
               <p className="text-xs text-muted-foreground">Ativos</p>
             </div>
-            <div className="text-center p-4 bg-muted rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">
+            <div className={settingsMetricTileClassName}>
+              <p className="text-2xl font-bold text-info">
                 {webhooks.reduce((sum, w) => sum + (w.total_calls || 0), 0)}
               </p>
               <p className="text-xs text-muted-foreground">Total de Chamadas</p>
             </div>
-            <div className="text-center p-4 bg-muted rounded-lg">
-              <p className="text-2xl font-bold text-amber-600">
+            <div className={settingsMetricTileClassName}>
+              <p className="text-2xl font-bold text-warning">
                 {webhooks.length > 0
                   ? Math.round(
                       (webhooks.reduce((sum, w) => sum + (w.success_count || 0), 0) /
@@ -136,7 +143,7 @@ export function WebhooksSettings() {
       </Card>
 
       {/* Tabela de Webhooks */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <CardTitle className="text-base">Webhooks Configurados</CardTitle>
         </CardHeader>
@@ -153,7 +160,7 @@ export function WebhooksSettings() {
               </Button>
             </div>
           ) : (
-            <div className="rounded-md border">
+            <div className={settingsTableShellClassName}>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -179,7 +186,7 @@ export function WebhooksSettings() {
                         )}
                       </TableCell>
                       <TableCell>
-                        <code className="text-xs bg-muted px-2 py-1 rounded">
+                        <code className={`text-xs ${settingsCodeChipClassName}`}>
                           {webhook.url.length > 40
                             ? webhook.url.substring(0, 40) + '...'
                             : webhook.url}
@@ -197,12 +204,12 @@ export function WebhooksSettings() {
                       </TableCell>
                       <TableCell>
                         {webhook.is_active ? (
-                          <Badge className="bg-green-100 text-green-700 border-green-200">
+                          <Badge variant="success">
                             <CheckCircle className="h-3 w-3 mr-1" />
                             Ativo
                           </Badge>
                         ) : (
-                          <Badge variant="outline" className="bg-gray-50">
+                          <Badge variant="secondary" className="text-muted-foreground">
                             <XCircle className="h-3 w-3 mr-1" />
                             Inativo
                           </Badge>
@@ -216,8 +223,8 @@ export function WebhooksSettings() {
                           <span
                             className={
                               ((webhook.success_count || 0) / webhook.total_calls) * 100 >= 80
-                                ? 'text-green-600 font-medium'
-                                : 'text-amber-600 font-medium'
+                                ? 'text-success font-medium'
+                                : 'text-warning font-medium'
                             }
                           >
                             {Math.round(
@@ -251,7 +258,7 @@ export function WebhooksSettings() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => handleDelete(webhook.id)}
-                              className="text-red-600"
+                              className={settingsDangerMenuItemClassName}
                             >
                               <Trash2 className="h-4 w-4 mr-2" />
                               Deletar
@@ -270,7 +277,7 @@ export function WebhooksSettings() {
 
       {/* Logs Recentes (se houver webhook selecionado) */}
       {selectedWebhook && (
-        <Card>
+        <Card className={settingsSectionCardClassName}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -285,7 +292,7 @@ export function WebhooksSettings() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border">
+            <div className={settingsTableShellClassName}>
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -317,7 +324,7 @@ export function WebhooksSettings() {
                       </TableCell>
                       <TableCell>
                         {log.status === 'success' ? (
-                          <Badge className="bg-green-100 text-green-700 border-green-200">
+                          <Badge variant="success">
                             Sucesso
                           </Badge>
                         ) : (
@@ -346,7 +353,7 @@ export function WebhooksSettings() {
       )}
 
       {/* Informações */}
-      <Card>
+      <Card className={settingsSectionCardClassName}>
         <CardHeader>
           <CardTitle className="text-base">Como usar Webhooks</CardTitle>
         </CardHeader>

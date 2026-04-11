@@ -86,7 +86,9 @@ export type ContextType =
   // Onboarding do agente
   | 'onboarding_agent'                   // Fluxo de onboarding (nome, tom, preferências)
   // Sessão curta no WhatsApp (grupo) — não entra na prioridade de fluxos do DM em buscarContexto
-  | 'ana_clara_group_session';
+  | 'ana_clara_group_session'
+  // Confirmação antes de criar compromisso na agenda (sim/não, estilo Mike)
+  | 'awaiting_calendar_create_confirm';
 
 export interface ContextData {
   intencao_pendente?: IntencaoClassificada;
@@ -220,7 +222,8 @@ const FLOW_CONTEXT_TYPES: ContextType[] = [
   'awaiting_installment_card_selection',
   'awaiting_payment_value',
   'awaiting_bill_name_for_payment',
-  'awaiting_payment_account'
+  'awaiting_payment_account',
+  'awaiting_calendar_create_confirm',
 ];
 
 // Contextos de referência (memória) - usados para inferir contexto em follow-ups

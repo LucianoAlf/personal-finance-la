@@ -137,6 +137,7 @@ describe('Transacoes premium page regression', () => {
 
     expect(root?.className).toContain('bg-background');
     expect(root?.className).toContain('text-foreground');
+    expect(screen.getByTestId('app-page-content').className).not.toContain('max-w-7xl');
     expect(searchCard?.className).toContain('bg-card');
     expect(searchCard?.className).not.toContain('bg-white');
     expect(listCard?.className).toContain('bg-card');

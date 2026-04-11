@@ -4,6 +4,8 @@ import {
   detectBalanceAccountFilter,
   getGroupReplyStrategy,
   isCallingAnotherPerson,
+  isGroupCalendarCommand,
+  isDirectedToAnotherAgentOrPerson,
   isSimpleGroupGreeting,
   isSessionOwnedByParticipant,
   removeAgentTriggerNames,
@@ -33,6 +35,7 @@ Deno.test('getGroupReplyStrategy routes greetings to the shared greeting handler
 Deno.test('isCallingAnotherPerson detects direct greeting to someone else', () => {
   assertEquals(isCallingAnotherPerson('Oi Anne, responde isso', ['Ana Clara', 'Clarinha']), true);
   assertEquals(isCallingAnotherPerson('Oi Clarinha, responde isso', ['Ana Clara', 'Clarinha']), false);
+  assertEquals(isCallingAnotherPerson('@107508014252114 Tem conta pra pagar hoje?', ['Ana Clara', 'Clarinha']), true);
 });
 
 Deno.test('removeAgentTriggerNames strips trigger mentions before NLP', () => {
@@ -85,6 +88,17 @@ Deno.test('isSessionOwnedByParticipant only continues session for the activator'
   );
 });
 
+Deno.test('isDirectedToAnotherAgentOrPerson catches raw WhatsApp mentions to others', () => {
+  assertEquals(
+    isDirectedToAnotherAgentOrPerson('@107508014252114 Tem conta pra pagar hoje?', ['Ana Clara', 'Clarinha']),
+    true,
+  );
+  assertEquals(
+    isDirectedToAnotherAgentOrPerson('Ana Clara, tem conta pra pagar hoje?', ['Ana Clara', 'Clarinha']),
+    false,
+  );
+});
+
 Deno.test('getGroupReplyStrategy should not treat income queries as generic conversation', () => {
   assertNotEquals(
     getGroupReplyStrategy({
@@ -103,4 +117,10 @@ Deno.test('getGroupReplyStrategy should not treat expense reports as generic con
     }),
     'conversation',
   );
+});
+
+Deno.test('isGroupCalendarCommand detects agenda questions that should bypass NLP fallback', () => {
+  assertEquals(isGroupCalendarCommand('qual a minha agenda essa semana?'), true);
+  assertEquals(isGroupCalendarCommand('quais são as minhas mentorias dessa semana?'), true);
+  assertEquals(isGroupCalendarCommand('tem conta pra pagar hoje?'), false);
 });

@@ -23,6 +23,7 @@ import {
   extrairMetodoDoTexto,
   extrairModoDoTexto,
   extrairPeriodoDoTexto,
+  type PeriodoConfig,
 } from './consultas.ts';
 import {
   detectResumoFinanceiroPeriodo,
@@ -227,6 +228,26 @@ export function resolveAnaClaraCoreRoute(
   }
 
   return 'unknown';
+}
+
+export function shouldUseUnifiedExpenseQuery(params: {
+  periodType?: PeriodoConfig['tipo'];
+  hasMethod: boolean;
+  hasCategory: boolean;
+  hasEstablishment: boolean;
+}): boolean {
+  if (params.hasMethod || params.hasCategory || params.hasEstablishment) {
+    return true;
+  }
+
+  const templateFriendlyPeriods = new Set<PeriodoConfig['tipo']>([
+    'mes_atual',
+    'semana_atual',
+    'hoje',
+    'ontem',
+  ]);
+
+  return !templateFriendlyPeriods.has(params.periodType ?? 'mes_atual');
 }
 
 export async function executeAnaClaraCoreFlow(
@@ -631,7 +652,12 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
         }
       }
 
-      const semFiltrosComplexos = !metodo && !categoriaFiltro && !estabelecimentoFiltro;
+      const shouldUseUnified = shouldUseUnifiedExpenseQuery({
+        periodType: periodoConfig?.tipo,
+        hasMethod: Boolean(metodo),
+        hasCategory: Boolean(categoriaFiltro),
+        hasEstablishment: Boolean(estabelecimentoFiltro),
+      });
       let resposta: string;
       const isCartaoQuery = cartaoFiltro ||
         content.toLowerCase().includes('cartão') ||
@@ -639,7 +665,7 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
         content.toLowerCase().includes('crédito') ||
         content.toLowerCase().includes('credito');
 
-      if (semFiltrosComplexos) {
+      if (!shouldUseUnified) {
         const { gerarRelatorioGastosMes, gerarRelatorioGastosConta, gerarRelatorioGastosCartao } = await import('./insights-ana-clara.ts');
 
         let usarRelatorioCartao = false;

@@ -36,12 +36,50 @@ function capitalizar(str: string): string {
 // ============================================
 
 export interface PeriodoConfig {
-  tipo: 'hoje' | 'ontem' | 'semana_atual' | 'semana_passada' | 'mes_atual' | 'mes_passado' | 
-        'ultimos_dias' | 'ultimos_meses' | 'mes_especifico' | 'intervalo';
+  tipo: 'hoje' | 'amanha' | 'ontem' | 'semana_atual' | 'semana_passada' | 'mes_atual' | 'mes_passado' |
+        'proximo_mes' | 'ultimos_dias' | 'proximos_dias' | 'ultimos_meses' | 'mes_especifico' | 'dia_semana' | 'intervalo';
   quantidade?: number;  // Para ultimos_dias, ultimos_meses
   mes?: number;         // Para mes_especifico (1-12)
+  ano?: number;         // Para mes_especifico
+  diaSemana?: number;   // Para dia_semana
   inicio?: string;      // Para intervalo (YYYY-MM-DD)
   fim?: string;         // Para intervalo (YYYY-MM-DD)
+}
+
+const NUMEROS_POR_EXTENSO: Record<string, number> = {
+  um: 1,
+  uma: 1,
+  dois: 2,
+  duas: 2,
+  tres: 3,
+  quatro: 4,
+  cinco: 5,
+  seis: 6,
+  sete: 7,
+  oito: 8,
+  nove: 9,
+  dez: 10,
+  onze: 11,
+  doze: 12,
+  treze: 13,
+  catorze: 14,
+  quatorze: 14,
+  quinze: 15,
+};
+
+function parseNumeroNatural(token: string | undefined): number | null {
+  if (!token) return null;
+
+  const trimmed = token.trim().toLowerCase();
+  if (/^\d+$/.test(trimmed)) return parseInt(trimmed, 10);
+  return NUMEROS_POR_EXTENSO[trimmed] ?? null;
+}
+
+function extractQuantidadeTemporal(texto: string, prefixo: string, unidade: string): number | null {
+  const numeroPattern = '(\\d+|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|catorze|quatorze|quinze)';
+  const regex = new RegExp(`${prefixo}\\s+${numeroPattern}\\s*${unidade}`);
+  const match = texto.match(regex);
+  return parseNumeroNatural(match?.[1]);
 }
 
 // Tipos de método de pagamento
@@ -125,6 +163,12 @@ export function calcularPeriodoAvancado(periodo: PeriodoConfig | string): {
       dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
       label = 'Hoje';
       break;
+
+    case 'amanha':
+      dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 1);
+      dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + 1, 23, 59, 59);
+      label = 'Amanhã';
+      break;
       
     case 'ontem':
       dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - 1);
@@ -156,6 +200,12 @@ export function calcularPeriodoAvancado(periodo: PeriodoConfig | string): {
       dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), 0, 23, 59, 59); // Último dia do mês anterior
       label = obterNomeMes(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1));
       break;
+
+    case 'proximo_mes':
+      dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1);
+      dataFim = new Date(hoje.getFullYear(), hoje.getMonth() + 2, 0, 23, 59, 59);
+      label = obterNomeMes(dataInicio);
+      break;
       
     case 'mes_especifico':
       const mesAlvo = periodo.mes || 1;
@@ -171,11 +221,29 @@ export function calcularPeriodoAvancado(periodo: PeriodoConfig | string): {
       dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - dias + 1);
       label = `Últimos ${dias} dias`;
       break;
+
+    case 'proximos_dias':
+      const proximosDias = periodo.quantidade || 7;
+      dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+      dataFim = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + proximosDias, 23, 59, 59);
+      label = `Próximos ${proximosDias} dias`;
+      break;
       
     case 'ultimos_meses':
       const meses = periodo.quantidade || 1;
       dataInicio = new Date(hoje.getFullYear(), hoje.getMonth() - meses, hoje.getDate());
       label = `Últimos ${meses} ${meses === 1 ? 'mês' : 'meses'}`;
+      break;
+
+    case 'dia_semana':
+      const diaSemanaAlvo = periodo.diaSemana ?? 0;
+      const diaAtual = hoje.getDay();
+      let diasAtras = diaAtual - diaSemanaAlvo;
+      if (diasAtras < 0) diasAtras += 7;
+      if (diasAtras === 0 && hoje.getHours() < 12) diasAtras = 7;
+      dataInicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - diasAtras);
+      dataFim = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), dataInicio.getDate(), 23, 59, 59);
+      label = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'][diaSemanaAlvo];
       break;
       
     case 'intervalo':
@@ -200,16 +268,25 @@ export function calcularPeriodoAvancado(periodo: PeriodoConfig | string): {
 export function extrairPeriodoDoTexto(texto: string): PeriodoConfig {
   const textoLower = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   
+  const proximosDias = extractQuantidadeTemporal(textoLower, 'proximos?', 'dias?');
+  if (proximosDias !== null) {
+    return { tipo: 'proximos_dias', quantidade: proximosDias };
+  }
+
   // Últimos X dias
-  const matchDias = textoLower.match(/ultimos?\s+(\d+)\s*dias?/);
-  if (matchDias) {
-    return { tipo: 'ultimos_dias', quantidade: parseInt(matchDias[1]) };
+  const ultimosDias = extractQuantidadeTemporal(textoLower, 'ultimos?', 'dias?');
+  if (ultimosDias !== null) {
+    return { tipo: 'ultimos_dias', quantidade: ultimosDias };
   }
   
   // Últimos X meses
-  const matchMeses = textoLower.match(/ultimos?\s+(\d+)\s*mes(es)?/);
-  if (matchMeses) {
-    return { tipo: 'ultimos_meses', quantidade: parseInt(matchMeses[1]) };
+  const ultimosMeses = extractQuantidadeTemporal(textoLower, 'ultimos?', 'mes(?:es)?');
+  if (ultimosMeses !== null) {
+    return { tipo: 'ultimos_meses', quantidade: ultimosMeses };
+  }
+
+  if (textoLower.includes('mes que vem') || textoLower.includes('proximo mes')) {
+    return { tipo: 'proximo_mes' };
   }
   
   // Mês específico
@@ -226,7 +303,12 @@ export function extrairPeriodoDoTexto(texto: string): PeriodoConfig {
   }
   
   // Semana passada / última semana
-  if (textoLower.includes('semana passada') || textoLower.includes('ultima semana')) {
+  if (
+    textoLower.includes('semana passada') ||
+    textoLower.includes('ultima semana') ||
+    textoLower.includes('semana que passou') ||
+    textoLower.includes('semana passada toda')
+  ) {
     return { tipo: 'semana_passada' };
   }
   
@@ -260,6 +342,10 @@ export function extrairPeriodoDoTexto(texto: string): PeriodoConfig {
   // Hoje
   if (textoLower.includes('hoje')) {
     return { tipo: 'hoje' };
+  }
+
+  if (textoLower.includes('amanha')) {
+    return { tipo: 'amanha' };
   }
   
   // Ontem

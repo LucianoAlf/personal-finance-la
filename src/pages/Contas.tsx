@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 
 import { Header } from '@/components/layout/Header';
+import { PageContent } from '@/components/layout/PageContent';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { AccountCard } from '@/components/accounts/AccountCard';
@@ -447,7 +448,7 @@ export const Contas: React.FC = () => {
         }
       />
 
-      <div className="relative mx-auto max-w-7xl space-y-8 px-6 py-8 lg:px-8">
+      <PageContent className="space-y-8 py-8">
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           <SummaryMetricCard
             title="Saldo Total Geral"
@@ -732,7 +733,7 @@ export const Contas: React.FC = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
+      </PageContent>
     </div>
   );
 };

@@ -81,6 +81,89 @@ export type TipoIntencaoContaPagar =
   | 'CADASTRAR_CONTA_AMBIGUO'  // "cadastrar conta" (bancária ou a pagar?)
   | null;
 
+export interface ContasVencendoWindow {
+  startOffsetDays: number;
+  endOffsetDays: number;
+  label: 'hoje' | 'amanha' | 'proximos_dias';
+}
+
+const NUMEROS_TEMPORAIS: Record<string, number> = {
+  um: 1,
+  uma: 1,
+  dois: 2,
+  duas: 2,
+  tres: 3,
+  quatro: 4,
+  cinco: 5,
+  seis: 6,
+  sete: 7,
+  oito: 8,
+  nove: 9,
+  dez: 10,
+  onze: 11,
+  doze: 12,
+  treze: 13,
+  catorze: 14,
+  quatorze: 14,
+  quinze: 15,
+};
+
+function normalizeCommandText(value: string | undefined): string {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+function parseTemporalNumber(token: string | undefined): number | null {
+  if (!token) return null;
+  if (/^\d+$/.test(token)) return parseInt(token, 10);
+  return NUMEROS_TEMPORAIS[token] ?? null;
+}
+
+function extractUpcomingDays(command: string): number | null {
+  const match = command.match(
+    /proximos?\s+(\d+|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|catorze|quatorze|quinze)\s+dias?/,
+  );
+  return parseTemporalNumber(match?.[1]);
+}
+
+function formatDateOffset(baseDate: Date, offsetDays: number): string {
+  const targetDate = new Date(baseDate);
+  targetDate.setDate(targetDate.getDate() + offsetDays);
+  return `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-${String(targetDate.getDate()).padStart(2, '0')}`;
+}
+
+export function resolveContasVencendoWindow(entidades?: Record<string, unknown>): ContasVencendoWindow {
+  const command = normalizeCommandText(entidades?.comando_original as string | undefined);
+
+  const upcomingDays = extractUpcomingDays(command);
+  if (upcomingDays !== null) {
+    return { startOffsetDays: 0, endOffsetDays: upcomingDays, label: 'proximos_dias' };
+  }
+
+  if (/\bhoje\b/.test(command)) {
+    return { startOffsetDays: 0, endOffsetDays: 0, label: 'hoje' };
+  }
+
+  if (/\bamanha\b/.test(command)) {
+    return { startOffsetDays: 1, endOffsetDays: 1, label: 'amanha' };
+  }
+
+  return { startOffsetDays: 0, endOffsetDays: 7, label: 'proximos_dias' };
+}
+
+export function resolveContasDoMesReference(entidades?: Record<string, unknown>): { mes?: number; ano?: number } {
+  const command = normalizeCommandText(entidades?.comando_original as string | undefined);
+  if (command.includes('mes que vem') || command.includes('proximo mes')) {
+    const today = getHojeSaoPaulo();
+    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+    return { mes: nextMonth.getMonth(), ano: nextMonth.getFullYear() };
+  }
+
+  return {};
+}
+
 // ============================================
 // ALIASES DE CONTAS (FASE 3.2)
 // ============================================
@@ -1398,16 +1481,16 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
 // CONTAS VENCENDO (PRÓXIMOS X DIAS)
 // ============================================
 
-export async function contasVencendo(userId: string, dias: number = 7): Promise<string> {
+export async function contasVencendo(
+  userId: string,
+  window: ContasVencendoWindow = { startOffsetDays: 0, endOffsetDays: 7, label: 'proximos_dias' },
+): Promise<string> {
   const supabase = getSupabase();
   // IMPORTANTE: Usar timezone de São Paulo para evitar problemas com UTC
   const hoje = getHojeSaoPaulo();
   hoje.setHours(0, 0, 0, 0);
-  const hojeStr = getHojeStrSaoPaulo();
-  
-  const dataLimite = new Date(hoje);
-  dataLimite.setDate(dataLimite.getDate() + dias);
-  const dataLimiteStr = `${dataLimite.getFullYear()}-${String(dataLimite.getMonth() + 1).padStart(2, '0')}-${String(dataLimite.getDate()).padStart(2, '0')}`;
+  const dataInicioStr = formatDateOffset(hoje, window.startOffsetDays);
+  const dataLimiteStr = formatDateOffset(hoje, window.endOffsetDays);
   
   // Buscar contas A VENCER (de hoje em diante, não vencidas!)
   const { data: contas } = await supabase
@@ -1415,7 +1498,7 @@ export async function contasVencendo(userId: string, dias: number = 7): Promise<
     .select('id, description, amount, due_date, status, bill_type')
     .eq('user_id', userId)
     .eq('status', 'pending')  // Só pendentes, não overdue!
-    .gte('due_date', hojeStr)  // A partir de hoje
+    .gte('due_date', dataInicioStr)  // A partir do início da janela
     .lte('due_date', dataLimiteStr)  // Até o limite
     .order('due_date', { ascending: true });
   
@@ -1431,7 +1514,7 @@ export async function contasVencendo(userId: string, dias: number = 7): Promise<
     `)
     .eq('user_id', userId)
     .in('status', ['open', 'closed'])
-    .gte('due_date', hojeStr)  // A partir de hoje
+    .gte('due_date', dataInicioStr)  // A partir do início da janela
     .lte('due_date', dataLimiteStr)  // Até o limite
     .order('due_date', { ascending: true });
   
@@ -1455,12 +1538,24 @@ export async function contasVencendo(userId: string, dias: number = 7): Promise<
   }));
   
   todos.sort((a, b) => new Date(a.due_date).getTime() - new Date(b.due_date).getTime());
+
+  const emptyMessages: Record<ContasVencendoWindow['label'], string> = {
+    hoje: '✅ *Tudo tranquilo!*\n\nNenhuma conta vence hoje. 🎉',
+    amanha: '✅ *Tudo tranquilo!*\n\nNenhuma conta vence amanhã. 🎉',
+    proximos_dias: `✅ *Tudo tranquilo!*\n\nNenhuma conta vencendo nos próximos ${window.endOffsetDays} dias! 🎉`,
+  };
   
   if (todos.length === 0) {
-    return `✅ *Tudo tranquilo!*\n\nNenhuma conta vencendo nos próximos ${dias} dias! 🎉`;
+    return emptyMessages[window.label];
   }
   
-  let mensagem = `📅 *Contas a Vencer*\n_Próximos ${dias} dias_\n`;
+  const headingByLabel: Record<ContasVencendoWindow['label'], string> = {
+    hoje: '📅 *Contas a Vencer*\n_Somente hoje_\n',
+    amanha: '📅 *Contas a Vencer*\n_Somente amanhã_\n',
+    proximos_dias: `📅 *Contas a Vencer*\n_Próximos ${window.endOffsetDays} dias_\n`,
+  };
+
+  let mensagem = headingByLabel[window.label];
   
   // Agrupar por prazo (só futuro, não tem vencidos aqui!)
   const hojeList = todos.filter(t => calcularDiasParaVencimento(t.due_date) === 0);
@@ -1956,13 +2051,15 @@ export async function processarIntencaoContaPagar(
     }
     
     case 'CONTAS_VENCENDO':
-      return { mensagem: await contasVencendo(userId, 7) };
+      return { mensagem: await contasVencendo(userId, resolveContasVencendoWindow(_entidades)) };
     
     case 'CONTAS_VENCIDAS':
       return { mensagem: await contasVencidas(userId) };
     
-    case 'CONTAS_DO_MES':
-      return { mensagem: await contasDoMes(userId) };
+    case 'CONTAS_DO_MES': {
+      const mesRef = resolveContasDoMesReference(_entidades);
+      return { mensagem: await contasDoMes(userId, mesRef.mes, mesRef.ano) };
+    }
     
     case 'RESUMO_CONTAS_MES':
       return { mensagem: await resumoContasMes(userId) };
