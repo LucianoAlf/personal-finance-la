@@ -1847,7 +1847,7 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
         temDados: !!resultado.dados 
       }));
       
-      const contextStep = (resultado.dados?.step || resultado.dados?.contextType) as ContextType;
+      const contextStep = (resultado.dados?.contextType || resultado.dados?.step) as ContextType;
       if (resultado.precisaConfirmacao && contextStep) {
         try {
           await salvarContexto(user.id, contextStep, {

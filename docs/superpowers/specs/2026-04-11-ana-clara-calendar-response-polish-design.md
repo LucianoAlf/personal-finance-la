@@ -169,6 +169,14 @@ Each agenda message type should follow a predictable visual contract:
 - optional secondary details in fixed order
 - confirmation or terminal outcome line
 
+When optional secondary lines exist, the order is fixed and must be:
+
+1. location
+2. participants
+3. duration or explicit time interval
+4. reminders
+5. recurrence
+
 ### 5.4 User-relative naming
 
 Language such as `eu` only makes sense at interpretation time, not presentation time. Rendering must always anchor to the currently resolved user identity.
@@ -217,10 +225,11 @@ Not every path needs every field, but the contract should support them consisten
 - loading any required event data
 - saving pending confirmation context
 - creating / updating / cancelling via RPC
-- passing normalized-enough structured inputs to the presentation layer
+- passing raw or semi-normalized structured data to the presentation layer
 
 `calendar-response-templates.ts` becomes responsible for:
 
+- final presentation-oriented normalization
 - final wording
 - final layout
 - participant display semantics
@@ -341,6 +350,14 @@ Rules:
 
 Before displaying participant-like text, normalize first-person references to the current user's display name.
 
+This replacement applies only in participant-like presentation fields, for example:
+
+- explicit participants lines
+- participant-like subtitle fragments
+- participant fragments extracted from semi-structured agenda display data
+
+It must not be applied as a blind global replace across arbitrary event titles.
+
 Examples:
 
 - `eu e Yuri` -> `Alf, Yuri`
@@ -374,6 +391,20 @@ Do not invent participant names not present in:
 - already available event data
 
 This step is presentation normalization, not entity enrichment.
+
+### 8.5 Title safety rule
+
+First-person substitution inside the main event title is allowed only when there is a specific and safe cleanup rule for that exact title shape.
+
+Examples of allowed title cleanup:
+
+- narrow pattern-based rewrites already treated as participant-like titles
+- explicit event-title cleanup rules that are covered by regression tests
+
+Examples of forbidden title cleanup:
+
+- blanket replacement of `eu`, `meu`, `minha`, or similar tokens inside every title
+- generic search-and-replace that can distort legitimate event names
 
 ---
 

@@ -5,6 +5,13 @@
 // ============================================
 
 import { getSupabase, getEmojiBanco } from './utils.ts';
+import {
+  appendPassiveAccountsDiagnosticsToListing,
+  listAccountsObservationAnomalies,
+  selectPassivePresentationAnomalies,
+  type AccountsDiagnosticDependencies,
+} from './accounts-diagnostic.ts';
+import { createAccountsDiagnosticInvitationContext } from './accounts-diagnostic-conversations.ts';
 import { resolveCanonicalCategory } from '../_shared/canonical-categorization.ts';
 import { 
   validarValor, 
@@ -1214,6 +1221,11 @@ export interface FaturaCartao {
   status: string;
 }
 
+export interface ContasPagarReadonlyDependencies {
+  supabase?: any;
+  diagnostics?: AccountsDiagnosticDependencies;
+}
+
 // ============================================
 // HELPERS
 // ============================================
@@ -1298,8 +1310,7 @@ export function getEmojiConta(nome: string): string {
 // BUSCAR CONTAS PENDENTES
 // ============================================
 
-export async function buscarContasPendentes(userId: string): Promise<ContaPagar[]> {
-  const supabase = getSupabase();
+export async function buscarContasPendentes(userId: string, supabase = getSupabase()): Promise<ContaPagar[]> {
   
   const { data: contas, error } = await supabase
     .from('payable_bills')
@@ -1337,8 +1348,7 @@ export async function buscarContasPendentes(userId: string): Promise<ContaPagar[
 // BUSCAR FATURAS DE CARTÃO PENDENTES
 // ============================================
 
-export async function buscarFaturasPendentes(userId: string): Promise<FaturaCartao[]> {
-  const supabase = getSupabase();
+export async function buscarFaturasPendentes(userId: string, supabase = getSupabase()): Promise<FaturaCartao[]> {
   
   const { data: faturas, error } = await supabase
     .from('credit_card_invoices')
@@ -1371,9 +1381,12 @@ export async function buscarFaturasPendentes(userId: string): Promise<FaturaCart
 // LISTAR CONTAS A PAGAR (COM FATURAS)
 // ============================================
 
-export async function listarContasPagar(userId: string): Promise<{ mensagem: string; contas: ContaPagar[] }> {
-  const contas = await buscarContasPendentes(userId);
-  const faturas = await buscarFaturasPendentes(userId);
+export async function listarContasPagar(
+  userId: string,
+  deps: ContasPagarReadonlyDependencies = {},
+): Promise<{ mensagem: string; contas: ContaPagar[] }> {
+  const contas = await buscarContasPendentes(userId, deps.supabase);
+  const faturas = await buscarFaturasPendentes(userId, deps.supabase);
   
   console.log('[CONTAS-PAGAR] Contas encontradas:', contas.length);
   console.log('[CONTAS-PAGAR] Faturas encontradas:', faturas.length);
@@ -1473,6 +1486,10 @@ export async function listarContasPagar(userId: string): Promise<{ mensagem: str
   const total = todos.reduce((sum, t) => sum + Number(t.amount), 0);
   mensagem += `\n━━━━━━━━━━━━━━━━━━\n`;
   mensagem += `💰 *Total pendente:* ${formatarMoeda(total)}`;
+  mensagem = await appendPassiveAccountsDiagnosticsToListing(mensagem, userId, {
+    supabase: deps.diagnostics?.supabase ?? deps.supabase,
+    today: deps.diagnostics?.today,
+  });
   
   return { mensagem, contas };
 }
@@ -2041,12 +2058,31 @@ export async function processarIntencaoContaPagar(
   switch (intencao) {
     case 'LISTAR_CONTAS_PAGAR': {
       const resultado = await listarContasPagar(userId);
+      const passiveAnomalies = selectPassivePresentationAnomalies(
+        await listAccountsObservationAnomalies(userId),
+      );
       
       // Salvar contexto para atalho "paguei a 1"
       if (resultado.contas.length > 0) {
         await salvarContextoListagem(userId, resultado.contas);
       }
-      
+
+      const diagnosticContext = createAccountsDiagnosticInvitationContext({
+        anomalies: passiveAnomalies,
+        source: 'passive_listing',
+      });
+
+      if (diagnosticContext) {
+        return {
+          mensagem: `${resultado.mensagem}\n\nSe quiser, eu posso te ajudar a entender o que pode estar acontecendo na mais urgente.`,
+          precisaConfirmacao: true,
+          dados: {
+            ...diagnosticContext,
+            contextType: 'accounts_diagnostic_context',
+          },
+        };
+      }
+
       return { mensagem: resultado.mensagem };
     }
     

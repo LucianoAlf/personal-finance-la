@@ -11,6 +11,16 @@ import type { IntencaoClassificada } from './nlp-classifier.ts';
 import { processarIntencaoCartao } from './cartao-credito.ts';
 import { processarIntencaoContaPagar, type TipoIntencaoContaPagar } from './contas-pagar.ts';
 import {
+  generateAccountsHealthCheckResponse,
+  isExplicitAccountsHealthCheckRequest as detectExplicitAccountsHealthCheckRequest,
+  listAccountsDiagnosableAnomalies,
+} from './accounts-diagnostic.ts';
+import {
+  createAccountsDiagnosticInvitationContext,
+  detectDirectAccountsDiagnosticPrompt as detectAccountsDiagnosticPrompt,
+  startAccountsDiagnosticConversation,
+} from './accounts-diagnostic-conversations.ts';
+import {
   excluirTransacaoPorId,
   excluirUltimaTransacao,
   listarContas,
@@ -250,6 +260,14 @@ export function shouldUseUnifiedExpenseQuery(params: {
   return !templateFriendlyPeriods.has(params.periodType ?? 'mes_atual');
 }
 
+export function isExplicitAccountsHealthCheckRequest(text: string): boolean {
+  return detectExplicitAccountsHealthCheckRequest(text);
+}
+
+export function detectDirectAccountsDiagnosticPrompt(text: string): boolean {
+  return detectAccountsDiagnosticPrompt(text);
+}
+
 export async function executeAnaClaraCoreFlow(
   params: ExecuteAnaClaraCoreFlowParams,
 ): Promise<Response | null> {
@@ -281,6 +299,38 @@ export async function executeAnaClaraCoreFlow(
       headers: { 'Content-Type': 'application/json' },
     });
   };
+
+  if (isExplicitAccountsHealthCheckRequest(content)) {
+    const anomalies = await listAccountsDiagnosableAnomalies(user.id);
+    const diagnosticContext = createAccountsDiagnosticInvitationContext({
+      anomalies,
+      source: 'explicit_health_check',
+    });
+    const resposta = await generateAccountsHealthCheckResponse(user.id);
+    const mensagem = diagnosticContext
+      ? `${resposta}\n\nSe quiser, eu posso te ajudar a entender o que pode estar acontecendo na mais urgente.`
+      : resposta;
+    await sendReply(mensagem);
+    if (diagnosticContext) {
+      await salvarContexto(user.id, 'accounts_diagnostic_context' as ContextType, diagnosticContext, phone);
+    }
+    return await markMessage('accounts_health_check', 'contas_pagar_health_check');
+  }
+
+  if (detectDirectAccountsDiagnosticPrompt(content)) {
+    const anomalies = await listAccountsDiagnosableAnomalies(user.id);
+    const transition = startAccountsDiagnosticConversation({
+      anomalies,
+      source: 'direct_diagnostic_prompt',
+      userText: content,
+    });
+
+    await sendReply(transition.message);
+    if (transition.nextState !== 'IDLE') {
+      await salvarContexto(user.id, 'accounts_diagnostic_context' as ContextType, transition.contextData, phone);
+    }
+    return await markMessage('accounts_diagnostic_prompt', 'contas_pagar_diagnostic');
+  }
 
   const intencao = {
     intencao: intencaoNLP.intencao,
@@ -433,7 +483,7 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
 
       await sendReply(resultado.mensagem);
 
-      const contextStep = (resultado.dados?.step || resultado.dados?.contextType) as ContextType;
+      const contextStep = (resultado.dados?.contextType || resultado.dados?.step) as ContextType;
       if (resultado.precisaConfirmacao && contextStep) {
         try {
           await salvarContexto(user.id, contextStep, {

@@ -14,10 +14,20 @@ export interface AgendaItemEdge {
   metadata: Record<string, unknown> | null;
 }
 
-interface AgendaTemplateOptions {
+/** Shared optional fields for calendar WhatsApp copy (plumbing for richer lines in later phases). */
+export interface CalendarResponsePresentationOptions {
+  actorDisplayName?: string;
+  location?: string;
+  participants?: string;
+  durationText?: string;
+  reminders?: string;
+  recurrence?: string;
+}
+
+export type AgendaTemplateOptions = {
   timeZone?: string;
   titleFilterLabel?: string;
-}
+} & CalendarResponsePresentationOptions;
 
 /** Cleans voice-shaped titles so WhatsApp reads like an assistant summary, not an echo of the user. */
 export function prettifyEventTitleForDisplay(title: string): string {
@@ -35,23 +45,104 @@ export function prettifyEventTitleForDisplay(title: string): string {
   }
 
   return t
-    .replace(/\b(os meus|as minhas|os meus)\b/gi, '')
+    .replace(/\b(os meus|as minhas)\b/gi, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/^[,.\s]+|[,.\s]+$/g, '')
     .trim();
+}
+
+/** Collapses breaks and odd whitespace for participant-like strings (full line or split tokens). */
+function collapseParticipantWhitespace(raw: string): string {
+  return raw
+    .replace(/\r\n|\r|\n/g, ' ')
+    .replace(/[\u00a0\t\f\v]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+/** Splits participant-like lists (commas and Portuguese " e ") without touching event titles. */
+function splitParticipantLikeTokens(raw: string): string[] {
+  return raw
+    .split(/\s*,\s*|\s+e\s+/i)
+    .map((s) => collapseParticipantWhitespace(s))
+    .filter(Boolean);
+}
+
+/** Joins normalized participant names to match create-confirmation test contracts. */
+function joinParticipantLikeDisplay(names: string[]): string {
+  const n = names.length;
+  if (n === 0) return '';
+  if (n === 1) return names[0]!;
+  if (n === 2) return `${names[0]}, ${names[1]}`;
+  if (n === 3) return `${names[0]}, ${names[1]}, ${names[2]}`;
+  return `${names.slice(0, -1).join(', ')} e ${names[n - 1]!}`;
+}
+
+/** Whole-token self-reference forms in participant lists only; requires known actor. */
+function mapFirstPersonParticipantToken(token: string, actor: string): string {
+  if (/^(eu|me|meu|minha|comigo)$/i.test(token)) return actor;
+  if (/^(você|voce)$/i.test(token)) return actor;
+  if (/^(seu|sua)$/i.test(token)) return actor;
+  return token;
+}
+
+/**
+ * Normalizes participant-like strings for WhatsApp: replaces whole-token self-references (eu, você,
+ * voce, possessives like meu/minha/seu/sua, etc.) with the actor when provided, deduplicates the
+ * active user, preserves order.
+ */
+function normalizeParticipantsForPresentation(
+  participants: string,
+  actorDisplayName?: string,
+): string {
+  const trimmed = collapseParticipantWhitespace(participants);
+  if (!trimmed) return '';
+
+  const actor = actorDisplayName?.trim();
+  let tokens = splitParticipantLikeTokens(trimmed);
+
+  tokens = tokens.map((t) => {
+    if (actor) return mapFirstPersonParticipantToken(t, actor);
+    return t;
+  });
+
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const t of tokens) {
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(t);
+  }
+
+  return joinParticipantLikeDisplay(deduped);
 }
 
 /** Mike-style confirmation before persisting (sim/não). */
 export function templateCalendarCreateConfirmation(
   displayTitle: string,
   whenLine: string,
-  extras?: { reminders?: string; recurrence?: string },
+  options?: CalendarResponsePresentationOptions,
 ): string {
   let msg = `🗓️ *Criar compromisso?*\n\n`;
   msg += `📝 *${displayTitle}*\n`;
   msg += `🕐 ${whenLine}\n`;
-  if (extras?.reminders) msg += `🔔 ${extras.reminders}\n`;
-  if (extras?.recurrence) msg += `🔄 ${extras.recurrence}\n`;
+
+  const location = options?.location?.trim();
+  if (location) msg += `📍 ${location}\n`;
+
+  const participantsRaw = options?.participants?.trim();
+  if (participantsRaw) {
+    const participantsLine = normalizeParticipantsForPresentation(participantsRaw, options.actorDisplayName);
+    if (participantsLine) msg += `👥 ${participantsLine}\n`;
+  }
+
+  const duration = options?.durationText?.trim();
+  if (duration) msg += `⏱️ ${duration}\n`;
+
+  if (options?.reminders?.trim()) msg += `🔔 ${options.reminders.trim()}\n`;
+  if (options?.recurrence?.trim()) msg += `🔄 ${options.recurrence.trim()}\n`;
+
   msg += `\nConfirma? (sim/não)`;
   return msg;
 }
@@ -60,7 +151,71 @@ export function templateCalendarCreateDismissed(): string {
   return `Ok, não salvei nada na agenda.`;
 }
 
-export function templateEventCreated(title: string, dateFormatted: string, reminderText?: string): string {
+function buildFoundEventConfirmationBlock(event: {
+  title: string;
+  whenLine: string;
+  location?: string;
+  participants?: string;
+  actorDisplayName?: string;
+}): string {
+  let msg = `Achei o evento:\n`;
+  const displayTitle = prettifyEventTitleForDisplay(event.title);
+  msg += `📌 *${displayTitle}*\n`;
+  msg += `🕐 ${event.whenLine}\n`;
+
+  const location = event.location?.trim();
+  if (location) msg += `📍 ${location}\n`;
+
+  const participantsRaw = event.participants?.trim();
+  if (participantsRaw) {
+    const participantsLine = normalizeParticipantsForPresentation(
+      participantsRaw,
+      event.actorDisplayName,
+    );
+    if (participantsLine) msg += `👥 ${participantsLine}\n`;
+  }
+
+  return msg;
+}
+
+/** Mike-style confirmation before persisting a reschedule (sim/não). */
+export function templateEventRescheduleConfirmation(
+  event: {
+    title: string;
+    whenLine: string;
+    location?: string;
+    participants?: string;
+    actorDisplayName?: string;
+  },
+  changeLines: string[],
+): string {
+  let msg = buildFoundEventConfirmationBlock(event);
+  msg += `\nAlterações:\n`;
+  msg += changeLines.join('\n');
+  msg += `\n\nConfirma? (sim/não)`;
+  return msg;
+}
+
+/** Mike-style confirmation before cancelling an event (sim/não). */
+export function templateEventCancelConfirmation(event: {
+  title: string;
+  whenLine: string;
+  location?: string;
+  participants?: string;
+  actorDisplayName?: string;
+}): string {
+  let msg = buildFoundEventConfirmationBlock(event);
+  msg += `\nCancelo? (sim/não)`;
+  return msg;
+}
+
+export function templateEventCreated(
+  title: string,
+  dateFormatted: string,
+  reminderText?: string,
+  presentation?: CalendarResponsePresentationOptions,
+): string {
+  void presentation;
   const cleanTitle = prettifyEventTitleForDisplay(title);
   let msg = `Pronto, agendei!\n\n`;
   msg += `📝 *${cleanTitle}*\n`;
@@ -71,11 +226,17 @@ export function templateEventCreated(title: string, dateFormatted: string, remin
   return msg;
 }
 
-export function templateEventCancelled(title: string): string {
+export function templateEventCancelled(title: string, presentation?: CalendarResponsePresentationOptions): string {
+  void presentation;
   return `Pronto, cancelei o compromisso *${prettifyEventTitleForDisplay(title)}*.`;
 }
 
-export function templateEventRescheduled(title: string, newDateFormatted: string): string {
+export function templateEventRescheduled(
+  title: string,
+  newDateFormatted: string,
+  presentation?: CalendarResponsePresentationOptions,
+): string {
+  void presentation;
   return `Pronto, remarquei!\n\n📝 *${prettifyEventTitleForDisplay(title)}*\n🔸 ${newDateFormatted}`;
 }
 
@@ -104,8 +265,13 @@ export function templateAgendaList(
     const typeEmoji = getItemEmoji(item);
     msg += `${typeEmoji} *${displayTitle}*${readOnly}\n`;
     msg += `🔸 ${formatMikeStyleWhenLine(item.display_start_at, tz)}\n`;
-    if (item.subtitle?.trim()) {
-      msg += `📎 ${item.subtitle.trim()}\n`;
+    const rawSubtitle = item.subtitle?.trim();
+    if (rawSubtitle) {
+      const actor = options.actorDisplayName?.trim();
+      const subLine = actor
+        ? normalizeParticipantsForPresentation(rawSubtitle, actor)
+        : rawSubtitle;
+      if (subLine) msg += `📎 ${subLine}\n`;
     }
     msg += `\n`;
   }

@@ -41,6 +41,15 @@ import {
 } from '../shared/mappings.ts';
 import { shouldStayInCreditCardContext } from '../shared/context-detector.ts';
 import { resolveCanonicalCategory } from '../_shared/canonical-categorization.ts';
+import {
+  continueAccountsDiagnosticConversation,
+  detectDiagnosticDeferReply,
+  detectDiagnosticInterestReply,
+  detectDiagnosticTargetSelectionReply,
+  detectDiagnosticTopicShift,
+  startAccountsDiagnosticConversation,
+  type AccountsDiagnosticContextData,
+} from './accounts-diagnostic-conversations.ts';
 
 // TTL do contexto: 60 minutos (1 hora)
 // Aumentado de 15min para evitar perda de contexto quando usuário demora a responder
@@ -83,6 +92,7 @@ export type ContextType =
   | 'credit_card_context'                  // Contexto de cartão para ações rápidas
   // Contexto de referência para faturas vencidas
   | 'faturas_vencidas_context'            // Contexto de faturas vencidas para follow-ups
+  | 'accounts_diagnostic_context'         // Contexto de conversa diagnóstica de contas
   // Onboarding do agente
   | 'onboarding_agent'                   // Fluxo de onboarding (nome, tom, preferências)
   // Sessão curta no WhatsApp (grupo) — não entra na prioridade de fluxos do DM em buscarContexto
@@ -223,6 +233,7 @@ const FLOW_CONTEXT_TYPES: ContextType[] = [
   'awaiting_payment_value',
   'awaiting_bill_name_for_payment',
   'awaiting_payment_account',
+  'accounts_diagnostic_context',
   'awaiting_calendar_create_confirm',
 ];
 
@@ -681,6 +692,64 @@ export async function processarNoContexto(
       return '';
     }
     return await processarAcaoRapidaCartao(texto, contexto, userId);
+  }
+
+  if (contextType === 'accounts_diagnostic_context') {
+    const diagnosticContext = contexto.context_data as AccountsDiagnosticContextData;
+    const availableAnomalies = diagnosticContext.availableAnomalies ?? (diagnosticContext.anomaly ? [diagnosticContext.anomaly] : []);
+    const command = texto
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+
+    if (
+      command.includes('analisa minhas contas') ||
+      command.includes('tem algo errado nas contas') ||
+      command.includes('faz um checkup') ||
+      command.includes('faz um check-up')
+    ) {
+      await limparContexto(userId);
+      return '';
+    }
+
+    if (diagnosticContext.diagnosisState === 'DIAGNOSIS_INVITED' || diagnosticContext.diagnosisState === 'OBSERVATION_SHOWN') {
+      if (detectDiagnosticDeferReply(texto)) {
+        await limparContexto(userId);
+        return 'Perfeito.\n\nDeixo isso sinalizado aqui como um ponto que vale revisar depois.';
+      }
+
+      if (detectDiagnosticInterestReply(texto) || detectDiagnosticTargetSelectionReply(availableAnomalies, texto)) {
+        const transition = startAccountsDiagnosticConversation({
+          anomalies: availableAnomalies,
+          source: diagnosticContext.source,
+          userText: texto,
+        });
+
+        await salvarContexto(userId, 'accounts_diagnostic_context', transition.contextData, phone);
+        return transition.message;
+      }
+
+      await limparContexto(userId);
+      return '';
+    }
+
+    if (
+      diagnosticContext.diagnosisState === 'DIAGNOSIS_CONCLUDED' ||
+      diagnosticContext.diagnosisState === 'DIAGNOSIS_DEFERRED'
+    ) {
+      await limparContexto(userId);
+      return '';
+    }
+
+    const transition = continueAccountsDiagnosticConversation(diagnosticContext, texto);
+    if (transition.nextState === 'IDLE') {
+      await limparContexto(userId);
+      return '';
+    }
+
+    await salvarContexto(userId, 'accounts_diagnostic_context', transition.contextData, phone);
+    return transition.message;
   }
   
   // ✅ CORREÇÃO BUG #5 e #9: Contexto transaction_registered não deve bloquear novos comandos

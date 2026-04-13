@@ -2,6 +2,7 @@
 
 import { getSupabase, enviarViaEdgeFunction } from './utils.ts';
 import { parseCalendarIntent } from './calendar-intent-parser.ts';
+import { resolvePreferredFirstName, type UserContext } from '../_shared/ana-clara-soul.ts';
 import {
   templateCalendarCreateConfirmation,
   templateCalendarCreateDismissed,
@@ -31,6 +32,45 @@ import {
 
 const CALENDAR_PENDING_CONTEXT = 'awaiting_calendar_create_confirm' as const;
 const CALENDAR_PENDING_TTL_MINUTES = 15;
+
+export type ProcessarComandoAgendaOptions = {
+  chatJid?: string;
+  /** When `agent_identity.user_context` lacks a name, optional hint (e.g. WhatsApp profile). */
+  fallbackDisplayName?: string;
+};
+
+type CalendarBranchOptions = ProcessarComandoAgendaOptions & { actorDisplayName: string };
+
+async function fetchAgentIdentityUserContext(userId: string): Promise<UserContext> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from('agent_identity')
+    .select('user_context')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.error('[calendar-handler] fetchAgentIdentityUserContext failed:', error);
+    return {};
+  }
+
+  const raw = data?.user_context;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    return raw as UserContext;
+  }
+  return {};
+}
+
+/** Presentation order: display_name → first_name → fallback hint → resolvePreferredFirstName. */
+function resolveActorDisplayNameForCalendar(userCtx: UserContext, fallbackName?: string): string {
+  const fromDisplay = userCtx.display_name?.trim();
+  if (fromDisplay) return fromDisplay;
+  const fromFirst = userCtx.first_name?.trim();
+  if (fromFirst) return fromFirst;
+  const fromFallback = fallbackName?.trim();
+  if (fromFallback) return fromFallback;
+  return resolvePreferredFirstName(userCtx, fallbackName);
+}
 
 export interface PendingCalendarCreatePayload {
   title: string;
@@ -70,12 +110,15 @@ export async function processarComandoAgenda(
   texto: string,
   userId: string,
   phone: string,
-  options?: { chatJid?: string },
+  options?: ProcessarComandoAgendaOptions,
 ): Promise<string> {
   const supabase = getSupabase();
   const phoneKey = phone?.trim() || 'unknown';
 
   try {
+    const userCtx = await fetchAgentIdentityUserContext(userId);
+    const actorDisplayName = resolveActorDisplayNameForCalendar(userCtx, options?.fallbackDisplayName);
+
     const pending = await loadPendingCalendarCreate(supabase, userId, phoneKey);
 
     if (pending) {
@@ -90,7 +133,11 @@ export async function processarComandoAgenda(
           undefined,
           pending.startTime,
           pending.endTime,
-          { chatJid: pending.chatJid, eventDateYmd: pending.eventDateYmd },
+          {
+            chatJid: pending.chatJid,
+            eventDateYmd: pending.eventDateYmd,
+            actorDisplayName,
+          },
         );
       }
       if (isCalendarConfirmationNo(texto)) {
@@ -109,6 +156,8 @@ export async function processarComandoAgenda(
 
     const parsed = parseCalendarIntent(texto);
 
+    const branchOptions: CalendarBranchOptions = { ...options, actorDisplayName };
+
     switch (parsed.intent) {
       case 'create':
         return await proporCriacaoCompromisso(
@@ -121,20 +170,20 @@ export async function processarComandoAgenda(
           parsed.weekdayHint,
           parsed.startTime,
           parsed.endTime,
-          options,
+          branchOptions,
         );
 
       case 'list':
-        return await listarAgenda(userId, phoneKey, parsed.queryWindow, parsed.titleFilter, options);
+        return await listarAgenda(userId, phoneKey, parsed.queryWindow, parsed.titleFilter, branchOptions);
 
       case 'cancel':
-        return await cancelarEvento(userId, phoneKey, options);
+        return await cancelarEvento(userId, phoneKey, branchOptions);
 
       case 'reschedule':
-        return await remarcarEvento(userId, phoneKey, options);
+        return await remarcarEvento(userId, phoneKey, branchOptions);
 
       default:
-        return await listarAgenda(userId, phoneKey, undefined, undefined, options);
+        return await listarAgenda(userId, phoneKey, undefined, undefined, branchOptions);
     }
   } catch (error) {
     console.error('[calendar-handler] Error:', error);
@@ -249,7 +298,7 @@ async function proporCriacaoCompromisso(
   weekdayHint?: number,
   startTime?: string,
   endTime?: string,
-  options?: { chatJid?: string },
+  options?: CalendarBranchOptions,
 ): Promise<string> {
   const timezone = await getUserCalendarTimezone(userId);
   const eventDateYmd = resolveCreateEventDateYmd(timezone, weekdayHint);
@@ -276,6 +325,7 @@ async function proporCriacaoCompromisso(
   const recurrence = describeRecurrenceHintForConfirm(recurrenceHint);
 
   const msg = templateCalendarCreateConfirmation(displayTitle, whenLine, {
+    actorDisplayName: options?.actorDisplayName,
     reminders: reminders ?? undefined,
     recurrence: recurrence ?? undefined,
   });
@@ -293,7 +343,7 @@ async function criarEvento(
   weekdayHint?: number,
   startTime?: string,
   endTime?: string,
-  options?: { chatJid?: string; eventDateYmd?: string },
+  options?: { chatJid?: string; eventDateYmd?: string; actorDisplayName?: string },
 ): Promise<string> {
   const supabase = getSupabase();
   const timezone = await getUserCalendarTimezone(userId);
@@ -374,7 +424,9 @@ async function criarEvento(
     timeZone: event.timezone || timezone,
   });
 
-  let msg = templateEventCreated(event.title, dateFormatted, reminderText);
+  let msg = templateEventCreated(event.title, dateFormatted, reminderText, {
+    actorDisplayName: options?.actorDisplayName,
+  });
   if (followupNotes.length > 0) {
     msg += `\n${followupNotes.join('\n')}`;
   }
@@ -387,7 +439,7 @@ async function listarAgenda(
   phone: string,
   queryWindow?: 'today' | 'tomorrow' | 'week',
   titleFilter?: string,
-  options?: { chatJid?: string },
+  options?: CalendarBranchOptions,
 ): Promise<string> {
   const supabase = getSupabase();
   const timezone = await getUserCalendarTimezone(userId);
@@ -408,6 +460,7 @@ async function listarAgenda(
   const msg = templateAgendaList(filteredItems, periodLabel, {
     timeZone: timezone,
     titleFilterLabel: titleFilter,
+    actorDisplayName: options?.actorDisplayName,
   });
   await enviarViaEdgeFunction(phone, msg, userId, options?.chatJid ? { chatJid: options.chatJid } : undefined);
   return msg;
@@ -468,7 +521,7 @@ function normalizeText(value: string): string {
 async function cancelarEvento(
   userId: string,
   phone: string,
-  options?: { chatJid?: string },
+  options?: CalendarBranchOptions,
 ): Promise<string> {
   const supabase = getSupabase();
 
@@ -503,7 +556,7 @@ async function cancelarEvento(
     throw new Error('Failed to cancel event');
   }
 
-  const msg = templateEventCancelled(event.title);
+  const msg = templateEventCancelled(event.title, { actorDisplayName: options?.actorDisplayName });
   await enviarViaEdgeFunction(phone, msg, userId, options?.chatJid ? { chatJid: options.chatJid } : undefined);
   return msg;
 }
@@ -517,7 +570,7 @@ const MSG_RESCHEDULE_UNSAFE =
 async function remarcarEvento(
   userId: string,
   phone: string,
-  options?: { chatJid?: string },
+  options?: CalendarBranchOptions,
 ): Promise<string> {
   const supabase = getSupabase();
   const now = new Date();
@@ -580,7 +633,7 @@ async function remarcarEvento(
   if (!eventId) {
     console.error('[calendar-handler] reschedule: missing event_id in agenda metadata');
     const msg = MSG_RESCHEDULE_UNSAFE;
-    await enviarViaEdgeFunction(phone, msg, userId);
+    await enviarViaEdgeFunction(phone, msg, userId, options?.chatJid ? { chatJid: options.chatJid } : undefined);
     return msg;
   }
 
@@ -600,7 +653,7 @@ async function remarcarEvento(
   } catch (e) {
     console.error('[calendar-handler] reschedule: could not build override range:', e);
     const msg = MSG_RESCHEDULE_UNSAFE;
-    await enviarViaEdgeFunction(phone, msg, userId);
+    await enviarViaEdgeFunction(phone, msg, userId, options?.chatJid ? { chatJid: options.chatJid } : undefined);
     return msg;
   }
 
@@ -618,7 +671,7 @@ async function remarcarEvento(
   if (rpcError) {
     console.error('[calendar-handler] reschedule_calendar_occurrence failed:', rpcError);
     const msg = MSG_RESCHEDULE_UNSAFE;
-    await enviarViaEdgeFunction(phone, msg, userId);
+    await enviarViaEdgeFunction(phone, msg, userId, options?.chatJid ? { chatJid: options.chatJid } : undefined);
     return msg;
   }
 
@@ -631,7 +684,9 @@ async function remarcarEvento(
     timeZone: tz,
   });
 
-  const msg = templateEventRescheduled(pick.title, dateFormatted);
+  const msg = templateEventRescheduled(pick.title, dateFormatted, {
+    actorDisplayName: options?.actorDisplayName,
+  });
   await enviarViaEdgeFunction(phone, msg, userId, options?.chatJid ? { chatJid: options.chatJid } : undefined);
   return msg;
 }
