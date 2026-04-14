@@ -3,6 +3,10 @@ import type {
   AccountsObservationPresentation,
 } from './accounts-response-templates.ts';
 import {
+  buildSafeActionPreviewFromDiagnosis,
+  type PendingAccountsSafeAction,
+} from './accounts-safe-actions.ts';
+import {
   templateAccountsDiagnosticClarifyingQuestion,
   templateAccountsDiagnosticConclusion,
   templateAccountsDiagnosticDefer,
@@ -29,6 +33,7 @@ export type AccountsDiagnosticReplyKind =
   | 'value_missing'
   | 'already_settled'
   | 'no_longer_applies'
+  | 'current_occurrence_only'
   | 'missing_payment_date'
   | 'missing_paid_amount'
   | 'missing_both'
@@ -37,6 +42,11 @@ export type AccountsDiagnosticReplyKind =
   | 'not_sure'
   | 'defer'
   | 'unknown';
+
+export interface AccountsDiagnosticConclusion {
+  kind: AccountsDiagnosticReplyKind;
+  text: string;
+}
 
 export interface AccountsDiagnosticContextData {
   step: 'accounts_diagnostic';
@@ -50,6 +60,7 @@ export interface AccountsDiagnosticContextData {
   source: AccountsDiagnosticSource;
   anomaly: AccountsObservationPresentation;
   availableAnomalies?: AccountsObservationPresentation[];
+  diagnosticConclusion?: AccountsDiagnosticConclusion;
 }
 
 export interface AccountsDiagnosticTransition {
@@ -84,7 +95,7 @@ function getHypothesisOptions(anomalyType: AccountsDiagnosticAnomalyType): strin
     case 'overdue_without_settlement':
       return ['paid_already', 'still_open', 'not_sure'];
     case 'zeroed_bill':
-      return ['value_missing', 'already_settled', 'no_longer_applies', 'not_sure'];
+      return ['value_missing', 'already_settled', 'no_longer_applies', 'current_occurrence_only', 'not_sure'];
     case 'paid_inconsistent':
       return ['missing_payment_date', 'missing_paid_amount', 'missing_both', 'not_sure'];
     case 'zero_balance_account':
@@ -137,6 +148,8 @@ function getConclusion(kind: AccountsDiagnosticReplyKind): string {
       return 'essa conta provavelmente ja foi quitada, e o sistema ainda nao reflete isso por completo.';
     case 'no_longer_applies':
       return 'essa conta parece nao fazer mais sentido no seu fluxo atual.';
+    case 'current_occurrence_only':
+      return 'essa ocorrencia atual nao se aplica mais, mas as proximas devem continuar normalmente.';
     case 'missing_payment_date':
       return 'o pagamento parece registrado, mas a data ficou faltando.';
     case 'missing_paid_amount':
@@ -195,15 +208,96 @@ export function detectDiagnosticDeferReply(text: string): boolean {
 
 export function detectDiagnosticTopicShift(text: string): boolean {
   const command = normalize(text);
+  const strongTopicShiftPatterns = [
+    'quanto eu tenho',
+    'qual meu saldo',
+    'me mostra meu saldo',
+    'mostra meu saldo',
+    'saldo da',
+    'saldo do',
+    'quanto gastei',
+    'meus gastos',
+    'gastos de',
+    'recebi',
+    'fatura do',
+    'fatura da',
+    'limite do',
+    'limite da',
+    'cartao de',
+    'cartao do',
+    'cartao da',
+    'credito do',
+    'credito da',
+    'quais contas vencem',
+    'contas vencem',
+    'contas vencidas',
+    'contas vencendo',
+    'minha agenda',
+    'agenda amanha',
+    'agenda amanhã',
+    'pagar ',
+  ];
+
+  const leadingReplyPatterns = [
+    'sim',
+    'confirmo',
+    'sim, confirmo',
+    'foi paga',
+    'ja foi paga',
+    'quitada',
+    'em aberto',
+    'pendente',
+    'nao',
+    'não',
+    'depois vejo',
+  ];
+  const mixedIntentContinuationPatterns = [
+    ' mas ',
+    ', mas ',
+    ' porem ',
+    ' porém ',
+    ' so que ',
+    ' só que ',
+    ' e me mostra ',
+    ' e mostra ',
+    ' e qual ',
+    ' e quais ',
+    ' e quanto ',
+    ', me mostra ',
+    ', mostra ',
+    ', qual ',
+    ', quais ',
+    ', quanto ',
+    ', olha ',
+    ' e olha ',
+    '. me mostra ',
+    '. mostra ',
+    '. qual ',
+    '. quais ',
+    '. quanto ',
+    '? me mostra ',
+    '? mostra ',
+    '? qual ',
+    '? quais ',
+    '? quanto ',
+  ];
+  const hasStrongTopicShift = strongTopicShiftPatterns.some((pattern) => command.includes(pattern));
+  const startsWithReplyLead = leadingReplyPatterns.some((pattern) =>
+    command === pattern ||
+    command.startsWith(`${pattern} `) ||
+    command.startsWith(`${pattern}.`) ||
+    command.startsWith(`${pattern},`) ||
+    command.startsWith(`${pattern}?`)
+  );
+  const hasMixedIntentContinuation = mixedIntentContinuationPatterns.some((pattern) =>
+    command.includes(pattern)
+  );
+
+  if (hasStrongTopicShift && startsWithReplyLead && hasMixedIntentContinuation) return true;
   if (detectDiagnosticInterestReply(command) || detectDiagnosticDeferReply(command)) return false;
   if (command.includes('foi paga') || command.includes('em aberto') || command.includes('quitada')) return false;
-  return (
-    command.includes('quanto eu tenho') ||
-    command.includes('saldo') ||
-    command.includes('gastei') ||
-    command.includes('recebi') ||
-    command.includes('pagar ')
-  );
+
+  return hasStrongTopicShift;
 }
 
 export function parseAccountsDiagnosticReply(
@@ -231,7 +325,27 @@ export function parseAccountsDiagnosticReply(
       if (command.includes('ja foi quitada') || command.includes('foi quitada') || command.includes('ja foi paga')) {
         return { kind: 'already_settled' };
       }
-      if (command.includes('nao vale mais') || command.includes('não vale mais') || command.includes('nao existe mais')) {
+      if (
+        command.includes('cancela so essa ocorrencia') ||
+        command.includes('cancela só essa ocorrência') ||
+        command.includes('somente essa ocorrencia') ||
+        command.includes('somente essa ocorrência') ||
+        command.includes('apenas essa ocorrencia') ||
+        command.includes('apenas essa ocorrência') ||
+        command.includes('so essa ocorrencia') ||
+        command.includes('só essa ocorrência')
+      ) {
+        return { kind: 'current_occurrence_only' };
+      }
+      if (
+        command.includes('nao vale mais') ||
+        command.includes('não vale mais') ||
+        command.includes('nao existe mais') ||
+        command.includes('essa conta nao se aplica mais') ||
+        command.includes('essa conta não se aplica mais') ||
+        command.includes('nao se aplica mais') ||
+        command.includes('não se aplica mais')
+      ) {
         return { kind: 'no_longer_applies' };
       }
       return { kind: 'unknown' };
@@ -398,12 +512,152 @@ export function continueAccountsDiagnosticConversation(
     };
   }
 
+  const conclusionText = getConclusion(parsed.kind);
+
   return {
-    message: templateAccountsDiagnosticConclusion(getConclusion(parsed.kind)),
+    message: templateAccountsDiagnosticConclusion(conclusionText),
     nextState: parsed.kind === 'defer' ? 'DIAGNOSIS_DEFERRED' : 'DIAGNOSIS_CONCLUDED',
     contextData: {
       ...context,
       diagnosisState: parsed.kind === 'defer' ? 'DIAGNOSIS_DEFERRED' : 'DIAGNOSIS_CONCLUDED',
+      diagnosticConclusion: parsed.kind === 'defer'
+        ? undefined
+        : {
+          kind: parsed.kind,
+          text: conclusionText,
+        },
     },
   };
+}
+
+function toIsoDateFromParts(
+  day: number,
+  month: number,
+  year: number,
+): string | null {
+  if (!Number.isInteger(day) || !Number.isInteger(month) || !Number.isInteger(year)) return null;
+  if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  if (
+    candidate.getUTCFullYear() !== year ||
+    candidate.getUTCMonth() !== month - 1 ||
+    candidate.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return candidate.toISOString().slice(0, 10);
+}
+
+function extractDateFromText(text: string, nowIso: string): string | null {
+  const isoMatch = text.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (isoMatch) {
+    return toIsoDateFromParts(
+      Number(isoMatch[3]),
+      Number(isoMatch[2]),
+      Number(isoMatch[1]),
+    );
+  }
+
+  const slashMatch = text.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  if (!slashMatch) return null;
+
+  const baseYear = new Date(nowIso).getUTCFullYear();
+  const parsedYear = slashMatch[3]
+    ? Number(slashMatch[3].length === 2 ? `20${slashMatch[3]}` : slashMatch[3])
+    : baseYear;
+
+  return toIsoDateFromParts(
+    Number(slashMatch[1]),
+    Number(slashMatch[2]),
+    parsedYear,
+  );
+}
+
+function parseAmountToken(value: string): number | null {
+  const normalized = value
+    .trim()
+    .replace(/\./g, '')
+    .replace(',', '.');
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function extractAmountFromText(text: string): number | null {
+  const patterns = [
+    /r\$\s*(\d{1,3}(?:\.\d{3})*(?:,\d{1,2})?|\d+(?:,\d{1,2})?)/i,
+    /\b(?:por|valor|saldo|era|ficou em)\s+(\d+(?:[.,]\d{1,2})?)\b/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      const amount = parseAmountToken(match[1]);
+      if (amount != null) return amount;
+    }
+  }
+
+  return null;
+}
+
+export function extractResolvedSafeActionFieldsFromDiagnosticReply(params: {
+  context: AccountsDiagnosticContextData;
+  userText: string;
+  now?: string;
+}): Record<string, unknown> {
+  const conclusionKind = params.context.diagnosticConclusion?.kind;
+  if (!conclusionKind) return {};
+
+  const nowIso = params.now ?? new Date().toISOString();
+  const paidAt = extractDateFromText(params.userText, nowIso);
+  const amount = extractAmountFromText(params.userText);
+
+  switch (conclusionKind) {
+    case 'paid_already':
+    case 'already_settled': {
+      return {
+        ...(paidAt ? { paid_at: paidAt } : {}),
+        ...(amount != null ? { paid_amount: amount } : {}),
+      };
+    }
+    case 'still_open':
+      return paidAt ? { new_due_date: paidAt } : {};
+    case 'value_missing':
+      return amount != null ? { amount } : {};
+    case 'missing_payment_date':
+      return paidAt ? { paid_at: paidAt } : {};
+    case 'missing_paid_amount':
+      return amount != null ? { paid_amount: amount } : {};
+    case 'missing_both':
+      return {
+        ...(paidAt ? { paid_at: paidAt } : {}),
+        ...(amount != null ? { paid_amount: amount } : {}),
+      };
+    case 'account_still_active':
+      return amount != null ? { current_balance: amount } : {};
+    default:
+      return {};
+  }
+}
+
+export function buildSafeActionPreviewFromDiagnosticContext(params: {
+  context: AccountsDiagnosticContextData;
+  resolvedFields: Record<string, unknown>;
+  previewExpiresAt: string;
+}): PendingAccountsSafeAction | null {
+  if (
+    params.context.diagnosisState !== 'DIAGNOSIS_CONCLUDED' ||
+    !params.context.diagnosticConclusion
+  ) {
+    return null;
+  }
+
+  return buildSafeActionPreviewFromDiagnosis({
+    anomaly: params.context.anomaly,
+    diagnosticConclusion: params.context.diagnosticConclusion,
+    diagnosticSource: params.context.source,
+    resolvedFields: params.resolvedFields,
+    previewExpiresAt: params.previewExpiresAt,
+  });
 }

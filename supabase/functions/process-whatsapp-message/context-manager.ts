@@ -23,6 +23,11 @@ import {
 import { enviarConfirmacaoComBotoes } from './button-sender.ts';
 import type { IntencaoClassificada } from './nlp-processor.ts';
 import { templateTransacaoRegistrada } from './response-templates.ts';
+import {
+  templateAccountsDiagnosticClarifyingQuestion,
+  templateAccountsSafeActionDecline,
+  templateAccountsSafeActionDefer,
+} from './accounts-response-templates.ts';
 import { 
   processarRespostaContasAmbiguo, 
   listarContasPagar,
@@ -42,18 +47,118 @@ import {
 import { shouldStayInCreditCardContext } from '../shared/context-detector.ts';
 import { resolveCanonicalCategory } from '../_shared/canonical-categorization.ts';
 import {
+  buildSafeActionPreviewFromDiagnosticContext,
   continueAccountsDiagnosticConversation,
   detectDiagnosticDeferReply,
   detectDiagnosticInterestReply,
   detectDiagnosticTargetSelectionReply,
   detectDiagnosticTopicShift,
+  extractResolvedSafeActionFieldsFromDiagnosticReply,
   startAccountsDiagnosticConversation,
   type AccountsDiagnosticContextData,
 } from './accounts-diagnostic-conversations.ts';
+import {
+  parseSafeActionConfirmation,
+  type PendingAccountsSafeAction,
+} from './accounts-safe-actions.ts';
+import { executePendingAccountsSafeAction } from './accounts-safe-action-executor.ts';
 
 // TTL do contexto: 60 minutos (1 hora)
 // Aumentado de 15min para evitar perda de contexto quando usuário demora a responder
 const CONTEXT_EXPIRATION_MINUTES = 60;
+const ACCOUNTS_SAFE_ACTION_PREVIEW_TTL_MINUTES = 15;
+
+function buildAccountsSafeActionPreviewExpiresAt(nowIso: string): string {
+  const expiresAt = new Date(nowIso);
+  expiresAt.setMinutes(expiresAt.getMinutes() + ACCOUNTS_SAFE_ACTION_PREVIEW_TTL_MINUTES);
+  return expiresAt.toISOString();
+}
+
+function getSafeActionConfirmationSource(
+  text: string,
+): NonNullable<PendingAccountsSafeAction['confirmationSource']> {
+  const normalized = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  return normalized === 'sim' ? 'explicit_yes' : 'explicit_confirm_phrase';
+}
+
+type AwaitingAccountsSafeActionConfirmDeps = {
+  limparContexto: typeof limparContexto;
+  salvarContexto: typeof salvarContexto;
+  executePendingAccountsSafeAction: typeof executePendingAccountsSafeAction;
+  getSupabase: typeof getSupabase;
+  now?: () => string;
+};
+
+export async function handleAwaitingAccountsSafeActionConfirmReply(params: {
+  texto: string;
+  contexto: ContextoConversa;
+  userId: string;
+  phone: string;
+  deps?: Partial<AwaitingAccountsSafeActionConfirmDeps>;
+}): Promise<string> {
+  const deps: AwaitingAccountsSafeActionConfirmDeps = {
+    limparContexto,
+    salvarContexto,
+    executePendingAccountsSafeAction,
+    getSupabase,
+    now: () => new Date().toISOString(),
+    ...params.deps,
+  };
+  const { texto, contexto, userId, phone } = params;
+
+  if (detectDiagnosticTopicShift(texto)) {
+    await deps.limparContexto(userId);
+    return '';
+  }
+
+  const pending = contexto.context_data as PendingAccountsSafeAction;
+  const parsed = parseSafeActionConfirmation(texto);
+
+  if (parsed.kind === 'decline') {
+    await deps.limparContexto(userId);
+    return templateAccountsSafeActionDecline();
+  }
+
+  if (parsed.kind === 'defer') {
+    await deps.limparContexto(userId);
+    return templateAccountsSafeActionDefer();
+  }
+
+  if (parsed.kind !== 'confirm') {
+    await deps.salvarContexto(userId, 'awaiting_accounts_safe_action_confirm', {
+      ...pending,
+      phone,
+      clarificationRequestedAt: deps.now(),
+    }, phone);
+    return templateAccountsDiagnosticClarifyingQuestion(
+      'voce quer que eu aplique essa alteracao, prefere deixar para depois, ou quer cancelar?',
+    );
+  }
+
+  const confirmedAt = deps.now();
+  const result = await deps.executePendingAccountsSafeAction(
+    deps.getSupabase(),
+    {
+      ...pending,
+      confirmationSource: getSafeActionConfirmationSource(texto),
+      confirmationText: texto,
+      confirmedAt,
+    },
+    {
+      userId,
+      now: confirmedAt,
+    },
+  );
+
+  await deps.limparContexto(userId);
+  return result.message;
+}
 
 // Tipos do contexto
 export type ContextType = 
@@ -88,6 +193,7 @@ export type ContextType =
   | 'awaiting_payment_value'               // Aguardando valor do pagamento (conta variável)
   | 'awaiting_bill_name_for_payment'       // Aguardando nome da conta para marcar como paga
   | 'awaiting_payment_account'             // Aguardando conta bancária de onde sai o pagamento
+  | 'awaiting_accounts_safe_action_confirm' // Aguardando confirmação de ação segura em contas
   // Contexto de ações rápidas de cartão
   | 'credit_card_context'                  // Contexto de cartão para ações rápidas
   // Contexto de referência para faturas vencidas
@@ -234,6 +340,7 @@ const FLOW_CONTEXT_TYPES: ContextType[] = [
   'awaiting_bill_name_for_payment',
   'awaiting_payment_account',
   'accounts_diagnostic_context',
+  'awaiting_accounts_safe_action_confirm',
   'awaiting_calendar_create_confirm',
 ];
 
@@ -748,8 +855,39 @@ export async function processarNoContexto(
       return '';
     }
 
+    if (transition.nextState === 'DIAGNOSIS_CONCLUDED') {
+      const nowIso = new Date().toISOString();
+      const resolvedFields = extractResolvedSafeActionFieldsFromDiagnosticReply({
+        context: transition.contextData,
+        userText: texto,
+        now: nowIso,
+      });
+      const safeAction = buildSafeActionPreviewFromDiagnosticContext({
+        context: transition.contextData,
+        resolvedFields,
+        previewExpiresAt: buildAccountsSafeActionPreviewExpiresAt(nowIso),
+      });
+
+      if (safeAction) {
+        await salvarContexto(userId, 'awaiting_accounts_safe_action_confirm', {
+          ...safeAction,
+          phone,
+        }, phone);
+        return `${transition.message}\n\n${safeAction.confirmationPrompt}`;
+      }
+    }
+
     await salvarContexto(userId, 'accounts_diagnostic_context', transition.contextData, phone);
     return transition.message;
+  }
+
+  if (contextType === 'awaiting_accounts_safe_action_confirm') {
+    return await handleAwaitingAccountsSafeActionConfirmReply({
+      texto,
+      contexto,
+      userId,
+      phone,
+    });
   }
   
   // ✅ CORREÇÃO BUG #5 e #9: Contexto transaction_registered não deve bloquear novos comandos

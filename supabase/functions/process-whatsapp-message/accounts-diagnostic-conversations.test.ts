@@ -5,12 +5,14 @@ import {
 
 import type { AccountsObservationAnomaly } from './accounts-diagnostic.ts';
 import {
+  buildSafeActionPreviewFromDiagnosticContext,
   continueAccountsDiagnosticConversation,
   createAccountsDiagnosticContextData,
   detectDirectAccountsDiagnosticPrompt,
   detectDiagnosticInterestReply,
   detectDiagnosticTopicShift,
   detectDiagnosticDeferReply,
+  extractResolvedSafeActionFieldsFromDiagnosticReply,
   parseAccountsDiagnosticReply,
   selectDiagnosticTargetAnomaly,
   startAccountsDiagnosticConversation,
@@ -57,13 +59,13 @@ const anomalies: AccountsObservationAnomaly[] = [
     type: 'zero_balance_account',
     severity: 'S5',
     accountId: 'account-1',
-    billId: '',
+    billId: null,
     description: 'NuConta',
     providerName: null,
     amount: 0,
-    dueDate: '2026-04-11',
-    status: 'pending',
-    statusLabel: 'Saldo zerado',
+    dueDate: null,
+    status: 'active',
+    statusLabel: 'Ativa com saldo zerado',
     diagnosticNote: "A conta bancaria 'NuConta' esta com saldo zerado.",
   },
 ];
@@ -92,6 +94,17 @@ Deno.test('detects direct prompt, diagnostic interest, defer and topic shift rep
   assertEquals(detectDiagnosticDeferReply('deixa isso'), true);
 
   assertEquals(detectDiagnosticTopicShift('quanto eu tenho na nubank?'), true);
+  assertEquals(detectDiagnosticTopicShift('qual a fatura do nubank esse mes?'), true);
+  assertEquals(detectDiagnosticTopicShift('quanto gastei no ifood esse mes?'), true);
+  assertEquals(detectDiagnosticTopicShift('quais contas vencem hoje?'), true);
+  assertEquals(detectDiagnosticTopicShift('sim, mas me mostra a fatura do nubank'), true);
+  assertEquals(detectDiagnosticTopicShift('foi paga. qual meu saldo?'), true);
+  assertEquals(detectDiagnosticTopicShift('sim e me mostra a fatura do nubank'), true);
+  assertEquals(detectDiagnosticTopicShift('nao, me mostra meu saldo'), true);
+  assertEquals(detectDiagnosticTopicShift('depois vejo, qual meu saldo?'), true);
+  assertEquals(detectDiagnosticTopicShift('nao, olha minha agenda amanha'), true);
+  assertEquals(detectDiagnosticTopicShift('nao'), false);
+  assertEquals(detectDiagnosticTopicShift('depois vejo'), false);
   assertEquals(detectDiagnosticTopicShift('foi paga'), false);
 });
 
@@ -100,6 +113,10 @@ Deno.test('parseAccountsDiagnosticReply interprets the minimum supported answer 
   assertEquals(parseAccountsDiagnosticReply('ainda está em aberto', 'overdue_without_settlement').kind, 'still_open');
   assertEquals(parseAccountsDiagnosticReply('valor não informado', 'zeroed_bill').kind, 'value_missing');
   assertEquals(parseAccountsDiagnosticReply('já foi quitada', 'zeroed_bill').kind, 'already_settled');
+  assertEquals(parseAccountsDiagnosticReply('essa conta nao se aplica mais', 'zeroed_bill').kind, 'no_longer_applies');
+  assertEquals(parseAccountsDiagnosticReply('essa conta não se aplica mais', 'zeroed_bill').kind, 'no_longer_applies');
+  assertEquals(parseAccountsDiagnosticReply('cancela só essa ocorrência', 'zeroed_bill').kind, 'current_occurrence_only');
+  assertEquals(parseAccountsDiagnosticReply('somente essa ocorrencia', 'zeroed_bill').kind, 'current_occurrence_only');
   assertEquals(parseAccountsDiagnosticReply('não sei', 'zeroed_bill').kind, 'not_sure');
   assertEquals(parseAccountsDiagnosticReply('depois vejo', 'zeroed_bill').kind, 'defer');
 });
@@ -137,6 +154,11 @@ Deno.test('continueAccountsDiagnosticConversation concludes, clarifies, defers a
   const concluded = continueAccountsDiagnosticConversation(activeContext, 'foi paga');
   assertEquals(concluded.nextState, 'DIAGNOSIS_CONCLUDED');
   assertStringIncludes(concluded.message, 'essa conta ja foi paga e o sistema ficou sem esse registro');
+  assertEquals(concluded.contextData.diagnosticConclusion?.kind, 'paid_already');
+  assertStringIncludes(
+    concluded.contextData.diagnosticConclusion?.text ?? '',
+    'essa conta ja foi paga e o sistema ficou sem esse registro',
+  );
 
   const clarifying = continueAccountsDiagnosticConversation(activeContext, 'acho que sim');
   assertEquals(clarifying.nextState, 'DIAGNOSIS_CLARIFYING');
@@ -149,4 +171,126 @@ Deno.test('continueAccountsDiagnosticConversation concludes, clarifies, defers a
   const abandoned = continueAccountsDiagnosticConversation(activeContext, 'quanto eu tenho na nubank?');
   assertEquals(abandoned.nextState, 'IDLE');
   assertEquals(abandoned.message, '');
+});
+
+Deno.test('buildSafeActionPreviewFromDiagnosticContext bridges a concluded diagnosis into a safe action preview', () => {
+  const activeContext = createAccountsDiagnosticContextData({
+    anomaly: anomalies[0],
+    source: 'explicit_health_check',
+  });
+  const concluded = continueAccountsDiagnosticConversation(activeContext, 'foi paga');
+
+  const preview = buildSafeActionPreviewFromDiagnosticContext({
+    context: concluded.contextData,
+    resolvedFields: { paid_at: '2026-04-11', paid_amount: 99 },
+    previewExpiresAt: '2026-04-11T18:00:00.000Z',
+  });
+
+  assertEquals(preview?.actionType, 'mark_as_paid');
+  assertEquals(preview?.targetType, 'payable_bill');
+  assertEquals(preview?.targetId, 'bill-1');
+  assertEquals(preview?.before, { status: 'pending', paid_amount: null, paid_at: null });
+  assertEquals(preview?.after, { status: 'paid', paid_amount: 99, paid_at: '2026-04-11' });
+  assertStringIncludes(preview?.confirmationPrompt ?? '', 'Confirma? (sim/nao)');
+});
+
+Deno.test('concluded diagnosis opens a safe action preview when the reply already resolves the required fields', () => {
+  const activeContext = createAccountsDiagnosticContextData({
+    anomaly: anomalies[0],
+    source: 'explicit_health_check',
+  });
+  const userReply = 'foi paga em 11/04 por 99';
+  const concluded = continueAccountsDiagnosticConversation(activeContext, userReply);
+  const resolvedFields = extractResolvedSafeActionFieldsFromDiagnosticReply({
+    context: concluded.contextData,
+    userText: userReply,
+    now: '2026-04-11T10:00:00.000Z',
+  });
+
+  assertEquals(resolvedFields, {
+    paid_at: '2026-04-11',
+    paid_amount: 99,
+  });
+
+  const preview = buildSafeActionPreviewFromDiagnosticContext({
+    context: concluded.contextData,
+    resolvedFields,
+    previewExpiresAt: '2026-04-11T18:00:00.000Z',
+  });
+
+  assertEquals(preview?.actionType, 'mark_as_paid');
+  assertEquals(preview?.targetId, 'bill-1');
+  assertStringIncludes(preview?.confirmationPrompt ?? '', 'Confirma? (sim/nao)');
+});
+
+Deno.test('buildSafeActionPreviewFromDiagnosticContext creates a deactivate_account preview from a concluded zero-balance account diagnosis', () => {
+  const activeContext = createAccountsDiagnosticContextData({
+    anomaly: anomalies[3],
+    source: 'explicit_health_check',
+  });
+  const concluded = continueAccountsDiagnosticConversation(activeContext, 'inativa');
+
+  const preview = buildSafeActionPreviewFromDiagnosticContext({
+    context: concluded.contextData,
+    resolvedFields: {},
+    previewExpiresAt: '2026-04-11T18:00:00.000Z',
+  });
+
+  assertEquals(preview?.actionType, 'deactivate_account');
+  assertEquals(preview?.targetType, 'account');
+  assertEquals(preview?.targetId, 'account-1');
+  assertEquals(preview?.before, { is_active: true });
+  assertEquals(preview?.after, { is_active: false });
+  assertStringIncludes(preview?.confirmationPrompt ?? '', '• is_active: Sim -> Nao');
+});
+
+Deno.test('buildSafeActionPreviewFromDiagnosticContext distinguishes recurring current occurrence from stop future recurrence', () => {
+  const activeContext = createAccountsDiagnosticContextData({
+    anomaly: {
+      ...anomalies[1],
+      description: 'Netflix recorrente',
+    },
+    source: 'direct_diagnostic_prompt',
+  });
+  const concluded = continueAccountsDiagnosticConversation(activeContext, 'cancela só essa ocorrência');
+
+  const preview = buildSafeActionPreviewFromDiagnosticContext({
+    context: concluded.contextData,
+    resolvedFields: {
+      is_recurring: true,
+      next_occurrence_date: '2026-05-10',
+    },
+    previewExpiresAt: '2026-04-11T18:00:00.000Z',
+  });
+
+  assertEquals(preview?.actionType, 'cancel_current_occurrence');
+  assertEquals(preview?.targetType, 'payable_bill');
+  assertEquals(preview?.before, { status: 'pending' });
+  assertEquals(preview?.after, { status: 'cancelled' });
+});
+
+Deno.test('buildSafeActionPreviewFromDiagnosticContext returns null outside a concluded actionable state', () => {
+  const activeContext = createAccountsDiagnosticContextData({
+    anomaly: anomalies[1],
+    source: 'explicit_health_check',
+  });
+
+  assertEquals(
+    buildSafeActionPreviewFromDiagnosticContext({
+      context: activeContext,
+      resolvedFields: { amount: 120 },
+      previewExpiresAt: '2026-04-11T18:00:00.000Z',
+    }),
+    null,
+  );
+
+  const deferred = continueAccountsDiagnosticConversation(activeContext, 'depois vejo');
+  assertEquals(
+    buildSafeActionPreviewFromDiagnosticContext({
+      context: deferred.contextData,
+      resolvedFields: { amount: 120 },
+      previewExpiresAt: '2026-04-11T18:00:00.000Z',
+    }),
+    null,
+  );
 });

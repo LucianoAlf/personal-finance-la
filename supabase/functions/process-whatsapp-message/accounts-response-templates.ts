@@ -189,3 +189,76 @@ export function templateAccountsDiagnosticDefer(): string {
     'Deixo isso sinalizado aqui como um ponto que vale revisar depois.',
   ].join('\n');
 }
+
+export interface AccountsSafeActionPreviewTemplateInput {
+  title: string;
+  changes: string[];
+  effectSummary: string;
+}
+
+function joinTemplateSections(sections: string[]): string {
+  return sections.join('\n');
+}
+
+export function templateAccountsSafeActionPreview(
+  input: AccountsSafeActionPreviewTemplateInput,
+): string {
+  return joinTemplateSections([
+    'Notei um ajuste seguro que eu posso fazer:',
+    '',
+    input.title,
+    '',
+    ...input.changes,
+    '',
+    `Efeito esperado: ${input.effectSummary}`,
+    '',
+    'Confirma? (sim/nao)',
+  ]);
+}
+
+export function templateAccountsSafeActionSuccess(
+  appliedChanges: string[],
+  effectLines: string[],
+): string {
+  return joinTemplateSections([
+    'Pronto.',
+    '',
+    'Ficou assim:',
+    ...appliedChanges,
+    '',
+    'Efeito no sistema:',
+    ...effectLines,
+  ]);
+}
+
+export function templateAccountsSafeActionDecline(): string {
+  return joinTemplateSections([
+    'Perfeito.',
+    '',
+    'Nao alterei nada nessa conta.',
+  ]);
+}
+
+export function templateAccountsSafeActionDefer(): string {
+  return joinTemplateSections([
+    'Perfeito.',
+    '',
+    'Nao alterei nada agora. Se quiser, a gente retoma isso depois.',
+  ]);
+}
+
+export function templateAccountsSafeActionAbort(): string {
+  return joinTemplateSections([
+    'Parei essa acao antes de alterar o sistema, porque o contexto mudou ou o dado ja nao bate mais com o preview anterior.',
+    '',
+    'Se quiser, eu monto um preview novo.',
+  ]);
+}
+
+export function templateAccountsSafeActionFailure(): string {
+  return joinTemplateSections([
+    'Nao consegui concluir essa alteracao com seguranca.',
+    '',
+    'Prefiro nao te dizer que deu certo antes de conferir o estado final.',
+  ]);
+}

@@ -4,6 +4,8 @@
 // FASE 3.1: Consultas | FASE 3.2: CRUD
 // ============================================
 
+import type { SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 import { getSupabase, getEmojiBanco } from './utils.ts';
 import {
   appendPassiveAccountsDiagnosticsToListing,
@@ -4114,6 +4116,101 @@ export async function atualizarValorConta(
   }
   
   return { sucesso: true, mensagem: `✅ Valor atualizado para ${formatarMoeda(novoValor)}` };
+}
+
+type SafeContaPagarPatch = {
+  amount?: number;
+  due_date?: string;
+  status?: ContaPagar['status'];
+  paid_amount?: number | null;
+  paid_at?: string | null;
+  payment_method?: string;
+  is_recurring?: boolean;
+  next_occurrence_date?: string | null;
+};
+
+export async function carregarContaPagarSegura(
+  userId: string,
+  billId: string,
+  supabase: SupabaseClient | any = getSupabase(),
+): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabase
+    .from('payable_bills')
+    .select('id, user_id, description, amount, due_date, status, is_recurring, paid_amount, paid_at, payment_method, next_occurrence_date')
+    .eq('id', billId)
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) return null;
+  return data as Record<string, unknown>;
+}
+
+export async function atualizarContaPagarSegura(
+  userId: string,
+  billId: string,
+  patch: SafeContaPagarPatch,
+  supabase: SupabaseClient | any = getSupabase(),
+): Promise<{ sucesso: boolean; registro?: Record<string, unknown>; mensagem?: string }> {
+  const payload = {
+    ...patch,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('payable_bills')
+    .update(payload)
+    .eq('id', billId)
+    .eq('user_id', userId)
+    .select('id, user_id, description, amount, due_date, status, is_recurring, paid_amount, paid_at, payment_method, next_occurrence_date')
+    .single();
+
+  if (error) {
+    return { sucesso: false, mensagem: 'Erro ao atualizar conta.' };
+  }
+
+  return { sucesso: true, registro: data as Record<string, unknown> };
+}
+
+export async function carregarContaBancariaSegura(
+  userId: string,
+  accountId: string,
+  supabase: SupabaseClient | any = getSupabase(),
+): Promise<Record<string, unknown> | null> {
+  const { data, error } = await supabase
+    .from('accounts')
+    .select('id, user_id, name, current_balance, is_active')
+    .eq('id', accountId)
+    .eq('user_id', userId)
+    .single();
+
+  if (error || !data) return null;
+  return data as Record<string, unknown>;
+}
+
+export async function atualizarContaBancariaSegura(
+  userId: string,
+  accountId: string,
+  patch: { current_balance?: number; is_active?: boolean },
+  supabase: SupabaseClient | any = getSupabase(),
+): Promise<{ sucesso: boolean; registro?: Record<string, unknown>; mensagem?: string }> {
+  const payload = {
+    ...patch,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('accounts')
+    .update(payload)
+    .eq('id', accountId)
+    .eq('user_id', userId)
+    .select('id, user_id, name, current_balance, is_active')
+    .single();
+
+  if (error) {
+    return { sucesso: false, mensagem: 'Erro ao atualizar conta bancaria.' };
+  }
+
+  return { sucesso: true, registro: data as Record<string, unknown> };
 }
 
 /**
