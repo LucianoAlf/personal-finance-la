@@ -15,3 +15,7 @@ verify_jwt = false
 
 [functions.calendar-sync-ticktick]
 verify_jwt = false
+
+# pg_cron / internal trigger — sem JWT de usuário.
+[functions.poll-pluggy-reconciliation]
+verify_jwt = false

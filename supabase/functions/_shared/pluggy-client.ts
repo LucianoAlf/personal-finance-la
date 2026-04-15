@@ -110,3 +110,55 @@ export async function getPluggyItem(
     webhookUrl: webhookUrl ?? null,
   };
 }
+
+export interface PluggyAccountRow {
+  id: string;
+  name?: string | null;
+}
+
+export interface PluggyTransactionRow {
+  id: string;
+  amount: number;
+  date: string;
+  description: string;
+}
+
+function parseResults<T>(data: unknown): T[] {
+  if (data && typeof data === 'object' && Array.isArray((data as { results?: unknown }).results)) {
+    return (data as { results: T[] }).results;
+  }
+  return [];
+}
+
+export async function listPluggyAccounts(
+  config: { baseUrl: string; apiKey: string; itemId: string },
+  fetchImpl: PluggyFetch,
+): Promise<{ results: PluggyAccountRow[] }> {
+  const url = `${normalizeBaseUrl(config.baseUrl)}/accounts?itemId=${encodeURIComponent(config.itemId)}`;
+  const res = await fetchImpl(url, {
+    method: 'GET',
+    headers: buildPluggyHeaders(config.apiKey),
+  });
+  if (!res.ok) {
+    throw new Error(`Pluggy list accounts failed: ${res.status}`);
+  }
+  const data: unknown = await res.json();
+  return { results: parseResults<PluggyAccountRow>(data) };
+}
+
+export async function listPluggyTransactions(
+  config: { baseUrl: string; apiKey: string; accountId: string },
+  fetchImpl: PluggyFetch,
+): Promise<{ results: PluggyTransactionRow[] }> {
+  const url =
+    `${normalizeBaseUrl(config.baseUrl)}/transactions?accountId=${encodeURIComponent(config.accountId)}`;
+  const res = await fetchImpl(url, {
+    method: 'GET',
+    headers: buildPluggyHeaders(config.apiKey),
+  });
+  if (!res.ok) {
+    throw new Error(`Pluggy list transactions failed: ${res.status}`);
+  }
+  const data: unknown = await res.json();
+  return { results: parseResults<PluggyTransactionRow>(data) };
+}
