@@ -45,5 +45,4 @@ CREATE POLICY "Users can delete own files"
     auth.uid()::text = (storage.foldername(name))[2]
   );
 
--- Comentários
-COMMENT ON COLUMN storage.buckets.file_size_limit IS 'Limite de 2MB para uploads de avatar';
+-- Note: COMMENT ON storage.buckets requires storage owner; skipped for local replay portability.

@@ -137,6 +137,115 @@ export interface Category {
   created_at: Date;
 }
 
+// =====================================================
+// PHASE 4 — RECONCILIATION (public.*)
+// =====================================================
+
+export type BankTransactionSource = 'manual_paste' | 'csv_upload' | 'manual_entry' | 'pluggy';
+
+export type BankTransactionReconciliationStatus =
+  | 'pending'
+  | 'matched'
+  | 'reconciled'
+  | 'rejected'
+  | 'deferred';
+
+export interface BankTransaction {
+  id: string;
+  user_id: string;
+  source: BankTransactionSource;
+  source_item_id: string | null;
+  external_id: string | null;
+  account_name: string;
+  external_account_id: string | null;
+  internal_account_id: string | null;
+  amount: number;
+  date: string;
+  description: string;
+  raw_description: string | null;
+  category_suggestion: string | null;
+  currency_code: string;
+  imported_at: string;
+  reconciliation_status: BankTransactionReconciliationStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ReconciliationDivergenceType =
+  | 'unmatched_bank_transaction'
+  | 'pending_bill_paid_in_bank'
+  | 'amount_mismatch'
+  | 'date_mismatch'
+  | 'balance_mismatch'
+  | 'possible_duplicate'
+  | 'stale_connection'
+  | 'unclassified_transaction';
+
+export type ReconciliationCaseStatus =
+  | 'open'
+  | 'awaiting_user'
+  | 'confirmed'
+  | 'rejected'
+  | 'deferred'
+  | 'auto_closed';
+
+export type ReconciliationCasePriority = 'urgent' | 'high' | 'medium' | 'low' | 'infra';
+
+export type MatchedRecordType = 'payable_bill' | 'transaction' | 'account';
+
+export interface ReconciliationCase {
+  id: string;
+  user_id: string;
+  bank_transaction_id: string;
+  divergence_type: ReconciliationDivergenceType;
+  matched_record_type: MatchedRecordType | null;
+  matched_record_id: string | null;
+  confidence: number;
+  confidence_reasoning: Record<string, unknown>;
+  hypotheses: unknown[];
+  status: ReconciliationCaseStatus;
+  priority: ReconciliationCasePriority;
+  auto_close_reason: string | null;
+  resolved_at: string | null;
+  resolved_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ReconciliationAuditAction =
+  | 'confirmed'
+  | 'rejected'
+  | 'deferred'
+  | 'classified'
+  | 'linked'
+  | 'unlinked'
+  | 'auto_closed';
+
+export interface ReconciliationAuditLog {
+  id: string;
+  user_id: string;
+  case_id: string | null;
+  action: ReconciliationAuditAction;
+  confidence_at_decision: number;
+  bank_transaction_snapshot: Record<string, unknown>;
+  system_record_snapshot: Record<string, unknown> | null;
+  actor: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface PluggyConnection {
+  id: string;
+  user_id: string;
+  item_id: string;
+  institution_name: string;
+  status: string;
+  last_synced_at: string | null;
+  staleness_threshold_hours: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // ============================================
 // FINANCIAL GOALS - Sistema Unificado de Metas
 // ============================================
