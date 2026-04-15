@@ -29,6 +29,7 @@ import {
   FolderTree,
   ChevronDown,
   ArrowRightLeft,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -57,6 +58,7 @@ const menuItems = [
   { icon: Home, label: 'Dashboard', path: '/' },
   { icon: Wallet, label: 'Contas', path: '/contas' },
   { icon: List, label: 'Transações', path: '/transacoes' },
+  { icon: ShieldCheck, label: 'Conciliação', path: '/conciliacao' },
   { icon: CreditCard, label: 'Cartões', path: '/cartoes' },
   { icon: Receipt, label: 'Contas a Pagar', path: '/contas-pagar' },
   { icon: CalendarDays, label: 'Agenda', path: '/agenda' },

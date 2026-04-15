@@ -23,6 +23,7 @@ import { Tags } from './pages/Tags';
 import Categories from './pages/Categories';
 import PayableBills from './pages/PayableBills';
 import { CalendarPage } from './pages/CalendarPage';
+import { Reconciliation } from './pages/Reconciliation';
 import TestEmail from './pages/TestEmail';
 import { useSettings } from './hooks/useSettings';
 import {
@@ -98,6 +99,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="contas" element={<Contas />} />
           <Route path="transacoes" element={<Transacoes />} />
+          <Route path="conciliacao" element={<Reconciliation />} />
           <Route path="cartoes" element={<CreditCards />} />
           <Route path="contas-pagar" element={<PayableBills />} />
           <Route path="agenda" element={<CalendarPage />} />
