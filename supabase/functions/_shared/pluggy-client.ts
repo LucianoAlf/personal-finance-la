@@ -114,6 +114,16 @@ export async function getPluggyItem(
 export interface PluggyAccountRow {
   id: string;
   name?: string | null;
+  /** Marketing name is usually the one humans recognize ("Conta Corrente", "Nu Ultravioleta"). */
+  marketingName?: string | null;
+  /** BANK | CREDIT. Used to disambiguate checking from credit card when building labels. */
+  type?: string | null;
+  /** CHECKING_ACCOUNT | SAVINGS_ACCOUNT | CREDIT_CARD | ... */
+  subtype?: string | null;
+  /** Usually masked (e.g. "****1234"). Drives the "final 4" portion of the label. */
+  number?: string | null;
+  taxNumber?: string | null;
+  owner?: string | null;
 }
 
 export interface PluggyTransactionRow {
@@ -121,6 +131,20 @@ export interface PluggyTransactionRow {
   amount: number;
   date: string;
   description: string;
+}
+
+export interface PluggyTransactionQuery {
+  baseUrl: string;
+  apiKey: string;
+  accountId: string;
+  /** ISO date (YYYY-MM-DD). Maps to Pluggy's `from` query string. */
+  from?: string | null;
+  /** ISO date (YYYY-MM-DD). Maps to Pluggy's `to` query string. */
+  to?: string | null;
+  /** Pluggy supports up to 500 per page; we cap to be friendly. */
+  pageSize?: number;
+  /** 1-indexed page number when paginating manually. */
+  page?: number;
 }
 
 function parseResults<T>(data: unknown): T[] {
@@ -147,11 +171,30 @@ export async function listPluggyAccounts(
 }
 
 export async function listPluggyTransactions(
-  config: { baseUrl: string; apiKey: string; accountId: string },
+  config: PluggyTransactionQuery,
   fetchImpl: PluggyFetch,
 ): Promise<{ results: PluggyTransactionRow[] }> {
-  const url =
-    `${normalizeBaseUrl(config.baseUrl)}/transactions?accountId=${encodeURIComponent(config.accountId)}`;
+  const params = new URLSearchParams();
+  params.set('accountId', config.accountId);
+
+  // Passing `from` is the single biggest lever against "historical noise
+  // contamination": without it Pluggy happily serves us up to a year of data
+  // every poll cycle, which is exactly how 2500 pre-window cases appeared in
+  // the inbox. Callers should derive this from the per-user window.
+  if (config.from) {
+    params.set('from', config.from);
+  }
+  if (config.to) {
+    params.set('to', config.to);
+  }
+  if (typeof config.pageSize === 'number' && Number.isFinite(config.pageSize)) {
+    params.set('pageSize', String(Math.max(1, Math.min(500, Math.trunc(config.pageSize)))));
+  }
+  if (typeof config.page === 'number' && Number.isFinite(config.page)) {
+    params.set('page', String(Math.max(1, Math.trunc(config.page))));
+  }
+
+  const url = `${normalizeBaseUrl(config.baseUrl)}/transactions?${params.toString()}`;
   const res = await fetchImpl(url, {
     method: 'GET',
     headers: buildPluggyHeaders(config.apiKey),

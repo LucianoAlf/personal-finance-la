@@ -183,6 +183,10 @@ const INTENT_CLASSIFICATION_FUNCTION = {
           'RESUMO_PAGAMENTOS_MES',
           'CONTAS_AMBIGUO',
           // FIM CONTAS A PAGAR
+          // RECONCILIACAO BANCARIA (Onda 2 / Ana Clara)
+          'ASK_RECONCILIATION',
+          'DECIDE_RECONCILIATION',
+          // FIM RECONCILIACAO
           'SAUDACAO',
           'AJUDA',
           'AGRADECIMENTO',
@@ -226,7 +230,14 @@ const INTENT_CLASSIFICATION_FUNCTION = {
           cartao: { type: 'string', description: 'Nome do cartão de crédito (ex: Nubank, Itaú, Bradesco). IMPORTANTE: Extrair de "no Nubank", "no Itaú", etc.' },
           parcelas: { type: 'number', description: 'Número de parcelas. OBRIGATÓRIO para COMPRA_PARCELADA! Ex: "em 10x" → parcelas=10, "em 3 vezes" → parcelas=3. Se não parcelou, use 1.' },
           // CONTEXTO INFERIDO DO HISTÓRICO
-          mes_referencia: { type: 'string', description: 'Mês inferido do histórico da conversa (ex: novembro, dezembro). Use quando o usuário pede detalhes de algo mencionado anteriormente.' }
+          mes_referencia: { type: 'string', description: 'Mês inferido do histórico da conversa (ex: novembro, dezembro). Use quando o usuário pede detalhes de algo mencionado anteriormente.' },
+          // RECONCILIACAO BANCARIA (Onda 2)
+          case_id: { type: 'string', description: 'ID do caso de reconciliacao bancaria que o usuario quer resolver. SOMENTE para DECIDE_RECONCILIATION. Extrair APENAS de hints "case_id=..." mostrados no bloco "## Reconciliacao bancaria pendente" do contexto. Nao inventar.' },
+          reconciliation_action: {
+            type: 'string',
+            description: 'Acao que o usuario escolheu para o caso de reconciliacao. SOMENTE para DECIDE_RECONCILIATION.',
+            enum: ['link_payable', 'mark_transfer', 'register_expense', 'ignore']
+          }
         }
       },
       explicacao: { type: 'string' },
@@ -245,6 +256,14 @@ export interface AgentEnrichment {
   memoriasRelevantes?: string;
   episodiosRecentes?: string;
   agendaHoje?: string;
+  /**
+   * Pre-formatted reconciliation context produced by
+   * `buildReconciliationContextForAnaClara`. When present, the classifier
+   * appends it verbatim to the system prompt so the LLM knows which cases are
+   * open and how to extract `case_id` + `reconciliation_action`. Empty string
+   * or undefined means "no pending cases" and the section is skipped.
+   */
+  reconciliationBlock?: string;
 }
 
 function gerarSystemPrompt(
@@ -1079,7 +1098,7 @@ NOTA: Para AJUDA, gere uma resposta curta e natural. Se vier vazia, o sistema ca
   "explicacao": "Pergunta sobre o sistema/Ana Clara",
   "resposta_conversacional": "Oi, ${primeiroNome}! 🙋🏻‍♀️\\n\\nSou a Ana Clara, sua Personal Finance!\\n\\nPosso te ajudar a:\\n💸 Registrar gastos e receitas\\n📊 Ver saldos e extratos\\n✏️ Editar transações\\n📈 Acompanhar investimentos\\n\\nÉ só me contar o que precisa! 😊"
 }
-${agentEnrichment?.soulBlock ? `\n---\n${agentEnrichment.soulBlock}` : ''}${agentEnrichment?.memoriasRelevantes ? `\n---\n${agentEnrichment.memoriasRelevantes}` : ''}${agentEnrichment?.episodiosRecentes ? `\n---\n${agentEnrichment.episodiosRecentes}` : ''}${agentEnrichment?.agendaHoje ? `\n---\n${agentEnrichment.agendaHoje}` : ''}`;
+${agentEnrichment?.soulBlock ? `\n---\n${agentEnrichment.soulBlock}` : ''}${agentEnrichment?.memoriasRelevantes ? `\n---\n${agentEnrichment.memoriasRelevantes}` : ''}${agentEnrichment?.episodiosRecentes ? `\n---\n${agentEnrichment.episodiosRecentes}` : ''}${agentEnrichment?.agendaHoje ? `\n---\n${agentEnrichment.agendaHoje}` : ''}${agentEnrichment?.reconciliationBlock ? `\n---\n${agentEnrichment.reconciliationBlock}\n\n## COMO USAR O BLOCO DE RECONCILIACAO ACIMA\n\nSe o bloco "Reconciliacao bancaria pendente" existir, o usuario PODE:\n1. Perguntar em geral ("tem algo pra eu conferir?", "ficou algo sem match?", "o que esta pendente no banco?", "quais extratos nao bateram?") → classifique como ASK_RECONCILIATION (confianca 0.85+), entidades vazias.\n2. Decidir sobre um caso especifico usando as expressoes naturais abaixo → classifique como DECIDE_RECONCILIATION, extraia case_id (do hint "case_id=..." do bloco) e reconciliation_action:\n   - "vincula o boleto", "era a conta de luz", "paga esse" → reconciliation_action=link_payable\n   - "era transferencia interna", "era transferencia entre minhas contas", "eu mandei pra mim" → reconciliation_action=mark_transfer\n   - "registra como despesa", "foi um gasto mesmo", "lanca como expense" → reconciliation_action=register_expense\n   - "ignora", "nao reconheco", "nao foi meu" → reconciliation_action=ignore\n\nSe o usuario perguntar sobre reconciliacao mas NAO existir bloco acima, classifique como OUTRO e responda que esta tudo em dia.\n\nNUNCA invente case_id. Se o usuario se referir ao caso por "o primeiro" / "o do Nubank" / ordem na lista, use o case_id correspondente do bloco (ordem igual a que aparece no texto).` : ''}`;
 }
 
 // ============================================

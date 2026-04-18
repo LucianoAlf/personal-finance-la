@@ -79,6 +79,7 @@ export type AnaClaraCoreRoute =
   | 'other'
   | 'transfer'
   | 'transaction'
+  | 'reconciliation'
   | 'low_confidence'
   | 'unknown';
 
@@ -211,6 +212,12 @@ export function resolveAnaClaraCoreRoute(
 
   if (INTENCOES_CARTAO.includes(intencaoNLP.intencao)) return 'card';
   if (INTENCOES_CONTAS_PAGAR.includes(intencaoNLP.intencao as TipoIntencaoContaPagar)) return 'contas_pagar';
+  if (
+    intencaoNLP.intencao === 'ASK_RECONCILIATION' ||
+    intencaoNLP.intencao === 'DECIDE_RECONCILIATION'
+  ) {
+    return 'reconciliation';
+  }
   if (intencaoNLP.intencao === 'SAUDACAO') return 'greeting';
   if (intencaoNLP.intencao === 'AJUDA') return 'help';
   if (intencaoNLP.intencao === 'CONSULTAR_SALDO') return 'balance';
@@ -916,6 +923,52 @@ _Ana Clara • Personal Finance_ 🙋🏻‍♀️`;
       }
 
       return await markMessage(intencao.intencao.toLowerCase(), 'transaction');
+    }
+
+    case 'reconciliation': {
+      const entidadesRecon = intencaoNLP.entidades as Record<string, unknown>;
+      const recIntent: 'ASK_RECONCILIATION' | 'DECIDE_RECONCILIATION' =
+        intencaoNLP.intencao === 'DECIDE_RECONCILIATION'
+          ? 'DECIDE_RECONCILIATION'
+          : 'ASK_RECONCILIATION';
+
+      const { handleReconciliationIntent } = await import('./reconciliation-handler.ts');
+      await handleReconciliationIntent({
+        supabase,
+        userId: user.id,
+        phone,
+        intent: recIntent,
+        content,
+        entities: {
+          case_id: typeof entidadesRecon.case_id === 'string' ? entidadesRecon.case_id : undefined,
+          reconciliation_action:
+            typeof entidadesRecon.reconciliation_action === 'string'
+              ? (entidadesRecon.reconciliation_action as
+                  | 'link_payable'
+                  | 'mark_transfer'
+                  | 'register_expense'
+                  | 'ignore')
+              : undefined,
+        },
+        // Multi-step confirmation: instead of firing reconciliation-action
+        // immediately we stash the pending decision into
+        // conversation_context so the user has to answer "sim" to commit.
+        // `ignore` is the exception and bypasses this (the handler knows).
+        saveDecisionContext: async (userId, pending, savePhone) => {
+          await salvarContexto(
+            userId,
+            'awaiting_reconciliation_decision_confirm' as ContextType,
+            pending as unknown as Record<string, unknown>,
+            savePhone,
+          );
+        },
+        sendReply,
+      });
+
+      return await markMessage(
+        recIntent === 'DECIDE_RECONCILIATION' ? 'reconciliation_decision' : 'reconciliation_ask',
+        'reconciliation',
+      );
     }
 
     case 'unknown':

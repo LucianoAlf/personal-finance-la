@@ -62,6 +62,7 @@ import {
   type PendingAccountsSafeAction,
 } from './accounts-safe-actions.ts';
 import { executePendingAccountsSafeAction } from './accounts-safe-action-executor.ts';
+import type { PendingReconciliationDecision } from './reconciliation-confirmation.ts';
 
 // TTL do contexto: 60 minutos (1 hora)
 // Aumentado de 15min para evitar perda de contexto quando usuário demora a responder
@@ -194,6 +195,7 @@ export type ContextType =
   | 'awaiting_bill_name_for_payment'       // Aguardando nome da conta para marcar como paga
   | 'awaiting_payment_account'             // Aguardando conta bancária de onde sai o pagamento
   | 'awaiting_accounts_safe_action_confirm' // Aguardando confirmação de ação segura em contas
+  | 'awaiting_reconciliation_decision_confirm' // Aguardando confirmação de decisão de reconciliação bancária
   // Contexto de ações rápidas de cartão
   | 'credit_card_context'                  // Contexto de cartão para ações rápidas
   // Contexto de referência para faturas vencidas
@@ -341,6 +343,7 @@ const FLOW_CONTEXT_TYPES: ContextType[] = [
   'awaiting_payment_account',
   'accounts_diagnostic_context',
   'awaiting_accounts_safe_action_confirm',
+  'awaiting_reconciliation_decision_confirm',
   'awaiting_calendar_create_confirm',
 ];
 
@@ -887,6 +890,32 @@ export async function processarNoContexto(
       contexto,
       userId,
       phone,
+    });
+  }
+
+  if (contextType === 'awaiting_reconciliation_decision_confirm') {
+    const { handleAwaitingReconciliationDecisionReply } = await import(
+      './reconciliation-confirm-handler.ts'
+    );
+    const { invokeReconciliationActionViaEdgeFunction } = await import(
+      './reconciliation-handler.ts'
+    );
+    const pending = contexto.context_data as unknown as PendingReconciliationDecision;
+
+    return await handleAwaitingReconciliationDecisionReply({
+      texto,
+      userId,
+      pending,
+      invokeReconciliationAction: (args) =>
+        invokeReconciliationActionViaEdgeFunction(getSupabase(), args),
+      limparContexto,
+      // Adapter: salvarContexto signature takes the full ContextType union
+      // + ContextData record, whereas the handler port is narrowed to the
+      // pending reconciliation shape. The cast is safe because
+      // PendingReconciliationDecision is structurally a plain JSON object
+      // and ContextData is an open index-signature type.
+      salvarContexto: (uid, _type, data, p) =>
+        salvarContexto(uid, 'awaiting_reconciliation_decision_confirm', data as unknown as ContextData, p),
     });
   }
   

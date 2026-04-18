@@ -1334,11 +1334,18 @@ serve(async (req: Request) => {
     // Build agent enrichment (additive — wrapped in try/catch to never break flow)
     let agentEnrichment: AgentEnrichment | undefined;
     try {
-      const [unifiedContextResult, memoriesResult, dayCtxResult] = await Promise.allSettled([
-        loadUnifiedAgentContext(supabase, user.id, { maxFacts: 5, maxEpisodes: 4 }),
-        searchMemories(supabase, user.id, content, 5),
-        buildDayContext(supabase, user.id),
-      ]);
+      const { buildReconciliationContextForAnaClara } = await import(
+        '../_shared/reconciliation-ana-clara-context.ts'
+      );
+      const [unifiedContextResult, memoriesResult, dayCtxResult, reconciliationResult] =
+        await Promise.allSettled([
+          loadUnifiedAgentContext(supabase, user.id, { maxFacts: 5, maxEpisodes: 4 }),
+          searchMemories(supabase, user.id, content, 5),
+          buildDayContext(supabase, user.id),
+          // limit=5 keeps the prompt block short; byPriority gives Ana Clara
+          // enough to talk about totals without re-querying.
+          buildReconciliationContextForAnaClara(supabase, user.id, { limit: 5 }),
+        ]);
 
       // Soul block
       const soulBlock = buildSoulPromptBlock(soulConfig, userContext, autonomyConfig);
@@ -1384,8 +1391,32 @@ serve(async (req: Request) => {
         console.log(`📅 Day context items: ${dayCtxResult.value.items.length}`);
       }
 
-      agentEnrichment = { soulBlock, memoriasRelevantes, episodiosRecentes, agendaHoje };
-      console.log('🧬 Agent enrichment built (soul + memory + episodes + agenda)');
+      // Reconciliation block is only attached when there's at least one open
+      // case; otherwise we leave it undefined so `gerarSystemPrompt` skips
+      // the whole section (no prompt bloat when ledger is healthy).
+      let reconciliationBlock: string | undefined;
+      if (reconciliationResult.status === 'fulfilled') {
+        const snap = reconciliationResult.value;
+        if (snap.totalOpen > 0 && snap.promptBlock.trim().length > 0) {
+          reconciliationBlock = snap.promptBlock;
+          console.log(
+            `🧩 Reconciliation context: ${snap.totalOpen} open case(s) — ` +
+              `${snap.byPriority.urgent} urgent, ${snap.byPriority.high} high, ` +
+              `${snap.byPriority.medium} medium, ${snap.byPriority.low} low`,
+          );
+        }
+      } else {
+        console.warn('⚠️ Reconciliation context failed (non-blocking):', reconciliationResult.reason);
+      }
+
+      agentEnrichment = {
+        soulBlock,
+        memoriasRelevantes,
+        episodiosRecentes,
+        agendaHoje,
+        reconciliationBlock,
+      };
+      console.log('🧬 Agent enrichment built (soul + memory + episodes + agenda + reconciliation)');
     } catch (enrichErr) {
       console.warn('⚠️ Agent enrichment failed (non-blocking):', enrichErr);
     }

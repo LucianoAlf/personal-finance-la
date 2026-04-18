@@ -1,3 +1,5 @@
+import { resolveAccountLabel } from './reconciliation-account-label.ts';
+
 export interface NormalizedBankTransactionInput {
   user_id: string;
   source: 'manual_paste' | 'csv_upload' | 'manual_entry' | 'pluggy';
@@ -10,30 +12,70 @@ export interface NormalizedBankTransactionInput {
   date: string;
   description: string;
   raw_description: string | null;
+  /**
+   * Marks the row as out_of_scope when it falls before the user's active
+   * reconciliation window. Persisted to the DB column of the same name so the
+   * UI can filter it out of the inbox by default. Optional so legacy call
+   * sites can omit it (defaults to false in the DB).
+   */
+  out_of_scope?: boolean;
 }
 
 export const normalizeAmount = (amount: number) => Number(amount.toFixed(2));
 
-export function normalizePluggyTransaction(input: {
+export interface NormalizePluggyTransactionInput {
   sourceItemId: string;
   accountId: string;
+  /** Raw Pluggy account.name. Could be a design codename (e.g. "ultraviolet-black"). */
   accountName?: string | null;
+  /** Institution name from the pluggy_connection row; preferred driver of the label. */
+  institutionName?: string | null;
+  /** Pluggy account.marketingName. */
+  marketingName?: string | null;
+  /** Pluggy account.type (BANK | CREDIT). */
+  accountType?: string | null;
+  /** Pluggy account.subtype. */
+  accountSubtype?: string | null;
+  /** Pluggy account.number (already masked). */
+  accountNumber?: string | null;
   internalAccountId: string | null;
   transaction: { id: string; amount: number; date: string; description: string };
-}): NormalizedBankTransactionInput {
+  /**
+   * Optional YYYY-MM-DD cutoff. When provided, any transaction whose date is
+   * strictly before this value is materialized with `out_of_scope = true`.
+   */
+  windowStart?: string | null;
+}
+
+export function normalizePluggyTransaction(
+  input: NormalizePluggyTransactionInput,
+): NormalizedBankTransactionInput {
+  const label = resolveAccountLabel({
+    institutionName: input.institutionName ?? null,
+    accountName: input.accountName ?? null,
+    marketingName: input.marketingName ?? null,
+    type: input.accountType ?? null,
+    subtype: input.accountSubtype ?? null,
+    number: input.accountNumber ?? null,
+  });
+
+  const isOutOfScope = Boolean(
+    input.windowStart && input.transaction.date && input.transaction.date < input.windowStart,
+  );
+
   return {
     user_id: '',
     source: 'pluggy',
     source_item_id: input.sourceItemId,
     external_id: input.transaction.id,
-    // Minimal seed only. Replace with the real account name from Pluggy payload as soon as it is available.
-    account_name: input.accountName?.trim() || 'Conta Pluggy',
+    account_name: label,
     external_account_id: input.accountId,
     internal_account_id: input.internalAccountId,
     amount: normalizeAmount(input.transaction.amount),
     date: input.transaction.date,
     description: input.transaction.description.trim(),
     raw_description: input.transaction.description,
+    out_of_scope: isOutOfScope,
   };
 }
 

@@ -49,7 +49,7 @@ async function loadEnvLocalFromCwd(): Promise<void> {
   } catch {
     return;
   }
-  for (const line of text.split('\n')) {
+  for (const line of text.split(/\r?\n/)) {
     const t = line.trim();
     if (!t || t.startsWith('#')) continue;
     const eq = t.indexOf('=');
