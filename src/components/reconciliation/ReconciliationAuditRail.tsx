@@ -9,6 +9,14 @@ interface ReconciliationAuditRailProps {
   title?: string;
   expanded?: boolean;
   /**
+   * When true, the component refuses to show the global audit stream until a
+   * case is selected. Useful in the inbox side rail where dumping the global
+   * log is visually misleading and can create giant page scroll after batch
+   * operations like the reset archive.
+   */
+  requireActiveCase?: boolean;
+  inactiveMessage?: string;
+  /**
    * When provided, the rail filters entries down to the specific case timeline.
    * Without this, the rail behaves as a global decision log, which visually suggests
    * the right rail is a timeline of the selected case when it is not. Keeping this
@@ -45,17 +53,22 @@ export function ReconciliationAuditRail({
   isLoading = false,
   title = 'Timeline / audit trail',
   expanded = false,
+  requireActiveCase = false,
+  inactiveMessage,
   activeCaseId = null,
   emptyMessage,
 }: ReconciliationAuditRailProps) {
   const { formatDateTime } = useUserPreferences();
 
   const visibleEntries = useMemo(() => {
+    if (requireActiveCase && !activeCaseId) return [];
     if (!activeCaseId) return entries;
     return entries.filter((entry) => entry.case_id === activeCaseId);
-  }, [entries, activeCaseId]);
+  }, [entries, activeCaseId, requireActiveCase]);
 
-  const emptyCopy = activeCaseId
+  const emptyCopy = requireActiveCase && !activeCaseId
+    ? (inactiveMessage ?? 'Selecione um caso para ver a timeline.')
+    : activeCaseId
     ? (emptyMessage ?? 'Nenhuma decisao registrada ainda neste caso.')
     : 'Sem entradas de auditoria ainda.';
 

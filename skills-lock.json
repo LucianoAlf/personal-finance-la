@@ -5,6 +5,16 @@
       "source": "anthropics/skills",
       "sourceType": "github",
       "computedHash": "516bd2154eb843a8240e43d5b285229129853114ad7075a5e141e1c08e408c84"
+    },
+    "mobile-first-design": {
+      "source": "secondsky/claude-skills",
+      "sourceType": "github",
+      "computedHash": "5f7a038065c988351dd0928f1026ffc60bd79c74d81fcf70931ca1b711667ace"
+    },
+    "responsive-web-design": {
+      "source": "secondsky/claude-skills",
+      "sourceType": "github",
+      "computedHash": "d8d425b2b536b568320174acdb7015f60e585fa8d4f061c3d4b120c80a357aff"
     }
   }
 }

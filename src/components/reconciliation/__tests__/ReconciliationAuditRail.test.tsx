@@ -120,4 +120,25 @@ describe('ReconciliationAuditRail', () => {
     expect(screen.getByText('b')).toBeTruthy();
     expect(screen.queryByText(/timeline deste caso/i)).toBeNull();
   });
+
+  it('can stay quiet until a case is selected', () => {
+    render(
+      <ReconciliationAuditRail
+        requireActiveCase
+        inactiveMessage="Selecione um caso para ver a timeline."
+        entries={[
+          {
+            ...baseEntry,
+            id: 'audit-1',
+            case_id: 'case-1',
+            action: 'auto_closed',
+            notes: 'test_reset_archive',
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText(/Selecione um caso para ver a timeline/i)).toBeTruthy();
+    expect(screen.queryByText(/test_reset_archive/i)).toBeNull();
+  });
 });

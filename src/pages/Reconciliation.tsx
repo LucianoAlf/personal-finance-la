@@ -420,6 +420,8 @@ export function Reconciliation() {
                 <ReconciliationAuditRail
                   entries={auditEntries}
                   isLoading={isPending}
+                  requireActiveCase
+                  inactiveMessage="Selecione um caso para ver a timeline deste caso."
                   activeCaseId={activeCaseId}
                   emptyMessage={
                     activeCaseId

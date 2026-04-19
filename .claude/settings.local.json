@@ -7,7 +7,12 @@
       "Bash(npx supabase:*)",
       "Bash(nul)",
       "mcp__plugin_context-mode_context-mode__ctx_batch_execute",
-      "mcp__plugin_context-mode_context-mode__ctx_search"
+      "mcp__plugin_context-mode_context-mode__ctx_search",
+      "Bash(mkdir -p \"d:/2026/personal-finance/personal-finance-la/.claude/skills/ui-ux-pro-max\")",
+      "Bash(cp \"/tmp/ui-ux-pro-max-skill/.claude/skills/ui-ux-pro-max/SKILL.md\" \"d:/2026/personal-finance/personal-finance-la/.claude/skills/ui-ux-pro-max/SKILL.md\")",
+      "Bash(cp -r \"/tmp/ui-ux-pro-max-skill/src/ui-ux-pro-max/data\" \"d:/2026/personal-finance/personal-finance-la/.claude/skills/ui-ux-pro-max/data\")",
+      "Bash(cp -r \"/tmp/ui-ux-pro-max-skill/src/ui-ux-pro-max/scripts\" \"d:/2026/personal-finance/personal-finance-la/.claude/skills/ui-ux-pro-max/scripts\")",
+      "Bash(cp -r \"/tmp/ui-ux-pro-max-skill/src/ui-ux-pro-max/templates\" \"d:/2026/personal-finance/personal-finance-la/.claude/skills/ui-ux-pro-max/templates\")"
     ],
     "deny": [],
     "ask": []
