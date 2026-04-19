@@ -1,6 +1,6 @@
 # Mobile-First Responsive Redesign — Finance LA
 
-**Status:** Draft — aguardando revisão do usuário antes do plano de implementação
+**Status:** Approved — Plan 1 written and under review
 **Created:** 2026-04-19
 **Author:** Luciano + Claude (brainstorming session)
 **Skill chain:** `superpowers:brainstorming` → `ui-ux-pro-max` (ativa) → `superpowers:writing-plans` (próxima)
@@ -182,14 +182,14 @@ Notas:
 |  Mais                         |  sheet 56% altura, z-50
 |                               |
 |  ┌──┐ ┌──┐ ┌──┐ ┌──┐          |
-|  │🛡️│ │💳│ │📅│ │🎯│          |  Concil · Cartões · Agenda · Metas
+|  │💼│ │🛡️│ │💳│ │📅│          |  Contas · Concil · Cartões · Agenda
 |  └──┘ └──┘ └──┘ └──┘          |
 |  ┌──┐ ┌──┐ ┌──┐ ┌──┐          |
-|  │📈│ │📊│ │🎓│ │🏷️│          |  Invest · Relat · Educ · Tags
+|  │🎯│ │📈│ │📊│ │🎓│          |  Metas · Invest · Relat · Educ
 |  └──┘ └──┘ └──┘ └──┘          |
-|  ┌──┐ ┌──┐                    |
-|  │📁│ │⚙️│                     |  Categorias · Config
-|  └──┘ └──┘                    |
+|  ┌──┐ ┌──┐ ┌──┐               |
+|  │🏷️│ │📁│ │⚙️│                |  Tags · Categorias · Config
+|  └──┘ └──┘ └──┘               |
 +===============================+
 | 🏠    📋    🤖    🧾    ☰     |
 |                        ▔▔     |  ☰ em estado "pressed"
