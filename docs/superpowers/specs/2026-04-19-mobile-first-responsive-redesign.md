@@ -21,7 +21,7 @@ Hoje, em larguras < 1024px, a sidebar vira um drawer acionado por hamburger — 
 - Novos componentes de negócio
 - PWA / installable app
 - Dark mode tweaks
-- Refactor do `AnaCoachPanel` em si (só envolvemos em mobile)
+- **UI real da Ana Clara (chat completo)** — Ana Clara hoje existe apenas como integração WhatsApp no backend. O `setAnaCoachOpen` no uiStore é um switch sem consumidor. Este spec cobre apenas a **tela stub** ("Em breve — fale no WhatsApp") no mobile; o chat web completo (streaming, histórico, anexos) será objeto de brainstorm + spec + plan dedicados.
 
 ---
 
@@ -57,9 +57,9 @@ src/components/layout/
   QuickCreateFab.test.tsx
 
 src/components/ana-clara/
-  AnaClaraChatScreen.tsx        # Chat full-screen mobile (wrapper do AnaCoachPanel)
-  AnaClaraChatScreen.test.tsx
-  useKeyboardInset.ts           # Hook para visualViewport API
+  AnaClaraStubScreen.tsx        # Tela stub mobile "Em breve — fale no WhatsApp" (placeholder até existir UI real)
+  AnaClaraStubScreen.test.tsx
+  useKeyboardInset.ts           # Hook para visualViewport API (preparado para o chat real no Plan 2)
 
 src/test/
   mobileRender.ts               # Helper matchMedia mock para testes mobile
@@ -96,9 +96,9 @@ uiStore
 | `Sidebar` | `hidden` | `flex` |
 | `BottomNav` | `flex` fixed bottom-0 | `hidden` |
 | `QuickCreateFab` ("+") | `flex` bottom-24 right-4 | `hidden` (sidebar tem dropdown "Novo") |
-| FAB Ana Clara roxo | `hidden` (virou tab 🤖) | `flex` (existente, bottom-6 right-6) |
+| FAB Ana Clara roxo | `hidden` (virou tab 🤖) | continua renderizado mas agora também sem ação (stub para o futuro Plan 2) |
 | `MoreSheet` | `flex` quando `moreSheetOpen` | `hidden` |
-| `AnaClaraChatScreen` | full-screen quando `anaCoachOpen` | `hidden` (usa `AnaCoachPanel` lateral atual) |
+| `AnaClaraStubScreen` | full-screen quando `anaCoachOpen` | `hidden` (desktop mantém FAB roxo existente, também sem consumidor) |
 
 ### 3.4 Z-index ladder
 
@@ -133,30 +133,41 @@ uiStore
 +-------------------------------+  <- safe-area-inset-bottom
 ```
 
-### 4.2 Mobile, tab 🤖 Ana Clara ativa (full-screen)
+### 4.2 Mobile, tab 🤖 Ana Clara ativa — STUB nesta fase
+
+Plan 1 entrega apenas o stub abaixo. O chat full-screen completo é Plan 2.
 
 ```
 +-------------------------------+
-| ← Ana Clara             ⋯     |
+| ← Ana Clara                   |
 +===============================+
-| ◯ Oi Luciano! Entrou uma      |
-|   despesa no cartão...        |
-|                       você ◯  |
-|          Categoriza em        |
-|          Alimentação          |
-| ◯ Feito! Saldo atualizado.    |
 |                               |
-| [  Digite uma mensagem…  ] 🎤|  input sticky bottom
+|                               |
+|         ┌─────────┐           |
+|         │  avatar │           |  public/ana-clara-avatar.png
+|         │  128×128│           |  (versão otimizada)
+|         └─────────┘           |
+|                               |
+|   Ana Clara chega em breve    |
+|          aqui.                |
+|                               |
+|  Por enquanto, fale comigo    |
+|        no WhatsApp.           |
+|                               |
+|  [  Abrir no WhatsApp  ]      |  <- link para /configuracoes
+|                               |     (aba Integrações/WhatsApp)
 +===============================+
 | 🏠    📋    🤖    🧾    ☰     |  bottom nav continua visível
 |                 ▔▔             |  🤖 ativo
 +-------------------------------+
 ```
 
+Target do stub: chat full-screen completo (mensagens, input, keyboard handling) será o layout futuro do Plan 2. Este wireframe está preservado na §11 como referência para o Plan 2.
+
 Notas:
 - Bottom nav continua visível durante Ana Clara (usuário alterna rápido entre tabs).
-- Quando o teclado virtual abre, o bottom nav é transladado para fora da viewport via `translateY(keyboardInset)` (detalhe técnico na §5). Quando o teclado fecha, volta.
 - FAB "+" some quando `anaCoachOpen === true`.
+- Link "Abrir no WhatsApp" navega para `/configuracoes#integrations-whatsapp` (aba já existente em Settings).
 
 ### 4.3 Mobile, "Mais" aberto (sheet sobre a tela atual)
 
@@ -221,9 +232,11 @@ FAB Ana Clara roxo continua como hoje (`bottom-6 right-6`).
 
 ---
 
-## 5. Keyboard handling na Ana Clara
+## 5. Keyboard handling na Ana Clara (preparado para Plan 2)
 
-Problema: em telas pequenas (iPhone SE 375×667), o teclado virtual (~300px) + bottom nav (64px) + safe-area empurram o input pra fora da viewport.
+O hook `useKeyboardInset` é criado neste plano (com testes) para que o Plan 2 (chat real) o consuma sem precisar voltar aqui. O stub do Plan 1 não precisa do hook — mas o hook já fica pronto e testado.
+
+Problema que o hook resolve: em telas pequenas (iPhone SE 375×667), o teclado virtual (~300px) + bottom nav (64px) + safe-area empurram o input pra fora da viewport.
 
 ### 5.1 Hook `useKeyboardInset`
 
@@ -321,7 +334,8 @@ Qualquer página que fugir do playbook → sub-brainstorm dedicado antes da impl
 - `BottomNav.test.tsx`: renderiza 5 itens de `navigation.ts`; tab ativa destacada; tap dispara navegação; `role="tablist"`; `aria-current` na tab ativa.
 - `MoreSheet.test.tsx`: renderiza 10 itens restantes; abre/fecha via `uiStore`; Escape fecha; backdrop-click fecha; swipe-down fecha.
 - `QuickCreateFab.test.tsx`: dispara `openQuickCreate` com tipo correto; escondido em `lg:`; escondido quando `anaCoachOpen` ou `moreSheetOpen`.
-- `AnaClaraChatScreen.test.tsx`: abre quando `anaCoachOpen`; envolve `AnaCoachPanel` existente; hook `useKeyboardInset` aplicado; input sticky bottom.
+- `AnaClaraStubScreen.test.tsx`: abre quando `anaCoachOpen === true`; renderiza avatar `/ana-clara-avatar-128.webp`; botão "Abrir no WhatsApp" navega para `/configuracoes` com hash `#integrations-whatsapp`; tab 🤖 marcada como `aria-current` enquanto aberta.
+- `useKeyboardInset.test.ts`: mock de `window.visualViewport`; retorna 0 quando teclado fechado; retorna altura do teclado quando vv.height < innerHeight; cleanup do listener no unmount.
 
 ### 7.2 Testes por página
 
@@ -348,7 +362,7 @@ Cada passo é independentemente mergeable — parar em qualquer um deixa o app u
 |---|---|---|
 | 1 | `config/navigation.ts` + refactor `Sidebar.tsx` | `Sidebar.test` passa intacto |
 | 2 | `BottomNav` + `QuickCreateFab` + `MoreSheet` | Testes novos verdes, `MainLayout.test` atualizado |
-| 3 | `AnaClaraChatScreen` + `useKeyboardInset` | Funciona em iPhone SE (375×667) no DevTools |
+| 3 | `AnaClaraStubScreen` + `useKeyboardInset` + otimização do avatar (`ana-clara-avatar-128.webp`, `ana-clara-avatar-512.webp`) | Stub renderiza em iPhone SE (375×667); hook testado unitariamente |
 | 4 | Dashboard mobile | Diff desktop = 0 |
 | 5 | Transações mobile | idem |
 | 6 | Conciliação mobile (sub-brainstorm + tabs swipeable) | idem |
@@ -388,10 +402,45 @@ Aplicam a cada página adaptada. Derivados do ui-ux-pro-max:
 
 ---
 
-## 11. Próximo passo
+## 11. Estratégia de planos
 
-Após revisão do usuário, invocar `superpowers:writing-plans` para transformar este spec em plano de implementação com:
-- Subagents por passo independente (passos 1, 2, 3 podem paralelizar; 4-10 sequenciais)
-- Testes como gates entre passos
-- Instruções de verificação manual (iPhone SE DevTools, iPad, 1440px)
-- Sub-brainstorm agendado para Passo 6 (Conciliação) — macro já travado (tabs swipeable Banco/Sistema/Sugestões)
+Este spec cobre o redesign inteiro, mas os planos de implementação são separados para manter escopo claro:
+
+### Plan 1 — Shell mobile (Passos 1-3 do rollout)
+- `config/navigation.ts` + refactor Sidebar
+- BottomNav + MoreSheet + QuickCreateFab
+- **AnaClaraStubScreen** (tela stub "Em breve") + `useKeyboardInset` (hook testado, preparado para Plan 2)
+- Otimização do avatar (`public/ana-clara-avatar-128.webp`, `ana-clara-avatar-512.webp`)
+- Integração no MainLayout com feature flag de rollback
+
+Entregável: app navegável em mobile com shell funcional, stub da Ana Clara, desktop pixel-idêntico.
+
+### Plan 2 — Chat real da Ana Clara (spec próprio antes)
+Fora do escopo deste documento. Precisará de brainstorm dedicado: fonte de verdade do histórico (WhatsApp? canal separado?), streaming, anexos, estados (online/thinking), paridade desktop vs mobile. Usará o hook `useKeyboardInset` já entregue pelo Plan 1.
+
+Wireframe preservado de referência para o Plan 2:
+
+```
++-------------------------------+
+| ← Ana Clara             ⋯     |
++===============================+
+| ◯ Oi Luciano! Entrou uma...   |
+|                      você ◯   |
+|         Categoriza em         |
+|         Alimentação           |
+| ◯ Feito! Saldo atualizado.    |
+|                               |
+| [ Digite uma mensagem… ] 🎤   |  input sticky bottom + keyboard inset
++===============================+
+```
+
+### Plan 3..N — Páginas (uma por uma)
+- Plan 3: Dashboard mobile
+- Plan 4: Transações mobile
+- Plan 5: Conciliação mobile (tem sub-brainstorm — tabs swipeable Banco/Sistema/Sugestões lockado aqui)
+- Plan 6: Contas a Pagar mobile
+- Plan 7: Agenda mobile
+- Plan 8: Lote Cartões/Metas/Investimentos/Relatórios
+- Plan 9: Lote Educação/LessonViewer/Tags/Categorias/Configurações/Perfil
+
+Cada plan independente e mergeable.
