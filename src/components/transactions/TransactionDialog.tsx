@@ -3,11 +3,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogHeader,
+  ResponsiveDialogBody,
+  ResponsiveDialogFooter,
+} from '@/components/ui/responsive-dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -303,16 +303,14 @@ export const TransactionDialog = ({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleDialogOpenChange}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader className="space-y-3 border-b border-border/60 pb-4">
-            <DialogTitle>
-              {transaction ? 'Editar Transação' : 'Nova Transação'}
-            </DialogTitle>
-          </DialogHeader>
-
+      <ResponsiveDialog open={open} onOpenChange={handleDialogOpenChange}>
+        <ResponsiveDialogHeader
+          title={transaction ? 'Editar Transação' : 'Nova Transação'}
+          onClose={() => handleDialogOpenChange(false)}
+        />
+        <ResponsiveDialogBody>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+          <form id="transaction-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
             {/* Tipo */}
             <FormField
               control={form.control}
@@ -607,42 +605,44 @@ export const TransactionDialog = ({
               )}
             </div>
 
-            {/* Botões */}
-            <div className="flex items-center justify-between gap-3 border-t border-border/60 pt-5">
-              <div>
-                {transaction && onDelete && (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    onClick={() => setDeleteDialogOpen(true)}
-                    disabled={loading}
-                  >
-                    Excluir
-                  </Button>
-                )}
-              </div>
-              <div className="flex gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleDialogOpenChange(false)}
-                  disabled={loading}
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={loading}
-                  className={primaryButtonClass}
-                >
-                  {loading ? 'Salvando...' : transaction ? 'Atualizar' : 'Criar'}
-                </Button>
-              </div>
-            </div>
           </form>
         </Form>
-      </DialogContent>
-      </Dialog>
+        </ResponsiveDialogBody>
+        <ResponsiveDialogFooter>
+          <div className="flex items-center justify-between gap-3 w-full">
+            <div>
+              {transaction && onDelete && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setDeleteDialogOpen(true)}
+                  disabled={loading}
+                >
+                  Excluir
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleDialogOpenChange(false)}
+                disabled={loading}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                form="transaction-form"
+                disabled={loading}
+                className={primaryButtonClass}
+              >
+                {loading ? 'Salvando...' : transaction ? 'Atualizar' : 'Criar'}
+              </Button>
+            </div>
+          </div>
+        </ResponsiveDialogFooter>
+      </ResponsiveDialog>
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent onClick={(e) => e.stopPropagation()}>
