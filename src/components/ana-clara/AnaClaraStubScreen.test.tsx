@@ -78,4 +78,10 @@ describe('AnaClaraStubScreen', () => {
     render(<MemoryRouter><AnaClaraStubScreen /></MemoryRouter>);
     expect(screen.getByTestId('ana-clara-stub-root').className).toContain('lg:hidden');
   });
+
+  it('closes when Escape is pressed', () => {
+    render(<MemoryRouter><AnaClaraStubScreen /></MemoryRouter>);
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(mockedSetAnaCoachOpen).toHaveBeenCalledWith(false);
+  });
 });

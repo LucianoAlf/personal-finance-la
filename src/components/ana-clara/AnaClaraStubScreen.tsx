@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useUIStore } from '@/store/uiStore';
@@ -5,6 +6,15 @@ import { useUIStore } from '@/store/uiStore';
 export function AnaClaraStubScreen() {
   const { anaCoachOpen, setAnaCoachOpen } = useUIStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!anaCoachOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setAnaCoachOpen(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [anaCoachOpen, setAnaCoachOpen]);
 
   if (!anaCoachOpen) return null;
 
@@ -28,7 +38,7 @@ export function AnaClaraStubScreen() {
           type="button"
           onClick={close}
           aria-label="Voltar"
-          className="flex h-9 w-9 items-center justify-center rounded-full hover:bg-surface-elevated"
+          className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-surface-elevated"
         >
           <ArrowLeft size={20} aria-hidden="true" />
         </button>
