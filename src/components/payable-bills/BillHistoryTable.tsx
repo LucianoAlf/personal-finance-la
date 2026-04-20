@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns';
+import { startOfMonth, endOfMonth, parseISO, isWithinInterval, format } from 'date-fns';
 import {
   Table,
   TableBody,
@@ -138,8 +138,54 @@ export function BillHistoryTable({ bills, categories, onDelete }: BillHistoryTab
         </div>
       </div>
 
-      {/* Tabela */}
-      <div className="overflow-hidden rounded-[1.7rem] border border-border/70 bg-card/95 shadow-[0_20px_48px_rgba(15,23,42,0.1)]">
+      {/* Mobile cards alternative */}
+      <div className="lg:hidden space-y-2">
+        {filteredBills.map((bill) => (
+          <div
+            key={`m-${bill.id}`}
+            className="rounded-xl border border-border/70 bg-card/95 p-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-foreground">{bill.description}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  <Badge variant="outline" className="rounded-full border-border/70 bg-surface/70 text-[10px] px-1.5 py-0 mr-1">
+                    {getCategoryName(bill)}
+                  </Badge>
+                  Venc. {format(parseISO(bill.due_date), 'dd/MM/yyyy')}
+                </div>
+              </div>
+              <div className="flex-shrink-0 text-right flex flex-col items-end gap-1">
+                <div className="text-sm font-bold text-foreground">{formatCurrency(bill.paid_amount || bill.amount)}</div>
+                {bill.paid_at ? (
+                  <div className="text-xs text-muted-foreground">
+                    Pago {format(parseISO(bill.paid_at), 'dd/MM/yyyy')}
+                  </div>
+                ) : null}
+                {onDelete && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 rounded-lg text-red-500 hover:bg-red-500/10 hover:text-red-600 mt-1"
+                    onClick={() => onDelete(bill)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {filteredBills.length === 0 && (
+          <div className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Nenhum histórico encontrado
+          </div>
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden lg:block overflow-hidden rounded-[1.7rem] border border-border/70 bg-card/95 shadow-[0_20px_48px_rgba(15,23,42,0.1)]">
         <Table>
           <TableHeader>
             <TableRow className="border-b border-border/70 bg-surface/75 hover:bg-surface/75">
@@ -205,7 +251,7 @@ export function BillHistoryTable({ bills, categories, onDelete }: BillHistoryTab
       </div>
 
       {filteredBills.length === 0 && (
-        <div className="text-center py-8 text-muted-foreground">
+        <div className="hidden lg:block text-center py-8 text-muted-foreground">
           Nenhuma conta encontrada com os filtros aplicados
         </div>
       )}

@@ -57,20 +57,20 @@ function MetricCard({ title, value, subtitle, icon: Icon, tone }: MetricCardProp
   return (
     <div
       className={cn(
-        'rounded-[28px] border border-border/70 bg-card/95 p-5 shadow-[0_18px_44px_rgba(3,8,20,0.14)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_rgba(3,8,20,0.18)] dark:shadow-[0_22px_48px_rgba(2,6,23,0.28)]',
+        'rounded-[28px] border border-border/70 bg-card/95 p-3 md:p-5 shadow-[0_18px_44px_rgba(3,8,20,0.14)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_rgba(3,8,20,0.18)] dark:shadow-[0_22px_48px_rgba(2,6,23,0.28)]',
         toneStyles[tone].shell,
       )}
     >
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl border shadow-sm', toneStyles[tone].iconBox)}>
-          <Icon className="h-5 w-5" />
+      <div className="mb-3 md:mb-5 flex items-start justify-between gap-4">
+        <div className={cn('flex h-8 w-8 md:h-11 md:w-11 items-center justify-center rounded-xl border shadow-sm', toneStyles[tone].iconBox)}>
+          <Icon className="h-4 w-4 md:h-5 md:w-5" />
         </div>
       </div>
-      <h3 className="mb-1 text-sm font-medium text-muted-foreground">{title}</h3>
-      <p className="text-[1.52rem] font-semibold leading-tight tracking-tight text-foreground [font-variant-numeric:tabular-nums] sm:text-[1.68rem]">
+      <h3 className="mb-1 text-xs md:text-sm font-medium text-muted-foreground">{title}</h3>
+      <p className="text-base md:text-[1.52rem] font-semibold leading-tight tracking-tight text-foreground [font-variant-numeric:tabular-nums] lg:text-[1.68rem]">
         {value}
       </p>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{subtitle}</p>
+      <p className="hidden md:block mt-2 text-sm leading-6 text-muted-foreground">{subtitle}</p>
     </div>
   );
 }
@@ -122,7 +122,7 @@ export function ReportsSummaryCards({
   ];
 
   return (
-    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 md:gap-5 xl:grid-cols-4">
       {cards.map((card, index) => (
         <motion.div
           key={card.title}

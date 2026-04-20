@@ -93,10 +93,10 @@ export function BillReportsDashboard({ bills }: LocalBillReportsDashboardProps) 
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-1">
-          <h2 className="text-[1.85rem] font-semibold tracking-tight text-foreground">
+          <h2 className="text-xl md:text-[1.85rem] font-semibold tracking-tight text-foreground">
             Relatórios e Análises
           </h2>
-          <p className="text-sm leading-6 text-muted-foreground">
+          <p className="hidden md:block text-sm leading-6 text-muted-foreground">
             Visão completa dos seus gastos e comportamento financeiro
           </p>
         </div>
@@ -166,10 +166,10 @@ export function BillReportsDashboard({ bills }: LocalBillReportsDashboardProps) 
         <TopProviders providers={data.top_providers} totalAmount={data.totals.total_amount} />
       </section>
 
-      <section className="rounded-[1.75rem] border border-border/70 bg-surface/75 p-5 shadow-[0_20px_50px_rgba(2,6,23,0.18)]">
+      <section className="rounded-[1.75rem] border border-border/70 bg-surface/75 p-3 md:p-5 shadow-[0_20px_50px_rgba(2,6,23,0.18)]">
         <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/18 bg-primary/10 text-primary shadow-sm">
-            <FileText className="h-5 w-5" />
+          <div className="flex h-8 w-8 md:h-11 md:w-11 items-center justify-center rounded-2xl border border-primary/18 bg-primary/10 text-primary shadow-sm">
+            <FileText className="h-4 w-4 md:h-5 md:w-5" />
           </div>
           <div>
             <h4 className="text-base font-semibold text-foreground">Sobre os Relatórios</h4>

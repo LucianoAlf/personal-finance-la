@@ -119,6 +119,17 @@ export default function PayableBills() {
     return () => mql.removeEventListener('change', handler);
   }, [viewMode]);
 
+  // Fix 2C: scroll active tab pill into view on mobile when tab changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const list = document.querySelector('[data-mobile-tabs="true"]');
+    if (!list) return;
+    const activeTab = list.querySelector('[data-state="active"]');
+    if (activeTab && 'scrollIntoView' in activeTab) {
+      (activeTab as Element).scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    }
+  }, [billsMainTab]);
+
   const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
   const isAllAccountsMode = periodFilter === 'all';
 
@@ -512,7 +523,7 @@ export default function PayableBills() {
           paidCount={displaySummary.paidCount}
         />
 
-        <Card className="rounded-[1.6rem] border-border/70 bg-card/95 p-5 shadow-[0_20px_48px_rgba(15,23,42,0.08)] dark:shadow-[0_20px_54px_rgba(2,6,23,0.22)]">
+        <Card className="rounded-[1.6rem] border-border/70 bg-card/95 p-3 md:p-5 shadow-[0_20px_48px_rgba(15,23,42,0.08)] dark:shadow-[0_20px_54px_rgba(2,6,23,0.22)]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Competência</p>
@@ -541,13 +552,15 @@ export default function PayableBills() {
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" className={secondaryButtonClass} onClick={handleCurrentMonth}>
-                  Hoje
-                </Button>
+                <div className="hidden md:inline-flex">
+                  <Button variant="outline" className={secondaryButtonClass} onClick={handleCurrentMonth}>
+                    Hoje
+                  </Button>
+                </div>
               </div>
             </div>
 
-            <div className="max-w-xl text-sm leading-6 text-muted-foreground">
+            <div className="hidden md:block max-w-xl text-sm leading-6 text-muted-foreground">
               {isAllAccountsMode
                 ? 'Modo expandido ativo: exibindo contas de todos os meses.'
                 : `As visões Cards, Tabela e Calendário estão sincronizadas em ${formatMonthYear(selectedMonthDate)}.`}
@@ -586,25 +599,28 @@ export default function PayableBills() {
             </TabsTrigger>
           </TabsList>
 
-          {/* Mobile tabs — scrollable horizontal */}
-          <TabsList className="flex md:hidden w-full gap-2 overflow-x-auto rounded-xl border border-border/70 bg-card/95 p-1">
+          {/* Mobile tabs — scrollable horizontal pill style */}
+          <TabsList
+            data-mobile-tabs="true"
+            className="flex md:hidden w-full gap-2 overflow-x-auto rounded-xl border border-border/70 bg-card/95 p-1 [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+          >
             <TabsTrigger
               value="bills"
-              className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
+              className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               <Receipt className="h-4 w-4" />
               Contas ({filteredBills.length})
             </TabsTrigger>
             <TabsTrigger
               value="history"
-              className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
+              className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               <History className="h-4 w-4" />
               Histórico ({paidBills.length})
             </TabsTrigger>
             <TabsTrigger
               value="reports"
-              className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
+              className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold text-muted-foreground transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
             >
               <BarChart3 className="h-4 w-4" />
               Relatórios

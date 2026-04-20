@@ -1,10 +1,11 @@
 import { motion } from 'framer-motion';
-import { AlertTriangle, Clock, Calendar } from 'lucide-react';
+import { AlertTriangle, Clock, Calendar, Receipt } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
 import { PayableBill } from '@/types/payable-bills.types';
 import type { Category } from '@/types/categories';
 import type { Account } from '@/types/accounts';
 import { BillCard } from './BillCard';
-import { getDaysUntilDue, isBillOverdue, isDueToday } from '@/utils/billCalculations';
+import { getDaysUntilDue, isBillOverdue, isDueToday, formatCurrency } from '@/utils/billCalculations';
 
 function isOpenForAttention(bill: PayableBill): boolean {
   return bill.status !== 'paid' && bill.status !== 'cancelled';
@@ -67,30 +68,57 @@ export function AttentionSection({
         </div>
         
         {/* Mini badges */}
-        <div className="flex gap-2">
+        <div className="flex gap-1 md:gap-2">
           {overdueBills.length > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-red-500 text-white rounded-full">
-              <Clock className="h-3 w-3" />
+            <span className="inline-flex items-center gap-1 md:gap-1.5 px-2 py-1 md:px-2 md:py-1 text-[11px] md:text-xs font-medium bg-red-500 text-white rounded-full">
+              <Clock className="h-3 w-3 md:h-3 md:w-3" />
               {overdueBills.length} atrasada{overdueBills.length > 1 ? 's' : ''}
             </span>
           )}
           {dueTodayBills.length > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-orange-500 text-white rounded-full">
-              <Calendar className="h-3 w-3" />
+            <span className="inline-flex items-center gap-1 md:gap-1.5 px-2 py-1 md:px-2 md:py-1 text-[11px] md:text-xs font-medium bg-orange-500 text-white rounded-full">
+              <Calendar className="h-3 w-3 md:h-3 md:w-3" />
               {dueTodayBills.length} vence hoje
             </span>
           )}
           {dueTomorrowBills.length > 0 && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-yellow-500 text-white rounded-full">
-              <Calendar className="h-3 w-3" />
+            <span className="inline-flex items-center gap-1 md:gap-1.5 px-2 py-1 md:px-2 md:py-1 text-[11px] md:text-xs font-medium bg-yellow-500 text-white rounded-full">
+              <Calendar className="h-3 w-3 md:h-3 md:w-3" />
               {dueTomorrowBills.length} vence amanhã
             </span>
           )}
         </div>
       </div>
 
-      {/* Cards de atenção */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {/* Cards de atenção — mobile compact inline cards */}
+      <div className="lg:hidden space-y-2">
+        {attentionBills.slice(0, 6).map((bill) => {
+          const isOverdue = isBillOverdue(bill.due_date);
+          return (
+            <button
+              key={`a-${bill.id}`}
+              type="button"
+              onClick={() => onEdit(bill)}
+              className={`flex w-full items-center gap-3 rounded-xl border border-border border-l-4 bg-surface-elevated p-3 text-left ${isOverdue ? 'border-l-destructive' : 'border-l-warning'}`}
+            >
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <Receipt size={18} aria-hidden="true" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold text-foreground">{bill.description}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {format(parseISO(bill.due_date), 'dd/MM')}
+                  {' · '}
+                  {formatCurrency(bill.amount)}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Cards de atenção — desktop full BillCard grid */}
+      <div className="hidden lg:grid gap-4 lg:grid-cols-3">
         {attentionBills.slice(0, 6).map((bill, index) => (
           <motion.div
             key={bill.id}
