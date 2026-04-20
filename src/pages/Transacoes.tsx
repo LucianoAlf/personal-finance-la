@@ -410,7 +410,7 @@ export const Transacoes = () => {
       />
 
       <PageContent className="space-y-8 py-8">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-2 md:gap-6 xl:grid-cols-4" data-testid="transacoes-summary-grid">
           <TransactionSummaryCard
             title="Receitas do Mês"
             value={formatCurrency(monthlyIncome)}
