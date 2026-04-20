@@ -321,4 +321,29 @@ describe('Dashboard premium dark mode regression', () => {
     expect(skeletonCard?.className).toContain('bg-surface');
     expect(skeletonCard?.className).toContain('border-border');
   });
+
+  it('renders mobile blocks in priority-first DOM order', () => {
+    render(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    );
+
+    const blocks = screen
+      .getAllByTestId(/^dashboard-block-/)
+      .map((el) => el.getAttribute('data-testid'));
+
+    const expected = [
+      'dashboard-block-ana',
+      'dashboard-block-stats',
+      'dashboard-block-bills',
+      'dashboard-block-investments',
+      'dashboard-block-recent',
+      'dashboard-block-charts',
+      'dashboard-block-goals-budget',
+      'dashboard-block-cards',
+    ];
+
+    expect(blocks).toEqual(expected);
+  });
 });
