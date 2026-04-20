@@ -74,14 +74,14 @@ export function StatCard({
   return (
     <Card
       className={cn(
-        'group relative overflow-hidden rounded-[1.75rem] border-border/70 bg-surface/92 p-6 transition-all duration-300 hover:-translate-y-1.5 hover:border-primary/25 hover:bg-surface-elevated/90 hover:shadow-[0_24px_50px_rgba(3,8,20,0.28)]',
+        'group relative overflow-hidden rounded-xl md:rounded-[1.75rem] border-border/70 bg-surface/92 p-3 md:p-6 transition-all duration-300 hover:-translate-y-1.5 hover:border-primary/25 hover:bg-surface-elevated/90 hover:shadow-[0_24px_50px_rgba(3,8,20,0.28)]',
         onClick && 'cursor-pointer'
       )}
       onClick={onClick}
     >
       <div
         className={cn(
-          'absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent to-transparent opacity-80 transition-transform duration-300 group-hover:scale-x-105',
+          'absolute inset-x-3 md:inset-x-6 top-0 h-px bg-gradient-to-r from-transparent to-transparent opacity-80 transition-transform duration-300 group-hover:scale-x-105',
           accentStyles[gradient].line
         )}
       />
@@ -92,26 +92,26 @@ export function StatCard({
         )}
       />
 
-      <div className="mb-4 flex items-start justify-between">
-        <div className="flex-1">
-          <p className="mb-1 text-sm font-medium text-muted-foreground">{title}</p>
+      <div className="mb-3 md:mb-4 flex items-start justify-between">
+        <div className="flex-1 space-y-1 md:space-y-2">
+          <p className="mb-1 text-xs md:text-sm font-medium text-muted-foreground">{title}</p>
           {loading ? (
             <div className="h-7 w-28 animate-pulse rounded-full bg-surface-elevated" />
           ) : (
             <h3
               className={cn(
-                'text-[1.75rem] font-semibold leading-tight tracking-tight text-foreground sm:text-[1.9rem]',
+                'text-xl md:text-[1.75rem] lg:text-[1.9rem] font-semibold leading-tight tracking-tight text-foreground',
                 valueClassName
               )}
             >
               {value}
             </h3>
           )}
-          {subtitle ? <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p> : null}
+          {subtitle ? <p className="mt-1 text-xs text-muted-foreground hidden md:block">{subtitle}</p> : null}
         </div>
         <div
           className={cn(
-            'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white ring-1 shadow-[0_14px_24px_rgba(5,10,24,0.26)]',
+            'flex h-8 w-8 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white ring-1 shadow-[0_14px_24px_rgba(5,10,24,0.26)]',
             accentStyles[gradient].iconRing,
             iconBoxClassName,
             gradient === 'blue' && 'from-blue-500 to-blue-600',
@@ -127,7 +127,7 @@ export function StatCard({
       </div>
 
       {(badge || trend) && (
-        <div className="flex items-center space-x-2 border-t border-border/60 pt-3">
+        <div className="hidden md:flex items-center space-x-2 border-t border-border/60 pt-3">
           {badge ? <Badge variant={badge.variant}>{badge.text}</Badge> : null}
           {trend ? (
             <div
