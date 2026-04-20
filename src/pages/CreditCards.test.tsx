@@ -115,7 +115,13 @@ vi.mock('@/components/credit-cards/CreditCardAlerts', () => ({
 }));
 
 vi.mock('@/components/credit-cards/CreditCardList', () => ({
-  CreditCardList: () => <div>credit-card-list-mounted</div>,
+  CreditCardList: ({ onEdit, onArchive }: { onEdit?: () => void; onArchive?: () => void }) => (
+    <div>
+      credit-card-list-mounted
+      <button type="button" onClick={onEdit}>Editar</button>
+      <button type="button" onClick={onArchive}>Arquivar</button>
+    </div>
+  ),
 }));
 
 vi.mock('@/components/invoices/InvoiceList', () => ({
@@ -245,5 +251,15 @@ describe('CreditCards initial render', () => {
     const pill = container.querySelector('[data-mobile-tabs="true"] [aria-hidden="true"]');
     expect(pill).not.toBeNull();
     expect((pill as HTMLElement).style.transform).toBe('translateX(0%)');
+  });
+
+  it('renders mobile Editar and Arquivar buttons on card', () => {
+    const { getAllByRole } = render(
+      <MemoryRouter><CreditCards /></MemoryRouter>
+    );
+    const allButtons = getAllByRole('button');
+    const labels = allButtons.map(b => b.textContent?.trim());
+    expect(labels).toContain('Editar');
+    expect(labels).toContain('Arquivar');
   });
 });

@@ -203,6 +203,30 @@ export function CreditCardCard({
             </Button>
           ) : null}
         </div>
+
+        {/* Mobile-only: Editar + Arquivar (lg:hidden) */}
+        <div className="flex gap-2 lg:hidden">
+          <Button
+            variant="outline"
+            className="flex-1 rounded-xl border-border/70 bg-surface/75 text-sm hover:bg-surface-elevated"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit?.();
+            }}
+          >
+            Editar
+          </Button>
+          <Button
+            variant="outline"
+            className="flex-1 rounded-xl border-destructive/30 bg-destructive/5 text-sm text-destructive hover:bg-destructive/10"
+            onClick={(event) => {
+              event.stopPropagation();
+              onArchive?.();
+            }}
+          >
+            Arquivar
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
