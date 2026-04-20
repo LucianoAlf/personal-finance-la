@@ -52,8 +52,10 @@
   ```
 - Triggers: `flex-1`, `bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none`, with `relative z-10`.
 - Pill: `pointer-events-none absolute top-1 bottom-1 left-1 z-0 rounded-full bg-primary shadow-sm transition-transform duration-300 ease-out`.
-- Mobile tabs show **icon-only** (no label) to fit 4 in narrow viewport — accessible via `aria-label` per trigger. Active label text is implicit via the colored pill.
+- Mobile tabs show **icon + label 9px** (icon 15×15 + `<span>` 9px bold below) to fit 4 in narrow viewport — descritivo e acessível. Active label inherits `text-primary-foreground` from pill bg.
 - Desktop renders the original `TabsList` (`hidden md:grid ...`) untouched.
+
+> **Visual decision (confirmed):** B — ícone + label 9px.
 
 ### 3.4 `CreditCardList` — `src/components/credit-cards/CreditCardList.tsx`
 
@@ -64,28 +66,47 @@
 - Empty state (no cards yet): `py-16` → `py-10 md:py-16`, `mb-6 h-24 w-24` icon → `mb-4 h-16 w-16 md:mb-6 md:h-24 md:w-24`, `text-2xl` heading → `text-xl md:text-2xl`.
 - Skeleton placeholder grid: same gap/min-height adjustments.
 
-No structural changes — just compact `<md:` overrides.
+**Card action buttons (mobile):**
+Each existing card has 5 actions. On mobile, render them as a **2×2 grid + 1 full-width row**:
+```
+[ Pagar Fatura ] [ Nova Compra ]
+[ Ver Detalhes ] [ Editar      ]
+[      Arquivar (full width)   ]
+```
+Use `grid grid-cols-2 gap-2 md:flex md:flex-row` on the button container. Arquivar: `col-span-2 md:col-span-1`. Desktop keeps the original flex-row layout unchanged via `md:flex md:flex-row`.
+
+> **Visual decision (confirmed):** A — todas as ações visíveis (2×2 + Arquivar).
 
 ### 3.5 `InvoiceList` filter bar — `src/components/invoices/InvoiceList.tsx`
 
 **Current:** flex-row of 4 filter buttons (open/closed/overdue/paid, each with count chip) + search input. Already wraps below `xl`.
 
 **Mobile dual-render (`<lg:`):**
-- Search bar `flex-1` + icon button `<Filter />` (h-11 w-11) showing badge with active filter count.
-- Tapping icon opens `ResponsiveDialog` titled "Filtros" with the same 4 status toggles vertically (open / closed / overdue / paid), each with the count chip.
-- Reset button at bottom of dialog: "Limpar filtros".
-- Active filter count = `activeTab !== DEFAULT_TAB ? 1 : 0` (only the tab is filterable here, plus search). Use `DEFAULT_TAB = 'open'` constant.
+- **Horizontal scroll pill row** (`flex gap-2 overflow-x-auto scrollbar-none`): 4 pill buttons (Abertas / Fechadas / Vencidas / Pagas), each with icon + label + count chip. Active pill: `bg-primary text-primary-foreground`. Inactive: `bg-surface border-border/70`.
+- Below the pills: search input full-width (`flex-1`).
+- No filter sheet — all filters always visible via horizontal scroll.
+- Active filter = single pill highlighted; no multi-select (same as desktop).
 
 **Desktop (`hidden lg:flex` on the original filter row):** untouched.
+
+> **Visual decision (confirmed):** A — pills deslizáveis na horizontal.
 
 **Cards grid:** `grid-cols-1 xl:grid-cols-2` already mobile-first. Inside each invoice card, verify no horizontal overflow at 375px. If invoice action buttons (Pagar / Detalhes) overflow, stack with `flex-col sm:flex-row`.
 
 ### 3.6 `InvoiceHistory` — `src/components/invoices/InvoiceHistory.tsx`
 
-Likely table-based (full file not yet inspected; will check during implementation). Apply Plan 5 `BillHistoryTable` pattern:
+Likely table-based (full file not yet inspected; will check during implementation). Apply Plan 5 `BillHistoryTable` pattern with **compact row** layout:
 - Table renders desktop-only (`hidden lg:block`).
-- Mobile renders card list (`lg:hidden`): each row = invoice card with month, card name, amount, status, action buttons.
-- Date filter chips, if present, get the same compact treatment as Plan 5 `HistoryDateFilter` (smaller chips, horizontal scroll if needed).
+- Mobile renders card list (`lg:hidden`): each row = **compact single-line card**:
+  ```
+  [ card name       ] [ Paga badge ] [ R$ valor ]
+    Mês Ano
+  ```
+  Row: `flex items-center gap-3 bg-surface rounded-[14px] p-3`. Card name + month in left flex-1, status badge, value right-aligned.
+- Actions (Detalhes / Excluir) via swipe gesture OR long-press context menu — implemented as icon buttons (`...`) on the right, shown on tap.
+- Date filter chips, if present, get horizontal scroll treatment.
+
+> **Visual decision (confirmed):** A — linha compacta, ações via swipe/tap.
 
 ### 3.7 `AnalyticsTab` — `src/components/analytics/AnalyticsTab.tsx`
 
