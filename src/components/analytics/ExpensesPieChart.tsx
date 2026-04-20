@@ -98,15 +98,14 @@ export function ExpensesPieChart({ analyticsData, loading }: ExpensesPieChartPro
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={420}>
+      <ResponsiveContainer width="100%" height={380}>
         <PieChart>
           <Pie
             data={pieData}
             cx="50%"
-            cy="46%"
+            cy="50%"
             labelLine={false}
-            label={({ name, percentage }) => `${name} (${percentage.toFixed(0)}%)`}
-            outerRadius={122}
+            outerRadius={110}
             innerRadius={18}
             fill="hsl(var(--foreground))"
             dataKey="value"

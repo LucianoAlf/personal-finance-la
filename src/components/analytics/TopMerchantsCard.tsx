@@ -93,7 +93,26 @@ export function TopMerchantsCard({ scope }: TopMerchantsCardProps) {
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 text-xs">
+              {/* Mobile: compact inline stats */}
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground lg:hidden">
+                <span>
+                  <span className="font-semibold text-foreground">{merchant.transactionCount}x</span>{' '}visitas
+                </span>
+                <span className="text-border">·</span>
+                <span>
+                  média <span className="font-semibold text-foreground">{formatCurrency(merchant.averageTicket)}</span>
+                </span>
+                <span className="text-border">·</span>
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  <span className="font-semibold text-foreground">
+                    {format(parseDateOnlyAsLocal(merchant.lastPurchaseDate), 'dd/MM', { locale: ptBR })}
+                  </span>
+                </span>
+              </div>
+
+              {/* Desktop: 3-box grid */}
+              <div className="hidden grid-cols-3 gap-2 text-xs lg:grid">
                 <div className="rounded-xl border border-border/60 bg-background/55 px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
                   <p className="text-muted-foreground">Frequencia</p>
                   <p className="font-semibold text-foreground">{merchant.transactionCount}x</p>
