@@ -28,7 +28,7 @@ export function ViewToggle({ value, onChange }: ViewToggleProps) {
         variant="ghost"
         size="sm"
         className={cn(
-          "h-10 rounded-[0.9rem] px-4 text-sm font-semibold text-muted-foreground transition-all",
+          "hidden md:inline-flex h-10 rounded-[0.9rem] px-4 text-sm font-semibold text-muted-foreground transition-all",
           value === 'table' && "bg-surface text-foreground shadow-sm ring-1 ring-primary/15"
         )}
         onClick={() => onChange('table')}
@@ -40,7 +40,7 @@ export function ViewToggle({ value, onChange }: ViewToggleProps) {
         variant="ghost"
         size="sm"
         className={cn(
-          "h-10 rounded-[0.9rem] px-4 text-sm font-semibold text-muted-foreground transition-all",
+          "hidden md:inline-flex h-10 rounded-[0.9rem] px-4 text-sm font-semibold text-muted-foreground transition-all",
           value === 'calendar' && "bg-surface text-foreground shadow-sm ring-1 ring-primary/15"
         )}
         onClick={() => onChange('calendar')}
