@@ -64,7 +64,7 @@ const summaryAccentStyles: Record<TransactionSummaryCardProps['accent'], string>
 };
 
 const summaryIconClassName =
-  'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/20 text-white shadow-[0_12px_24px_rgba(15,23,42,0.15)] dark:border-white/10';
+  'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/20 text-white shadow-[0_12px_24px_rgba(15,23,42,0.15)] dark:border-white/10 md:h-11 md:w-11';
 
 const filterBadgeClassName = 'cursor-default px-3 py-1.5 text-xs font-semibold shadow-sm';
 
@@ -95,18 +95,20 @@ const TransactionSummaryCard = ({
   valueClassName = 'text-foreground',
 }: TransactionSummaryCardProps) => (
   <Card
-    className={`group relative overflow-hidden rounded-[28px] border bg-card/95 p-6 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(15,23,42,0.12)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)] ${summaryAccentStyles[accent]}`}
+    className={`group relative overflow-hidden rounded-[28px] border bg-card/95 p-3 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(15,23,42,0.12)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)] md:p-6 ${summaryAccentStyles[accent]}`}
   >
-    <div className="flex items-start justify-between gap-4">
-      <div className="space-y-2">
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <p className={`text-[1.55rem] font-semibold leading-tight tracking-tight [font-variant-numeric:tabular-nums] sm:text-[1.7rem] ${valueClassName}`}>
+    <div className="flex items-start justify-between gap-2 md:gap-4">
+      <div className="min-w-0 space-y-1 md:space-y-2">
+        <p className="text-xs font-medium text-muted-foreground md:text-sm">{title}</p>
+        <p className={`text-lg font-semibold leading-tight tracking-tight [font-variant-numeric:tabular-nums] md:text-[1.55rem] md:sm:text-[1.7rem] ${valueClassName}`}>
           {value}
         </p>
       </div>
       {icon}
     </div>
-    <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{supporting}</p>
+    {supporting ? (
+      <p className="mt-4 hidden text-sm leading-relaxed text-muted-foreground md:block">{supporting}</p>
+    ) : null}
   </Card>
 );
 
