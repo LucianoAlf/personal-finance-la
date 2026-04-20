@@ -870,3 +870,52 @@ git commit -m "docs(plan4): record transacoes mobile verification"
 - **Plan 7** — Agenda mobile
 - **Plan 8** — lote Cartões/Metas/Investimentos/Relatórios
 - **Plan 9** — utilitárias (Educação, Tags, Categorias, Configurações, Perfil)
+
+---
+
+## Execution Log
+
+**Date**: 2026-04-19
+**Branch**: `feat/transacoes-mobile-plan4` (9 commits ahead of main)
+**Execution mode**: subagent-driven-development (Sonnet implementers + reviewers, Opus final review)
+
+### Commits
+```
+9f7aa13 fix(responsive-dialog): add ESC handler + auto-focus + restore original filter modal title
+8f19845 test(transacoes): assert mobile filter bar and 2-col summary grid
+3528cc5 feat(transacoes): dual-render transaction rows (mobile inline, desktop preserved)
+7cc3390 feat(transacoes): compact summary grid to 2-col on mobile (2x2 layout)
+4268f59 feat(transacoes): mobile filter bar (search + icon btn) with active count badge
+83bca4e refactor(transactions): TransactionDialog consumes ResponsiveDialog
+0ed7faa refactor(filters): AdvancedFiltersModal consumes ResponsiveDialog
+8faa5e8 fix(ui): restore Radix Dialog in ResponsiveDialog desktop slot
+f8381da feat(ui): add ResponsiveDialog primitive (Dialog on desktop, Sheet on mobile)
+```
+
+### Automated verification
+- ResponsiveDialog: 8/8 tests (ESC handler + auto-focus + Radix Dialog assertion)
+- AdvancedFiltersModal: 3/3 tests
+- TransactionDialog: mocked in consumers (Dashboard, Transacoes) — both test suites still pass
+- Transacoes: 5/5 tests (3 existing + 2 new mobile assertions)
+- Full suite: 2 files / 6 tests failing — all pre-existing `task10-CalendarPage` + `ticktick-sync-closure`, unrelated
+- Desktop visual: preserved byte-for-byte (dual-render wraps original JSX inside `hidden lg:block` / `lg:hidden`)
+
+### Review findings addressed
+- Task 1 fix (`8faa5e8`): restored Radix Dialog in desktop slot (initial version dropped it)
+- Final review fix (`9f7aa13`): ESC handler + auto-focus close button + restored "Filtro de transações" title copy
+
+### Deviations from plan
+- Plan instructed `@/lib/cn` import path — confirmed exists, used as planned
+- AdvancedFiltersModal title: restored to original "Filtro de transações" (plan had incorrectly proposed "Filtros Avançados")
+
+### Pending manual verification (USER ACTION)
+
+Task 8 requires browser verification at 3 viewports. Dev server should still be running (from earlier sessions); if not, start: `pnpm dev`.
+
+- [ ] **Desktop (1440×900)**: Transacoes page looks byte-identical to pre-Plan-4. 4-col summary, existing filter bar, transaction rows stack (xl:flex-row at ≥1280). AdvancedFiltersModal and TransactionDialog open as centered dialogs (not full-screen).
+- [ ] **iPad portrait (768×1024)**: Bottom nav visible. Summary 2×2, filter bar mobile (search flex-1 + filter icon button), transaction rows inline. Tap filter icon → full-screen sheet (swipes up). Tap row → TransactionDialog full-screen.
+- [ ] **iPhone SE (375×667)**: Same as tablet. Summary 2×2 cards don't overflow (verify icon/value fit in ~180px width). Filter icon has count badge if filters active. Escape key closes mobile sheet (if virtual keyboard test is possible).
+
+### Handoff
+
+Branch is ready for `superpowers:finishing-a-development-branch`. Suggested: Option 1 (merge locally to main via fast-forward). Same path as Plans 1 and 3.
