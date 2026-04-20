@@ -1,9 +1,11 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { createContext, useContext } from 'react';
 import { X } from 'lucide-react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { cn } from '@/lib/cn';
 
-type DialogMode = 'desktop' | 'mobile';
-const ModeContext = createContext<DialogMode>('mobile');
+type Mode = 'desktop' | 'mobile';
+const ModeContext = createContext<Mode>('desktop');
 
 interface ResponsiveDialogProps {
   open: boolean;
@@ -12,42 +14,33 @@ interface ResponsiveDialogProps {
   className?: string;
 }
 
-export function ResponsiveDialog({ open, onOpenChange: _onOpenChange, children, className }: ResponsiveDialogProps) {
-  if (!open) return null;
-
+export function ResponsiveDialog({ open, onOpenChange, children, className }: ResponsiveDialogProps) {
   return (
     <>
-      {/*
-       * Desktop: a CSS-only modal panel (no Radix portal) shown only on lg+ screens.
-       * Using a plain div avoids Radix's aria-modal portal which would interfere with
-       * accessible-role queries when both desktop and mobile trees are in the DOM.
-       * In production this is visually hidden on small screens via lg:block.
-       */}
-      <div data-testid="responsive-dialog-desktop" className={cn('hidden lg:block', className)}>
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-        >
-          <div className="relative w-full max-w-2xl rounded-lg bg-background p-6 shadow-lg">
+      {/* Desktop: Radix Dialog with portal, focus trap, ESC, overlay click */}
+      <div data-testid="responsive-dialog-desktop" className="hidden lg:block">
+        <Dialog open={open} onOpenChange={onOpenChange}>
+          <DialogContent className={cn('max-w-2xl', className)}>
             <ModeContext.Provider value="desktop">
               {children}
             </ModeContext.Provider>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Mobile: full-screen overlay */}
-      <div
-        data-testid="responsive-dialog-mobile"
-        role="dialog"
-        aria-modal="true"
-        className="fixed inset-0 z-[80] flex flex-col bg-background text-foreground lg:hidden"
-      >
-        <ModeContext.Provider value="mobile">
-          {children}
-        </ModeContext.Provider>
-      </div>
+      {open && (
+        <div
+          data-testid="responsive-dialog-mobile"
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-[80] flex flex-col bg-background text-foreground lg:hidden"
+        >
+          <ModeContext.Provider value="mobile">
+            {children}
+          </ModeContext.Provider>
+        </div>
+      )}
     </>
   );
 }
@@ -95,11 +88,7 @@ export function ResponsiveDialogBody({ children }: { children: ReactNode }) {
   const mode = useContext(ModeContext);
 
   if (mode === 'desktop') {
-    return (
-      <div data-testid="responsive-dialog-body-desktop">
-        {children}
-      </div>
-    );
+    return <div data-testid="responsive-dialog-body-desktop">{children}</div>;
   }
 
   return (
@@ -117,10 +106,7 @@ export function ResponsiveDialogFooter({ children }: { children: ReactNode }) {
 
   if (mode === 'desktop') {
     return (
-      <div
-        data-testid="responsive-dialog-footer-desktop"
-        className="flex justify-end gap-2 pt-4"
-      >
+      <div data-testid="responsive-dialog-footer-desktop" className="flex justify-end gap-2 pt-4">
         {children}
       </div>
     );

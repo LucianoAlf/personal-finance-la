@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, fireEvent } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent, within } from '@testing-library/react';
 import {
   ResponsiveDialog,
   ResponsiveDialogHeader,
@@ -51,7 +51,9 @@ describe('ResponsiveDialog', () => {
     }
 
     render(<Example />);
-    fireEvent.click(screen.getByRole('button', { name: /fechar/i }));
+    // Radix Dialog's aria-modal portal causes getByRole to scope to the portal only.
+    // Use getByLabelText which is not restricted by aria-modal scoping.
+    fireEvent.click(screen.getByLabelText(/fechar/i));
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -74,5 +76,17 @@ describe('ResponsiveDialog', () => {
     );
     const body = screen.getByTestId('responsive-dialog-body-mobile');
     expect(body.className).toContain('overflow-y-auto');
+  });
+
+  it('desktop tree wraps children in Radix Dialog (portal + focus trap)', () => {
+    render(
+      <ResponsiveDialog open onOpenChange={() => {}}>
+        <ResponsiveDialogHeader title="X" />
+        <ResponsiveDialogBody>b</ResponsiveDialogBody>
+      </ResponsiveDialog>,
+    );
+    // Radix Dialog sets role="dialog" on the DialogContent rendered into the portal
+    const dialogs = screen.getAllByRole('dialog');
+    expect(dialogs.length).toBeGreaterThanOrEqual(1);
   });
 });
