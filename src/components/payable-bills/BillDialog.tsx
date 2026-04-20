@@ -3,12 +3,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogHeader,
+  ResponsiveDialogBody,
+  ResponsiveDialogFooter,
+} from '@/components/ui/responsive-dialog';
 import {
   Form,
   FormControl,
@@ -381,16 +380,18 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden rounded-[1.7rem] border-border/70 bg-background/98 shadow-[0_30px_78px_rgba(2,6,23,0.42)] backdrop-blur-xl">
-        <DialogHeader>
-          <DialogTitle>
-            {isEditing ? 'Editar Conta' : 'Nova Conta a Pagar'}
-          </DialogTitle>
-        </DialogHeader>
-
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogHeader
+        title={isEditing ? 'Editar conta' : 'Nova conta'}
+        onClose={() => onOpenChange(false)}
+      />
+      <ResponsiveDialogBody>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit, handleInvalidSubmit)} className="flex min-h-0 flex-1 flex-col gap-6">
+          <form
+            id="bill-form"
+            onSubmit={form.handleSubmit(handleSubmit, handleInvalidSubmit)}
+            className="space-y-4"
+          >
             <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-4">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid h-auto w-full grid-cols-4 rounded-[1.2rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)]">
@@ -1068,26 +1069,27 @@ export function BillDialog({ open, onOpenChange, onSubmit, bill }: BillDialogPro
               </TabsContent>
             </Tabs>
             </div>
-            <DialogFooter className="border-t border-border/60 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-xl border-border/70 bg-surface/85 hover:bg-surface-elevated"
-                onClick={() => onOpenChange(false)}
-              >
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                className="rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90"
-                disabled={form.formState.isSubmitting}
-              >
-                {form.formState.isSubmitting ? 'Salvando...' : (isEditing ? 'Salvar' : 'Criar Conta')}
-              </Button>
-            </DialogFooter>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+      <ResponsiveDialogFooter>
+        <Button
+          type="button"
+          variant="outline"
+          className="rounded-xl border-border/70 bg-surface/85 hover:bg-surface-elevated"
+          onClick={() => onOpenChange(false)}
+        >
+          Cancelar
+        </Button>
+        <Button
+          type="submit"
+          form="bill-form"
+          className="rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90"
+          disabled={form.formState.isSubmitting}
+        >
+          {form.formState.isSubmitting ? 'Salvando...' : (isEditing ? 'Salvar' : 'Criar Conta')}
+        </Button>
+      </ResponsiveDialogFooter>
+    </ResponsiveDialog>
   );
 }
