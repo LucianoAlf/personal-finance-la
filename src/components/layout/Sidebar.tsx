@@ -8,28 +8,13 @@ import { useSettings } from '@/hooks/useSettings';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
-  Home,
   Wallet,
-  List,
-  CreditCard,
-  Receipt,
-  Target,
-  TrendingUp,
-  TrendingDown,
-  BarChart3,
-  GraduationCap,
-  CalendarDays,
-  Settings,
   Plus,
   Menu,
   X,
   Bot,
   MoreHorizontal,
-  Tag,
-  FolderTree,
   ChevronDown,
-  ArrowRightLeft,
-  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -45,34 +30,12 @@ import {
   resolveUserAvatarUrl,
   resolveUserDisplayName,
 } from '@/utils/profileIdentity';
-
-const quickCreateItems = [
-  { icon: TrendingDown, label: 'Despesa', action: 'expense' as const },
-  { icon: TrendingUp, label: 'Receita', action: 'income' as const },
-  { icon: CreditCard, label: 'Despesa cartao', action: 'card-expense' as const },
-  { icon: ArrowRightLeft, label: 'Transferencia', action: 'transfer' as const },
-  { icon: Receipt, label: 'Conta a pagar', action: 'payable-bill' as const },
-];
-
-const menuItems = [
-  { icon: Home, label: 'Dashboard', path: '/' },
-  { icon: Wallet, label: 'Contas', path: '/contas' },
-  { icon: List, label: 'Transações', path: '/transacoes' },
-  { icon: ShieldCheck, label: 'Conciliação', path: '/conciliacao' },
-  { icon: CreditCard, label: 'Cartões', path: '/cartoes' },
-  { icon: Receipt, label: 'Contas a Pagar', path: '/contas-pagar' },
-  { icon: CalendarDays, label: 'Agenda', path: '/agenda' },
-  { icon: Target, label: 'Metas', path: '/metas' },
-  { icon: TrendingUp, label: 'Investimentos', path: '/investimentos' },
-  { icon: BarChart3, label: 'Relatórios', path: '/relatorios' },
-  { icon: GraduationCap, label: 'Educação', path: '/educacao' },
-];
-
-const moreOptionsItems = [
-  { icon: Tag, label: 'Tags', path: '/tags' },
-  { icon: FolderTree, label: 'Categorias', path: '/categorias' },
-  { icon: Settings, label: 'Configurações', path: '/configuracoes' },
-];
+import {
+  primaryMenuItems,
+  moreMenuItems,
+  quickCreateItems,
+  type QuickCreateAction,
+} from '@/config/navigation';
 
 export function Sidebar() {
   const location = useLocation();
@@ -85,7 +48,7 @@ export function Sidebar() {
   const resolvedAvatarUrl = resolveUserAvatarUrl(profile, userSettings);
   const avatarSrc = resolvedAvatarUrl || undefined;
 
-  const handleQuickCreate = (action: (typeof quickCreateItems)[number]['action']) => {
+  const handleQuickCreate = (action: QuickCreateAction) => {
     openQuickCreate(action);
 
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
@@ -94,14 +57,7 @@ export function Sidebar() {
   };
 
   return (
-    <>
-      {sidebarOpen ? (
-        <div
-          className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm lg:hidden"
-          onClick={toggleSidebar}
-        />
-      ) : null}
-
+    <div className="contents lg:contents max-lg:hidden">
       <aside
         className={cn(
           'fixed left-0 top-0 z-50 flex h-screen w-64 flex-col border-r border-border bg-surface/95 text-foreground shadow-[inset_-1px_0_0_rgba(255,255,255,0.03),0_18px_50px_rgba(3,8,20,0.32)] backdrop-blur supports-[backdrop-filter]:bg-surface/92 transition-all duration-300',
@@ -154,7 +110,7 @@ export function Sidebar() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-2">
-          {menuItems.map((item) => {
+          {primaryMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
 
@@ -185,7 +141,7 @@ export function Sidebar() {
               onClick={() => setMoreOptionsOpen(!moreOptionsOpen)}
               className={cn(
                 'mb-1 flex w-full items-center justify-between rounded-xl px-4 py-3 transition-all duration-200',
-                moreOptionsOpen || moreOptionsItems.some(item => location.pathname === item.path)
+                moreOptionsOpen || moreMenuItems.some(item => location.pathname === item.path)
                   ? 'bg-surface-elevated text-foreground shadow-sm ring-1 ring-primary/15'
                   : 'text-muted-foreground hover:bg-surface-elevated/80 hover:text-foreground',
               )}
@@ -205,7 +161,7 @@ export function Sidebar() {
 
             {moreOptionsOpen ? (
               <div className="ml-4 space-y-1 border-l border-border/70 pl-3">
-                {moreOptionsItems.map((item) => {
+                {moreMenuItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = location.pathname === item.path;
 
@@ -251,19 +207,12 @@ export function Sidebar() {
       </aside>
 
       <button
-        onClick={toggleSidebar}
-        className="fixed left-4 top-4 z-30 rounded-xl border border-border bg-surface-elevated p-2.5 text-foreground shadow-lg lg:hidden"
-      >
-        <Menu size={24} />
-      </button>
-
-      <button
         onClick={() => setAnaCoachOpen(true)}
         className="fixed bottom-6 right-6 z-30 flex h-16 w-16 items-center justify-center rounded-full border border-primary/30 bg-primary text-primary-foreground shadow-2xl shadow-primary/20 transition-all hover:scale-105 hover:bg-primary/90"
       >
         <Bot size={28} className="text-current" />
       </button>
-    </>
+    </div>
   );
 }
 
