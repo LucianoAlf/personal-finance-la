@@ -38,7 +38,7 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
     void persistTheme(nextTheme, { showSuccessToast: false });
   };
 
-  const handleLogout = async () => {
+  const handleSignOut = async () => {
     try {
       await signOut();
       navigate('/login');
@@ -52,23 +52,36 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
   const avatarSrc = resolvedAvatarUrl || undefined;
 
   return (
-    <header className="sticky top-0 z-20 border-b border-border bg-surface/95 px-6 py-6 text-foreground shadow-[0_1px_0_rgba(255,255,255,0.03)] backdrop-blur supports-[backdrop-filter]:bg-surface/85">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
+    <header
+      role="banner"
+      className="sticky top-0 z-20 border-b border-border bg-surface/95 text-foreground shadow-[0_1px_0_rgba(255,255,255,0.03)] backdrop-blur supports-[backdrop-filter]:bg-surface/85"
+    >
+      {/* Row 1: icon + title + (desktop) actions + theme toggle + avatar */}
+      <div className="flex items-center justify-between gap-3 px-4 py-3 lg:gap-4 lg:px-6 lg:py-6">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           {icon && (
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm lg:h-11 lg:w-11">
               {icon}
             </div>
           )}
 
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">{title}</h1>
-            {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold tracking-tight text-foreground lg:text-3xl">
+              {title}
+            </h1>
+            {subtitle ? (
+              <p
+                data-testid="header-subtitle-desktop"
+                className="mt-1 hidden text-sm text-muted-foreground lg:block"
+              >
+                {subtitle}
+              </p>
+            ) : null}
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {actions ? <div className="flex items-center gap-3">{actions}</div> : null}
+        <div className="flex flex-shrink-0 items-center gap-2 lg:gap-3">
+          {actions ? <div className="hidden items-center gap-3 lg:flex">{actions}</div> : null}
 
           <Button
             type="button"
@@ -130,7 +143,7 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={handleLogout}
+                onClick={handleSignOut}
                 className="text-danger focus:bg-danger-subtle focus:text-danger data-[highlighted]:bg-danger-subtle data-[highlighted]:text-danger"
               >
                 <LogOut className="mr-2 h-4 w-4" />
@@ -140,6 +153,30 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Row 2: mobile-only — subtitle + actions */}
+      {(subtitle || actions) && (
+        <div
+          data-testid="header-row2"
+          className="flex items-center gap-2 border-t border-border/60 px-4 py-2 lg:hidden"
+        >
+          {subtitle ? (
+            <p
+              data-testid="header-subtitle-mobile"
+              className="flex-1 truncate text-xs text-muted-foreground lg:hidden"
+            >
+              {subtitle}
+            </p>
+          ) : (
+            <span className="flex-1" />
+          )}
+          {actions ? (
+            <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap">
+              {actions}
+            </div>
+          ) : null}
+        </div>
+      )}
     </header>
   );
 }
