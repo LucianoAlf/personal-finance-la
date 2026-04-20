@@ -125,7 +125,12 @@ vi.mock('@/components/credit-cards/CreditCardList', () => ({
 }));
 
 vi.mock('@/components/invoices/InvoiceList', () => ({
-  InvoiceList: () => <div>invoice-list-mounted</div>,
+  InvoiceList: () => (
+    <div>
+      <div data-mobile-pills="true" />
+      invoice-list-mounted
+    </div>
+  ),
 }));
 
 vi.mock('@/components/analytics/AnalyticsTab', () => ({
@@ -261,5 +266,13 @@ describe('CreditCards initial render', () => {
     const labels = allButtons.map(b => b.textContent?.trim());
     expect(labels).toContain('Editar');
     expect(labels).toContain('Arquivar');
+  });
+
+  it('renders mobile invoice filter pills container', () => {
+    const { container } = render(
+      <MemoryRouter><CreditCards /></MemoryRouter>
+    );
+    const pills = container.querySelector('[data-mobile-pills="true"]');
+    expect(pills).not.toBeNull();
   });
 });
