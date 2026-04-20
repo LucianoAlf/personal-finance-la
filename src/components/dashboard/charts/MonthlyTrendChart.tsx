@@ -95,24 +95,27 @@ export function MonthlyTrendChart({ transactions, selectedDate }: MonthlyTrendCh
       isEmpty={!hasData}
       emptyMessage="Dados insuficientes para gerar o gráfico"
     >
-      <ResponsiveContainer width="100%" height={300}>
+      <div className="w-full min-h-[240px] overflow-hidden">
+      <ResponsiveContainer width="100%" height={240}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
           <XAxis
             dataKey="month"
             className="text-gray-600 dark:text-gray-400"
             stroke="currentColor"
-            style={{ fontSize: '12px' }}
+            tick={{ fontSize: 11 }}
           />
           <YAxis
             className="text-gray-600 dark:text-gray-400"
             stroke="currentColor"
-            style={{ fontSize: '12px' }}
+            tick={{ fontSize: 11 }}
             tickFormatter={formatYAxis}
           />
           <Tooltip content={<CustomTooltip />} />
-          <Legend 
-            wrapperStyle={{ fontSize: '14px' }}
+          <Legend
+            verticalAlign="bottom"
+            iconSize={10}
+            wrapperStyle={{ fontSize: 12 }}
             iconType="line"
           />
           <Line 
@@ -137,6 +140,7 @@ export function MonthlyTrendChart({ transactions, selectedDate }: MonthlyTrendCh
           />
         </LineChart>
       </ResponsiveContainer>
+      </div>
     </ChartCard>
   );
 }
