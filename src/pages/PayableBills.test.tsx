@@ -181,13 +181,13 @@ describe('PayableBills premium shell regression', () => {
     expect(screen.getByRole('button', { name: /abrir filtros/i })).toBeTruthy();
   });
 
-  it('renders mobile tab list with overflow-x-auto class (3 tabs scrollable)', () => {
+  it('renders mobile tab list with sliding pill indicator (3 equal-width tabs)', () => {
     const { container } = render(
       <MemoryRouter>
         <PayableBills />
       </MemoryRouter>,
     );
-    const mobileTabs = container.querySelector('.md\\:hidden.overflow-x-auto');
+    const mobileTabs = container.querySelector('[data-mobile-tabs="true"]');
     expect(mobileTabs).toBeTruthy();
   });
 

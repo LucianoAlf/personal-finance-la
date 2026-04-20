@@ -115,7 +115,7 @@ export function HistoryDateFilter({ value, onChange }: HistoryDateFilterProps) {
   return (
     <div className="space-y-4">
       {/* Chips de Atalho */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5 md:gap-2">
         {QUICK_FILTERS.map((filter) => (
           <motion.button
             key={filter.id}
@@ -123,7 +123,7 @@ export function HistoryDateFilter({ value, onChange }: HistoryDateFilterProps) {
             whileTap={{ scale: 0.98 }}
             onClick={() => handleQuickFilter(filter.id)}
             className={cn(
-              "rounded-full border px-4 py-2 text-sm font-medium transition-all",
+              "rounded-full border px-2 py-1 md:px-4 md:py-2 text-xs md:text-sm font-medium transition-all",
               activeFilter === filter.id
                 ? "border-primary/30 bg-primary text-primary-foreground shadow-[0_12px_24px_rgba(139,92,246,0.22)]"
                 : "border-border/70 bg-card/90 text-foreground hover:bg-surface"

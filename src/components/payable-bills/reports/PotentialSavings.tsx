@@ -86,14 +86,14 @@ export function PotentialSavings({ savings }: PotentialSavingsProps) {
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="rounded-[1.5rem] border border-success-border/50 bg-success-subtle/65 px-5 py-10 text-center shadow-[0_18px_40px_rgba(2,6,23,0.12)]"
+            className="rounded-[1.5rem] border border-success-border/50 bg-success-subtle/65 px-5 py-4 md:py-10 text-center shadow-[0_18px_40px_rgba(2,6,23,0.12)]"
           >
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full border border-success-border/40 bg-success/10">
-              <PiggyBank className="h-8 w-8 text-success" />
+            <div className="mx-auto mb-3 flex h-10 w-10 md:h-16 md:w-16 items-center justify-center rounded-full border border-success-border/40 bg-success/10">
+              <PiggyBank className="h-5 w-5 md:h-8 md:w-8 text-success" />
             </div>
-            <h3 className="text-2xl font-semibold tracking-tight text-success">Parabéns!</h3>
-            <p className="mt-2 text-sm text-foreground">Você está em dia com todas as contas.</p>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h3 className="text-base md:text-2xl font-semibold tracking-tight text-success">Parabéns!</h3>
+            <p className="mt-1.5 text-xs md:text-sm text-foreground">Você está em dia com todas as contas.</p>
+            <p className="hidden md:block mt-1 text-sm text-muted-foreground">
               Continue assim para evitar juros e multas nas próximas competências.
             </p>
           </motion.div>

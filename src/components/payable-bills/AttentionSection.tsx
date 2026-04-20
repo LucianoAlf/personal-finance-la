@@ -99,13 +99,19 @@ export function AttentionSection({
               key={`a-${bill.id}`}
               type="button"
               onClick={() => onEdit(bill)}
-              className={`flex w-full items-center gap-3 rounded-xl border border-border border-l-4 bg-surface-elevated p-3 text-left ${isOverdue ? 'border-l-destructive' : 'border-l-warning'}`}
+              className={`flex w-full items-center gap-3 rounded-xl border-2 p-3 text-left transition-colors shadow-sm ${
+                isOverdue
+                  ? 'border-destructive/50 bg-destructive/10 hover:bg-destructive/15'
+                  : 'border-warning/50 bg-warning/10 hover:bg-warning/15'
+              }`}
             >
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${
+                isOverdue ? 'bg-destructive/20 text-destructive' : 'bg-warning/20 text-warning'
+              }`}>
                 <Receipt size={18} aria-hidden="true" />
               </div>
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold text-foreground">{bill.description}</div>
+                <div className="truncate text-sm font-bold text-foreground">{bill.description}</div>
                 <div className="truncate text-xs text-muted-foreground">
                   {format(parseISO(bill.due_date), 'dd/MM')}
                   {' · '}

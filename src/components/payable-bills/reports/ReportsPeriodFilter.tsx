@@ -60,7 +60,8 @@ export function ReportsPeriodFilter({
 
   return (
     <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-      <div className="flex flex-wrap gap-2">
+      {/* Mobile: horizontal scroll strip; Desktop: flex-wrap */}
+      <div className="flex overflow-x-auto gap-2 [&::-webkit-scrollbar]:hidden [scrollbar-width:none] xl:flex-wrap xl:overflow-visible">
         {QUICK_PRESETS.slice(0, 4).map((preset) => {
           const active = periodPreset === preset;
           return (
@@ -71,7 +72,7 @@ export function ReportsPeriodFilter({
               variant="outline"
               onClick={() => onPeriodChange(preset)}
               className={cn(
-                'h-10 rounded-xl border-border/70 px-4 text-sm font-semibold shadow-sm transition-all',
+                'h-8 flex-shrink-0 rounded-xl border-border/70 px-2.5 text-xs font-semibold shadow-sm transition-all xl:h-10 xl:px-4 xl:text-sm',
                 active
                   ? 'border-primary/25 bg-primary/12 text-primary hover:bg-primary/14'
                   : 'bg-background/55 text-foreground hover:bg-surface-elevated',
@@ -86,7 +87,7 @@ export function ReportsPeriodFilter({
           value={QUICK_PRESETS.slice(4).includes(periodPreset) ? periodPreset : ''}
           onValueChange={(value) => onPeriodChange(value as PeriodPreset)}
         >
-          <SelectTrigger className="h-10 w-[168px] rounded-xl border-border/70 bg-background/55 text-sm font-semibold shadow-none">
+          <SelectTrigger className="h-8 w-[140px] flex-shrink-0 rounded-xl border-border/70 bg-background/55 text-xs font-semibold shadow-none xl:h-10 xl:w-[168px] xl:text-sm">
             <SelectValue placeholder="Mais períodos" />
           </SelectTrigger>
           <SelectContent className="rounded-2xl border-border/70 bg-background/98 shadow-[0_24px_70px_rgba(2,6,23,0.32)]">
@@ -105,7 +106,7 @@ export function ReportsPeriodFilter({
               size="sm"
               variant="outline"
               className={cn(
-                'h-10 rounded-xl border-border/70 px-4 text-sm font-semibold shadow-sm transition-all hover:bg-surface-elevated',
+                'h-8 flex-shrink-0 rounded-xl border-border/70 px-2.5 text-xs font-semibold shadow-sm transition-all hover:bg-surface-elevated xl:h-10 xl:px-4 xl:text-sm',
                 periodPreset === 'custom'
                   ? 'border-primary/25 bg-primary/12 text-primary'
                   : 'bg-background/55 text-foreground',
