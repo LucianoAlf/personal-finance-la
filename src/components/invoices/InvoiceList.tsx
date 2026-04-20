@@ -170,6 +170,8 @@ export function InvoiceList({
           className="mb-3 flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden lg:hidden"
         >
           <button
+            type="button"
+            aria-pressed={activeTab === 'open'}
             onClick={() => setActiveTab('open')}
             className={mobilePillClass(activeTab === 'open')}
           >
@@ -180,6 +182,8 @@ export function InvoiceList({
             </span>
           </button>
           <button
+            type="button"
+            aria-pressed={activeTab === 'closed'}
             onClick={() => setActiveTab('closed')}
             className={mobilePillClass(activeTab === 'closed')}
           >
@@ -191,6 +195,8 @@ export function InvoiceList({
           </button>
           {overdueInvoices.length > 0 ? (
             <button
+              type="button"
+              aria-pressed={activeTab === 'overdue'}
               onClick={() => setActiveTab('overdue')}
               className={mobilePillClass(activeTab === 'overdue', 'danger')}
             >
@@ -202,6 +208,8 @@ export function InvoiceList({
             </button>
           ) : null}
           <button
+            type="button"
+            aria-pressed={activeTab === 'paid'}
             onClick={() => setActiveTab('paid')}
             className={mobilePillClass(activeTab === 'paid')}
           >
