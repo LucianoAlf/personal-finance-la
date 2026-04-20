@@ -128,6 +128,72 @@ export function Dashboard() {
   const totalBalance = getTotalBalance();
   const totalCreditCards = getTotalUsed();
 
+  // Shared Recent Transactions JSX (used in both mobile and desktop trees)
+  const recentTransactionsCard = (
+    <Card className="border-border/70 bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
+      <CardHeader className="pb-4">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <List className="h-5 w-5 text-primary" />
+            Transações Recentes
+          </CardTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-xl border border-border/70 bg-surface-elevated/70 text-muted-foreground hover:bg-surface-overlay hover:text-foreground"
+            onClick={() => navigate('/transacoes')}
+          >
+            Ver Todas
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 pt-1">
+        {recentTransactions.length > 0 ? (
+          recentTransactions.map((transaction) => {
+            const shown = transaction.displayAmount ?? transaction.amount;
+            const total = transaction.displayPurchaseTotal;
+            const amountFootnote =
+              transaction.groupedInstallments?.length && total != null
+                ? Math.abs(Number(total) - Number(shown)) > 0.009
+                  ? `Compra total ${formatCurrency(total)} · competência no mês ${formatCurrency(shown)}`
+                  : `Compra total ${formatCurrency(total)}`
+                : undefined;
+            return (
+              <TransactionItem
+                key={transaction.id}
+                type={transaction.type}
+                description={transaction.displayDescription || transaction.description}
+                category_id={transaction.category_id}
+                date={new Date(`${transaction.transaction_date}T00:00:00`)}
+                amount={shown}
+                is_paid={transaction.is_paid}
+                is_recurring={transaction.is_recurring}
+                extraBadgeText={transaction.groupedInstallments?.length ? `Parcelado ${transaction.total_installments || transaction.groupedInstallmentCount}x` : undefined}
+                amountFootnote={amountFootnote}
+                tags={transaction.tags}
+              />
+            );
+          })
+        ) : (
+          <div className="flex flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-surface-elevated/40 py-12 text-center">
+            <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-elevated ring-1 ring-border/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+              <FileText size={32} className="text-primary/70" />
+            </div>
+            <p className="mb-2 font-semibold text-foreground">Nenhuma transação recente</p>
+            <p className="mb-4 text-sm text-muted-foreground">Crie sua primeira transação para começar!</p>
+            <Button
+              onClick={() => navigate('/transacoes')}
+              size="sm"
+              className="rounded-xl"
+            >
+              Adicionar Transação
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   // ✅ RENDERIZAR TUDO IMEDIATAMENTE (sem bloqueio)
   return (
     <div className="relative min-h-screen bg-background text-foreground">
@@ -145,185 +211,211 @@ export function Dashboard() {
         }
       />
 
-      <PageContent className="flex flex-col space-y-6 py-6 lg:space-y-8 lg:py-8">
-        {/* Mobile-only alert */}
-        <DashboardAlertCard
-          overdueCount={overdueSummary.count}
-          overdueAmount={overdueSummary.amount}
-          topItems={overdueSummary.topItems}
-        />
-
-        {/* Stat Cards */}
-        <div
-          data-testid="dashboard-block-stats"
-          className="grid grid-cols-1 gap-4 animate-fade-in md:grid-cols-2 lg:grid-cols-4 lg:gap-6 lg:order-1"
-        >
-          <StatCard
-            title="Saldo Total"
-            value={formatCurrency(totalBalance)}
-            icon={Wallet}
-            gradient="blue"
-            loading={accountsLoading && accounts.length === 0}
-            onClick={() => navigate('/contas')}
+      <PageContent className="space-y-8 py-8">
+        {/* ============ MOBILE TREE (< lg) ============ */}
+        <div className="flex flex-col gap-6 lg:hidden">
+          {/* 1. Alert (conditional) */}
+          <DashboardAlertCard
+            overdueCount={overdueSummary.count}
+            overdueAmount={overdueSummary.amount}
+            topItems={overdueSummary.topItems}
           />
-          <StatCard
-            title="Receitas do Mês"
-            value={formatCurrency(totalIncome)}
-            icon={TrendingUp}
-            gradient="green"
-            loading={transactionsLoading && transactions.length === 0}
-            badge={{ text: 'Confirmado', variant: 'success' }}
-            onClick={() => navigate('/transacoes?type=income')}
-          />
-          <StatCard
-            title="Despesas do Mês"
-            value={formatCurrency(totalExpenses)}
-            icon={TrendingDown}
-            gradient="red"
-            loading={transactionsLoading && transactions.length === 0}
-            subtitle={(() => {
-              if (spendingPlanSummary.totalPlanned === 0) {
-                return 'Sem meta mensal definida';
-              }
 
-              return `${spendingPlanSummary.utilizationPct}% dos limites`;
-            })()}
-            onClick={() => navigate('/transacoes?type=expense')}
-          />
-          <StatCard
-            title="Cartões de Crédito"
-            value={formatCurrency(totalCreditCards)}
-            icon={CreditCard}
-            gradient="orange"
-            loading={(cardsLoading && cards.length === 0) || (invoicesLoading && invoices.length === 0)}
-            badge={(() => {
-              // ✅ Badge dinâmico: calcular faturas pendentes (open + closed)
-              const pendingInvoices = invoices.filter(i =>
-                i.status === 'open' || i.status === 'closed'
-              );
-              const count = pendingInvoices.length;
-
-              if (count === 0) {
-                return { text: 'Em dia', variant: 'success' as const };
-              }
-
-              return {
-                text: `${count} ${count === 1 ? 'fatura' : 'faturas'}`,
-                variant: 'warning' as const
-              };
-            })()}
-            onClick={() => navigate('/cartoes')}
-          />
-        </div>
-
-        {/* Ana Clara */}
-        <div data-testid="dashboard-block-ana" className="lg:order-3">
-          <AnaDashboardWidget autoRefresh={true} />
-        </div>
-
-        {/* Payable Bills */}
-        <div data-testid="dashboard-block-bills" className="lg:order-4">
-          <PayableBillsWidget />
-        </div>
-
-        {/* Investments */}
-        <div data-testid="dashboard-block-investments" className="lg:order-5">
-          <InvestmentsWidget />
-        </div>
-
-        {/* Recent Transactions */}
-        <div data-testid="dashboard-block-recent" className="lg:order-6">
-          <Card className="border-border/70 bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <List className="h-5 w-5 text-primary" />
-                  Transações Recentes
-                </CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="rounded-xl border border-border/70 bg-surface-elevated/70 text-muted-foreground hover:bg-surface-overlay hover:text-foreground"
-                  onClick={() => navigate('/transacoes')}
-                >
-                  Ver Todas
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-1">
-              {recentTransactions.length > 0 ? (
-                recentTransactions.map((transaction) => {
-                  const shown = transaction.displayAmount ?? transaction.amount;
-                  const total = transaction.displayPurchaseTotal;
-                  const amountFootnote =
-                    transaction.groupedInstallments?.length && total != null
-                      ? Math.abs(Number(total) - Number(shown)) > 0.009
-                        ? `Compra total ${formatCurrency(total)} · competência no mês ${formatCurrency(shown)}`
-                        : `Compra total ${formatCurrency(total)}`
-                      : undefined;
-                  return (
-                  <TransactionItem
-                    key={transaction.id}
-                    type={transaction.type}
-                    description={transaction.displayDescription || transaction.description}
-                    category_id={transaction.category_id}
-                    date={new Date(`${transaction.transaction_date}T00:00:00`)}
-                    amount={shown}
-                    is_paid={transaction.is_paid}
-                    is_recurring={transaction.is_recurring}
-                    extraBadgeText={transaction.groupedInstallments?.length ? `Parcelado ${transaction.total_installments || transaction.groupedInstallmentCount}x` : undefined}
-                    amountFootnote={amountFootnote}
-                    tags={transaction.tags}
-                  />
+          {/* 2. KPI Stat Cards */}
+          <div data-testid="dashboard-block-stats" className="grid grid-cols-1 gap-4">
+            <StatCard
+              title="Saldo Total"
+              value={formatCurrency(totalBalance)}
+              icon={Wallet}
+              gradient="blue"
+              loading={accountsLoading && accounts.length === 0}
+              onClick={() => navigate('/contas')}
+            />
+            <StatCard
+              title="Receitas do Mês"
+              value={formatCurrency(totalIncome)}
+              icon={TrendingUp}
+              gradient="green"
+              loading={transactionsLoading && transactions.length === 0}
+              badge={{ text: 'Confirmado', variant: 'success' }}
+              onClick={() => navigate('/transacoes?type=income')}
+            />
+            <StatCard
+              title="Despesas do Mês"
+              value={formatCurrency(totalExpenses)}
+              icon={TrendingDown}
+              gradient="red"
+              loading={transactionsLoading && transactions.length === 0}
+              subtitle={(() => {
+                if (spendingPlanSummary.totalPlanned === 0) {
+                  return 'Sem meta mensal definida';
+                }
+                return `${spendingPlanSummary.utilizationPct}% dos limites`;
+              })()}
+              onClick={() => navigate('/transacoes?type=expense')}
+            />
+            <StatCard
+              title="Cartões de Crédito"
+              value={formatCurrency(totalCreditCards)}
+              icon={CreditCard}
+              gradient="orange"
+              loading={(cardsLoading && cards.length === 0) || (invoicesLoading && invoices.length === 0)}
+              badge={(() => {
+                const pendingInvoices = invoices.filter(i =>
+                  i.status === 'open' || i.status === 'closed'
                 );
-                })
-              ) : (
-                <div className="flex flex-col items-center justify-center rounded-[1.75rem] border border-dashed border-border/70 bg-surface-elevated/40 py-12 text-center">
-                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-elevated ring-1 ring-border/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                    <FileText size={32} className="text-primary/70" />
-                  </div>
-                  <p className="mb-2 font-semibold text-foreground">Nenhuma transação recente</p>
-                  <p className="mb-4 text-sm text-muted-foreground">Crie sua primeira transação para começar!</p>
-                  <Button
-                    onClick={() => navigate('/transacoes')}
-                    size="sm"
-                    className="rounded-xl"
-                  >
-                    Adicionar Transação
-                  </Button>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                const count = pendingInvoices.length;
+                if (count === 0) {
+                  return { text: 'Em dia', variant: 'success' as const };
+                }
+                return {
+                  text: `${count} ${count === 1 ? 'fatura' : 'faturas'}`,
+                  variant: 'warning' as const
+                };
+              })()}
+              onClick={() => navigate('/cartoes')}
+            />
+          </div>
+
+          {/* 3. Ana Clara */}
+          <div data-testid="dashboard-block-ana">
+            <AnaDashboardWidget autoRefresh={true} />
+          </div>
+
+          {/* 4. Payable Bills */}
+          <div data-testid="dashboard-block-bills">
+            <PayableBillsWidget />
+          </div>
+
+          {/* 5. Investments */}
+          <div data-testid="dashboard-block-investments">
+            <InvestmentsWidget />
+          </div>
+
+          {/* 6. Recent Transactions */}
+          <div data-testid="dashboard-block-recent">
+            {recentTransactionsCard}
+          </div>
+
+          {/* 7. Charts */}
+          <div data-testid="dashboard-block-charts" className="flex flex-col gap-4">
+            <ExpensesByCategoryChart transactions={filteredTransactions} selectedDate={selectedDate} />
+            <MonthlyTrendChart transactions={filteredTransactions} selectedDate={selectedDate} />
+          </div>
+
+          {/* 8. Goals + Budget */}
+          <div data-testid="dashboard-block-goals-budget" className="flex flex-col gap-4">
+            <GoalsSummaryWidget />
+            <BudgetComplianceWidget monthKey={monthKey} />
+          </div>
         </div>
 
-        {/* Charts */}
-        <div
-          data-testid="dashboard-block-charts"
-          className="grid grid-cols-1 gap-4 animate-fade-in lg:grid-cols-2 lg:gap-6 lg:order-2"
-        >
-          <ExpensesByCategoryChart
-            transactions={filteredTransactions}
-            selectedDate={selectedDate}
+        {/* ============ DESKTOP TREE (≥ lg) ============ */}
+        <div className="hidden lg:block space-y-8">
+          {/* Alert */}
+          <DashboardAlertCard
+            overdueCount={overdueSummary.count}
+            overdueAmount={overdueSummary.amount}
+            topItems={overdueSummary.topItems}
           />
-          <MonthlyTrendChart
-            transactions={transactions}
-            selectedDate={selectedDate}
-          />
-        </div>
 
-        {/* Goals + Budget */}
-        <div
-          data-testid="dashboard-block-goals-budget"
-          className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6 lg:order-7"
-        >
-          <GoalsSummaryWidget />
-          <BudgetComplianceWidget monthKey={monthKey} />
-        </div>
+          {/* Grid 1: Stat Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+            <StatCard
+              title="Saldo Total"
+              value={formatCurrency(totalBalance)}
+              icon={Wallet}
+              gradient="blue"
+              loading={accountsLoading && accounts.length === 0}
+              onClick={() => navigate('/contas')}
+            />
+            <StatCard
+              title="Receitas do Mês"
+              value={formatCurrency(totalIncome)}
+              icon={TrendingUp}
+              gradient="green"
+              loading={transactionsLoading && transactions.length === 0}
+              badge={{ text: 'Confirmado', variant: 'success' }}
+              onClick={() => navigate('/transacoes?type=income')}
+            />
+            <StatCard
+              title="Despesas do Mês"
+              value={formatCurrency(totalExpenses)}
+              icon={TrendingDown}
+              gradient="red"
+              loading={transactionsLoading && transactions.length === 0}
+              subtitle={(() => {
+                if (spendingPlanSummary.totalPlanned === 0) {
+                  return 'Sem meta mensal definida';
+                }
+                return `${spendingPlanSummary.utilizationPct}% dos limites`;
+              })()}
+              onClick={() => navigate('/transacoes?type=expense')}
+            />
+            <StatCard
+              title="Cartões de Crédito"
+              value={formatCurrency(totalCreditCards)}
+              icon={CreditCard}
+              gradient="orange"
+              loading={(cardsLoading && cards.length === 0) || (invoicesLoading && invoices.length === 0)}
+              badge={(() => {
+                const pendingInvoices = invoices.filter(i =>
+                  i.status === 'open' || i.status === 'closed'
+                );
+                const count = pendingInvoices.length;
+                if (count === 0) {
+                  return { text: 'Em dia', variant: 'success' as const };
+                }
+                return {
+                  text: `${count} ${count === 1 ? 'fatura' : 'faturas'}`,
+                  variant: 'warning' as const
+                };
+              })()}
+              onClick={() => navigate('/cartoes')}
+            />
+          </div>
 
-        {/* Credit Cards (desktop-only) */}
-        <div data-testid="dashboard-block-cards" className="hidden lg:block lg:order-8">
-          <CreditCardsWidget />
+          {/* Grid 2: Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in animation-delay-100">
+            <ExpensesByCategoryChart
+              transactions={filteredTransactions}
+              selectedDate={selectedDate}
+            />
+            <MonthlyTrendChart
+              transactions={transactions}
+              selectedDate={selectedDate}
+            />
+          </div>
+
+          {/* Grid 3: Ana Clara + Widgets sub-grid 2x2 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in animation-delay-200 items-start">
+            {/* Ana Clara Widget - GPT-4.1 mini + Cache 24h */}
+            <AnaDashboardWidget autoRefresh={true} />
+
+            {/* Widgets de Resumo - 2x2 Grid Uniforme */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Widget de Investimentos */}
+              <InvestmentsWidget />
+
+              {/* Widget de Contas a Pagar */}
+              <PayableBillsWidget />
+
+              {/* Widget de Metas */}
+              <GoalsSummaryWidget />
+
+              {/* Widget de Metas de Gasto */}
+              <BudgetComplianceWidget monthKey={monthKey} />
+            </div>
+          </div>
+
+          {/* Grid 4: Transações Recentes + Cartões */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in animation-delay-300">
+            {/* Transações Recentes */}
+            {recentTransactionsCard}
+
+            {/* Cartões de Crédito */}
+            <CreditCardsWidget />
+          </div>
         </div>
       </PageContent>
     </div>

@@ -248,7 +248,8 @@ describe('Dashboard premium dark mode regression', () => {
     );
 
     const root = container.querySelector('.min-h-screen');
-    const emptyTitle = screen.getByText(/Nenhuma transa/i);
+    // Both mobile and desktop trees render the empty state — grab the first occurrence
+    const emptyTitle = screen.getAllByText(/Nenhuma transa/i)[0];
     const emptyIconSurface = emptyTitle.previousElementSibling as HTMLElement | null;
 
     expect(root?.className).toContain('bg-background');
@@ -329,6 +330,8 @@ describe('Dashboard premium dark mode regression', () => {
       </MemoryRouter>,
     );
 
+    // Only the mobile tree carries data-testid="dashboard-block-*" attributes.
+    // The desktop tree has no testids, so this query returns exactly 7 mobile blocks.
     const blocks = screen
       .getAllByTestId(/^dashboard-block-/)
       .map((el) => el.getAttribute('data-testid'));
@@ -341,7 +344,6 @@ describe('Dashboard premium dark mode regression', () => {
       'dashboard-block-recent',
       'dashboard-block-charts',
       'dashboard-block-goals-budget',
-      'dashboard-block-cards',
     ];
 
     expect(blocks).toEqual(expected);
