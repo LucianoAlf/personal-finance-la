@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ResponsiveDialog, ResponsiveDialogHeader, ResponsiveDialogBody } from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DatePickerInput } from '@/components/ui/date-picker-input';
@@ -164,15 +164,10 @@ export function InvoicePaymentDialog({
     }`;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
-        <DialogHeader className="border-b border-border/60 px-6 py-5">
-          <DialogTitle className="text-[1.65rem] font-semibold tracking-tight text-foreground">
-            Pagar Fatura
-          </DialogTitle>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 px-6 py-5">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-2xl">
+      <ResponsiveDialogHeader title="Pagamento de Fatura" onClose={() => onOpenChange(false)} />
+      <ResponsiveDialogBody>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="rounded-[24px] border border-border/70 bg-surface-elevated/50 p-5 shadow-sm">
             <div className="space-y-2">
               <div className="flex justify-between gap-4 text-sm">
@@ -378,7 +373,7 @@ export function InvoicePaymentDialog({
             </Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }
