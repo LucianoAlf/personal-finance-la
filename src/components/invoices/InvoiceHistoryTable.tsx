@@ -423,6 +423,7 @@ export function InvoiceHistoryTable({
                   <Button
                     variant="ghost"
                     size="sm"
+                    aria-label="Ver transações"
                     className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-surface hover:text-foreground"
                     onClick={() => toggleRow(invoice.id)}
                     title="Ver transações"
@@ -432,6 +433,7 @@ export function InvoiceHistoryTable({
                   <Button
                     variant="ghost"
                     size="sm"
+                    aria-label="Excluir fatura"
                     className="h-7 w-7 rounded-lg p-0 text-danger hover:bg-danger/10"
                     onClick={() => onDeleteInvoice?.(invoice.id)}
                     title="Excluir"
