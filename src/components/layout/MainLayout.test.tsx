@@ -74,4 +74,12 @@ describe('MainLayout shell', () => {
     expect(main.className).toMatch(/pb-\[/);
     expect(main.className).toContain('lg:pb-0');
   });
+
+  it('caps mobile width to prevent horizontal scroll (min-w-0 + overflow-x-hidden)', () => {
+    renderShell();
+    const main = screen.getByTestId('app-main');
+    expect(main.className).toContain('min-w-0');
+    expect(main.className).toContain('overflow-x-hidden');
+    expect(main.className).toContain('lg:overflow-x-visible');
+  });
 });

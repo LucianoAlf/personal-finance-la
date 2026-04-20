@@ -23,7 +23,7 @@ export function MainLayout() {
       <Sidebar />
       <main
         data-testid="app-main"
-        className="flex-1 pb-[calc(64px+env(safe-area-inset-bottom))] lg:ml-64 lg:pb-0"
+        className="min-w-0 max-w-full flex-1 overflow-x-hidden pb-[calc(64px+env(safe-area-inset-bottom))] lg:ml-64 lg:max-w-none lg:overflow-x-visible lg:pb-0"
       >
         <Outlet />
       </main>
