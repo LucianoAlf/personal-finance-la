@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/badge';
 import {
   Wallet,
   Plus,
-  Menu,
   X,
   Bot,
   MoreHorizontal,
