@@ -254,6 +254,23 @@ export const Transacoes = () => {
 
   const monthlyBalance = monthlyIncome - monthlyExpenses;
 
+  const activeFiltersCount = (() => {
+    let count = 0;
+    if (typeFromUrl) count++;
+    if (accountIdFromUrl) count++;
+    if (categoryIdFromUrl) count++;
+    if (activeFilters) {
+      count += activeFilters.categories?.length ?? 0;
+      count += activeFilters.accounts?.length ?? 0;
+      count += activeFilters.tags?.length ?? 0;
+      count += activeFilters.statuses?.length ?? 0;
+      count += activeFilters.types?.length ?? 0;
+      if (activeFilters.dateRange?.from) count++;
+      if (activeFilters.dateRange?.to) count++;
+    }
+    return count;
+  })();
+
   const handleRemoveAccountFilter = () => {
     const params = new URLSearchParams(location.search);
     params.delete('account');
@@ -441,33 +458,67 @@ export const Transacoes = () => {
           />
         </div>
 
-        <Card className="rounded-[28px] border border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(15,23,42,0.08)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.24)]">
-          <CardContent className="p-4 md:p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="relative w-full max-w-xl">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
-                <Input
-                  placeholder="Pesquise por descrição, categoria ou valor"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-12 rounded-2xl border-border/70 bg-surface-elevated/70 pl-11 pr-4 text-base"
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3">
-                <MonthSelector selectedDate={selectedDate} onDateChange={setSelectedDate} />
-                <Button
-                  variant="outline"
-                  className="h-11 rounded-xl border-border/70 bg-surface/85 px-4 shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay"
-                  onClick={() => setFiltersModalOpen(true)}
-                >
-                  <Filter size={16} className="mr-2" />
-                  Filtros
-                </Button>
-              </div>
+        {/* Mobile filter bar */}
+        <div className="lg:hidden">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Buscar transação"
+                className="h-11 w-full pl-9"
+              />
             </div>
-          </CardContent>
-        </Card>
+            <button
+              type="button"
+              onClick={() => setFiltersModalOpen(true)}
+              aria-label="Abrir filtros avançados"
+              className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-elevated text-foreground hover:bg-surface-overlay"
+            >
+              <Filter size={18} aria-hidden="true" />
+              {activeFiltersCount > 0 && (
+                <span
+                  aria-label={`${activeFiltersCount} filtros ativos`}
+                  className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground"
+                >
+                  {activeFiltersCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Desktop filter bar */}
+        <div className="hidden lg:block">
+          <Card className="rounded-[28px] border border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(15,23,42,0.08)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.24)]">
+            <CardContent className="p-4 md:p-5">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="relative w-full max-w-xl">
+                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+                  <Input
+                    placeholder="Pesquise por descrição, categoria ou valor"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-12 rounded-2xl border-border/70 bg-surface-elevated/70 pl-11 pr-4 text-base"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <MonthSelector selectedDate={selectedDate} onDateChange={setSelectedDate} />
+                  <Button
+                    variant="outline"
+                    className="h-11 rounded-xl border-border/70 bg-surface/85 px-4 shadow-sm hover:bg-surface-elevated dark:bg-surface-elevated/80 dark:hover:bg-surface-overlay"
+                    onClick={() => setFiltersModalOpen(true)}
+                  >
+                    <Filter size={16} className="mr-2" />
+                    Filtros
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card className="rounded-[30px] border border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(15,23,42,0.08)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.24)]">
           <CardHeader className="pb-4">
