@@ -146,6 +146,20 @@ vi.mock('@/hooks/useGoalsQuery', () => ({
   useGoalsQuery: useGoalsQueryMock,
 }));
 
+vi.mock('@/hooks/usePayableBillsQuery', () => ({
+  usePayableBillsQuery: () => ({
+    overdueBills: [],
+    upcomingBills: [],
+    bills: [],
+    summary: { overdue_count: 0 },
+    loading: false,
+  }),
+}));
+
+vi.mock('@/components/dashboard/DashboardAlertCard', () => ({
+  DashboardAlertCard: () => null,
+}));
+
 vi.mock('@/hooks/useAnaDashboardInsights', () => ({
   useAnaDashboardInsights: useAnaDashboardInsightsMock,
 }));

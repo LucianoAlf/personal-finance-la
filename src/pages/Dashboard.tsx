@@ -13,6 +13,7 @@ import { CreditCardsWidget } from '@/components/creditcards/CreditCardsWidget';
 import { PayableBillsWidget } from '@/components/payable-bills/PayableBillsWidget';
 import { AnaDashboardWidget } from '@/components/dashboard/AnaDashboardWidget';
 import { InvestmentsWidget } from '@/components/dashboard/InvestmentsWidget';
+import { DashboardAlertCard } from '@/components/dashboard/DashboardAlertCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,6 +24,7 @@ import { useInvoicesQuery } from '@/hooks/useInvoicesQuery';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
 import { useSettings } from '@/hooks/useSettings';
 import { useGoalsQuery } from '@/hooks/useGoalsQuery';
+import { usePayableBillsQuery } from '@/hooks/usePayableBillsQuery';
 import type { FinancialGoalWithCategory } from '@/types/database.types';
 import {
   Wallet,
@@ -50,7 +52,7 @@ export function Dashboard() {
 
   // ✅ HOOKS COM REACT QUERY (CACHE INSTANTÂNEO) - Todos com cache local!
   const monthKey = `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}`;
-  
+
   const {
     transactions,
     loading: transactionsLoading,
@@ -80,13 +82,15 @@ export function Dashboard() {
   );
   const spendingPlanSummary = useMemo(() => summarizeBudgetItems(spendingPlanItems), [spendingPlanItems]);
 
+  const payableBillsQuery = usePayableBillsQuery();
+
   // ✅ OTIMIZADO: Cachear filtro de transações com useMemo
   // ✅ CORREÇÃO: Filtrar por string (YYYY-MM) sem conversão de timezone
   const filteredTransactions = useMemo(() => {
     const selectedYear = selectedDate.getFullYear();
     const selectedMonth = String(selectedDate.getMonth() + 1).padStart(2, '0');
     const selectedYearMonth = `${selectedYear}-${selectedMonth}`;
-    
+
     return transactions.filter((t) => competenceMonthFromTransaction(t) === selectedYearMonth);
   }, [transactions, selectedDate]);
 
@@ -95,11 +99,11 @@ export function Dashboard() {
     const income = filteredTransactions
       .filter(t => t.type === 'income')
       .reduce((sum, t) => sum + Number(t.amount), 0);
-    
+
     const expenses = filteredTransactions
       .filter((t) => t.type === 'expense' && !isInvoicePaymentExpense(t))
       .reduce((sum, t) => sum + Number(t.amount), 0);
-    
+
     const recent = groupTransactionsForDisplay(filteredTransactions, formatCurrency).slice(0, 5);
 
     return {
@@ -108,6 +112,16 @@ export function Dashboard() {
       recentTransactions: recent
     };
   }, [filteredTransactions, formatCurrency]);
+
+  const overdueSummary = useMemo(() => {
+    const bills = payableBillsQuery?.overdueBills ?? [];
+    const amount = bills.reduce((sum: number, b: any) => sum + Number(b.amount ?? 0), 0);
+    const topItems = bills.slice(0, 2).map((b: any) => ({
+      name: b.name ?? b.description ?? 'Conta',
+      dueLabel: b.due_date ? new Date(b.due_date).toLocaleDateString('pt-BR') : '',
+    }));
+    return { count: bills.length, amount, topItems };
+  }, [payableBillsQuery]);
 
   // CÁLCULOS COM DADOS REAIS DO MÊS SELECIONADO
   const totalBalance = getTotalBalance();
@@ -123,16 +137,31 @@ export function Dashboard() {
         subtitle="Bem-vindo ao seu painel financeiro"
         icon={<Home size={24} />}
         actions={
-          <MonthSelector 
-            selectedDate={selectedDate} 
+          <MonthSelector
+            selectedDate={selectedDate}
             onDateChange={setSelectedDate}
           />
         }
       />
 
-      <PageContent className="space-y-8 py-8">
+      <PageContent className="flex flex-col space-y-6 py-6 lg:space-y-8 lg:py-8">
+        {/* Mobile-only alert */}
+        <DashboardAlertCard
+          overdueCount={overdueSummary.count}
+          overdueAmount={overdueSummary.amount}
+          topItems={overdueSummary.topItems}
+        />
+
+        {/* Ana Clara */}
+        <div data-testid="dashboard-block-ana" className="lg:order-3">
+          <AnaDashboardWidget autoRefresh={true} />
+        </div>
+
         {/* Stat Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+        <div
+          data-testid="dashboard-block-stats"
+          className="grid grid-cols-1 gap-4 animate-fade-in md:grid-cols-2 lg:grid-cols-4 lg:gap-6 lg:order-1"
+        >
           <StatCard
             title="Saldo Total"
             value={formatCurrency(totalBalance)}
@@ -173,15 +202,15 @@ export function Dashboard() {
             loading={(cardsLoading && cards.length === 0) || (invoicesLoading && invoices.length === 0)}
             badge={(() => {
               // ✅ Badge dinâmico: calcular faturas pendentes (open + closed)
-              const pendingInvoices = invoices.filter(i => 
+              const pendingInvoices = invoices.filter(i =>
                 i.status === 'open' || i.status === 'closed'
               );
               const count = pendingInvoices.length;
-              
+
               if (count === 0) {
                 return { text: 'Em dia', variant: 'success' as const };
               }
-              
+
               return {
                 text: `${count} ${count === 1 ? 'fatura' : 'faturas'}`,
                 variant: 'warning' as const
@@ -191,42 +220,18 @@ export function Dashboard() {
           />
         </div>
 
-        {/* Gráficos */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in animation-delay-100">
-          <ExpensesByCategoryChart 
-            transactions={filteredTransactions}
-            selectedDate={selectedDate}
-          />
-          <MonthlyTrendChart 
-            transactions={transactions}
-            selectedDate={selectedDate}
-          />
+        {/* Payable Bills */}
+        <div data-testid="dashboard-block-bills" className="lg:order-4">
+          <PayableBillsWidget />
         </div>
 
-        {/* Ana Clara + Ações Rápidas */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in animation-delay-200 items-start">
-          {/* Ana Clara Widget - GPT-4.1 mini + Cache 24h */}
-          <AnaDashboardWidget autoRefresh={true} />
-
-          {/* Widgets de Resumo - 2x2 Grid Uniforme */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Widget de Investimentos */}
-            <InvestmentsWidget />
-
-            {/* Widget de Contas a Pagar */}
-            <PayableBillsWidget />
-
-            {/* Widget de Metas */}
-            <GoalsSummaryWidget />
-
-            {/* Widget de Metas de Gasto */}
-            <BudgetComplianceWidget monthKey={monthKey} />
-          </div>
+        {/* Investments */}
+        <div data-testid="dashboard-block-investments" className="lg:order-5">
+          <InvestmentsWidget />
         </div>
 
-        {/* Transações Recentes + Cartões */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in animation-delay-300">
-          {/* Transações Recentes */}
+        {/* Recent Transactions */}
+        <div data-testid="dashboard-block-recent" className="lg:order-6">
           <Card className="border-border/70 bg-surface/95 shadow-[0_22px_55px_rgba(3,8,20,0.28)] backdrop-blur-sm">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
@@ -234,8 +239,8 @@ export function Dashboard() {
                   <List className="h-5 w-5 text-primary" />
                   Transações Recentes
                 </CardTitle>
-                <Button 
-                  variant="ghost" 
+                <Button
+                  variant="ghost"
                   size="sm"
                   className="rounded-xl border border-border/70 bg-surface-elevated/70 text-muted-foreground hover:bg-surface-overlay hover:text-foreground"
                   onClick={() => navigate('/transacoes')}
@@ -278,7 +283,7 @@ export function Dashboard() {
                   </div>
                   <p className="mb-2 font-semibold text-foreground">Nenhuma transação recente</p>
                   <p className="mb-4 text-sm text-muted-foreground">Crie sua primeira transação para começar!</p>
-                  <Button 
+                  <Button
                     onClick={() => navigate('/transacoes')}
                     size="sm"
                     className="rounded-xl"
@@ -289,8 +294,34 @@ export function Dashboard() {
               )}
             </CardContent>
           </Card>
+        </div>
 
-          {/* Cartões de Crédito */}
+        {/* Charts */}
+        <div
+          data-testid="dashboard-block-charts"
+          className="grid grid-cols-1 gap-4 animate-fade-in lg:grid-cols-2 lg:gap-6 lg:order-2"
+        >
+          <ExpensesByCategoryChart
+            transactions={filteredTransactions}
+            selectedDate={selectedDate}
+          />
+          <MonthlyTrendChart
+            transactions={transactions}
+            selectedDate={selectedDate}
+          />
+        </div>
+
+        {/* Goals + Budget */}
+        <div
+          data-testid="dashboard-block-goals-budget"
+          className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6 lg:order-7"
+        >
+          <GoalsSummaryWidget />
+          <BudgetComplianceWidget monthKey={monthKey} />
+        </div>
+
+        {/* Credit Cards (desktop-only) */}
+        <div data-testid="dashboard-block-cards" className="hidden lg:block lg:order-8">
           <CreditCardsWidget />
         </div>
       </PageContent>
