@@ -300,7 +300,7 @@ export function Dashboard() {
           {/* 7. Charts */}
           <div data-testid="dashboard-block-charts" className="flex flex-col gap-4">
             <ExpensesByCategoryChart transactions={filteredTransactions} selectedDate={selectedDate} />
-            <MonthlyTrendChart transactions={filteredTransactions} selectedDate={selectedDate} />
+            <MonthlyTrendChart transactions={transactions} selectedDate={selectedDate} />
           </div>
 
           {/* 8. Goals + Budget */}
