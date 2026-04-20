@@ -61,15 +61,16 @@ export function CreditCardCard({
   return (
     <Card className="group overflow-hidden rounded-[30px] border border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(15,23,42,0.12)] dark:shadow-[0_22px_55px_rgba(2,6,23,0.28)]">
       <div
-        className="relative cursor-pointer overflow-hidden border-b border-black/10 px-3 pb-3 pt-3 text-white dark:border-white/5 md:px-4 md:pb-4 md:pt-4"
+        className="relative cursor-pointer overflow-hidden border-b border-black/10 px-4 pb-4 pt-4 text-white dark:border-white/5"
         style={{
+          minHeight: '192px',
           background: card.color || '#8A05BE',
         }}
         onClick={onClick}
       >
         <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02)_35%,rgba(0,0,0,0.14)_100%)]" />
 
-        <div className="relative flex h-full min-h-[130px] flex-col md:min-h-[172px]">
+        <div className="relative flex h-full min-h-[172px] flex-col">
           <div className="flex items-start justify-between">
             {bankLogo ? (
               <img src={bankLogo} alt="Logo do banco" className={bankLogoClass} />
@@ -86,7 +87,7 @@ export function CreditCardCard({
             />
           </div>
 
-          <div className="mt-3 flex items-start justify-between gap-3 md:mt-5">
+          <div className="mt-5 flex items-start justify-between gap-3">
             <div className="min-w-0 pr-2 text-[0.82rem] font-semibold uppercase tracking-[0.08em] text-white/94">
               <span className="block truncate">{cardholderName}</span>
             </div>
@@ -129,12 +130,12 @@ export function CreditCardCard({
         </div>
       </div>
 
-      <CardContent className="space-y-3 p-3 md:space-y-5 md:p-5">
-        <div className="rounded-[22px] border border-border/60 bg-surface-elevated/45 p-3 md:p-4">
+      <CardContent className="space-y-5 p-5">
+        <div className="rounded-[22px] border border-border/60 bg-surface-elevated/45 p-4">
           {card.current_invoice_amount !== undefined && card.current_invoice_amount > 0 ? (
             <>
               <p className="text-sm font-medium text-muted-foreground">Fatura Atual</p>
-              <h3 className="mt-1 text-xl font-semibold tracking-tight text-foreground [font-variant-numeric:tabular-nums] md:text-[1.52rem]">
+              <h3 className="mt-1 text-[1.52rem] font-semibold tracking-tight text-foreground [font-variant-numeric:tabular-nums]">
                 {formatCurrency(card.current_invoice_amount)}
               </h3>
               {card.current_due_date ? (
@@ -144,7 +145,7 @@ export function CreditCardCard({
           ) : (
             <>
               <p className="text-sm font-medium text-muted-foreground">Limite Utilizado</p>
-              <h3 className="mt-1 text-xl font-semibold tracking-tight text-foreground [font-variant-numeric:tabular-nums] md:text-[1.52rem]">
+              <h3 className="mt-1 text-[1.52rem] font-semibold tracking-tight text-foreground [font-variant-numeric:tabular-nums]">
                 {formatCurrency(card.used_limit)}
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">{usagePercentage.toFixed(1)}% do limite</p>
@@ -169,16 +170,16 @@ export function CreditCardCard({
           </div>
         </div>
 
-        <div className="border-t border-border/60 pt-3 md:pt-4">
+        <div className="border-t border-border/60 pt-4">
           <p className="text-sm font-medium text-muted-foreground">Limite Disponivel</p>
           <p
-            className={`mt-1 text-xl font-semibold tracking-tight [font-variant-numeric:tabular-nums] md:text-[1.52rem] ${availableLimitClass}`}
+            className={`mt-1 text-[1.52rem] font-semibold tracking-tight [font-variant-numeric:tabular-nums] ${availableLimitClass}`}
           >
             {formatCurrency(card.available_limit)}
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 pt-1">
           <Button
             variant="outline"
             className="flex-1 rounded-xl border-border/70 bg-surface/75 hover:bg-surface-elevated"
