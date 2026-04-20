@@ -642,101 +642,145 @@ export const Transacoes = () => {
                 <p className="text-sm">Crie sua primeira transação para começar</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {groupedTransactions.map((transaction) => {
-                  const category = transaction.category || getCategoryById(transaction.category_id);
-                  const account =
-                    transaction.account || accounts.find((item) => item.id === transaction.account_id);
-                  const typeColors = TYPE_COLORS[transaction.type];
-                  const rowTone = rowToneByType[transaction.type];
-                  const isGroupedInstallment = Boolean(transaction.groupedInstallments?.length);
-                  const installmentAmount = transaction.amount;
-                  const totalInstallments =
-                    transaction.total_installments || transaction.groupedInstallmentCount || 0;
-                  const amountToDisplay = transaction.displayAmount ?? transaction.amount;
+              <>
+                {/* === Desktop list === */}
+                <div className="hidden lg:block space-y-3">
+                  {groupedTransactions.map((transaction) => {
+                    const category = transaction.category || getCategoryById(transaction.category_id);
+                    const account =
+                      transaction.account || accounts.find((item) => item.id === transaction.account_id);
+                    const typeColors = TYPE_COLORS[transaction.type];
+                    const rowTone = rowToneByType[transaction.type];
+                    const isGroupedInstallment = Boolean(transaction.groupedInstallments?.length);
+                    const installmentAmount = transaction.amount;
+                    const totalInstallments =
+                      transaction.total_installments || transaction.groupedInstallmentCount || 0;
+                    const amountToDisplay = transaction.displayAmount ?? transaction.amount;
 
-                  return (
-                    <Card
-                      key={transaction.id}
-                      className={`cursor-pointer rounded-2xl border border-border/70 border-l-4 bg-surface/90 shadow-[0_14px_36px_rgba(3,8,20,0.18)] transition-all duration-200 hover:translate-x-1 hover:bg-surface-elevated/85 hover:shadow-[0_18px_40px_rgba(3,8,20,0.24)] ${rowTone.border}`}
-                      onClick={() => handleEdit(transaction)}
-                    >
-                      <CardContent className="p-4">
-                        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-                          <div className="flex min-w-0 flex-1 items-center gap-3">
-                            <div className="relative shrink-0">
-                              <div className={`flex h-10 w-10 items-center justify-center rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${rowTone.iconWrap}`}>
-                                {renderTransactionIcon(transaction.type, category)}
+                    return (
+                      <Card
+                        key={transaction.id}
+                        className={`cursor-pointer rounded-2xl border border-border/70 border-l-4 bg-surface/90 shadow-[0_14px_36px_rgba(3,8,20,0.18)] transition-all duration-200 hover:translate-x-1 hover:bg-surface-elevated/85 hover:shadow-[0_18px_40px_rgba(3,8,20,0.24)] ${rowTone.border}`}
+                        onClick={() => handleEdit(transaction)}
+                      >
+                        <CardContent className="p-4">
+                          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                              <div className="relative shrink-0">
+                                <div className={`flex h-10 w-10 items-center justify-center rounded-xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] ${rowTone.iconWrap}`}>
+                                  {renderTransactionIcon(transaction.type, category)}
+                                </div>
+                                {account && (() => {
+                                  const bankCode = detectBankFromName(account.name);
+                                  if (!bankCode) return null;
+                                  const BankIcon = getBankLogo(bankCode);
+                                  const bankColor = getBankColor(bankCode);
+                                  return (
+                                    <div
+                                      className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-card"
+                                      style={{ backgroundColor: bankColor }}
+                                    >
+                                      <BankIcon size={12} className="text-white" />
+                                    </div>
+                                  );
+                                })()}
                               </div>
-                              {account && (() => {
-                                const bankCode = detectBankFromName(account.name);
-                                if (!bankCode) return null;
-                                const BankIcon = getBankLogo(bankCode);
-                                const bankColor = getBankColor(bankCode);
-                                return (
-                                  <div
-                                    className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-card"
-                                    style={{ backgroundColor: bankColor }}
-                                  >
-                                    <BankIcon size={12} className="text-white" />
-                                  </div>
-                                );
-                              })()}
+
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <h3 className="truncate text-lg font-semibold text-foreground">
+                                    {transaction.displayDescription || transaction.description}
+                                  </h3>
+                                </div>
+
+                                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                                  <span>{category?.name || 'Sem categoria'}</span>
+                                  <span>•</span>
+                                  <span>{account?.name || 'Sem conta'}</span>
+                                  {!transaction.is_paid && <Badge variant="warning" className="whitespace-nowrap text-xs">Pendente</Badge>}
+                                  {isGroupedInstallment && (
+                                    <Badge variant="info" className="whitespace-nowrap text-xs">
+                                      Parcelado {totalInstallments}x
+                                    </Badge>
+                                  )}
+                                  {isGroupedInstallment && (
+                                    <>
+                                      <span>•</span>
+                                      <span>
+                                        {transaction.displayPurchaseTotal != null
+                                          ? `${totalInstallments}x de ${formatCurrency(installmentAmount)}`
+                                          : `${totalInstallments} parcelas de ${formatCurrency(installmentAmount)}`}
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
                             </div>
 
-                            <div className="min-w-0">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <h3 className="truncate text-lg font-semibold text-foreground">
-                                  {transaction.displayDescription || transaction.description}
-                                </h3>
-                              </div>
-
-                              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-                                <span>{category?.name || 'Sem categoria'}</span>
-                                <span>•</span>
-                                <span>{account?.name || 'Sem conta'}</span>
-                                {!transaction.is_paid && <Badge variant="warning" className="whitespace-nowrap text-xs">Pendente</Badge>}
-                                {isGroupedInstallment && (
-                                  <Badge variant="info" className="whitespace-nowrap text-xs">
-                                    Parcelado {totalInstallments}x
-                                  </Badge>
+                            <div className="ml-4 shrink-0 text-right">
+                              <p className={`text-lg font-bold ${rowTone.amount}`}>
+                                {transaction.type === 'expense' ? '- ' : '+ '}
+                                {formatCurrency(amountToDisplay)}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {formatRelativeDate(transaction.transaction_date)}
+                              </p>
+                              {isGroupedInstallment &&
+                                transaction.displayPurchaseTotal != null &&
+                                Math.abs(Number(transaction.displayPurchaseTotal) - Number(amountToDisplay)) > 0.009 && (
+                                  <p className="mt-0.5 ml-auto max-w-[14rem] text-right text-xs text-muted-foreground">
+                                    Compra total {formatCurrency(transaction.displayPurchaseTotal)} · competência no mês {formatCurrency(amountToDisplay)}
+                                  </p>
                                 )}
-                                {isGroupedInstallment && (
-                                  <>
-                                    <span>•</span>
-                                    <span>
-                                      {transaction.displayPurchaseTotal != null
-                                        ? `${totalInstallments}x de ${formatCurrency(installmentAmount)}`
-                                        : `${totalInstallments} parcelas de ${formatCurrency(installmentAmount)}`}
-                                    </span>
-                                  </>
-                                )}
-                              </div>
                             </div>
                           </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
 
-                          <div className="ml-4 shrink-0 text-right">
-                            <p className={`text-lg font-bold ${rowTone.amount}`}>
-                              {transaction.type === 'expense' ? '- ' : '+ '}
+                {/* === Mobile list === */}
+                <div className="space-y-2 lg:hidden">
+                  {groupedTransactions.map((transaction) => {
+                    const rowTone = rowToneByType[transaction.type] ?? rowToneByType.expense;
+                    const amountToDisplay = transaction.displayAmount ?? transaction.amount;
+                    const category = transaction.category || getCategoryById(transaction.category_id);
+                    const account = transaction.account || accounts.find((a) => a.id === transaction.account_id);
+
+                    return (
+                      <Card
+                        key={`m-${transaction.id}`}
+                        className={`cursor-pointer rounded-xl border-l-4 transition-colors hover:bg-surface-elevated/85 ${rowTone.border}`}
+                        onClick={() => handleEdit(transaction)}
+                      >
+                        <CardContent className="flex items-center gap-3 p-3">
+                          <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border ${rowTone.iconWrap}`}>
+                            {renderTransactionIcon(transaction.type, category)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-foreground">
+                              {transaction.displayDescription || transaction.description}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {category?.name ?? 'Sem categoria'}
+                              {account?.name ? ` · ${account.name}` : ''}
+                              {' · '}
+                              {format(new Date(transaction.transaction_date), 'dd/MM')}
+                            </p>
+                          </div>
+                          <div className="flex-shrink-0 text-right">
+                            <p className={`text-sm font-bold ${rowTone.amount}`}>
+                              {transaction.type === 'expense' ? '− ' : '+ '}
                               {formatCurrency(amountToDisplay)}
                             </p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatRelativeDate(transaction.transaction_date)}
-                            </p>
-                            {isGroupedInstallment &&
-                              transaction.displayPurchaseTotal != null &&
-                              Math.abs(Number(transaction.displayPurchaseTotal) - Number(amountToDisplay)) > 0.009 && (
-                                <p className="mt-0.5 ml-auto max-w-[14rem] text-right text-xs text-muted-foreground">
-                                  Compra total {formatCurrency(transaction.displayPurchaseTotal)} · competência no mês {formatCurrency(amountToDisplay)}
-                                </p>
-                              )}
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
