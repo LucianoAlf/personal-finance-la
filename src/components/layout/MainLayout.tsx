@@ -2,6 +2,10 @@ import { useEffect } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from './Sidebar';
+import { BottomNav } from './BottomNav';
+import { MoreSheet } from './MoreSheet';
+import { QuickCreateFab } from './QuickCreateFab';
+import { AnaClaraStubScreen } from '@/components/ana-clara/AnaClaraStubScreen';
 import { useUIStore, type QuickCreateAction } from '@/store/uiStore';
 import { useAccounts } from '@/hooks/useAccounts';
 import { useCreditCards } from '@/hooks/useCreditCards';
@@ -15,11 +19,18 @@ import { toast } from 'sonner';
 
 export function MainLayout() {
   return (
-    <div data-testid="app-shell" className="flex min-h-screen bg-background text-foreground">
+    <div data-testid="app-shell" className="flex min-h-dvh bg-background text-foreground">
       <Sidebar />
-      <main className="flex-1 lg:ml-64">
+      <main
+        data-testid="app-main"
+        className="flex-1 pb-[calc(64px+env(safe-area-inset-bottom))] lg:ml-64 lg:pb-0"
+      >
         <Outlet />
       </main>
+      <BottomNav />
+      <QuickCreateFab />
+      <MoreSheet />
+      <AnaClaraStubScreen />
       <QuickCreateManager />
     </div>
   );
