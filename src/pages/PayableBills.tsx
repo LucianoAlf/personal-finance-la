@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -15,7 +15,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Plus, Receipt, BarChart3, History, Trash2, AlertTriangle, ChevronLeft, ChevronRight, CalendarDays, Search } from 'lucide-react';
+import { Plus, Receipt, BarChart3, History, Trash2, AlertTriangle, ChevronLeft, ChevronRight, CalendarDays, Search, Filter as FilterIcon } from 'lucide-react';
+import { BillFiltersSheet } from '@/components/payable-bills/BillFiltersSheet';
 import { Header } from '@/components/layout/Header';
 import { usePayableBills } from '@/hooks/usePayableBills';
 import { useCategories } from '@/hooks/useCategories';
@@ -96,6 +97,20 @@ export default function PayableBills() {
   const [searchInput, setSearchInput] = useState('');
   /** Só monta Relatórios (RPC + useBillReports) quando a aba está ativa — melhora abertura da página. */
   const [billsMainTab, setBillsMainTab] = useState<'bills' | 'history' | 'reports'>('bills');
+  const [filtersSheetOpen, setFiltersSheetOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mql = window.matchMedia('(max-width: 1023.98px)');
+    if (mql.matches && viewMode !== 'cards') {
+      setViewMode('cards');
+    }
+    const handler = (e: MediaQueryListEvent) => {
+      if (e.matches && viewMode !== 'cards') setViewMode('cards');
+    };
+    mql.addEventListener('change', handler);
+    return () => mql.removeEventListener('change', handler);
+  }, [viewMode]);
 
   const months = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
   const isAllAccountsMode = periodFilter === 'all';
@@ -346,6 +361,15 @@ export default function PayableBills() {
     [isAllAccountsMode, paidBills, selectedMonthDate]
   );
 
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (periodFilter !== 'this_month') count++;
+    if (categoryFilter !== 'all') count++;
+    if (periodFilter === 'recurring' && recurrenceTypeFilter !== 'all') count++;
+    if (sortOption !== 'due_soon') count++;
+    return count;
+  }, [periodFilter, categoryFilter, recurrenceTypeFilter, sortOption]);
+
   // Handler para copiar/duplicar conta
   const handleCopy = async (bill: PayableBill) => {
     const newBill: CreateBillInput = {
@@ -530,7 +554,8 @@ export default function PayableBills() {
           onValueChange={(v) => setBillsMainTab(v as 'bills' | 'history' | 'reports')}
           className="space-y-6"
         >
-          <TabsList className="grid h-auto w-full grid-cols-3 rounded-[1.35rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)]">
+          {/* Desktop tabs — preserved (only added "hidden md:grid" prefix) */}
+          <TabsList className="hidden md:grid h-auto w-full grid-cols-3 rounded-[1.35rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)]">
             <TabsTrigger
               value="bills"
               className="flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
@@ -554,6 +579,31 @@ export default function PayableBills() {
             </TabsTrigger>
           </TabsList>
 
+          {/* Mobile tabs — scrollable horizontal */}
+          <TabsList className="flex md:hidden w-full gap-2 overflow-x-auto rounded-xl border border-border/70 bg-card/95 p-1">
+            <TabsTrigger
+              value="bills"
+              className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
+            >
+              <Receipt className="h-4 w-4" />
+              Contas ({filteredBills.length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="history"
+              className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
+            >
+              <History className="h-4 w-4" />
+              Histórico ({paidBills.length})
+            </TabsTrigger>
+            <TabsTrigger
+              value="reports"
+              className="flex flex-shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15"
+            >
+              <BarChart3 className="h-4 w-4" />
+              Relatórios
+            </TabsTrigger>
+          </TabsList>
+
           {/* ABA 1: CONTAS A PAGAR (UNIFICADA) */}
           <TabsContent value="bills" className="space-y-6">
             {/* Alertas de Variação de Contas Recorrentes */}
@@ -566,8 +616,8 @@ export default function PayableBills() {
               </div>
             )}
 
-            {/* Barra de Controles */}
-            <Card className="rounded-[1.6rem] border-border/70 bg-card/95 p-4 shadow-[0_16px_42px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_44px_rgba(2,6,23,0.2)]">
+            {/* Desktop filter card — preserved */}
+            <Card className="hidden md:block rounded-[1.6rem] border-border/70 bg-card/95 p-4 shadow-[0_16px_42px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_44px_rgba(2,6,23,0.2)]">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="relative w-full lg:max-w-sm">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -593,6 +643,35 @@ export default function PayableBills() {
                 </div>
               </div>
             </Card>
+
+            {/* Mobile filter bar */}
+            <div className="md:hidden flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+                <Input
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  placeholder="Buscar conta"
+                  className="h-11 w-full pl-9"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setFiltersSheetOpen(true)}
+                aria-label="Abrir filtros"
+                className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-surface-elevated text-foreground hover:bg-surface-overlay"
+              >
+                <FilterIcon size={18} aria-hidden="true" />
+                {activeFiltersCount > 0 && (
+                  <span
+                    aria-label={`${activeFiltersCount} filtros ativos`}
+                    className="absolute -top-1 -right-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold leading-none text-primary-foreground"
+                  >
+                    {activeFiltersCount}
+                  </span>
+                )}
+              </button>
+            </div>
 
             {/* Destaque: vencidas / vence hoje / vence amanhã (abaixo dos filtros) */}
             {!loading && viewMode !== 'calendar' && (
@@ -853,6 +932,20 @@ export default function PayableBills() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <BillFiltersSheet
+        open={filtersSheetOpen}
+        onOpenChange={setFiltersSheetOpen}
+        periodFilter={periodFilter}
+        onPeriodChange={setPeriodFilter}
+        categoryFilter={categoryFilter}
+        onCategoryChange={setCategoryFilter}
+        categories={categories}
+        recurrenceTypeFilter={recurrenceTypeFilter}
+        onRecurrenceTypeChange={setRecurrenceTypeFilter}
+        sortOption={sortOption}
+        onSortChange={setSortOption}
+      />
 
       {/* Dialog de Confirmação - Deletar Parcelamento */}
       <AlertDialog open={deleteGroupDialogOpen} onOpenChange={setDeleteGroupDialogOpen}>

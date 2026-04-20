@@ -166,8 +166,8 @@ describe('PayableBills premium shell regression', () => {
     expect(screen.getByText('Contas a Pagar')).not.toBeNull();
     expect(screen.getByText('Gerencie suas contas e vencimentos')).not.toBeNull();
     expect(screen.getByText('Competência')).not.toBeNull();
-    expect(screen.getByText('Histórico (0)')).not.toBeNull();
-    expect(screen.getByText('Relatórios')).not.toBeNull();
+    expect(screen.getAllByText('Histórico (0)')[0]).not.toBeNull();
+    expect(screen.getAllByText('Relatórios')[0]).not.toBeNull();
     expect(screen.getByText('Cards Tabela Calendário')).not.toBeNull();
     expect(screen.getByText('bill-summary-cards-mounted')).not.toBeNull();
   });
