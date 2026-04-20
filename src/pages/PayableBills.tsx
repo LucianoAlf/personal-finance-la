@@ -45,6 +45,13 @@ import { ptBR } from 'date-fns/locale';
 import { isBillOverdue } from '@/utils/billCalculations';
 import { getRemainingAmount } from '@/utils/billCalculations';
 
+const DEFAULT_FILTERS = {
+  periodFilter: 'this_month' as const,
+  categoryFilter: 'all' as const,
+  recurrenceTypeFilter: 'all' as const,
+  sortOption: 'due_soon' as const,
+};
+
 export default function PayableBills() {
   const primaryButtonClass =
     'rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90';
@@ -87,11 +94,11 @@ export default function PayableBills() {
   const [billToRevert, setBillToRevert] = useState<PayableBill | null>(null);
   const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
   const [selectedBill, setSelectedBill] = useState<PayableBill | null>(null);
-  const [sortOption, setSortOption] = useState<SortOption>('due_soon');
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
+  const [sortOption, setSortOption] = useState<SortOption>(DEFAULT_FILTERS.sortOption);
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>(DEFAULT_FILTERS.categoryFilter);
   const [viewMode, setViewMode] = useState<ViewMode>('cards');
-  const [periodFilter, setPeriodFilter] = useState<PeriodOption>('this_month');
-  const [recurrenceTypeFilter, setRecurrenceTypeFilter] = useState<RecurrenceTypeOption>('all');
+  const [periodFilter, setPeriodFilter] = useState<PeriodOption>(DEFAULT_FILTERS.periodFilter);
+  const [recurrenceTypeFilter, setRecurrenceTypeFilter] = useState<RecurrenceTypeOption>(DEFAULT_FILTERS.recurrenceTypeFilter);
   const [selectedMonthDate, setSelectedMonthDate] = useState(new Date());
   const [monthModalOpen, setMonthModalOpen] = useState(false);
   const [searchInput, setSearchInput] = useState('');
@@ -363,10 +370,10 @@ export default function PayableBills() {
 
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (periodFilter !== 'this_month') count++;
-    if (categoryFilter !== 'all') count++;
-    if (periodFilter === 'recurring' && recurrenceTypeFilter !== 'all') count++;
-    if (sortOption !== 'due_soon') count++;
+    if (periodFilter !== DEFAULT_FILTERS.periodFilter) count++;
+    if (categoryFilter !== DEFAULT_FILTERS.categoryFilter) count++;
+    if (periodFilter === 'recurring' && recurrenceTypeFilter !== DEFAULT_FILTERS.recurrenceTypeFilter) count++;
+    if (sortOption !== DEFAULT_FILTERS.sortOption) count++;
     return count;
   }, [periodFilter, categoryFilter, recurrenceTypeFilter, sortOption]);
 
