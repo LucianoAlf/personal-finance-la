@@ -54,6 +54,7 @@ export function CreditCards() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
   const invoicesRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<'cartoes' | 'faturas' | 'analises' | 'historico'>('cartoes');
 
   const currentMonthInvoicesSummary = useMemo(() => {
     const monthNames = [
@@ -202,8 +203,60 @@ export function CreditCards() {
         </div>
 
         {/* Tabs: Cartões, Faturas, Análises e Histórico */}
-        <Tabs defaultValue="cartoes" className="w-full">
-          <TabsList className="mb-6 grid h-auto w-full grid-cols-4 rounded-[1.4rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)]">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
+          {/* Mobile sliding pill (< md) */}
+          <TabsList
+            data-mobile-tabs="true"
+            className="relative mb-4 flex w-full rounded-full border border-border/70 bg-card/95 p-1 md:hidden [&::-webkit-scrollbar]:hidden"
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-1 left-1 top-1 z-0 rounded-full bg-primary shadow-sm transition-transform duration-300 ease-out"
+              style={{
+                width: 'calc((100% - 0.5rem) / 4)',
+                transform: `translateX(${
+                  activeTab === 'cartoes'  ? '0%'   :
+                  activeTab === 'faturas'  ? '100%' :
+                  activeTab === 'analises' ? '200%' : '300%'
+                })`,
+              }}
+            />
+            <TabsTrigger
+              value="cartoes"
+              aria-label="Meus Cartões"
+              className="relative z-10 flex flex-1 flex-col items-center gap-1 py-2 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+            >
+              <CreditCard className="h-[15px] w-[15px]" />
+              <span className="text-[9px] font-bold leading-none">Cartões</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="faturas"
+              aria-label="Faturas"
+              className="relative z-10 flex flex-1 flex-col items-center gap-1 py-2 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+            >
+              <Receipt className="h-[15px] w-[15px]" />
+              <span className="text-[9px] font-bold leading-none">Faturas</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="analises"
+              aria-label="Análises"
+              className="relative z-10 flex flex-1 flex-col items-center gap-1 py-2 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+            >
+              <BarChart3 className="h-[15px] w-[15px]" />
+              <span className="text-[9px] font-bold leading-none">Análises</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="historico"
+              aria-label="Histórico"
+              className="relative z-10 flex flex-1 flex-col items-center gap-1 py-2 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+            >
+              <History className="h-[15px] w-[15px]" />
+              <span className="text-[9px] font-bold leading-none">Histórico</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Desktop tabs (≥ md) — original, untouched */}
+          <TabsList className="mb-6 hidden h-auto w-full grid-cols-4 rounded-[1.4rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)] md:grid">
             <TabsTrigger value="cartoes" className="flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15">
               <CreditCard className="h-4 w-4" />
               Meus Cartões

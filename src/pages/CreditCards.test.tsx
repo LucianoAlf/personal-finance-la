@@ -34,9 +34,9 @@ vi.mock('@/components/ui/button', () => ({
 }));
 
 vi.mock('@/components/ui/tabs', () => ({
-  Tabs: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  TabsList: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  TabsTrigger: ({ children }: { children: React.ReactNode }) => <button type="button">{children}</button>,
+  Tabs: ({ children, value, onValueChange }: { children: React.ReactNode; value?: string; onValueChange?: (v: string) => void }) => <div data-tabs-value={value}>{children}</div>,
+  TabsList: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement> & { children: React.ReactNode }) => <div {...props}>{children}</div>,
+  TabsTrigger: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode; value?: string }) => <button type="button" {...props}>{children}</button>,
   TabsContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
@@ -228,5 +228,22 @@ describe('CreditCards initial render', () => {
     );
     const contentDiv = container.querySelector('.p-4');
     expect(contentDiv).not.toBeNull();
+  });
+
+  it('renders mobile pill tab bar with data-mobile-tabs attribute', () => {
+    const { container } = render(
+      <MemoryRouter><CreditCards /></MemoryRouter>
+    );
+    const mobileTabs = container.querySelector('[data-mobile-tabs="true"]');
+    expect(mobileTabs).not.toBeNull();
+  });
+
+  it('mobile pill shows translateX(0%) for default cartoes tab', () => {
+    const { container } = render(
+      <MemoryRouter><CreditCards /></MemoryRouter>
+    );
+    const pill = container.querySelector('[data-mobile-tabs="true"] [aria-hidden="true"]');
+    expect(pill).not.toBeNull();
+    expect((pill as HTMLElement).style.transform).toBe('translateX(0%)');
   });
 });
