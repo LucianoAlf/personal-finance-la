@@ -142,4 +142,25 @@ describe('Transacoes premium page regression', () => {
     expect(searchCard?.className).not.toContain('bg-white');
     expect(listCard?.className).toContain('bg-card');
   });
+
+  it('renders the mobile filter bar with filter button (aria-label)', () => {
+    render(
+      <MemoryRouter>
+        <Transacoes />
+      </MemoryRouter>,
+    );
+    const mobileFilterBtn = screen.getByRole('button', { name: /abrir filtros avançados/i });
+    expect(mobileFilterBtn).toBeTruthy();
+  });
+
+  it('summary grid uses grid-cols-2 mobile default and xl:grid-cols-4 on desktop', () => {
+    render(
+      <MemoryRouter>
+        <Transacoes />
+      </MemoryRouter>,
+    );
+    const grid = screen.getByTestId('transacoes-summary-grid');
+    expect(grid.className).toContain('grid-cols-2');
+    expect(grid.className).toContain('xl:grid-cols-4');
+  });
 });
