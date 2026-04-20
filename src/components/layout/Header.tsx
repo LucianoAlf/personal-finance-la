@@ -118,7 +118,7 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
                 </Avatar>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuContent align="end" collisionPadding={8} className="w-64">
               <DropdownMenuLabel className="px-3 py-2 text-left normal-case tracking-normal">
                 <div className="flex min-w-0 flex-col space-y-1">
                   <p className="truncate text-sm font-medium leading-none text-foreground">
@@ -164,6 +164,7 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
             <p
               data-testid="header-subtitle-mobile"
               className="flex-1 truncate text-xs text-muted-foreground lg:hidden"
+              aria-hidden="true"
             >
               {subtitle}
             </p>

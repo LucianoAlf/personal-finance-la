@@ -26,6 +26,7 @@ import { useSettings } from '@/hooks/useSettings';
 import { useGoalsQuery } from '@/hooks/useGoalsQuery';
 import { usePayableBillsQuery } from '@/hooks/usePayableBillsQuery';
 import type { FinancialGoalWithCategory } from '@/types/database.types';
+import type { PayableBill } from '@/types/payable-bills.types';
 import {
   Wallet,
   TrendingUp,
@@ -115,9 +116,9 @@ export function Dashboard() {
 
   const overdueSummary = useMemo(() => {
     const bills = payableBillsQuery?.overdueBills ?? [];
-    const amount = bills.reduce((sum: number, b: any) => sum + Number(b.amount ?? 0), 0);
-    const topItems = bills.slice(0, 2).map((b: any) => ({
-      name: b.name ?? b.description ?? 'Conta',
+    const amount = bills.reduce((sum: number, b: PayableBill) => sum + Number(b.amount ?? 0), 0);
+    const topItems = bills.slice(0, 2).map((b: PayableBill) => ({
+      name: b.description ?? 'Conta',
       dueLabel: b.due_date ? new Date(b.due_date).toLocaleDateString('pt-BR') : '',
     }));
     return { count: bills.length, amount, topItems };
