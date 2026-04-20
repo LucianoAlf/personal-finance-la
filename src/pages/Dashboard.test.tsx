@@ -334,8 +334,8 @@ describe('Dashboard premium dark mode regression', () => {
       .map((el) => el.getAttribute('data-testid'));
 
     const expected = [
-      'dashboard-block-ana',
       'dashboard-block-stats',
+      'dashboard-block-ana',
       'dashboard-block-bills',
       'dashboard-block-investments',
       'dashboard-block-recent',

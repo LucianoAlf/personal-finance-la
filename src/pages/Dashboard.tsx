@@ -153,11 +153,6 @@ export function Dashboard() {
           topItems={overdueSummary.topItems}
         />
 
-        {/* Ana Clara */}
-        <div data-testid="dashboard-block-ana" className="lg:order-3">
-          <AnaDashboardWidget autoRefresh={true} />
-        </div>
-
         {/* Stat Cards */}
         <div
           data-testid="dashboard-block-stats"
@@ -219,6 +214,11 @@ export function Dashboard() {
             })()}
             onClick={() => navigate('/cartoes')}
           />
+        </div>
+
+        {/* Ana Clara */}
+        <div data-testid="dashboard-block-ana" className="lg:order-3">
+          <AnaDashboardWidget autoRefresh={true} />
         </div>
 
         {/* Payable Bills */}
