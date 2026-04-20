@@ -1645,3 +1645,64 @@ After this plan is fully executed:
 - **Plan 4 — Transações mobile**
 - **Plan 5 — Conciliação mobile** (tabs swipeable Banco/Sistema/Sugestões — sub-brainstorm required)
 - **Plans 6..N** — remaining pages
+
+---
+
+## Execution Log
+
+**Date**: 2026-04-19
+**Branch**: `feat/mobile-shell-plan1` (14 commits ahead of `main`)
+**Execution mode**: subagent-driven-development (model: Claude Sonnet 4.6 for implementers + reviewers, Claude Opus 4.7 for final review)
+
+### Commits
+
+| # | SHA | Description |
+|---|---|---|
+| 1 | `f20d707` | chore(images): generate Ana Clara avatar variants (128/512, webp+png) |
+| 2 | `0248175` | feat(nav): extract navigation config as single source of truth |
+| 2b | `8c1e17a` | refactor(nav): derive moreSheetItems from bottomNavItems; cover with tests |
+| 3 | `ab7c6b9` | refactor(sidebar): consume navigation config, remove mobile drawer |
+| 3b | `38b1af9` | chore(sidebar): prune dead imports after mobile drawer removal |
+| 4 | `4b503bf` | feat(store): add moreSheetOpen flag to uiStore |
+| 5 | `6cdb5f6` | feat(layout): add BottomNav with 5 tabs (mobile only) |
+| 5b | `a4e693b` | fix(bottomnav): drop misapplied ARIA tab roles; use nav landmark |
+| 6 | `0cb28cd` | feat(layout): add MoreSheet bottom sheet (mobile only) |
+| 7 | `e1f1e7a` | feat(layout): add QuickCreateFab with 5-action menu (mobile only) |
+| 8 | `fe30e12` | feat(hooks): add useKeyboardInset (visualViewport-based, for Plan 2) |
+| 9 | `e19a044` | feat(ana-clara): add mobile stub screen (placeholder for Plan 2) |
+| 10 | `cf40f91` | feat(layout): integrate mobile shell into MainLayout + viewport-fit |
+| 9b/10b | `92617df` | fix(ana-clara): bind Escape to close + enlarge back button to 44px |
+
+### Automated verification
+
+- **Unit tests**: ~46 new tests across the plan, all passing
+- **Full suite**: 999/1004 — 5 pre-existing failures in `CalendarPage`/`ticktick-sync-closure` unrelated to this plan
+- **Sidebar.test.tsx**: byte-identical pass (proves zero desktop regression from the refactor)
+- **Dev server**: Vite v6.4.1 ready in 767ms, no build errors, no TypeScript errors
+
+### Review findings addressed
+
+- Spec review Task 3: fixed dead `Menu` import (`38b1af9`)
+- Spec review Task 2: added derivation + coverage for `moreSheetItems` (`8c1e17a`)
+- Code quality Task 5: dropped misapplied `role="tablist"`/`role="tab"` (`a4e693b`)
+- Final review Tasks 9-10: added Escape handler + enlarged back button to 44px (`92617df`)
+
+### Deviations from original plan
+
+- **No feature flag** (`VITE_MOBILE_SHELL_ENABLED`): dropped in favor of per-commit `git revert` rollback; simpler and each commit is atomic.
+- **512 avatar variants**: ~100KB each (over the 30KB soft cap). Accepted — illustrated hero image, loaded once, appropriate for the use case. 128 variants are 10-12KB.
+- **`afterEach(cleanup)` in tests**: added to each new test file because the project's global vitest config uses `environment: 'node'` (individual files override with `/* @vitest-environment jsdom */`), but `@testing-library/react` auto-cleanup does not activate without the `@testing-library/jest-dom/vitest` setup entry.
+
+### Manual verification pending (USER ACTION)
+
+Task 11 requires browser-based visual verification at 3 viewports. Dev server is already running in the background (`pnpm dev` → see terminal for URL, typically `http://localhost:5173`). Run through these checks and record findings:
+
+- [ ] **Desktop (1440×900)**: Sidebar visual identical to before the plan. No BottomNav, no QuickCreateFab visible. Ana Clara FAB (Bot icon) still at `bottom-6 right-6`. All 14 sidebar items navigate correctly.
+- [ ] **Tablet portrait (768×1024 iPad)**: Sidebar gone. BottomNav visible at bottom with 5 tabs. FAB "+" green above nav, right side. Tap "Mais" → sheet with 11 grid items rises; tap outside closes. Tap "🤖 Ana" → stub screen full-screen; back button closes. Tap "Abrir no WhatsApp" → navigates to `/configuracoes#integrations-whatsapp`.
+- [ ] **Phone (375×667 iPhone SE)**: Same as tablet. Additionally: safe-area padding at bottom of nav; content bottom padding clears nav; Tap FAB → menu opens upward with 5 actions; tap "Despesa" opens TransactionDialog.
+- [ ] **Acceptance criteria** (spec §9): zero horizontal scroll at 320/375/768/1024/1440/1920; all tap targets ≥ 44×44; active tab clearly highlighted + `aria-current`; back button works; desktop pixel-identical to main.
+
+### Handoff
+
+Branch is ready for `superpowers:finishing-a-development-branch` once the manual verification passes. Suggested merge: squash or rebase-and-merge — each commit is a coherent step, so both work; rebase preserves the granular history.
+
