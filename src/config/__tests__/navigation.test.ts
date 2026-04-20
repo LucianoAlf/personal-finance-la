@@ -4,6 +4,7 @@ import {
   moreMenuItems,
   quickCreateItems,
   bottomNavItems,
+  moreSheetItems,
 } from '../navigation';
 
 describe('navigation config', () => {
@@ -46,5 +47,21 @@ describe('navigation config', () => {
         expect(paths.has(entry.path)).toBe(true);
       }
     }
+  });
+
+  it('moreSheetItems excludes every path that lives in bottomNavItems', () => {
+    const bottomPaths = new Set(
+      bottomNavItems.flatMap((e) => (e.kind === 'route' ? [e.path] : [])),
+    );
+    for (const item of moreSheetItems) {
+      expect(bottomPaths.has(item.path)).toBe(false);
+    }
+  });
+
+  it('moreSheetItems length equals primary minus bottom-nav routes plus more', () => {
+    const bottomRouteCount = bottomNavItems.filter((e) => e.kind === 'route').length;
+    expect(moreSheetItems).toHaveLength(
+      primaryMenuItems.length - bottomRouteCount + moreMenuItems.length,
+    );
   });
 });

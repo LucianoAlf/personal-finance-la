@@ -80,9 +80,11 @@ export const bottomNavItems: BottomNavEntry[] = [
   { kind: 'more', icon: MoreHorizontal, label: 'Mais' },
 ];
 
+const bottomNavRoutePaths = new Set(
+  bottomNavItems.flatMap((entry) => (entry.kind === 'route' ? [entry.path] : [])),
+);
+
 export const moreSheetItems: MenuItem[] = [
-  ...primaryMenuItems.filter(
-    (item) => !['/', '/transacoes', '/contas-pagar'].includes(item.path),
-  ),
+  ...primaryMenuItems.filter((item) => !bottomNavRoutePaths.has(item.path)),
   ...moreMenuItems,
 ];
