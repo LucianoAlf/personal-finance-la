@@ -13,7 +13,6 @@ export function BottomNav() {
 
   return (
     <nav
-      role="tablist"
       aria-label="Navegação principal"
       className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] pt-2 backdrop-blur supports-[backdrop-filter]:bg-surface/80 lg:hidden"
     >
@@ -66,7 +65,6 @@ export function BottomNav() {
         return (
           <button
             key={`${item.kind}-${index}`}
-            role="tab"
             type="button"
             onClick={onClick}
             aria-current={isActive ? 'page' : undefined}

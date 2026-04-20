@@ -41,38 +41,38 @@ describe('BottomNav', () => {
     cleanup();
   });
 
-  it('renders exactly 5 tabs with role="tab"', () => {
+  it('renders exactly 5 buttons', () => {
     renderAt('/');
-    expect(screen.getAllByRole('tab')).toHaveLength(5);
+    expect(screen.getAllByRole('button')).toHaveLength(5);
   });
 
   it('marks the Dashboard tab as aria-current when on /', () => {
     renderAt('/');
-    const active = screen.getByRole('tab', { name: /início/i });
+    const active = screen.getByRole('button', { name: /início/i });
     expect(active.getAttribute('aria-current')).toBe('page');
   });
 
   it('marks Transações tab as aria-current when on /transacoes', () => {
     renderAt('/transacoes');
-    const active = screen.getByRole('tab', { name: /lanç/i });
+    const active = screen.getByRole('button', { name: /lanç/i });
     expect(active.getAttribute('aria-current')).toBe('page');
   });
 
   it('clicking the Ana Clara tab opens anaCoachOpen', () => {
     renderAt('/');
-    fireEvent.click(screen.getByRole('tab', { name: /ana/i }));
+    fireEvent.click(screen.getByRole('button', { name: /ana/i }));
     expect(mockedSetAnaCoachOpen).toHaveBeenCalledWith(true);
   });
 
   it('clicking the Mais tab opens moreSheetOpen', () => {
     renderAt('/');
-    fireEvent.click(screen.getByRole('tab', { name: /mais/i }));
+    fireEvent.click(screen.getByRole('button', { name: /mais/i }));
     expect(mockedSetMoreSheetOpen).toHaveBeenCalledWith(true);
   });
 
   it('is hidden at lg breakpoint (verified via class)', () => {
     renderAt('/');
-    const nav = screen.getByRole('tablist');
+    const nav = screen.getByRole('navigation', { name: /navegação principal/i });
     expect(nav.className).toContain('lg:hidden');
   });
 
