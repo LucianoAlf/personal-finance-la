@@ -49,11 +49,11 @@ export function CreditCardList({
 
   if (cards.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-[30px] border border-dashed border-border/70 bg-card/85 px-6 py-16 text-center">
-        <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-[1.9rem] bg-surface-elevated ring-1 ring-border/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <div className="flex flex-col items-center justify-center rounded-[30px] border border-dashed border-border/70 bg-card/85 px-6 py-10 md:py-16 text-center">
+        <div className="mb-4 h-16 w-16 md:mb-6 md:h-24 md:w-24 flex items-center justify-center rounded-[1.9rem] bg-surface-elevated ring-1 ring-border/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
           <CreditCardIcon size={40} className="text-primary/75" />
         </div>
-        <h3 className="mb-2 text-2xl font-semibold tracking-tight text-foreground">Nenhum cartao cadastrado</h3>
+        <h3 className="mb-2 text-xl md:text-2xl font-semibold tracking-tight text-foreground">Nenhum cartao cadastrado</h3>
         <p className="mb-6 max-w-md text-muted-foreground">
           Adicione seu primeiro cartao de credito para comecar a controlar suas despesas e faturas
         </p>
@@ -90,7 +90,7 @@ export function CreditCardList({
           className="group cursor-pointer rounded-[28px] border-2 border-dashed border-border/70 bg-card/70 transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-card/90"
           onClick={onAddNew}
         >
-          <CardContent className="flex h-full min-h-[400px] flex-col items-center justify-center p-6 text-center">
+          <CardContent className="flex h-full min-h-[180px] md:min-h-[400px] flex-col items-center justify-center p-6 text-center">
             <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-[1.8rem] border border-border/70 bg-surface-elevated transition-colors group-hover:bg-surface-overlay">
               <Plus size={34} className="text-primary/80 transition-colors group-hover:text-primary" />
             </div>
