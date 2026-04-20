@@ -596,7 +596,7 @@ export default function PayableBills() {
           >
             {/* Sliding indicator */}
             <div
-              className="absolute top-1 bottom-1 left-1 rounded-full bg-primary shadow-sm transition-transform duration-300 ease-out"
+              className="absolute top-1 bottom-1 left-1 z-0 rounded-full bg-primary shadow-sm transition-transform duration-300 ease-out"
               style={{
                 width: 'calc((100% - 0.5rem) / 3)',
                 transform: `translateX(${
@@ -607,21 +607,21 @@ export default function PayableBills() {
             />
             <TabsTrigger
               value="bills"
-              className="relative flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold transition-colors data-[state=active]:text-primary-foreground text-muted-foreground"
+              className="relative z-10 flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold transition-colors data-[state=active]:text-primary-foreground text-muted-foreground"
             >
               <Receipt className="h-4 w-4" />
               Contas ({filteredBills.length})
             </TabsTrigger>
             <TabsTrigger
               value="history"
-              className="relative flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold transition-colors data-[state=active]:text-primary-foreground text-muted-foreground"
+              className="relative z-10 flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold transition-colors data-[state=active]:text-primary-foreground text-muted-foreground"
             >
               <History className="h-4 w-4" />
               Histórico ({paidBills.length})
             </TabsTrigger>
             <TabsTrigger
               value="reports"
-              className="relative flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold transition-colors data-[state=active]:text-primary-foreground text-muted-foreground"
+              className="relative z-10 flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 py-2 text-xs font-semibold transition-colors data-[state=active]:text-primary-foreground text-muted-foreground"
             >
               <BarChart3 className="h-4 w-4" />
               Relatórios
