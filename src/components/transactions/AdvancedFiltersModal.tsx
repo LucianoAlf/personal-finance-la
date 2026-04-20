@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  ResponsiveDialog,
+  ResponsiveDialogHeader,
+  ResponsiveDialogBody,
+  ResponsiveDialogFooter,
+} from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -151,13 +156,13 @@ export function AdvancedFiltersModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl sm:max-w-[540px]">
-        <DialogHeader className="border-b border-border/60 px-6 py-5">
-          <DialogTitle className="text-[1.65rem] font-semibold tracking-tight text-foreground">Filtro de transações</DialogTitle>
-        </DialogHeader>
-
-        <div className="px-6 py-5">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogHeader
+        title="Filtros Avançados"
+        description="Aplique critérios detalhados às suas transações"
+        onClose={() => onOpenChange(false)}
+      />
+      <ResponsiveDialogBody>
         <Tabs defaultValue="new" className="w-full">
           <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-border/70 bg-surface-elevated/70 p-1">
             <TabsTrigger
@@ -421,34 +426,29 @@ export function AdvancedFiltersModal({
             )}
           </TabsContent>
         </Tabs>
-
-        {/* BOTÕES */}
-        <div className="mt-6 flex justify-between border-t border-border/60 pt-5">
-          <Button
-            variant="outline"
-            onClick={handleCancel}
-            className="rounded-xl border-border/70 bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
-          >
-            CANCELAR
-          </Button>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={handleClearFilters}
-              className="rounded-xl border-border/70 bg-surface/70 text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
-            >
-              LIMPAR
-            </Button>
-            <Button
-              onClick={handleApply}
-              className={primaryButtonClass}
-            >
-              APLICAR FILTROS
-            </Button>
-          </div>
-        </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+      <ResponsiveDialogFooter>
+        <Button
+          variant="outline"
+          onClick={handleCancel}
+          className="rounded-xl border-border/70 bg-transparent text-primary hover:bg-primary/10 hover:text-primary"
+        >
+          CANCELAR
+        </Button>
+        <Button
+          variant="outline"
+          onClick={handleClearFilters}
+          className="rounded-xl border-border/70 bg-surface/70 text-muted-foreground hover:bg-surface-elevated hover:text-foreground"
+        >
+          LIMPAR
+        </Button>
+        <Button
+          onClick={handleApply}
+          className={primaryButtonClass}
+        >
+          APLICAR FILTROS
+        </Button>
+      </ResponsiveDialogFooter>
+    </ResponsiveDialog>
   );
 }

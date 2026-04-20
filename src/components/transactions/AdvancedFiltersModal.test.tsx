@@ -21,17 +21,25 @@ vi.mock('@/hooks/useSavedFilters', () => ({
   }),
 }));
 
-vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({
+vi.mock('@/components/ui/responsive-dialog', () => ({
+  ResponsiveDialog: ({
     open,
     children,
   }: {
     open: boolean;
+    onOpenChange: (open: boolean) => void;
     children: React.ReactNode;
-  }) => (open ? <div>{children}</div> : null),
-  DialogContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  DialogTitle: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  }) => (
+    <>
+      <div data-testid="responsive-dialog-desktop">{open ? children : null}</div>
+      {open && <div data-testid="responsive-dialog-mobile">{children}</div>}
+    </>
+  ),
+  ResponsiveDialogHeader: ({ title }: { title: string; description?: string; onClose?: () => void }) => (
+    <div>{title}</div>
+  ),
+  ResponsiveDialogBody: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  ResponsiveDialogFooter: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
 vi.mock('@/components/ui/button', () => ({
@@ -157,12 +165,12 @@ describe('AdvancedFiltersModal', () => {
       />,
     );
 
-    expect(screen.getByTestId('selected-tags').textContent).toBe('saved-tag');
+    expect(screen.getAllByTestId('selected-tags')[0].textContent).toBe('saved-tag');
 
-    fireEvent.click(screen.getByText('edit-tags'));
-    expect(screen.getByTestId('selected-tags').textContent).toBe('edited-tag');
+    fireEvent.click(screen.getAllByText('edit-tags')[0]);
+    expect(screen.getAllByTestId('selected-tags')[0].textContent).toBe('edited-tag');
 
-    fireEvent.click(screen.getByText('CANCELAR'));
+    fireEvent.click(screen.getAllByText('CANCELAR')[0]);
 
     rerender(
       <AdvancedFiltersModal
@@ -182,7 +190,7 @@ describe('AdvancedFiltersModal', () => {
       />,
     );
 
-    expect(screen.getByTestId('selected-tags').textContent).toBe('saved-tag');
+    expect(screen.getAllByTestId('selected-tags')[0].textContent).toBe('saved-tag');
   });
 
   it('resyncs local state when parent filters change', () => {
@@ -195,8 +203,8 @@ describe('AdvancedFiltersModal', () => {
       />,
     );
 
-    expect(screen.getByTestId('selected-tags').textContent).toBe('tag-a');
-    expect(screen.getByTestId('selected-types').textContent).toBe('expense');
+    expect(screen.getAllByTestId('selected-tags')[0].textContent).toBe('tag-a');
+    expect(screen.getAllByTestId('selected-types')[0].textContent).toBe('expense');
 
     rerender(
       <AdvancedFiltersModal
@@ -207,7 +215,19 @@ describe('AdvancedFiltersModal', () => {
       />,
     );
 
-    expect(screen.getByTestId('selected-tags').textContent).toBe('');
-    expect(screen.getByTestId('selected-types').textContent).toBe('');
+    expect(screen.getAllByTestId('selected-tags')[0].textContent).toBe('');
+    expect(screen.getAllByTestId('selected-types')[0].textContent).toBe('');
+  });
+
+  it('renders both mobile and desktop responsive wrappers when open', () => {
+    render(
+      <AdvancedFiltersModal
+        open={true}
+        onOpenChange={() => {}}
+        onApplyFilters={() => {}}
+      />,
+    );
+    expect(screen.getByTestId('responsive-dialog-mobile')).toBeTruthy();
+    expect(screen.getByTestId('responsive-dialog-desktop')).toBeTruthy();
   });
 });
