@@ -171,4 +171,34 @@ describe('PayableBills premium shell regression', () => {
     expect(screen.getByText('Cards Tabela Calendário')).not.toBeNull();
     expect(screen.getByText('bill-summary-cards-mounted')).not.toBeNull();
   });
+
+  it('renders mobile filter button (aria-label)', () => {
+    render(
+      <MemoryRouter>
+        <PayableBills />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole('button', { name: /abrir filtros/i })).toBeTruthy();
+  });
+
+  it('renders mobile tab list with overflow-x-auto class (3 tabs scrollable)', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <PayableBills />
+      </MemoryRouter>,
+    );
+    const mobileTabs = container.querySelector('.md\\:hidden.overflow-x-auto');
+    expect(mobileTabs).toBeTruthy();
+  });
+
+  it('summary section renders BillSummaryCards inside the page shell', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <PayableBills />
+      </MemoryRouter>,
+    );
+    const html = container.innerHTML;
+    expect(html).toContain('bill-summary-cards-mounted');
+    expect(container.querySelector('.min-h-screen')).toBeTruthy();
+  });
 });
