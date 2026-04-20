@@ -214,7 +214,7 @@ describe('CreditCards initial render', () => {
     expect(totalLimitCard.getAttribute('data-icon-class')).toBe('');
   });
 
-  it('renders StatCard grid with grid-cols-2 on mobile', () => {
+  it('renders StatCard grid with grid-cols-2 class', () => {
     const { container } = render(
       <MemoryRouter><CreditCards /></MemoryRouter>
     );
@@ -222,7 +222,7 @@ describe('CreditCards initial render', () => {
     expect(grid).not.toBeNull();
   });
 
-  it('uses compact padding classes on mobile', () => {
+  it('renders compact padding class p-4', () => {
     const { container } = render(
       <MemoryRouter><CreditCards /></MemoryRouter>
     );
