@@ -213,4 +213,20 @@ describe('CreditCards initial render', () => {
     expect(totalLimitCard.getAttribute('data-icon-box-class')).toBe('');
     expect(totalLimitCard.getAttribute('data-icon-class')).toBe('');
   });
+
+  it('renders StatCard grid with grid-cols-2 on mobile', () => {
+    const { container } = render(
+      <MemoryRouter><CreditCards /></MemoryRouter>
+    );
+    const grid = container.querySelector('.grid-cols-2');
+    expect(grid).not.toBeNull();
+  });
+
+  it('uses compact padding classes on mobile', () => {
+    const { container } = render(
+      <MemoryRouter><CreditCards /></MemoryRouter>
+    );
+    const contentDiv = container.querySelector('.p-4');
+    expect(contentDiv).not.toBeNull();
+  });
 });

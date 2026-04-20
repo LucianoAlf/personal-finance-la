@@ -164,12 +164,12 @@ export function CreditCards() {
         }
       />
 
-      <div className="relative space-y-6 p-6">
+      <div className="relative space-y-4 p-4 md:space-y-6 md:p-6">
         {/* Alertas Proativos */}
         <CreditCardAlerts cards={cardsSummary} className="animate-fade-in" />
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-fade-in">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 animate-fade-in">
           <StatCard
             title="Limite Total"
             value={formatCurrency(getTotalLimit())}
