@@ -215,7 +215,7 @@ export function Dashboard() {
         {/* ============ MOBILE TREE (< lg) ============ */}
         <div className="flex flex-col gap-6 lg:hidden">
           {/* 1. KPI Stat Cards */}
-          <div data-testid="dashboard-block-stats" className="grid grid-cols-1 gap-4">
+          <div data-testid="dashboard-block-stats" className="grid grid-cols-2 gap-3">
             <StatCard
               title="Saldo Total"
               value={formatCurrency(totalBalance)}
