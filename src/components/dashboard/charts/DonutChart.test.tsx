@@ -28,12 +28,12 @@ describe('DonutChart', () => {
     expect(screen.getByText(/TOTAL/i)).toBeTruthy();
   });
 
-  it('renders legend chips for each item with label and percentage', () => {
+  it('renders legend chips for each item with label and formatted value', () => {
     render(<DonutChart data={sampleData} total={2948} />);
     const chips = screen.getAllByTestId('donut-chip');
     expect(chips).toHaveLength(4);
     expect(chips[0].textContent).toContain('Alimentação');
-    expect(chips[0].textContent).toContain('76%');
+    expect(chips[0].textContent).toMatch(/R\$\s?2\.239/);
   });
 
   it('renders an empty state when data is empty', () => {

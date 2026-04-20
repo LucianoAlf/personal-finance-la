@@ -70,7 +70,7 @@ export function DonutChart({ data, total }: DonutChartProps) {
               style={{ background: item.color }}
             />
             <span className="font-medium">{item.name}</span>
-            <span className="text-muted-foreground">{item.percentage}%</span>
+            <span className="text-muted-foreground">{formatCurrency(item.value)}</span>
           </div>
         ))}
       </div>
