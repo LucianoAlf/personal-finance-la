@@ -87,7 +87,7 @@ export function Header({ title, subtitle, icon, actions }: HeaderProps) {
             type="button"
             variant="ghost"
             size="icon"
-            className="h-10 w-10 rounded-xl border border-border/70 bg-surface-elevated/80 text-muted-foreground shadow-sm hover:bg-surface-overlay hover:text-foreground"
+            className="h-11 w-11 rounded-xl border border-border/70 bg-surface-elevated/80 text-muted-foreground shadow-sm hover:bg-surface-overlay hover:text-foreground"
             onClick={handleThemeToggle}
             aria-label={
               resolvedTheme === 'dark' ? 'Ativar tema claro' : 'Ativar tema escuro'
