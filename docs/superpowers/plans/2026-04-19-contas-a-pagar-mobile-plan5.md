@@ -790,3 +790,46 @@ git commit -m "test(bills): assert mobile filter button + scrollable tabs + summ
 - Plan 7 — Agenda mobile
 - Plan 8 — Utilitárias
 - Plan 9 — Conciliação (mais complexa)
+
+---
+
+## Execution Log
+
+**Date**: 2026-04-19
+**Branch**: `feat/contas-a-pagar-mobile-plan5` (9 commits ahead of main)
+**Execution mode**: subagent-driven-development (Sonnet implementers + reviewers, Opus final review)
+
+### Commits
+```
+b4a3955 fix(bills): unify lg breakpoint for ViewToggle + extract DEFAULT_FILTERS const
+70c9b52 test(bills): assert mobile filter button + scrollable tabs + summary grid
+8b28118 feat(bills): mobile tabs scrollable + filter sheet + force cards view
+9b9dc0b feat(bills): BillList dual-render (mobile inline cards, desktop preserved)
+a13dfed feat(bills): add BillFiltersSheet (mobile-only, wraps 4 filters)
+d839560 refactor(bills): BillDialog consumes ResponsiveDialog (Sheet on mobile)
+8b28336 feat(bills): ViewToggle hides Table+Calendar on mobile (force Cards)
+41db95d feat(bills): summary cards 2x2 on mobile (4-col preserved at md+)
+```
+
+### Automated verification
+- BillSummaryCards: grid 2-col mobile, 4-col desktop (Task 1)
+- ViewToggle: Tabela/Calendário hidden < lg (after Fix 1 unification)
+- BillDialog: full-screen sheet mobile via ResponsiveDialog (Task 3)
+- BillFiltersSheet: 4/4 tests pass (Task 4)
+- BillList: dual-render mobile inline / desktop preserved (Task 5)
+- PayableBills.tsx: tabs scrollable + filter sheet + viewMode forced cards (Task 6)
+- New tests: 4 PayableBills + 4 BillFiltersSheet (Task 7)
+- Full suite: 1031 passed / 8 failed (same 3 pre-existing calendar/ticktick files, no regressions)
+- Final review fixes: DEFAULT_FILTERS const + breakpoint unification (Fix `b4a3955`)
+
+### Pending manual verification (USER ACTION)
+
+Recarrega `/contas-pagar` e valida:
+
+- **Desktop 1440**: pixel-idêntico ao pré-Plan-5. Tabs grid 3-col, summary 4 cards row, ViewToggle 3 botões, filter Card inline, BillList em cards verticais.
+- **iPad portrait 768×1024**: bottom nav. Tabs scrolláveis horizontal. Summary 2x2 compacto. Filter bar = search + ícone com badge. ViewToggle só "Cards". BillList inline.
+- **iPhone SE 375×667**: igual iPad. Tap no ícone de filtro abre sheet com 4 filtros. Tap numa conta abre BillDialog full-screen sheet.
+
+### Handoff
+
+Branch pronto para `superpowers:finishing-a-development-branch`. Mesmo padrão dos Plans 1, 3, 4 — Option 1 (merge local + push).
