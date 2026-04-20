@@ -331,7 +331,7 @@ describe('Dashboard premium dark mode regression', () => {
     );
 
     // Only the mobile tree carries data-testid="dashboard-block-*" attributes.
-    // The desktop tree has no testids, so this query returns exactly 7 mobile blocks.
+    // The desktop tree has no testids, so this query returns exactly 8 mobile blocks.
     const blocks = screen
       .getAllByTestId(/^dashboard-block-/)
       .map((el) => el.getAttribute('data-testid'));
@@ -341,6 +341,7 @@ describe('Dashboard premium dark mode regression', () => {
       'dashboard-block-ana',
       'dashboard-block-bills',
       'dashboard-block-investments',
+      'dashboard-block-cards',
       'dashboard-block-recent',
       'dashboard-block-charts',
       'dashboard-block-goals-budget',

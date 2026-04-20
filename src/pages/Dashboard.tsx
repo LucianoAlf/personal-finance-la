@@ -214,14 +214,7 @@ export function Dashboard() {
       <PageContent className="space-y-8 py-8">
         {/* ============ MOBILE TREE (< lg) ============ */}
         <div className="flex flex-col gap-6 lg:hidden">
-          {/* 1. Alert (conditional) */}
-          <DashboardAlertCard
-            overdueCount={overdueSummary.count}
-            overdueAmount={overdueSummary.amount}
-            topItems={overdueSummary.topItems}
-          />
-
-          {/* 2. KPI Stat Cards */}
+          {/* 1. KPI Stat Cards */}
           <div data-testid="dashboard-block-stats" className="grid grid-cols-1 gap-4">
             <StatCard
               title="Saldo Total"
@@ -277,6 +270,13 @@ export function Dashboard() {
             />
           </div>
 
+          {/* 2. Alert (conditional) */}
+          <DashboardAlertCard
+            overdueCount={overdueSummary.count}
+            overdueAmount={overdueSummary.amount}
+            topItems={overdueSummary.topItems}
+          />
+
           {/* 3. Ana Clara */}
           <div data-testid="dashboard-block-ana">
             <AnaDashboardWidget autoRefresh={true} />
@@ -292,7 +292,12 @@ export function Dashboard() {
             <InvestmentsWidget />
           </div>
 
-          {/* 6. Recent Transactions */}
+          {/* 6. Credit Cards */}
+          <div data-testid="dashboard-block-cards">
+            <CreditCardsWidget />
+          </div>
+
+          {/* 7. Recent Transactions */}
           <div data-testid="dashboard-block-recent">
             {recentTransactionsCard}
           </div>
