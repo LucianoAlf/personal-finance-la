@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { cn } from '@/lib/cn';
@@ -15,6 +15,15 @@ interface ResponsiveDialogProps {
 }
 
 export function ResponsiveDialog({ open, onOpenChange, children, className }: ResponsiveDialogProps) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onOpenChange(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, onOpenChange]);
+
   return (
     <>
       {/* Desktop: Radix Dialog with portal, focus trap, ESC, overlay click */}
@@ -53,6 +62,13 @@ interface ResponsiveDialogHeaderProps {
 
 export function ResponsiveDialogHeader({ title, description, onClose }: ResponsiveDialogHeaderProps) {
   const mode = useContext(ModeContext);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (mode === 'mobile' && closeBtnRef.current) {
+      closeBtnRef.current.focus();
+    }
+  }, [mode]);
 
   if (mode === 'desktop') {
     return (
@@ -69,6 +85,7 @@ export function ResponsiveDialogHeader({ title, description, onClose }: Responsi
       className="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-surface/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-surface/85"
     >
       <button
+        ref={closeBtnRef}
         type="button"
         onClick={onClose}
         aria-label="Fechar"

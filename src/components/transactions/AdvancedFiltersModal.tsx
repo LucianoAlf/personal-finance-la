@@ -158,7 +158,7 @@ export function AdvancedFiltersModal({
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogHeader
-        title="Filtros Avançados"
+        title="Filtro de transações"
         description="Aplique critérios detalhados às suas transações"
         onClose={() => onOpenChange(false)}
       />
