@@ -18,6 +18,8 @@ interface UIState {
   activeQuickCreate: QuickCreateAction | null;
   openQuickCreate: (action: QuickCreateAction) => void;
   closeQuickCreate: () => void;
+  moreSheetOpen: boolean;
+  setMoreSheetOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -31,4 +33,6 @@ export const useUIStore = create<UIState>((set) => ({
   activeQuickCreate: null,
   openQuickCreate: (action) => set({ activeQuickCreate: action }),
   closeQuickCreate: () => set({ activeQuickCreate: null }),
+  moreSheetOpen: false,
+  setMoreSheetOpen: (open) => set({ moreSheetOpen: open }),
 }));
