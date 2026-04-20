@@ -95,7 +95,7 @@ const TransactionSummaryCard = ({
   valueClassName = 'text-foreground',
 }: TransactionSummaryCardProps) => (
   <Card
-    className={`group relative overflow-hidden rounded-[28px] border bg-card/95 p-3 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(15,23,42,0.12)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)] md:p-6 ${summaryAccentStyles[accent]}`}
+    className={`group relative overflow-hidden rounded-xl border bg-card/95 p-3 shadow-[0_18px_45px_rgba(15,23,42,0.08)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_55px_rgba(15,23,42,0.12)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)] md:rounded-[28px] md:p-6 ${summaryAccentStyles[accent]}`}
   >
     <div className="flex items-start justify-between gap-2 md:gap-4">
       <div className="min-w-0 space-y-1 md:space-y-2">
