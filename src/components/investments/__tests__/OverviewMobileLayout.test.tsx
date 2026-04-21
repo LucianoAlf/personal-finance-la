@@ -44,13 +44,12 @@ describe('OverviewMobileLayout', () => {
     expect(screen.getByTestId('ana-insights')).toBeTruthy();
   });
 
-  it('renders 3 "Disponível no desktop" placeholders (Heatmap, Rebalance, Calculator)', () => {
+  it('does not render desktop-only widget placeholders on mobile', () => {
     render(<OverviewMobileLayout />);
-    expect(screen.getByText(/heatmap/i)).toBeTruthy();
-    expect(screen.getByText(/rebalance/i)).toBeTruthy();
-    expect(screen.getByText(/planejamento/i)).toBeTruthy();
-    const placeholders = screen.getAllByText(/disponível no desktop/i);
-    expect(placeholders.length).toBeGreaterThanOrEqual(3);
+    expect(screen.queryByText(/heatmap/i)).toBeNull();
+    expect(screen.queryByText(/rebalance/i)).toBeNull();
+    expect(screen.queryByText(/planejamento/i)).toBeNull();
+    expect(screen.queryByText(/disponível no desktop/i)).toBeNull();
   });
 
   it('is hidden on desktop via lg:hidden class', () => {

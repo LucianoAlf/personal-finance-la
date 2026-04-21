@@ -4,7 +4,6 @@ import { AssetAllocationChart } from './AssetAllocationChart';
 import { PortfolioEvolutionChart } from './PortfolioEvolutionChart';
 import { PerformanceBarChart } from './PerformanceBarChart';
 import { AnaInvestmentInsights } from './AnaInvestmentInsights';
-import { DesktopOnlyWidgetCard } from './DesktopOnlyWidgetCard';
 
 interface AllocationData {
   category: string;
@@ -52,10 +51,6 @@ export function OverviewMobileLayout({
       <div className="mx-2 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-blue-500/10 p-3">
         <AnaInvestmentInsights investments={investments} />
       </div>
-
-      <DesktopOnlyWidgetCard title="Heatmap de performance" />
-      <DesktopOnlyWidgetCard title="Rebalance inteligente" />
-      <DesktopOnlyWidgetCard title="Planejamento de investimentos" />
     </div>
   );
 }
