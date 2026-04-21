@@ -124,6 +124,8 @@ export function InvoiceHistoryTable({
   }
 
   return (
+    <>
+    <div className="hidden lg:block">
     <Card
       data-testid="invoice-history-table"
       className="overflow-hidden rounded-[30px] border-border/70 bg-card/95 shadow-[0_18px_45px_rgba(3,8,20,0.16)] dark:shadow-[0_22px_50px_rgba(2,6,23,0.28)]"
@@ -392,5 +394,119 @@ export function InvoiceHistoryTable({
         </div>
       </div>
     </Card>
+    </div>
+
+    {/* Mobile compact rows (< lg) */}
+    <div
+      data-testid="invoice-history-mobile-rows"
+      className="space-y-2 lg:hidden"
+    >
+      {invoices.map((invoice) => {
+        const isExpanded = expandedRows.has(invoice.id);
+        return (
+          <div key={invoice.id} className="overflow-hidden rounded-[18px] border border-border/70 bg-card/95">
+            <div className="flex items-center gap-3 p-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {invoice.credit_cards?.name || 'N/A'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {format(parseDateOnlyAsLocal(invoice.reference_month), 'MMM/yyyy', { locale: ptBR })}
+                </p>
+              </div>
+              <SimpleInvoiceStatusBadge status={invoice.status as any} size="sm" />
+              <div className="text-right">
+                <p className="text-sm font-bold tabular-nums text-foreground">
+                  {formatCurrency(invoice.total_amount)}
+                </p>
+                <div className="mt-1 flex justify-end gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Ver transações"
+                    className="h-7 w-7 rounded-lg p-0 text-muted-foreground hover:bg-surface hover:text-foreground"
+                    onClick={() => toggleRow(invoice.id)}
+                    title="Ver transações"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Excluir fatura"
+                    className="h-7 w-7 rounded-lg p-0 text-danger hover:bg-danger/10"
+                    onClick={() => onDeleteInvoice?.(invoice.id)}
+                    title="Excluir"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            {/* Expanded transactions on mobile */}
+            {isExpanded ? (
+              <div className="border-t border-border/60 bg-surface/45 px-3 py-3">
+                {loadingTransactions.has(invoice.id) ? (
+                  <div className="space-y-2">
+                    {[1, 2].map((i) => <Skeleton key={i} className="h-8 w-full rounded-[12px]" />)}
+                  </div>
+                ) : transactions[invoice.id]?.length > 0 ? (
+                  <div className="space-y-1">
+                    {transactions[invoice.id].map((tx, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-2 py-1 text-xs">
+                        <span className="text-muted-foreground">
+                          {tx.purchase_date
+                            ? format(parseDateOnlyAsLocal(tx.purchase_date), 'dd/MM')
+                            : ''}
+                        </span>
+                        <span className="flex-1 truncate text-foreground">{tx.description}</span>
+                        <span className="shrink-0 font-semibold tabular-nums text-foreground">
+                          {formatCurrency(tx.amount)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="py-2 text-center text-xs text-muted-foreground">
+                    Nenhuma transação
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+
+      {/* Mobile pagination */}
+      <div className="flex items-center justify-between px-1 py-2 text-sm text-muted-foreground">
+        <span>
+          {(pagination.page - 1) * pagination.pageSize + 1}–
+          {Math.min(pagination.page * pagination.pageSize, pagination.totalItems)} de{' '}
+          {pagination.totalItems}
+        </span>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pagination.page === 1}
+            onClick={() => onPageChange(pagination.page - 1)}
+            className="rounded-xl border-border/70 bg-surface/80"
+          >
+            ‹
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={pagination.page === Math.ceil(pagination.totalItems / pagination.pageSize)}
+            onClick={() => onPageChange(pagination.page + 1)}
+            className="rounded-xl border-border/70 bg-surface/80"
+          >
+            ›
+          </Button>
+        </div>
+      </div>
+    </div>
+    </>
   );
 }

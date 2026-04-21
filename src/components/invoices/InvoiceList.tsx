@@ -32,6 +32,24 @@ const filterButtonClass = (
       : 'border-border/70 bg-surface/72 text-muted-foreground hover:bg-surface-elevated hover:text-foreground',
   );
 
+const mobilePillClass = (active: boolean, tone: 'default' | 'danger' = 'default') =>
+  cn(
+    'flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-2 text-[11px] font-semibold transition-colors',
+    active
+      ? tone === 'danger'
+        ? 'border-danger/30 bg-danger/12 text-danger'
+        : 'border-primary/25 bg-primary text-primary-foreground'
+      : 'border-border/70 bg-surface/72 text-muted-foreground hover:bg-surface-elevated',
+  );
+
+const mobilePillCountClass = (active: boolean) =>
+  cn(
+    'rounded-full px-1.5 py-px text-[10px] font-semibold',
+    active
+      ? 'bg-white/20 text-primary-foreground'
+      : 'bg-background/80 text-muted-foreground ring-1 ring-border/60',
+  );
+
 export function InvoiceList({
   cardId,
   loading: externalLoading,
@@ -146,82 +164,142 @@ export function InvoiceList({
   return (
     <div className="space-y-6">
       <div>
-        <div className="flex flex-col gap-4 rounded-[28px] border border-border/70 bg-card/95 p-4 shadow-[0_18px_42px_rgba(3,8,20,0.16)] backdrop-blur-xl dark:shadow-[0_20px_48px_rgba(2,6,23,0.28)] xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex flex-wrap gap-2.5">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setActiveTab('open')}
-              className={filterButtonClass(activeTab === 'open')}
+        {/* Mobile: horizontal scroll pills (< lg) */}
+        <div
+          data-mobile-pills="true"
+          className="mb-3 flex gap-2 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden lg:hidden"
+        >
+          <button
+            type="button"
+            aria-pressed={activeTab === 'open'}
+            onClick={() => setActiveTab('open')}
+            className={mobilePillClass(activeTab === 'open')}
+          >
+            <Clock className="h-3 w-3" />
+            Abertas
+            <span className={mobilePillCountClass(activeTab === 'open')}>
+              {openInvoices.length}
+            </span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeTab === 'closed'}
+            onClick={() => setActiveTab('closed')}
+            className={mobilePillClass(activeTab === 'closed')}
+          >
+            <Package className="h-3 w-3" />
+            Fechadas
+            <span className={mobilePillCountClass(activeTab === 'closed')}>
+              {closedInvoices.length}
+            </span>
+          </button>
+          {overdueInvoices.length > 0 ? (
+            <button
+              type="button"
+              aria-pressed={activeTab === 'overdue'}
+              onClick={() => setActiveTab('overdue')}
+              className={mobilePillClass(activeTab === 'overdue', 'danger')}
             >
-              <Clock className="mr-2 h-4 w-4" />
-              Abertas
-              <span className="ml-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
-                {openInvoices.length}
+              <AlertTriangle className="h-3 w-3" />
+              Vencidas
+              <span className={mobilePillCountClass(activeTab === 'overdue')}>
+                {overdueInvoices.length}
               </span>
-            </Button>
+            </button>
+          ) : null}
+          <button
+            type="button"
+            aria-pressed={activeTab === 'paid'}
+            onClick={() => setActiveTab('paid')}
+            className={mobilePillClass(activeTab === 'paid')}
+          >
+            <CheckCircle2 className="h-3 w-3" />
+            Pagas
+            <span className={mobilePillCountClass(activeTab === 'paid')}>
+              {paidInvoices.length}
+            </span>
+          </button>
+        </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setActiveTab('closed')}
-              className={filterButtonClass(activeTab === 'closed')}
-            >
-              <Package className="mr-2 h-4 w-4" />
-              Fechadas
-              <span className="ml-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
-                {closedInvoices.length}
-              </span>
-            </Button>
-
-            {overdueInvoices.length > 0 ? (
+        {/* Desktop: original filter card (>= lg) */}
+        <div className="hidden lg:block">
+          <div className="flex flex-col gap-4 rounded-[28px] border border-border/70 bg-card/95 p-4 shadow-[0_18px_42px_rgba(3,8,20,0.16)] backdrop-blur-xl dark:shadow-[0_20px_48px_rgba(2,6,23,0.28)] xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-wrap gap-2.5">
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setActiveTab('overdue')}
-                className={filterButtonClass(activeTab === 'overdue', 'danger')}
+                onClick={() => setActiveTab('open')}
+                className={filterButtonClass(activeTab === 'open')}
               >
-                <AlertTriangle className="mr-2 h-4 w-4" />
-                Vencidas
-                <span className="ml-2 rounded-full bg-background/85 px-2 py-0.5 text-[11px] font-semibold text-danger ring-1 ring-danger/20">
-                  {overdueInvoices.length}
+                <Clock className="mr-2 h-4 w-4" />
+                Abertas
+                <span className="ml-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
+                  {openInvoices.length}
                 </span>
               </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveTab('closed')}
+                className={filterButtonClass(activeTab === 'closed')}
+              >
+                <Package className="mr-2 h-4 w-4" />
+                Fechadas
+                <span className="ml-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
+                  {closedInvoices.length}
+                </span>
+              </Button>
+
+              {overdueInvoices.length > 0 ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab('overdue')}
+                  className={filterButtonClass(activeTab === 'overdue', 'danger')}
+                >
+                  <AlertTriangle className="mr-2 h-4 w-4" />
+                  Vencidas
+                  <span className="ml-2 rounded-full bg-background/85 px-2 py-0.5 text-[11px] font-semibold text-danger ring-1 ring-danger/20">
+                    {overdueInvoices.length}
+                  </span>
+                </Button>
+              ) : null}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setActiveTab('paid')}
+                className={filterButtonClass(activeTab === 'paid')}
+              >
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Pagas
+                <span className="ml-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
+                  {paidInvoices.length}
+                </span>
+              </Button>
+            </div>
+
+            {cards.length > 1 ? (
+              <Select
+                value={selectedCardId || 'all'}
+                onValueChange={(value) => setSelectedCardId(value === 'all' ? undefined : value)}
+              >
+                <SelectTrigger className="h-11 w-full rounded-xl border-border/70 bg-surface/80 text-foreground shadow-sm hover:bg-surface-elevated focus-visible:ring-primary/20 dark:bg-surface-elevated/70 xl:w-[220px]">
+                  <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
+                  <SelectValue placeholder="Todos os Cartões" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os Cartões</SelectItem>
+                  {cards.map((card) => (
+                    <SelectItem key={card.id} value={card.id}>
+                      {card.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             ) : null}
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setActiveTab('paid')}
-              className={filterButtonClass(activeTab === 'paid')}
-            >
-              <CheckCircle2 className="mr-2 h-4 w-4" />
-              Pagas
-              <span className="ml-2 rounded-full bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground ring-1 ring-border/60">
-                {paidInvoices.length}
-              </span>
-            </Button>
           </div>
-
-          {cards.length > 1 ? (
-            <Select
-              value={selectedCardId || 'all'}
-              onValueChange={(value) => setSelectedCardId(value === 'all' ? undefined : value)}
-            >
-              <SelectTrigger className="h-11 w-full rounded-xl border-border/70 bg-surface/80 text-foreground shadow-sm hover:bg-surface-elevated focus-visible:ring-primary/20 dark:bg-surface-elevated/70 xl:w-[220px]">
-                <CreditCard className="mr-2 h-4 w-4 text-muted-foreground" />
-                <SelectValue placeholder="Todos os Cartões" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os Cartões</SelectItem>
-                {cards.map((card) => (
-                  <SelectItem key={card.id} value={card.id}>
-                    {card.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          ) : null}
         </div>
       </div>
 

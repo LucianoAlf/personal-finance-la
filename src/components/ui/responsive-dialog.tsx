@@ -1,11 +1,24 @@
 import type { ReactNode } from 'react';
-import { createContext, useContext, useEffect, useRef } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { cn } from '@/lib/cn';
 
 type Mode = 'desktop' | 'mobile';
 const ModeContext = createContext<Mode>('desktop');
+
+function useIsLg() {
+  const [isLg, setIsLg] = useState(false); // mobile-first; effect corrects on mount
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => setIsLg(mql.matches);
+    mql.addEventListener('change', onChange);
+    setIsLg(mql.matches);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return isLg;
+}
 
 interface ResponsiveDialogProps {
   open: boolean;
@@ -15,30 +28,35 @@ interface ResponsiveDialogProps {
 }
 
 export function ResponsiveDialog({ open, onOpenChange, children, className }: ResponsiveDialogProps) {
+  const isLg = useIsLg();
+
   useEffect(() => {
-    if (!open) return;
+    if (!open || isLg) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onOpenChange(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, onOpenChange]);
+  }, [open, onOpenChange, isLg]);
 
   return (
     <>
-      {/* Desktop: Radix Dialog with portal, focus trap, ESC, overlay click */}
+      {/* Desktop: Radix Dialog — only mounted on lg+ so its portal/focus-trap
+          and scroll-lock never run on mobile viewports */}
       <div data-testid="responsive-dialog-desktop" className="hidden lg:block">
-        <Dialog open={open} onOpenChange={onOpenChange}>
-          <DialogContent className={cn('max-w-2xl', className)}>
-            <ModeContext.Provider value="desktop">
-              {children}
-            </ModeContext.Provider>
-          </DialogContent>
-        </Dialog>
+        {isLg && (
+          <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className={cn('max-w-2xl', className)}>
+              <ModeContext.Provider value="desktop">
+                {children}
+              </ModeContext.Provider>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Mobile: full-screen overlay */}
-      {open && (
+      {!isLg && open && (
         <div
           data-testid="responsive-dialog-mobile"
           role="dialog"

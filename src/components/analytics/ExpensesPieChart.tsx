@@ -1,4 +1,4 @@
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { PieChart as PieChartIcon } from 'lucide-react';
 
 import { AnalyticsData } from '@/hooks/useAnalytics';
@@ -54,31 +54,6 @@ export function ExpensesPieChart({ analyticsData, loading }: ExpensesPieChartPro
     return null;
   };
 
-  const CustomLegend = ({ payload }: any) => {
-    return (
-      <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {payload.map((entry: any, index: number) => (
-          <div
-            key={`legend-${index}`}
-            data-testid={`analytics-pie-legend-${entry.value}`}
-            className="flex items-center gap-3 rounded-2xl border border-border/60 bg-surface-elevated/45 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
-          >
-            <div
-              className="h-3 w-3 shrink-0 rounded-full"
-              style={{ backgroundColor: entry.color }}
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-foreground">{entry.value}</p>
-              <p className="text-xs text-muted-foreground">
-                {formatCurrency(entry.payload.value)}
-              </p>
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
   return (
     <div
       data-testid="analytics-pie-chart-shell"
@@ -98,16 +73,15 @@ export function ExpensesPieChart({ analyticsData, loading }: ExpensesPieChartPro
         </div>
       </div>
 
-      <ResponsiveContainer width="100%" height={420}>
+      <ResponsiveContainer width="100%" height={260}>
         <PieChart>
           <Pie
             data={pieData}
             cx="50%"
-            cy="46%"
+            cy="50%"
             labelLine={false}
-            label={({ name, percentage }) => `${name} (${percentage.toFixed(0)}%)`}
-            outerRadius={122}
-            innerRadius={18}
+            outerRadius={100}
+            innerRadius={40}
             fill="hsl(var(--foreground))"
             dataKey="value"
             animationBegin={0}
@@ -118,9 +92,29 @@ export function ExpensesPieChart({ analyticsData, loading }: ExpensesPieChartPro
             ))}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
-          <Legend content={<CustomLegend />} />
         </PieChart>
       </ResponsiveContainer>
+
+      <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        {pieData.map((entry, index) => (
+          <div
+            key={`legend-${index}`}
+            data-testid={`analytics-pie-legend-${entry.name}`}
+            className="flex items-center gap-3 rounded-2xl border border-border/60 bg-surface-elevated/45 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+          >
+            <div
+              className="h-3 w-3 shrink-0 rounded-full"
+              style={{ backgroundColor: entry.color }}
+            />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-foreground">{entry.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatCurrency(entry.value)}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

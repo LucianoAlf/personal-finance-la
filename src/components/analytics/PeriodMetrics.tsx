@@ -50,12 +50,12 @@ function MetricCard({ title, value, change, icon: Icon, tone }: MetricCardProps)
     <div
       data-testid={`analytics-metric-card-${title}`}
       className={cn(
-        'rounded-[28px] border border-border/70 bg-card/95 p-5 shadow-[0_18px_44px_rgba(3,8,20,0.14)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_rgba(3,8,20,0.18)] dark:shadow-[0_22px_48px_rgba(2,6,23,0.28)]',
+        'rounded-[28px] border border-border/70 bg-card/95 p-3 shadow-[0_18px_44px_rgba(3,8,20,0.14)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_rgba(3,8,20,0.18)] dark:shadow-[0_22px_48px_rgba(2,6,23,0.28)] md:p-5',
         metricToneStyles[tone].shell,
       )}
     >
-      <div className="mb-5 flex items-start justify-between gap-4">
-        <div className={cn('flex h-11 w-11 items-center justify-center rounded-xl border shadow-sm', metricToneStyles[tone].iconBox)}>
+      <div className="mb-3 flex items-start justify-between gap-2 md:mb-5 md:gap-4">
+        <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl border shadow-sm md:h-11 md:w-11', metricToneStyles[tone].iconBox)}>
           <Icon className="h-5 w-5" />
         </div>
         {formattedChange !== undefined && (
@@ -71,7 +71,7 @@ function MetricCard({ title, value, change, icon: Icon, tone }: MetricCardProps)
       <h3 className="mb-1 text-sm font-medium text-muted-foreground">{title}</h3>
       <p
         data-testid={`analytics-metric-value-${title}`}
-        className="text-[1.52rem] font-semibold leading-tight tracking-tight text-foreground [font-variant-numeric:tabular-nums] sm:text-[1.68rem]"
+        className="text-[1.1rem] font-semibold leading-tight tracking-tight text-foreground [font-variant-numeric:tabular-nums] md:text-[1.52rem]"
       >
         {value}
       </p>
@@ -139,7 +139,7 @@ export function PeriodMetrics({ analyticsData, loading, selectedPeriod }: Period
         </span>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-4">
         <MetricCard
           title="Total Gasto"
           value={formatCurrency(totalGasto)}

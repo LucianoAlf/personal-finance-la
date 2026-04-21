@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ResponsiveDialog, ResponsiveDialogHeader, ResponsiveDialogBody } from '@/components/ui/responsive-dialog';
 import { CARD_BRANDS } from '@/constants/creditCards';
 import { getBankLogoClassForDetails, getBankLogoPath } from '@/constants/banks';
 import { CreditCardSummary } from '@/types/database.types';
@@ -92,18 +92,10 @@ export function CreditCardDetailsDialog({
   const usageTone = usageToneClasses[usageColor];
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
-        <DialogHeader className="border-b border-border/60 px-6 py-5">
-          <DialogTitle className="flex items-center gap-3 text-[1.65rem] font-semibold tracking-tight text-foreground">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 text-primary">
-              <CreditCardIcon size={20} />
-            </span>
-            Detalhes do Cartao
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-6 px-6 py-5">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-3xl">
+      <ResponsiveDialogHeader title="Detalhes do Cartão" onClose={() => onOpenChange(false)} />
+      <ResponsiveDialogBody>
+        <div className="space-y-6">
           <div
             className="relative overflow-hidden rounded-[28px] border border-white/10 p-6 text-white shadow-[0_28px_80px_rgba(15,23,42,0.34)]"
             style={{
@@ -250,7 +242,7 @@ export function CreditCardDetailsDialog({
             </div>
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }

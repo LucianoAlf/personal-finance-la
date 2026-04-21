@@ -58,8 +58,18 @@ describe('InvoiceList', () => {
 
     expect(screen.getByText('invoice-card-mounted')).not.toBeNull();
 
-    const openTab = screen.getByRole('button', { name: /Abertas/i });
-    const filterShell = openTab.parentElement?.parentElement;
+    // Both desktop filter card and mobile pills render in jsdom.
+    // Find the one whose ancestor has the desktop card classes.
+    const openTabs = screen.getAllByRole('button', { name: /Abertas/i });
+    const openTab = openTabs.find(btn => {
+      let el: HTMLElement | null = btn;
+      while (el) {
+        if (el.className?.includes('bg-card/95')) return true;
+        el = el.parentElement;
+      }
+      return false;
+    })!;
+    const filterShell = openTab.closest('[class*="bg-card"]');
 
     expect(filterShell?.className).toContain('bg-card/95');
     expect(filterShell?.className).toContain('border-border/70');

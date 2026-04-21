@@ -54,6 +54,7 @@ export function CreditCards() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [invoiceToDelete, setInvoiceToDelete] = useState<string | null>(null);
   const invoicesRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<'cartoes' | 'faturas' | 'analises' | 'historico'>('cartoes');
 
   const currentMonthInvoicesSummary = useMemo(() => {
     const monthNames = [
@@ -164,46 +165,94 @@ export function CreditCards() {
         }
       />
 
-      <div className="relative space-y-6 p-6">
+      <div className="relative space-y-4 p-4 md:space-y-6 md:p-6">
         {/* Alertas Proativos */}
         <CreditCardAlerts cards={cardsSummary} className="animate-fade-in" />
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 animate-fade-in">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 animate-fade-in">
           <StatCard
             title="Limite Total"
             value={formatCurrency(getTotalLimit())}
             icon={CreditCard}
             gradient="blue"
-            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
+            valueClassName="text-[0.98rem] sm:text-[1.32rem] md:text-[1.52rem] [font-variant-numeric:tabular-nums]"
           />
           <StatCard
             title="Limite Usado"
             value={formatCurrency(getTotalUsed())}
             icon={TrendingUp}
             gradient="orange"
-            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
+            valueClassName="text-[0.98rem] sm:text-[1.32rem] md:text-[1.52rem] [font-variant-numeric:tabular-nums]"
           />
           <StatCard
             title="Limite Disponível"
             value={formatCurrency(getTotalAvailable())}
             icon={Wallet}
             gradient="green"
-            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
+            valueClassName="text-[0.98rem] sm:text-[1.32rem] md:text-[1.52rem] [font-variant-numeric:tabular-nums]"
           />
           <StatCard
             title={currentMonthInvoicesSummary.count === 1 ? 'Fatura do Mês' : 'Faturas do Mês'}
             value={formatCurrency(currentMonthInvoicesSummary.total)}
             icon={Receipt}
             gradient="red"
-            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
+            valueClassName="text-[0.98rem] sm:text-[1.32rem] md:text-[1.52rem] [font-variant-numeric:tabular-nums]"
             subtitle={`${currentMonthInvoicesSummary.monthName} • ${currentMonthInvoicesSummary.count} ${currentMonthInvoicesSummary.count === 1 ? 'cartão' : 'cartões'}`}
           />
         </div>
 
         {/* Tabs: Cartões, Faturas, Análises e Histórico */}
-        <Tabs defaultValue="cartoes" className="w-full">
-          <TabsList className="mb-6 grid h-auto w-full grid-cols-4 rounded-[1.4rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)]">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)} className="w-full">
+          {/* Mobile sliding pill (< md) */}
+          <TabsList
+            data-mobile-tabs="true"
+            className="relative mb-4 flex w-full rounded-full border border-border/70 bg-card/95 p-1 md:hidden [&::-webkit-scrollbar]:hidden"
+          >
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-1 left-1 top-1 z-0 rounded-full bg-primary shadow-sm transition-transform duration-300 ease-out"
+              style={{
+                width: 'calc((100% - 0.5rem) / 4)',
+                transform: `translateX(${
+                  activeTab === 'cartoes'  ? '0%'   :
+                  activeTab === 'faturas'  ? '100%' :
+                  activeTab === 'analises' ? '200%' : '300%'
+                })`,
+              }}
+            />
+            <TabsTrigger
+              value="cartoes"
+              aria-label="Meus Cartões"
+              className="relative z-10 flex flex-1 items-center justify-center py-2.5 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+            >
+              <span className="text-xs font-semibold leading-none">Cartões</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="faturas"
+              aria-label="Faturas"
+              className="relative z-10 flex flex-1 items-center justify-center py-2.5 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+            >
+              <span className="text-xs font-semibold leading-none">Faturas</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="analises"
+              aria-label="Análises"
+              className="relative z-10 flex flex-1 items-center justify-center py-2.5 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+            >
+              <span className="text-xs font-semibold leading-none">Análises</span>
+            </TabsTrigger>
+            <TabsTrigger
+              value="historico"
+              aria-label="Histórico"
+              className="relative z-10 flex flex-1 items-center justify-center py-2.5 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+            >
+              <span className="text-xs font-semibold leading-none">Histórico</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Desktop tabs (≥ md) — original, untouched */}
+          <TabsList className="mb-6 hidden h-auto w-full grid-cols-4 rounded-[1.4rem] border border-border/70 bg-card/95 p-1 shadow-[0_14px_36px_rgba(15,23,42,0.08)] dark:shadow-[0_18px_42px_rgba(2,6,23,0.24)] md:grid">
             <TabsTrigger value="cartoes" className="flex items-center gap-2 rounded-[1rem] px-4 py-3 text-sm font-semibold text-muted-foreground data-[state=active]:bg-surface data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-primary/15">
               <CreditCard className="h-4 w-4" />
               Meus Cartões

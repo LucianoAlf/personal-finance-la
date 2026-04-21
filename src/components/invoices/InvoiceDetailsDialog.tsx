@@ -3,7 +3,7 @@ import { ptBR } from 'date-fns/locale';
 import { BarChart3, Calendar, History, Receipt } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ResponsiveDialog, ResponsiveDialogHeader, ResponsiveDialogBody } from '@/components/ui/responsive-dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCreditCards } from '@/hooks/useCreditCards';
@@ -42,16 +42,17 @@ export function InvoiceDetailsDialog({
 
   if (invoicesLoading || !invoice || !card) {
     return (
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
-          <div className="space-y-4 px-6 py-6">
+      <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-4xl">
+        <ResponsiveDialogHeader title="Detalhes da Fatura" onClose={() => onOpenChange(false)} />
+        <ResponsiveDialogBody>
+          <div className="space-y-4">
             <Skeleton className="h-8 w-3/4 rounded-xl" />
             <Skeleton className="h-36 w-full rounded-[24px]" />
             <Skeleton className="h-16 w-full rounded-[24px]" />
             <Skeleton className="h-64 w-full rounded-[24px]" />
           </div>
-        </DialogContent>
-      </Dialog>
+        </ResponsiveDialogBody>
+      </ResponsiveDialog>
     );
   }
 
@@ -60,31 +61,30 @@ export function InvoiceDetailsDialog({
   const remainingAmount = Number(invoice.remaining_amount) || Math.max(Number(invoice.total_amount) - paidAmount, 0);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
-        <DialogHeader className="border-b border-border/60 px-6 py-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="space-y-2">
-              <DialogTitle className="text-[1.55rem] font-semibold tracking-tight text-foreground">
-                Fatura de {format(new Date(`${invoice.reference_month}T12:00:00`), 'MMMM yyyy', { locale: ptBR })} - {card.name}
-              </DialogTitle>
-              <p className="text-sm text-muted-foreground">
-                Explore transacoes, categorias, parcelas e historico de pagamentos deste ciclo.
-              </p>
-            </div>
-
-            <InvoiceStatusBadge
-              closingDate={invoice.closing_date}
-              dueDate={invoice.due_date}
-              totalAmount={invoice.total_amount}
-              paidAmount={invoice.paid_amount}
-              currentStatus={invoice.status}
-              size="md"
-            />
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-4xl">
+      <ResponsiveDialogHeader title="Detalhes da Fatura" onClose={() => onOpenChange(false)} />
+      <ResponsiveDialogBody>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <p className="text-[1.15rem] font-semibold tracking-tight text-foreground">
+              Fatura de {format(new Date(`${invoice.reference_month}T12:00:00`), 'MMMM yyyy', { locale: ptBR })} - {card.name}
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Explore transacoes, categorias, parcelas e historico de pagamentos deste ciclo.
+            </p>
           </div>
-        </DialogHeader>
 
-        <div className="space-y-6 px-6 py-5">
+          <InvoiceStatusBadge
+            closingDate={invoice.closing_date}
+            dueDate={invoice.due_date}
+            totalAmount={invoice.total_amount}
+            paidAmount={invoice.paid_amount}
+            currentStatus={invoice.status}
+            size="md"
+          />
+        </div>
+
+        <div className="space-y-6">
           <div className="rounded-[28px] border border-border/70 bg-surface-elevated/45 p-5 shadow-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -213,7 +213,7 @@ export function InvoiceDetailsDialog({
             ) : null}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }
