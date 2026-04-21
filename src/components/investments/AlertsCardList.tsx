@@ -18,7 +18,7 @@ interface AlertsCardListProps {
 export function AlertsCardList({ alerts, onEdit, onDelete }: AlertsCardListProps) {
   if (alerts.length === 0) {
     return (
-      <div className="lg:hidden px-4 py-10 text-center text-sm text-muted-foreground">
+      <div className="lg:hidden px-3 py-10 text-center text-sm text-muted-foreground">
         Nenhum alerta cadastrado.
       </div>
     );
@@ -28,10 +28,10 @@ export function AlertsCardList({ alerts, onEdit, onDelete }: AlertsCardListProps
 
   return (
     <div className="lg:hidden pb-4">
-      <h3 className="px-4 pb-2 pt-4 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+      <h3 className="px-3 pb-2 pt-4 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
         Ativos · {activeCount}
       </h3>
-      <ul role="list" className="space-y-2 px-4">
+      <ul role="list" className="space-y-2 px-3">
         {alerts.map((alert) => (
           <li key={alert.id} role="listitem">
             <div className="flex w-full items-start gap-3 rounded-xl border-l-[3px] border-l-amber-500 bg-surface-elevated/60 px-3 py-3">

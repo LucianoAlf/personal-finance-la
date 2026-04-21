@@ -57,7 +57,7 @@ describe('InvestmentsHeroCard', () => {
     expect(delta.className).toContain('text-red');
   });
 
-  it('renders investido and yield/mês on the bottom row', () => {
+  it('renders investido comparison and yield/mês row', () => {
     render(
       <InvestmentsHeroCard
         currentValue={127450}
@@ -69,7 +69,7 @@ describe('InvestmentsHeroCard', () => {
       />,
     );
     expect(screen.getByText(/investido/i)).toBeTruthy();
-    expect(screen.getByText('R$ 113300,00')).toBeTruthy();
+    expect(screen.getByText(/R\$ 113300,00/i)).toBeTruthy();
     expect(screen.getByText(/yield/i)).toBeTruthy();
     expect(screen.getByText('R$ 980,00')).toBeTruthy();
   });

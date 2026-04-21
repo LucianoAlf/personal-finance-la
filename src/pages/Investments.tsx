@@ -746,7 +746,7 @@ export function Investments() {
             <button
               type="button"
               onClick={() => navigate('/metas?tab=investments')}
-              className="mx-4 mt-3 flex w-[calc(100%-2rem)] items-center gap-2 rounded-xl border border-primary/30 bg-primary/8 px-3 py-2.5 text-left transition-colors hover:bg-primary/12"
+              className="mx-3 mt-3 flex w-[calc(100%-1.5rem)] items-center gap-2 rounded-xl border border-primary/30 bg-primary/8 px-3 py-2.5 text-left transition-colors hover:bg-primary/12"
             >
               <Target size={14} className="flex-shrink-0 text-primary" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
@@ -756,7 +756,7 @@ export function Investments() {
             </button>
           ) : null}
 
-          <div className="mx-4 mt-3">
+          <div className="mx-3 mt-3">
             <SlidingPillTabs
               tabs={[
                 { value: 'portfolio', label: 'Portf' },

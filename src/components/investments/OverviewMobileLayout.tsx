@@ -22,7 +22,7 @@ export interface OverviewMobileLayoutProps {
 
 function CardBox({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="mx-4 rounded-xl border border-border/60 bg-surface-elevated/60 p-3">
+    <div className="mx-3 rounded-xl border border-border/60 bg-surface-elevated/60 p-3">
       <h3 className="mb-2 text-sm font-semibold text-foreground">{title}</h3>
       {children}
     </div>
@@ -49,7 +49,7 @@ export function OverviewMobileLayout({
         <PerformanceBarChart investments={investments} />
       </CardBox>
 
-      <div className="mx-4 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-blue-500/10 p-3">
+      <div className="mx-3 rounded-xl border border-purple-500/30 bg-gradient-to-br from-purple-500/10 to-blue-500/10 p-3">
         <AnaInvestmentInsights investments={investments} />
       </div>
 
