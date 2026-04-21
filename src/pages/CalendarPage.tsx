@@ -19,8 +19,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { PageContent } from '@/components/layout/PageContent';
 import { Button } from '@/components/ui/button';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { cn } from '@/lib/cn';
+import { SlidingPillTabs } from '@/components/ui/sliding-pill-tabs';
 import { useCalendarAgenda } from '@/hooks/useCalendarAgenda';
 import { useAgendaViewMode } from '@/hooks/useAgendaViewMode';
 import { requestTickTickSync } from '@/lib/ticktick-sync';
@@ -50,11 +49,6 @@ import type { AgendaItem } from '@/types/calendar.types';
 
 export type { CalendarViewMode } from '@/hooks/useAgendaViewMode';
 
-const VIEW_LABELS: Record<CalendarViewMode, string> = {
-  month: 'Mês',
-  week: 'Semana',
-  day: 'Dia',
-};
 
 function getAgendaWindow(anchor: Date, view: CalendarViewMode) {
   switch (view) {
@@ -291,24 +285,17 @@ export function CalendarPage() {
 
       <PageContent className="py-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <ToggleGroup
-            type="single"
+          <SlidingPillTabs
+            tabs={[
+              { value: 'month', label: 'Mês' },
+              { value: 'week', label: 'Semana' },
+              { value: 'day', label: 'Dia' },
+            ]}
             value={view}
-            onValueChange={(v) => {
-              if (v) setView(v as CalendarViewMode);
-            }}
-            className={cn(
-              'flex w-full flex-wrap justify-start rounded-2xl border border-border/70 bg-surface p-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)]',
-              'sm:w-auto sm:flex-nowrap',
-            )}
-            aria-label="Visualização da agenda"
-          >
-            {(['month', 'week', 'day'] as const).map((v) => (
-              <ToggleGroupItem key={v} value={v} aria-label={VIEW_LABELS[v]}>
-                {VIEW_LABELS[v]}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+            onValueChange={(v) => setView(v as CalendarViewMode)}
+            ariaLabel="Visualização da agenda"
+            className="sm:w-auto"
+          />
 
           <div className="flex items-center gap-2">
             <Button

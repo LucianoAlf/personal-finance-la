@@ -122,7 +122,7 @@ describe('CalendarPage layout', () => {
 
   it('persists the selected view mode via localStorage', () => {
     renderPage();
-    fireEvent.click(screen.getByRole('radio', { name: /^dia$/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /^dia$/i }));
     expect(window.localStorage.getItem('agenda-view-mode')).toBe('day');
     expect(screen.getByTestId('day-view-desktop')).toBeTruthy();
     expect(screen.getByTestId('day-view-mobile')).toBeTruthy();
