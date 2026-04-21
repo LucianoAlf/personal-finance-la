@@ -119,7 +119,7 @@ export function DayViewMobile({
                 type="button"
                 onClick={() => onItemClick(item)}
                 className={cn(
-                  'pointer-events-auto absolute left-14 right-4 overflow-hidden rounded-md border-l-2 px-2 py-1 text-left text-xs',
+                  'pointer-events-auto absolute left-20 right-4 overflow-hidden rounded-md border-l-2 px-3 py-1.5 text-left text-xs',
                   cls,
                 )}
                 style={{ top: `${top}px`, height: `${height}px` }}
@@ -139,7 +139,7 @@ export function DayViewMobile({
               className="pointer-events-none absolute left-0 right-0 flex items-center gap-2"
               style={{ top: `${nowMinutesFromStart}px` }}
             >
-              <span className="ml-12 h-2 w-2 rounded-full bg-red-500" />
+              <span className="ml-[4.5rem] h-2 w-2 rounded-full bg-red-500" />
               <span className="h-px flex-1 bg-red-500" />
             </div>
           ) : null}
