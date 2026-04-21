@@ -37,31 +37,31 @@ function InsightCard({ insight, onDismiss }: { insight: Insight; onDismiss: () =
     <div
       data-testid={`analytics-insight-card-${insight.id}`}
       className={cn(
-        'relative rounded-[28px] border border-border/70 p-5 shadow-[0_18px_44px_rgba(3,8,20,0.14)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_rgba(3,8,20,0.18)] dark:shadow-[0_20px_48px_rgba(2,6,23,0.24)]',
+        'relative rounded-[22px] border border-border/70 p-3 shadow-[0_18px_44px_rgba(3,8,20,0.14)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_24px_52px_rgba(3,8,20,0.18)] dark:shadow-[0_20px_48px_rgba(2,6,23,0.24)] md:rounded-[28px] md:p-5',
         styles.shell,
       )}
     >
       <button
         onClick={onDismiss}
-        className="absolute right-3 top-3 rounded-full border border-border/60 bg-background/45 p-1.5 text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground"
+        className="absolute right-2 top-2 rounded-full border border-border/60 bg-background/45 p-1 text-muted-foreground transition-colors hover:bg-background/70 hover:text-foreground md:right-3 md:top-3 md:p-1.5"
         aria-label="Dispensar insight"
       >
-        <X className="h-4 w-4" />
+        <X className="h-3 w-3 md:h-4 md:w-4" />
       </button>
-      <div className="flex items-start gap-3 pr-6">
-        <div className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border shadow-sm', styles.iconBg)}>
-          <Icon className="h-5 w-5" />
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:gap-3 md:pr-6">
+        <div className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-sm md:h-12 md:w-12 md:rounded-2xl', styles.iconBg)}>
+          <Icon className="h-4 w-4 md:h-5 md:w-5" />
         </div>
         <div className="flex-1 min-w-0">
           <h4
             data-testid={`analytics-insight-title-${insight.id}`}
-            className="mb-1 text-lg font-semibold tracking-tight text-foreground"
+            className="mb-1 text-sm font-semibold tracking-tight text-foreground md:text-lg"
           >
             {insight.title}
           </h4>
           <p
             data-testid={`analytics-insight-copy-${insight.id}`}
-            className="text-sm leading-6 text-muted-foreground"
+            className="text-xs leading-5 text-muted-foreground md:text-sm md:leading-6"
           >
             {insight.description}
           </p>
@@ -69,7 +69,7 @@ function InsightCard({ insight, onDismiss }: { insight: Insight; onDismiss: () =
             <Button
               variant="ghost"
               size="sm"
-              className={cn('mt-3 h-9 rounded-xl px-3 text-sm font-semibold hover:bg-background/60', styles.accent)}
+              className={cn('mt-2 h-8 rounded-lg px-2 text-xs font-semibold hover:bg-background/60 md:mt-3 md:h-9 md:rounded-xl md:px-3 md:text-sm', styles.accent)}
               onClick={insight.action.onClick}
             >
               {insight.action.label}
