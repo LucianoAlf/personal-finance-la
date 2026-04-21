@@ -48,7 +48,7 @@ export function TransactionsCardList({
 }: TransactionsCardListProps) {
   if (transactions.length === 0) {
     return (
-      <div className="lg:hidden px-3 py-10 text-center text-sm text-muted-foreground">
+      <div className="lg:hidden px-2 py-10 text-center text-sm text-muted-foreground">
         Nenhuma transação registrada ainda.
       </div>
     );
@@ -66,10 +66,10 @@ export function TransactionsCardList({
     <div className="lg:hidden pb-4">
       {Array.from(groups.entries()).map(([label, items]) => (
         <section key={label}>
-          <h3 className="px-3 pb-2 pt-4 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <h3 className="px-2 pb-2 pt-4 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
             {label}
           </h3>
-          <ul role="list" className="space-y-2 px-3">
+          <ul role="list" className="space-y-2 px-2">
             {items.map((tx) => {
               const borderClass = TX_BORDER[tx.transaction_type] ?? 'border-l-slate-500';
               const actionLabel = TX_LABEL[tx.transaction_type] ?? tx.transaction_type;

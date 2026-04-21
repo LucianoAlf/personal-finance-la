@@ -42,14 +42,14 @@ export function PortfolioCardList({
 }: PortfolioCardListProps) {
   if (investments.length === 0) {
     return (
-      <div className="lg:hidden px-3 py-10 text-center text-sm text-muted-foreground">
+      <div className="lg:hidden px-2 py-10 text-center text-sm text-muted-foreground">
         Nenhum ativo cadastrado ainda.
       </div>
     );
   }
 
   return (
-    <ul role="list" className="lg:hidden space-y-2 px-3 pb-4 pt-2">
+    <ul role="list" className="lg:hidden space-y-2 px-2 pb-4 pt-2">
       {investments.map((inv) => {
         const type = inv.type ?? 'other';
         const borderClass = TYPE_BORDER[type] ?? TYPE_BORDER.other;

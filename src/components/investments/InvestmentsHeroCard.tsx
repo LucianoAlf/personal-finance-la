@@ -32,7 +32,7 @@ export function InvestmentsHeroCard({
   return (
     <section
       aria-label="Resumo do portfolio"
-      className="relative lg:hidden mx-3 mt-4 overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-[#1a1a2e] via-[#1a1f3a] to-[#16213e] p-5 text-foreground shadow-[0_18px_44px_rgba(15,23,42,0.45)]"
+      className="relative lg:hidden mx-2 mt-4 overflow-hidden rounded-2xl border border-border/70 bg-gradient-to-br from-[#1a1a2e] via-[#1a1f3a] to-[#16213e] p-5 text-foreground shadow-[0_18px_44px_rgba(15,23,42,0.45)]"
     >
       {/* subtle radial accent top-right */}
       <div
