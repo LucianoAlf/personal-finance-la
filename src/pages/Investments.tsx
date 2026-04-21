@@ -35,6 +35,15 @@ import { BenchmarkComparison } from '@/components/investments/BenchmarkCompariso
 import { InvestmentReportDialog } from '@/components/investments/InvestmentReportDialog';
 import { useDividendCalendar, useDividendHistory } from '@/hooks/useDividendCalendar';
 import { useUserPreferences } from '@/hooks/useUserPreferences';
+import { SlidingPillTabs } from '@/components/ui/sliding-pill-tabs';
+import { useInvestmentsActiveTab, type InvestmentTab } from '@/hooks/useInvestmentsActiveTab';
+import { InvestmentsHeroCard } from '@/components/investments/InvestmentsHeroCard';
+import { PortfolioCardList } from '@/components/investments/PortfolioCardList';
+import { TransactionsCardList, type TransactionItem } from '@/components/investments/TransactionsCardList';
+import { DividendsCardList, type DividendPaidItem, type DividendUpcomingItem } from '@/components/investments/DividendsCardList';
+import { DividendCalendarSheet } from '@/components/investments/DividendCalendarSheet';
+import { AlertsCardList, type InvestmentAlertItem } from '@/components/investments/AlertsCardList';
+import { OverviewMobileLayout } from '@/components/investments/OverviewMobileLayout';
 import {
   Plus,
   TrendingUp,
@@ -85,7 +94,8 @@ export function Investments() {
   const [transactionDialogOpen, setTransactionDialogOpen] = useState(false);
   const [alertDialogOpen, setAlertDialogOpen] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<any>(null);
-  const [activeTab, setActiveTab] = useState('portfolio');
+  const [activeTab, setActiveTab] = useInvestmentsActiveTab('portfolio');
+  const [dividendCalendarSheetOpen, setDividendCalendarSheetOpen] = useState(false);
   const selectedGoalId = searchParams.get('goalId');
 
   useEffect(() => {
@@ -152,6 +162,79 @@ export function Investments() {
 
   const { selectedGoal, planningYears, monthlyContribution: planningContribution } = planningDefaults;
 
+  // ── Mobile metric derivations ──────────────────────────────────────────────
+  const totalInvestedValue = metrics?.totalInvested ?? investments.reduce((acc, inv) => acc + (inv.total_invested ?? 0), 0);
+  const currentPortfolioValue = metrics?.currentValue ?? investments.reduce((acc, inv) => acc + (inv.current_value ?? 0), 0);
+  const totalReturnValue = currentPortfolioValue - totalInvestedValue;
+  const totalReturnPctValue = totalInvestedValue > 0 ? (totalReturnValue / totalInvestedValue) * 100 : 0;
+  const monthlyYieldValue = 0; // not exposed by usePortfolioMetrics; fallback to 0
+
+  // ── Mobile transaction items ───────────────────────────────────────────────
+  const mobileTransactionItems = useMemo<TransactionItem[]>(
+    () =>
+      transactions.map((tx) => ({
+        id: tx.id,
+        ticker: (tx as any).ticker ?? (tx as any).investment?.ticker ?? '',
+        transaction_type: tx.transaction_type,
+        quantity: tx.quantity,
+        price: tx.price,
+        total_amount: tx.total_amount,
+        transaction_date: tx.transaction_date,
+      })),
+    [transactions],
+  );
+
+  const handleTransactionCardTap = (tx: TransactionItem) => {
+    console.debug('Tap transaction', tx.id);
+  };
+
+  // ── Mobile dividend items ──────────────────────────────────────────────────
+  const paidDividendItems = useMemo<DividendPaidItem[]>(() => {
+    return (dividendHistory.transactions ?? [])
+      .filter((d: any) => d.transaction_type === 'dividend' || d.transaction_type === 'jscp')
+      .map((d: any) => ({
+        id: String(d.id),
+        ticker: (d as any).ticker ?? '',
+        subtitle: 'Dividendo',
+        amount: Number(d.total_amount ?? d.amount ?? 0),
+        date: new Date(d.transaction_date ?? d.date ?? Date.now()).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+      }));
+  }, [dividendHistory.transactions]);
+
+  const upcomingDividendItems = useMemo<DividendUpcomingItem[]>(() => {
+    return (dividendCalendar.next30Days
+      ? ([] as any[])  // next30Days is a number total, not an array — calendar doesn't expose per-ticker upcoming list
+      : []);
+  }, [dividendCalendar.next30Days]);
+
+  // ── Mobile alert items ─────────────────────────────────────────────────────
+  const mobileAlertItems = useMemo<InvestmentAlertItem[]>(
+    () =>
+      (alerts ?? []).map((a) => ({
+        id: a.id,
+        ticker: a.ticker,
+        description: `${a.ticker} ${a.alert_type === 'price_above' ? '>' : '<'} ${formatCurrency(Number(a.target_value ?? 0))}`,
+        subtitle: a.triggered_at
+          ? `Disparado ${new Date(a.triggered_at).toLocaleDateString('pt-BR')}`
+          : `Criado ${new Date(a.created_at).toLocaleDateString('pt-BR')}`,
+        active: Boolean(a.is_active),
+      })),
+    [alerts, formatCurrency],
+  );
+
+  const handleEditAlert = (alert: InvestmentAlertItem) => {
+    // The desktop page uses AlertDialog for new alerts only; no edit-existing flow — noop.
+    console.debug('Edit alert', alert.id);
+  };
+
+  const handleDeleteAlert = (alertId: string) => {
+    void deleteAlert(alertId);
+  };
+
+  const handleToggleAlert = (alertId: string, active: boolean) => {
+    void toggleAlert(alertId, active);
+  };
+
   const handleSaveInvestment = async (data: any) => {
     if (editingInvestment) {
       await updateInvestment(editingInvestment.id, data);
@@ -160,6 +243,11 @@ export function Investments() {
     }
     setEditingInvestment(null);
     refresh();
+  };
+
+  const handleEditInvestment = (investment: any) => {
+    setEditingInvestment(investment);
+    setInvestmentDialogOpen(true);
   };
 
   const handleAddTransaction = async (data: CreateTransactionInput) => {
@@ -228,7 +316,7 @@ export function Investments() {
             ))}
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as InvestmentTab)}>
             <TabsList className={investmentTabsListClassName}>
               <TabsTrigger value="portfolio" className={investmentTabsTriggerClassName}>
                 <BarChart3 className="h-4 w-4" />
@@ -368,254 +456,330 @@ export function Investments() {
           </Card>
         )}
 
-        <PortfolioSummaryCards
-          totalInvested={metrics.totalInvested}
-          currentValue={metrics.currentValue}
-          totalReturn={metrics.totalReturn}
-          returnPercentage={metrics.returnPercentage}
-        />
+        {/* ── Desktop-only: summary cards ─────────────────────────────────── */}
+        <div className="hidden lg:block">
+          <PortfolioSummaryCards
+            totalInvested={metrics.totalInvested}
+            currentValue={metrics.currentValue}
+            totalReturn={metrics.totalReturn}
+            returnPercentage={metrics.returnPercentage}
+          />
+        </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className={investmentTabsListClassName}>
-            <TabsTrigger value="portfolio" className={investmentTabsTriggerClassName}>
-              <BarChart3 className="h-4 w-4" />
-              Portfólio
-            </TabsTrigger>
-            <TabsTrigger value="transactions" className={investmentTabsTriggerClassName}>
-              <ArrowLeftRight className="h-4 w-4" />
-              Transações
-            </TabsTrigger>
-            <TabsTrigger value="dividends" className={investmentTabsTriggerClassName}>
-              <DollarSign className="h-4 w-4" />
-              Dividendos
-            </TabsTrigger>
-            <TabsTrigger value="alerts" className={investmentTabsTriggerClassName}>
-              <Bell className="h-4 w-4" />
-              Alertas
-            </TabsTrigger>
-            <TabsTrigger value="overview" className={investmentTabsTriggerClassName}>
-              Visão Geral
-            </TabsTrigger>
-          </TabsList>
+        {/* ── Desktop-only: Radix Tabs ─────────────────────────────────────── */}
+        <div className="hidden lg:block">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as InvestmentTab)}>
+            <TabsList className={investmentTabsListClassName}>
+              <TabsTrigger value="portfolio" className={investmentTabsTriggerClassName}>
+                <BarChart3 className="h-4 w-4" />
+                Portfólio
+              </TabsTrigger>
+              <TabsTrigger value="transactions" className={investmentTabsTriggerClassName}>
+                <ArrowLeftRight className="h-4 w-4" />
+                Transações
+              </TabsTrigger>
+              <TabsTrigger value="dividends" className={investmentTabsTriggerClassName}>
+                <DollarSign className="h-4 w-4" />
+                Dividendos
+              </TabsTrigger>
+              <TabsTrigger value="alerts" className={investmentTabsTriggerClassName}>
+                <Bell className="h-4 w-4" />
+                Alertas
+              </TabsTrigger>
+              <TabsTrigger value="overview" className={investmentTabsTriggerClassName}>
+                Visão Geral
+              </TabsTrigger>
+            </TabsList>
 
-          {activeTab === 'portfolio' ? (
-            <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-portfolio">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Minha carteira</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Visão consolidada dos seus ativos, posições e vínculos com metas.
-                  </p>
-                </div>
-
-                <Button className={investmentsPrimaryButtonClass} onClick={openNewInvestmentDialog}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Adicionar
-                </Button>
-              </div>
-
-              <Card className={investmentsPanelCardClassName}>
-                <CardHeader className="border-b border-border/60 pb-5">
-                  <CardTitle className="text-2xl">Portfólio</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[940px]">
-                      <thead className="bg-surface/65 text-muted-foreground">
-                        <tr className="border-b border-border/60">
-                          <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.22em]">
-                            Tipo
-                          </th>
-                          <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.22em]">
-                            Símbolo
-                          </th>
-                          <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
-                            Quantidade
-                          </th>
-                          <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
-                            Preço médio
-                          </th>
-                          <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
-                            Cotação
-                          </th>
-                          <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
-                            Total
-                          </th>
-                          <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
-                            Rentabilidade
-                          </th>
-                          <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.22em]">
-                            Metas
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {investmentsWithMarketData.map((investment) => {
-                          const totalInvested = resolveInvestmentTotalInvested(investment);
-                          const totalCurrent = resolveInvestmentDisplayValue(investment);
-                          const gain = totalCurrent - totalInvested;
-                          const gainPercentage =
-                            totalInvested > 0 ? (gain / totalInvested) * 100 : 0;
-                          const linkedGoals = relatedGoalsByInvestment.get(investment.id) || [];
-
-                          return (
-                            <tr
-                              key={investment.id}
-                              className="border-b border-border/60 transition-colors hover:bg-surface/65"
-                            >
-                              <td className="px-5 py-4 text-sm text-foreground">
-                                {getTypeLabel(investment.type)}
-                              </td>
-                              <td className="px-5 py-4 text-sm font-semibold text-foreground">
-                                {investment.ticker || investment.name}
-                              </td>
-                              <td className="px-5 py-4 text-right text-sm text-muted-foreground">
-                                {investment.quantity}
-                              </td>
-                              <td className="px-5 py-4 text-right text-sm text-muted-foreground">
-                                {formatCurrency(investment.purchase_price)}
-                              </td>
-                              <td className="px-5 py-4 text-right text-sm text-muted-foreground">
-                                {formatCurrency(resolveInvestmentDisplayPrice(investment))}
-                              </td>
-                              <td className="px-5 py-4 text-right text-sm font-semibold text-foreground">
-                                {formatCurrency(totalCurrent)}
-                              </td>
-                              <td
-                                className={`px-5 py-4 text-right text-sm font-semibold ${
-                                  gainPercentage >= 0 ? 'text-emerald-500' : 'text-rose-500'
-                                }`}
-                              >
-                                {gainPercentage >= 0 ? '+' : ''}
-                                {gainPercentage.toFixed(2)}%
-                              </td>
-                              <td className="px-5 py-4 text-sm">
-                                <div className="flex flex-wrap gap-2">
-                                  {linkedGoals.length === 0 ? (
-                                    <span className="text-muted-foreground">Sem vínculo</span>
-                                  ) : (
-                                    linkedGoals.map((goal) => (
-                                      <Badge
-                                        key={goal.id}
-                                        variant={goal.id === selectedGoalId ? 'default' : 'secondary'}
-                                        className="cursor-pointer rounded-full"
-                                        onClick={() => navigate('/metas?tab=investments')}
-                                      >
-                                        {goal.name}
-                                      </Badge>
-                                    ))
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+            {activeTab === 'portfolio' ? (
+              <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-portfolio">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Minha carteira</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Visão consolidada dos seus ativos, posições e vínculos com metas.
+                    </p>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          ) : null}
 
-          {activeTab === 'transactions' ? (
-            <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-transactions">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Histórico de transações</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Acompanhe aportes, vendas, dividendos e movimentações do portfólio.
-                  </p>
+                  <Button className={investmentsPrimaryButtonClass} onClick={openNewInvestmentDialog}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Adicionar
+                  </Button>
                 </div>
 
-                <Button
-                  className={investmentsPrimaryButtonClass}
-                  onClick={() => setTransactionDialogOpen(true)}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Nova transação
-                </Button>
+                <Card className={investmentsPanelCardClassName}>
+                  <CardHeader className="border-b border-border/60 pb-5">
+                    <CardTitle className="text-2xl">Portfólio</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[940px]">
+                        <thead className="bg-surface/65 text-muted-foreground">
+                          <tr className="border-b border-border/60">
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.22em]">
+                              Tipo
+                            </th>
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.22em]">
+                              Símbolo
+                            </th>
+                            <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
+                              Quantidade
+                            </th>
+                            <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
+                              Preço médio
+                            </th>
+                            <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
+                              Cotação
+                            </th>
+                            <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
+                              Total
+                            </th>
+                            <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-[0.22em]">
+                              Rentabilidade
+                            </th>
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-[0.22em]">
+                              Metas
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {investmentsWithMarketData.map((investment) => {
+                            const totalInvested = resolveInvestmentTotalInvested(investment);
+                            const totalCurrent = resolveInvestmentDisplayValue(investment);
+                            const gain = totalCurrent - totalInvested;
+                            const gainPercentage =
+                              totalInvested > 0 ? (gain / totalInvested) * 100 : 0;
+                            const linkedGoals = relatedGoalsByInvestment.get(investment.id) || [];
+
+                            return (
+                              <tr
+                                key={investment.id}
+                                className="border-b border-border/60 transition-colors hover:bg-surface/65"
+                              >
+                                <td className="px-5 py-4 text-sm text-foreground">
+                                  {getTypeLabel(investment.type)}
+                                </td>
+                                <td className="px-5 py-4 text-sm font-semibold text-foreground">
+                                  {investment.ticker || investment.name}
+                                </td>
+                                <td className="px-5 py-4 text-right text-sm text-muted-foreground">
+                                  {investment.quantity}
+                                </td>
+                                <td className="px-5 py-4 text-right text-sm text-muted-foreground">
+                                  {formatCurrency(investment.purchase_price)}
+                                </td>
+                                <td className="px-5 py-4 text-right text-sm text-muted-foreground">
+                                  {formatCurrency(resolveInvestmentDisplayPrice(investment))}
+                                </td>
+                                <td className="px-5 py-4 text-right text-sm font-semibold text-foreground">
+                                  {formatCurrency(totalCurrent)}
+                                </td>
+                                <td
+                                  className={`px-5 py-4 text-right text-sm font-semibold ${
+                                    gainPercentage >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                                  }`}
+                                >
+                                  {gainPercentage >= 0 ? '+' : ''}
+                                  {gainPercentage.toFixed(2)}%
+                                </td>
+                                <td className="px-5 py-4 text-sm">
+                                  <div className="flex flex-wrap gap-2">
+                                    {linkedGoals.length === 0 ? (
+                                      <span className="text-muted-foreground">Sem vínculo</span>
+                                    ) : (
+                                      linkedGoals.map((goal) => (
+                                        <Badge
+                                          key={goal.id}
+                                          variant={goal.id === selectedGoalId ? 'default' : 'secondary'}
+                                          className="cursor-pointer rounded-full"
+                                          onClick={() => navigate('/metas?tab=investments')}
+                                        >
+                                          {goal.name}
+                                        </Badge>
+                                      ))
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
+            ) : null}
 
-              <TransactionTimeline transactions={transactions} onDelete={handleDeleteTransaction} />
-            </div>
-          ) : null}
+            {activeTab === 'transactions' ? (
+              <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-transactions">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Histórico de transações</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Acompanhe aportes, vendas, dividendos e movimentações do portfólio.
+                    </p>
+                  </div>
 
-          {activeTab === 'dividends' ? (
-            <div className="mt-2 space-y-6" role="tabpanel" aria-labelledby="tab-dividends">
-              <DividendCalendar
-                monthlyBreakdown={dividendCalendar.monthlyBreakdown}
-                totalEstimated={dividendCalendar.totalEstimated}
-                next30Days={dividendCalendar.next30Days}
-                next90Days={dividendCalendar.next90Days}
-              />
-
-              <DividendHistoryTable
-                transactions={dividendHistory.transactions}
-                totalReceived={dividendHistory.totalReceived}
-                yearlyTotals={dividendHistory.yearlyTotals}
-                count={dividendHistory.count}
-              />
-            </div>
-          ) : null}
-
-          {activeTab === 'alerts' ? (
-            <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-alerts">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Alertas de preço</h2>
-                  <p className="text-sm text-muted-foreground">
-                    Monitore oportunidades e riscos da carteira com alertas configuráveis.
-                  </p>
+                  <Button
+                    className={investmentsPrimaryButtonClass}
+                    onClick={() => setTransactionDialogOpen(true)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Nova transação
+                  </Button>
                 </div>
 
-                <Button
-                  className={investmentsPrimaryButtonClass}
-                  onClick={() => setAlertDialogOpen(true)}
-                >
-                  <Plus className="mr-2 h-4 w-4" />
-                  Novo alerta
-                </Button>
+                <TransactionTimeline transactions={transactions} onDelete={handleDeleteTransaction} />
               </div>
+            ) : null}
 
-              <AlertsList alerts={alerts} onDelete={deleteAlert} onToggle={toggleAlert} />
-            </div>
-          ) : null}
+            {activeTab === 'dividends' ? (
+              <div className="mt-2 space-y-6" role="tabpanel" aria-labelledby="tab-dividends">
+                <DividendCalendar
+                  monthlyBreakdown={dividendCalendar.monthlyBreakdown}
+                  totalEstimated={dividendCalendar.totalEstimated}
+                  next30Days={dividendCalendar.next30Days}
+                  next90Days={dividendCalendar.next90Days}
+                />
 
-          {activeTab === 'overview' ? (
-            <div className="mt-2 space-y-6" role="tabpanel" aria-labelledby="tab-overview">
-              <AnaInvestmentInsights investments={investmentsWithMarketData} />
-
-              <InvestmentPlanningCalculator
-                title="Planejamento patrimonial e aposentadoria"
-                description="Simule patrimônio alvo, renda futura e o aporte mensal necessário com base na sua carteira real."
-                initialCurrentAmount={planningDefaults.currentAmount}
-                initialMonthlyContribution={planningContribution}
-                initialTargetAmount={planningDefaults.targetAmount}
-                initialYearsToGoal={planningYears}
-                initialAnnualReturnRate={planningDefaults.annualReturnRate}
-                initialDesiredMonthlyIncome={planningDefaults.desiredMonthlyIncome}
-              />
-
-              <DiversificationScoreCard investments={investmentsWithMarketData} />
-              <PerformanceHeatMap />
-              <BenchmarkComparison />
-
-              <div className="grid gap-6 lg:grid-cols-2">
-                <AssetAllocationChart data={Object.values(metrics.allocation)} />
-                <PortfolioEvolutionChart
-                  totalInvested={metrics.totalInvested}
-                  currentValue={metrics.currentValue}
+                <DividendHistoryTable
+                  transactions={dividendHistory.transactions}
+                  totalReceived={dividendHistory.totalReceived}
+                  yearlyTotals={dividendHistory.yearlyTotals}
+                  count={dividendHistory.count}
                 />
               </div>
+            ) : null}
 
-              <PerformanceBarChart investments={investmentsWithMarketData} />
-              <OpportunityFeed />
-              <SmartRebalanceWidget investments={investmentsWithMarketData} />
-              <BadgesDisplay />
-            </div>
-          ) : null}
-        </Tabs>
+            {activeTab === 'alerts' ? (
+              <div className="mt-2 space-y-4" role="tabpanel" aria-labelledby="tab-alerts">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Alertas de preço</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Monitore oportunidades e riscos da carteira com alertas configuráveis.
+                    </p>
+                  </div>
+
+                  <Button
+                    className={investmentsPrimaryButtonClass}
+                    onClick={() => setAlertDialogOpen(true)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Novo alerta
+                  </Button>
+                </div>
+
+                <AlertsList alerts={alerts} onDelete={deleteAlert} onToggle={toggleAlert} />
+              </div>
+            ) : null}
+
+            {activeTab === 'overview' ? (
+              <div className="mt-2 space-y-6" role="tabpanel" aria-labelledby="tab-overview">
+                <AnaInvestmentInsights investments={investmentsWithMarketData} />
+
+                <InvestmentPlanningCalculator
+                  title="Planejamento patrimonial e aposentadoria"
+                  description="Simule patrimônio alvo, renda futura e o aporte mensal necessário com base na sua carteira real."
+                  initialCurrentAmount={planningDefaults.currentAmount}
+                  initialMonthlyContribution={planningContribution}
+                  initialTargetAmount={planningDefaults.targetAmount}
+                  initialYearsToGoal={planningYears}
+                  initialAnnualReturnRate={planningDefaults.annualReturnRate}
+                  initialDesiredMonthlyIncome={planningDefaults.desiredMonthlyIncome}
+                />
+
+                <DiversificationScoreCard investments={investmentsWithMarketData} />
+                <PerformanceHeatMap />
+                <BenchmarkComparison />
+
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <AssetAllocationChart data={Object.values(metrics.allocation)} />
+                  <PortfolioEvolutionChart
+                    totalInvested={metrics.totalInvested}
+                    currentValue={metrics.currentValue}
+                  />
+                </div>
+
+                <PerformanceBarChart investments={investmentsWithMarketData} />
+                <OpportunityFeed />
+                <SmartRebalanceWidget investments={investmentsWithMarketData} />
+                <BadgesDisplay />
+              </div>
+            ) : null}
+          </Tabs>
+        </div>
+
+        {/* ── Mobile subtree ───────────────────────────────────────────────── */}
+        <div className="lg:hidden">
+          <InvestmentsHeroCard
+            currentValue={currentPortfolioValue}
+            totalInvested={totalInvestedValue}
+            totalReturn={totalReturnValue}
+            totalReturnPct={totalReturnPctValue}
+            monthlyYield={monthlyYieldValue}
+            formatCurrency={formatCurrency}
+          />
+
+          <div className="mx-4 mt-3">
+            <SlidingPillTabs
+              tabs={[
+                { value: 'portfolio', label: 'Portf' },
+                { value: 'transactions', label: 'Trans' },
+                { value: 'dividends', label: 'Divid' },
+                { value: 'alerts', label: 'Alert' },
+                { value: 'overview', label: 'Visão' },
+              ]}
+              value={activeTab}
+              onValueChange={(v) => setActiveTab(v as InvestmentTab)}
+              ariaLabel="Abas de investimentos"
+            />
+          </div>
+
+          {activeTab === 'portfolio' && (
+            <PortfolioCardList
+              investments={investmentsWithMarketData}
+              onCardTap={handleEditInvestment}
+              formatCurrency={formatCurrency}
+            />
+          )}
+          {activeTab === 'transactions' && (
+            <TransactionsCardList
+              transactions={mobileTransactionItems}
+              onCardTap={handleTransactionCardTap}
+              formatCurrency={formatCurrency}
+            />
+          )}
+          {activeTab === 'dividends' && (
+            <DividendsCardList
+              paidThisMonth={paidDividendItems}
+              upcoming30Days={upcomingDividendItems}
+              formatCurrency={formatCurrency}
+              onOpenCalendar={() => setDividendCalendarSheetOpen(true)}
+            />
+          )}
+          {activeTab === 'alerts' && (
+            <AlertsCardList
+              alerts={mobileAlertItems}
+              onEdit={handleEditAlert}
+              onDelete={handleDeleteAlert}
+              onToggle={handleToggleAlert}
+            />
+          )}
+          {activeTab === 'overview' && (
+            <OverviewMobileLayout
+              investments={investmentsWithMarketData}
+              totalInvested={totalInvestedValue}
+              currentValue={currentPortfolioValue}
+            />
+          )}
+
+          <DividendCalendarSheet
+            open={dividendCalendarSheetOpen}
+            onOpenChange={setDividendCalendarSheetOpen}
+          />
+        </div>
       </div>
     </div>
   );
