@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import { Investments } from './Investments';
@@ -235,6 +235,56 @@ vi.mock('@/components/investments/BenchmarkComparison', () => ({
   BenchmarkComparison: () => <div>benchmark-mounted</div>,
 }));
 
+vi.mock('@/hooks/useInvestmentsActiveTab', () => ({
+  useInvestmentsActiveTab: (defaultTab: string) => {
+    const [tab, setTab] = React.useState(() => {
+      const stored = window.localStorage.getItem('investments-active-tab');
+      const valid = new Set(['portfolio', 'transactions', 'dividends', 'alerts', 'overview']);
+      return stored && valid.has(stored) ? stored : defaultTab;
+    });
+    const setAndPersist = (v: string) => {
+      window.localStorage.setItem('investments-active-tab', v);
+      setTab(v);
+    };
+    return [tab, setAndPersist] as const;
+  },
+}));
+
+vi.mock('@/components/ui/sliding-pill-tabs', () => ({
+  SlidingPillTabs: ({ tabs, value, onValueChange }: { tabs: { value: string; label: string }[]; value: string; onValueChange: (v: string) => void }) => (
+    <div role="tablist">
+      {tabs.map((t) => (
+        <button key={t.value} role="tab" aria-selected={value === t.value} onClick={() => onValueChange(t.value)}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+
+vi.mock('@/components/investments/InvestmentsHeroCard', () => ({
+  InvestmentsHeroCard: () => <div data-testid="hero-card-mobile" />,
+}));
+vi.mock('@/components/investments/PortfolioCardList', () => ({
+  PortfolioCardList: () => <div data-testid="portfolio-card-list-mobile" />,
+}));
+vi.mock('@/components/investments/TransactionsCardList', () => ({
+  TransactionsCardList: () => <div data-testid="transactions-card-list-mobile" />,
+}));
+vi.mock('@/components/investments/DividendsCardList', () => ({
+  DividendsCardList: () => <div data-testid="dividends-card-list-mobile" />,
+}));
+vi.mock('@/components/investments/AlertsCardList', () => ({
+  AlertsCardList: () => <div data-testid="alerts-card-list-mobile" />,
+}));
+vi.mock('@/components/investments/OverviewMobileLayout', () => ({
+  OverviewMobileLayout: () => <div data-testid="overview-mobile" />,
+}));
+vi.mock('@/components/investments/DividendCalendarSheet', () => ({
+  DividendCalendarSheet: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="dividend-calendar-sheet-open" /> : null,
+}));
+
 describe('Investments initial render', () => {
   beforeEach(() => {
     investmentsHookState.loading = false;
@@ -297,5 +347,40 @@ describe('Investments initial render', () => {
     expect(screen.getAllByText('Investimentos').length).toBeGreaterThan(0);
     expect(screen.getByText('Adicionar')).not.toBeNull();
     expect(screen.getByText('portfolio-summary-mounted')).not.toBeNull();
+  });
+});
+
+describe('Investments mobile layout', () => {
+  beforeEach(() => window.localStorage.clear());
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  it('dual-renders the hero card and mobile portfolio list on default tab', () => {
+    render(<MemoryRouter><Investments /></MemoryRouter>);
+    expect(screen.getByTestId('hero-card-mobile')).toBeTruthy();
+    expect(screen.getByTestId('portfolio-card-list-mobile')).toBeTruthy();
+  });
+
+  it('switches to transactions mobile view when transactions tab is tapped', () => {
+    render(<MemoryRouter><Investments /></MemoryRouter>);
+    const tabs = screen.getAllByRole('tab', { name: /trans/i });
+    fireEvent.click(tabs[0]);
+    expect(screen.getByTestId('transactions-card-list-mobile')).toBeTruthy();
+  });
+
+  it('switches to overview mobile layout when overview tab is tapped', () => {
+    render(<MemoryRouter><Investments /></MemoryRouter>);
+    const tabs = screen.getAllByRole('tab', { name: /visão/i });
+    fireEvent.click(tabs[0]);
+    expect(screen.getByTestId('overview-mobile')).toBeTruthy();
+  });
+
+  it('persists active tab to localStorage', () => {
+    render(<MemoryRouter><Investments /></MemoryRouter>);
+    const tabs = screen.getAllByRole('tab', { name: /alert/i });
+    fireEvent.click(tabs[0]);
+    expect(window.localStorage.getItem('investments-active-tab')).toBe('alerts');
   });
 });

@@ -3,13 +3,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogHeader,
+} from '@/components/ui/responsive-dialog';
 import {
   Form,
   FormControl,
@@ -176,24 +173,19 @@ export function TransactionDialog({
   const SelectedTypeIcon = selectedTypeInfo?.icon || ArrowUpRight;
   const requiresQuantityAndPrice = ['buy', 'sell', 'split'].includes(selectedType);
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-hidden rounded-[1.7rem] border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
-        <div className="border-b border-border/60 bg-gradient-to-br from-background via-background to-muted/20 px-6 py-5">
-          <DialogHeader className="space-y-2 text-left">
-            <DialogTitle className="text-[1.65rem] font-semibold tracking-tight text-foreground">
-              Nova Transação
-            </DialogTitle>
-            <DialogDescription className="max-w-xl text-sm leading-relaxed text-foreground/72">
-              Registre uma nova movimentação no seu portfólio.
-            </DialogDescription>
-          </DialogHeader>
-        </div>
+  const dialogTitle = 'Nova Transação';
 
+  return (
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-2xl">
+      <ResponsiveDialogHeader
+        title={dialogTitle}
+        onClose={() => onOpenChange(false)}
+      />
+      <ResponsiveDialogBody>
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(handleSubmit)}
-            className="max-h-[calc(90vh-7rem)] space-y-5 overflow-y-auto px-6 py-5"
+            className="space-y-5"
           >
             <div className="grid gap-5">
               <FormField
@@ -399,7 +391,7 @@ export function TransactionDialog({
               />
             </div>
 
-            <DialogFooter className="mt-6 gap-3 border-t border-border/60 pt-4">
+            <div className="mt-6 flex gap-3 border-t border-border/60 pt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -417,10 +409,10 @@ export function TransactionDialog({
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Registrar Transação
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }

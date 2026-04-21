@@ -3,13 +3,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogHeader,
+} from '@/components/ui/responsive-dialog';
 import {
   Form,
   FormControl,
@@ -180,26 +177,23 @@ export function InvestmentDialog({
   const price = form.watch('purchase_price') || 0;
   const totalInvested = quantity * price;
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden rounded-[1.7rem] border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
-        <div className="border-b border-border/60 bg-gradient-to-br from-background via-background to-muted/20 px-6 py-5">
-          <DialogHeader className="space-y-2 text-left">
-            <DialogTitle className="text-[1.65rem] font-semibold tracking-tight text-foreground">
-              {investment ? 'Editar Investimento' : 'Novo Investimento'}
-            </DialogTitle>
-            <DialogDescription className="max-w-2xl text-sm leading-relaxed text-foreground/72">
-              {investment
-                ? 'Atualize as informações do seu investimento.'
-                : 'Adicione um novo investimento ao seu portfólio.'}
-            </DialogDescription>
-          </DialogHeader>
-        </div>
+  const dialogTitle = investment ? 'Editar Investimento' : 'Novo Investimento';
+  const dialogDescription = investment
+    ? 'Atualize as informações do seu investimento.'
+    : 'Adicione um novo investimento ao seu portfólio.';
 
+  return (
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-3xl">
+      <ResponsiveDialogHeader
+        title={dialogTitle}
+        description={dialogDescription}
+        onClose={() => onOpenChange(false)}
+      />
+      <ResponsiveDialogBody>
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(handleSubmit)}
-            className="max-h-[calc(90vh-7rem)] space-y-6 overflow-y-auto px-6 py-5"
+            className="space-y-6 px-6 py-5"
           >
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList
@@ -447,7 +441,7 @@ export function InvestmentDialog({
               </div>
             </Tabs>
 
-            <DialogFooter className="mt-6 gap-3 border-t border-border/60 pt-4">
+            <div className="mt-6 flex justify-end gap-3 border-t border-border/60 pt-4">
               <Button
                 type="button"
                 variant="outline"
@@ -465,10 +459,10 @@ export function InvestmentDialog({
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {investment ? 'Salvar Alterações' : 'Adicionar Investimento'}
               </Button>
-            </DialogFooter>
+            </div>
           </form>
         </Form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }
