@@ -78,7 +78,7 @@ describe('AgendaDayList', () => {
         onItemClick={vi.fn()}
       />,
     );
-    expect(screen.getByText(/21 abr/i)).toBeTruthy();
+    expect(screen.getByText(/terça.*21.*abr/i)).toBeTruthy();
     expect(screen.getByText(/2 compromissos/i)).toBeTruthy();
   });
 });

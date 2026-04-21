@@ -40,7 +40,7 @@ export function AgendaDayList({ items, focusedDay, onItemClick }: AgendaDayListP
     isSameDay(parseISO(item.display_start_at), focusedDay),
   );
 
-  const headerLabel = format(focusedDay, "dd MMM", { locale: ptBR });
+  const headerLabel = format(focusedDay, "EEE, dd 'de' MMM", { locale: ptBR });
   const count = dayItems.length;
 
   return (
