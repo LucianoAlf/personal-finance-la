@@ -136,29 +136,14 @@ export function InsightsPanel({ analyticsData, loading }: InsightsPanelProps) {
         </div>
       </div>
 
-      {/* Desktop: Grid | Mobile: Carrossel */}
-      <div className="hidden gap-5 md:grid md:grid-cols-2">
+      <div className="grid grid-cols-2 gap-4 md:gap-5">
         {visibleInsights.map((insight) => (
-          <InsightCard 
-            key={insight.id} 
-            insight={insight} 
+          <InsightCard
+            key={insight.id}
+            insight={insight}
             onDismiss={() => handleDismiss(insight.id)}
           />
         ))}
-      </div>
-
-      {/* Mobile: Carrossel horizontal */}
-      <div className="md:hidden overflow-x-auto pb-4 -mx-6 px-6">
-        <div className="flex gap-4" style={{ width: 'max-content' }}>
-          {visibleInsights.map((insight) => (
-            <div key={insight.id} className="w-[85vw] flex-shrink-0">
-              <InsightCard 
-                insight={insight} 
-                onDismiss={() => handleDismiss(insight.id)}
-              />
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
