@@ -2,12 +2,10 @@ import { useId } from 'react';
 import { cn } from '@/lib/utils';
 import { CalendarDays, Wallet } from 'lucide-react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogHeader,
+} from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 
 export type EventOwnershipChoice = 'agenda' | 'financial';
@@ -130,18 +128,14 @@ export function OwnershipPageChooserDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg border-border/60 bg-surface sm:rounded-2xl">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-bold text-foreground">
-            O que você está criando?
-          </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
-            Compromissos de agenda ficam nesta tela. Contas, faturas e ciclos têm o módulo Contas, com
-            regras próprias.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2">
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-lg">
+      <ResponsiveDialogHeader
+        title="O que você está criando?"
+        description="Compromissos de agenda ficam nesta tela. Contas, faturas e ciclos têm o módulo Contas, com regras próprias."
+        onClose={() => onOpenChange(false)}
+      />
+      <ResponsiveDialogBody>
+        <div className="flex flex-col gap-3 sm:grid sm:grid-cols-2">
           <Button
             type="button"
             variant="outline"
@@ -181,7 +175,7 @@ export function OwnershipPageChooserDialog({
             </span>
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }
