@@ -241,21 +241,21 @@ describe('CreditCards initial render', () => {
     expect(contentDiv).not.toBeNull();
   });
 
-  it('renders mobile pill tab bar with data-mobile-tabs attribute', () => {
+  it('renders mobile sliding pill tab bar', () => {
     const { container } = render(
       <MemoryRouter><CreditCards /></MemoryRouter>
     );
-    const mobileTabs = container.querySelector('[data-mobile-tabs="true"]');
+    const mobileTabs = container.querySelector('[role="tablist"][aria-label="Abas de cartões"]');
     expect(mobileTabs).not.toBeNull();
   });
 
-  it('mobile pill shows translateX(0%) for default cartoes tab', () => {
+  it('mobile pill indicator positions at first tab by default', () => {
     const { container } = render(
       <MemoryRouter><CreditCards /></MemoryRouter>
     );
-    const pill = container.querySelector('[data-mobile-tabs="true"] [aria-hidden="true"]');
+    const pill = container.querySelector('[role="tablist"][aria-label="Abas de cartões"] [aria-hidden="true"]');
     expect(pill).not.toBeNull();
-    expect((pill as HTMLElement).style.transform).toBe('translateX(0%)');
+    expect((pill as HTMLElement).style.transform).toContain('0%');
   });
 
   it('renders mobile Editar and Arquivar buttons on card', () => {

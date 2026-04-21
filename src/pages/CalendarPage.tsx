@@ -14,20 +14,25 @@ import {
   subDays,
 } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarDays, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, Filter, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Header } from '@/components/layout/Header';
 import { PageContent } from '@/components/layout/PageContent';
 import { Button } from '@/components/ui/button';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { cn } from '@/lib/cn';
+import { SlidingPillTabs } from '@/components/ui/sliding-pill-tabs';
 import { useCalendarAgenda } from '@/hooks/useCalendarAgenda';
+import { useAgendaViewMode } from '@/hooks/useAgendaViewMode';
 import { requestTickTickSync } from '@/lib/ticktick-sync';
 import { MonthView } from '@/components/calendar/MonthView';
 import { WeekView } from '@/components/calendar/WeekView';
 import { DayView } from '@/components/calendar/DayView';
 import { AgendaItemSheet } from '@/components/calendar/AgendaItemSheet';
 import { CreateEventDialog } from '@/components/calendar/CreateEventDialog';
+import { MonthGridMobile } from '@/components/calendar/MonthGridMobile';
+import { WeekStrip } from '@/components/calendar/WeekStrip';
+import { DayViewMobile } from '@/components/calendar/DayViewMobile';
+import { AgendaDayList } from '@/components/calendar/AgendaDayList';
+import { CalendarFiltersSheet } from '@/components/calendar/CalendarFiltersSheet';
 import {
   CalendarFilters,
   type AdvancedAgendaFilters,
@@ -42,13 +47,8 @@ import {
 } from '@/components/calendar/calendar-utils';
 import type { AgendaItem } from '@/types/calendar.types';
 
-export type CalendarViewMode = 'month' | 'week' | 'day';
+export type { CalendarViewMode } from '@/hooks/useAgendaViewMode';
 
-const VIEW_LABELS: Record<CalendarViewMode, string> = {
-  month: 'Mês',
-  week: 'Semana',
-  day: 'Dia',
-};
 
 function getAgendaWindow(anchor: Date, view: CalendarViewMode) {
   switch (view) {
@@ -110,7 +110,7 @@ function hourSlotRange(hour: number): { start: string; end: string } {
 
 export function CalendarPage() {
   const navigate = useNavigate();
-  const [view, setView] = useState<CalendarViewMode>('month');
+  const [view, setView] = useAgendaViewMode('month');
   const [anchor, setAnchor] = useState(() => new Date());
   const [selectedItem, setSelectedItem] = useState<AgendaItem | null>(null);
 
@@ -129,6 +129,9 @@ export function CalendarPage() {
     actionableOnly: false,
   });
 
+  const [focusedDay, setFocusedDay] = useState<Date>(() => new Date());
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+
   const window = useMemo(() => getAgendaWindow(anchor, view), [anchor, view]);
   const { data: rawItems = [], isLoading, refetch } = useCalendarAgenda(window);
   useEffect(() => {
@@ -137,6 +140,15 @@ export function CalendarPage() {
       await refetch();
     })();
   }, [refetch]);
+
+  useEffect(() => {
+    const { from, to } = getAgendaWindow(anchor, view);
+    const start = new Date(from);
+    const end = new Date(to);
+    if (focusedDay < start || focusedDay > end) {
+      setFocusedDay(anchor);
+    }
+  }, [anchor, view, focusedDay]);
 
   const handleAgendaMutationSuccess = useCallback(() => {
     void (async () => {
@@ -250,36 +262,40 @@ export function CalendarPage() {
         subtitle={formatAnchorLabel(anchor, view)}
         icon={<CalendarDays className="h-6 w-6 text-primary" />}
         actions={
-          <Button
-            onClick={handleHeaderNew}
-            className="gap-2 rounded-xl bg-primary text-primary-foreground shadow-[0_4px_14px_rgba(var(--primary),0.35)] hover:shadow-[0_6px_20px_rgba(var(--primary),0.45)]"
-          >
-            <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Novo Evento</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setFilterSheetOpen(true)}
+              aria-label="Filtros"
+              className="lg:hidden h-10 w-10 rounded-xl"
+            >
+              <Filter className="h-5 w-5" />
+            </Button>
+            <Button
+              onClick={handleHeaderNew}
+              className="gap-2 rounded-xl bg-primary text-primary-foreground shadow-[0_4px_14px_rgba(var(--primary),0.35)] hover:shadow-[0_6px_20px_rgba(var(--primary),0.45)]"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="hidden sm:inline">Novo Evento</span>
+            </Button>
+          </div>
         }
       />
 
       <PageContent className="py-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <ToggleGroup
-            type="single"
+          <SlidingPillTabs
+            tabs={[
+              { value: 'month', label: 'Mês' },
+              { value: 'week', label: 'Semana' },
+              { value: 'day', label: 'Dia' },
+            ]}
             value={view}
-            onValueChange={(v) => {
-              if (v) setView(v as CalendarViewMode);
-            }}
-            className={cn(
-              'flex w-full flex-wrap justify-start rounded-2xl border border-border/70 bg-surface p-1 shadow-[0_2px_8px_rgba(0,0,0,0.06)]',
-              'sm:w-auto sm:flex-nowrap',
-            )}
-            aria-label="Visualização da agenda"
-          >
-            {(['month', 'week', 'day'] as const).map((v) => (
-              <ToggleGroupItem key={v} value={v} aria-label={VIEW_LABELS[v]}>
-                {VIEW_LABELS[v]}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+            onValueChange={(v) => setView(v as CalendarViewMode)}
+            ariaLabel="Visualização da agenda"
+            className="sm:w-auto"
+          />
 
           <div className="flex items-center gap-2">
             <Button
@@ -315,8 +331,19 @@ export function CalendarPage() {
 
         </div>
 
-        <CalendarFilters
-          className="mb-6"
+        <div className="hidden lg:block">
+          <CalendarFilters
+            className="mb-6"
+            enabledCategories={enabledCategories}
+            onToggleCategory={toggleCategory}
+            advancedFilters={advancedFilters}
+            onAdvancedFiltersChange={setAdvancedFilters}
+          />
+        </div>
+
+        <CalendarFiltersSheet
+          open={filterSheetOpen}
+          onOpenChange={setFilterSheetOpen}
           enabledCategories={enabledCategories}
           onToggleCategory={toggleCategory}
           advancedFilters={advancedFilters}
@@ -331,33 +358,81 @@ export function CalendarPage() {
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.18 }}
           >
-            {view === 'month' && (
-              <MonthView
-                anchor={anchor}
-                items={items}
-                isLoading={isLoading}
-                onDayClick={handleMonthDayClick}
-                onItemClick={handleItemClick}
-              />
-            )}
-            {view === 'week' && (
-              <WeekView
-                anchor={anchor}
-                items={items}
-                isLoading={isLoading}
-                onItemClick={handleItemClick}
-                onEmptySlotClick={handleWeekEmptySlot}
-              />
-            )}
-            {view === 'day' && (
-              <DayView
-                anchor={anchor}
-                items={items}
-                isLoading={isLoading}
-                onItemClick={handleItemClick}
-                onEmptySlotClick={handleWeekEmptySlot}
-              />
-            )}
+            {/* Desktop */}
+            <div className="hidden lg:block">
+              {view === 'month' && (
+                <MonthView
+                  anchor={anchor}
+                  items={items}
+                  isLoading={isLoading}
+                  onDayClick={handleMonthDayClick}
+                  onItemClick={handleItemClick}
+                />
+              )}
+              {view === 'week' && (
+                <WeekView
+                  anchor={anchor}
+                  items={items}
+                  isLoading={isLoading}
+                  onItemClick={handleItemClick}
+                  onEmptySlotClick={handleWeekEmptySlot}
+                />
+              )}
+              {view === 'day' && (
+                <DayView
+                  anchor={anchor}
+                  items={items}
+                  isLoading={isLoading}
+                  onItemClick={handleItemClick}
+                  onEmptySlotClick={handleWeekEmptySlot}
+                />
+              )}
+            </div>
+
+            {/* Mobile */}
+            <div className="lg:hidden">
+              {view === 'month' && (
+                <>
+                  <MonthGridMobile
+                    anchor={anchor}
+                    items={items}
+                    focusedDay={focusedDay}
+                    onDayFocus={setFocusedDay}
+                    onMonthChange={setAnchor}
+                    isLoading={isLoading}
+                  />
+                  <AgendaDayList
+                    items={items}
+                    focusedDay={focusedDay}
+                    onItemClick={handleItemClick}
+                  />
+                </>
+              )}
+              {view === 'week' && (
+                <>
+                  <WeekStrip
+                    anchor={anchor}
+                    items={items}
+                    focusedDay={focusedDay}
+                    onDayFocus={setFocusedDay}
+                  />
+                  <AgendaDayList
+                    items={items}
+                    focusedDay={focusedDay}
+                    onItemClick={handleItemClick}
+                  />
+                </>
+              )}
+              {view === 'day' && (
+                <DayViewMobile
+                  anchor={anchor}
+                  items={items}
+                  isLoading={isLoading}
+                  onItemClick={handleItemClick}
+                  onEmptySlotClick={handleWeekEmptySlot}
+                />
+              )}
+            </div>
           </motion.div>
         </AnimatePresence>
       </PageContent>

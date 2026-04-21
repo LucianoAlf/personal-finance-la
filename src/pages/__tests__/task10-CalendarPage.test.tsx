@@ -147,7 +147,7 @@ describe('Task 10 / CalendarPage orchestration', () => {
   it('Task 10: day view empty day Criar evento opens the same ownership chooser as week/month', async () => {
     const user = setupUser();
     renderCalendarPage();
-    await user.click(screen.getByRole('radio', { name: /^dia$/i }));
+    await user.click(screen.getByRole('tab', { name: /^dia$/i }));
     await screen.findByText(/dia livre/i);
     const createBtn = await screen.findByRole('button', { name: /criar evento/i });
     await user.click(createBtn);
@@ -170,7 +170,7 @@ describe('Task 10 / CalendarPage orchestration', () => {
     ];
 
     renderCalendarPage();
-    await user.click(screen.getByRole('radio', { name: /^dia$/i }));
+    await user.click(screen.getByRole('tab', { name: /^dia$/i }));
 
     await screen.findByRole('button', { name: /personal focus/i });
     await screen.findByRole('button', { name: /work sync/i });
@@ -200,7 +200,7 @@ describe('Task 10 / CalendarPage orchestration', () => {
     ];
 
     renderCalendarPage();
-    await user.click(screen.getByRole('radio', { name: /^dia$/i }));
+    await user.click(screen.getByRole('tab', { name: /^dia$/i }));
 
     await screen.findByRole('button', { name: /personal focus/i });
     await screen.findByRole('button', { name: /ticktick dinner/i });
@@ -230,7 +230,7 @@ describe('Task 10 / CalendarPage orchestration', () => {
     const user = setupUser();
     const { container } = renderCalendarPage();
 
-    await user.click(screen.getByRole('radio', { name: /^semana$/i }));
+    await user.click(screen.getByRole('tab', { name: /^semana$/i }));
 
     await waitFor(() => {
       expect(container.querySelector('[data-week-empty-slot][data-hour="14"]')).toBeTruthy();

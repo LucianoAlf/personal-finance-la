@@ -7,6 +7,27 @@ import { MemoryRouter } from 'react-router-dom';
 import { AgendaItemSheet } from '../AgendaItemSheet';
 import type { AgendaItem } from '@/types/calendar.types';
 
+vi.mock('@/components/ui/responsive-dialog', () => ({
+  ResponsiveDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div data-testid="rd-root">{children}</div> : null,
+  ResponsiveDialogHeader: ({
+    title,
+    description,
+    onClose,
+  }: {
+    title: string;
+    description?: string;
+    onClose?: () => void;
+  }) => (
+    <div>
+      <h2>{title}</h2>
+      {description ? <p>{description}</p> : null}
+      <button type="button" onClick={onClose}>Fechar</button>
+    </div>
+  ),
+  ResponsiveDialogBody: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 vi.mock('@/lib/calendar-domain', () => ({
   setCalendarEventStatusDomain: vi.fn(),
 }));
