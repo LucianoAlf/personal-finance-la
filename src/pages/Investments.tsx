@@ -44,6 +44,10 @@ import { DividendsCardList, type DividendPaidItem, type DividendUpcomingItem } f
 import { DividendCalendarSheet } from '@/components/investments/DividendCalendarSheet';
 import { AlertsCardList, type InvestmentAlertItem } from '@/components/investments/AlertsCardList';
 import { OverviewMobileLayout } from '@/components/investments/OverviewMobileLayout';
+import { useMarketStatus } from '@/hooks/useMarketStatus';
+import { formatDistanceToNow } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
+import { Target, ChevronRight } from 'lucide-react';
 import {
   Plus,
   TrendingUp,
@@ -207,6 +211,15 @@ export function Investments() {
       : []);
   }, [dividendCalendar.next30Days]);
 
+  // ── Mobile market status + last update labels ───────────────────────────────
+  const { b3 } = useMarketStatus();
+  const mobileMarketIsOpen = b3.isOpen;
+  const mobileMarketLabel = b3.isOpen ? 'B3 Aberta' : 'B3 Fechada';
+  const mobileLastUpdateLabel = useMemo(() => {
+    if (!lastUpdate) return undefined;
+    return `há ${formatDistanceToNow(lastUpdate, { locale: ptBR, addSuffix: false })}`;
+  }, [lastUpdate]);
+
   // ── Mobile alert items ─────────────────────────────────────────────────────
   const mobileAlertItems = useMemo<InvestmentAlertItem[]>(
     () =>
@@ -267,16 +280,18 @@ export function Investments() {
 
   const headerActions = (
     <div className="flex flex-wrap items-center justify-end gap-3">
-      <MarketStatus />
-      <PriceUpdater onRefresh={refreshPrices} lastUpdate={lastUpdate} loading={quotesLoading} />
-      <InvestmentReportDialog
-        investments={investments}
-        transactions={transactions}
-        onPrefetchTransactions={() => void refreshTransactions()}
-      />
+      <div className="hidden lg:flex items-center gap-3">
+        <MarketStatus />
+        <PriceUpdater onRefresh={refreshPrices} lastUpdate={lastUpdate} loading={quotesLoading} />
+        <InvestmentReportDialog
+          investments={investments}
+          transactions={transactions}
+          onPrefetchTransactions={() => void refreshTransactions()}
+        />
+      </div>
       <Button size="sm" onClick={openNewInvestmentDialog} className={investmentsPrimaryButtonClass}>
         <Plus size={16} className="mr-1" />
-        Novo Investimento
+        <span className="hidden sm:inline">Novo Investimento</span>
       </Button>
     </div>
   );
@@ -423,7 +438,7 @@ export function Investments() {
         ) : null}
 
         {selectedGoal && (
-          <Card className="border-primary/20 bg-gradient-to-r from-primary/6 via-background to-background shadow-[0_18px_44px_rgba(15,23,42,0.08)] dark:border-primary/15 dark:from-primary/10 dark:via-card dark:to-card">
+          <Card className="hidden lg:block border-primary/20 bg-gradient-to-r from-primary/6 via-background to-background shadow-[0_18px_44px_rgba(15,23,42,0.08)] dark:border-primary/15 dark:from-primary/10 dark:via-card dark:to-card">
             <CardContent className="flex flex-col gap-4 p-5 md:flex-row md:items-center md:justify-between">
               <div className="space-y-1.5">
                 <p className="text-sm font-semibold text-primary">Contexto da meta</p>
@@ -720,7 +735,26 @@ export function Investments() {
             totalReturnPct={totalReturnPctValue}
             monthlyYield={monthlyYieldValue}
             formatCurrency={formatCurrency}
+            marketStatusLabel={mobileMarketLabel}
+            marketIsOpen={mobileMarketIsOpen}
+            lastUpdateLabel={mobileLastUpdateLabel}
+            onRefresh={() => void refreshPrices()}
+            refreshing={quotesLoading}
           />
+
+          {selectedGoal ? (
+            <button
+              type="button"
+              onClick={() => navigate('/metas?tab=investments')}
+              className="mx-4 mt-3 flex w-[calc(100%-2rem)] items-center gap-2 rounded-xl border border-primary/30 bg-primary/8 px-3 py-2.5 text-left transition-colors hover:bg-primary/12"
+            >
+              <Target size={14} className="flex-shrink-0 text-primary" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
+                Vinculado a {selectedGoal.name}
+              </span>
+              <ChevronRight size={14} className="flex-shrink-0 text-muted-foreground" aria-hidden="true" />
+            </button>
+          ) : null}
 
           <div className="mx-4 mt-3">
             <SlidingPillTabs
