@@ -41,16 +41,18 @@ export function ResponsiveDialog({ open, onOpenChange, children, className }: Re
 
   return (
     <>
-      {/* Desktop: Radix Dialog — only open when actually on lg+ to avoid
-          focus-trap/scroll-lock running on mobile viewports */}
+      {/* Desktop: Radix Dialog — only mounted on lg+ so its portal/focus-trap
+          and scroll-lock never run on mobile viewports */}
       <div data-testid="responsive-dialog-desktop" className="hidden lg:block">
-        <Dialog open={isLg && open} onOpenChange={onOpenChange}>
-          <DialogContent className={cn('max-w-2xl', className)}>
-            <ModeContext.Provider value="desktop">
-              {children}
-            </ModeContext.Provider>
-          </DialogContent>
-        </Dialog>
+        {isLg && (
+          <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className={cn('max-w-2xl', className)}>
+              <ModeContext.Provider value="desktop">
+                {children}
+              </ModeContext.Provider>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* Mobile: full-screen overlay */}

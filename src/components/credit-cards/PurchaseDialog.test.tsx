@@ -1,8 +1,8 @@
 /* @vitest-environment jsdom */
 
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { PurchaseDialog } from './PurchaseDialog';
@@ -21,6 +21,15 @@ const {
   fetchCardsSummaryMock: vi.fn(),
   fetchInvoicesMock: vi.fn(),
   replaceCanonicalTagAssignmentsMock: vi.fn(),
+}));
+
+vi.mock('@/components/ui/responsive-dialog', () => ({
+  ResponsiveDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div data-testid="responsive-dialog-mock">{children}</div> : null,
+  ResponsiveDialogHeader: ({ title, onClose }: { title: string; onClose?: () => void }) => (
+    <div><button type="button" onClick={onClose}>Fechar</button><span>{title}</span></div>
+  ),
+  ResponsiveDialogBody: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('./PurchaseForm', () => ({
@@ -84,6 +93,8 @@ vi.mock('@/utils/tags/tag-assignment', () => ({
 }));
 
 describe('PurchaseDialog', () => {
+  afterEach(() => cleanup());
+
   beforeEach(() => {
     createPurchaseMock.mockReset();
     toastMock.mockReset();

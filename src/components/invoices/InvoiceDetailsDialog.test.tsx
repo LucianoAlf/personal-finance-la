@@ -108,9 +108,10 @@ describe('InvoiceDetailsDialog', () => {
     expect(screen.getByText(/Fatura de/i)).not.toBeNull();
     expect(screen.getByText('invoice-comparison-mounted')).not.toBeNull();
 
-    const content = screen.getByTestId('dialog-content');
-    expect(content.className).toContain('bg-card/95');
-    expect(content.className).toContain('border-border/70');
+    // Component now uses ResponsiveDialog; on mobile (jsdom) content renders
+    // inside responsive-dialog-body-mobile instead of the old Radix dialog-content
+    const body = screen.getByTestId('responsive-dialog-body-mobile');
+    expect(body).not.toBeNull();
 
     const tabsList = screen.getByTestId('tabs-list');
     expect(tabsList.className).toContain('bg-card/95');
