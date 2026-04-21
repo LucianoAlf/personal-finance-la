@@ -1948,3 +1948,77 @@ git commit -m "docs(plan7): record manual verification of agenda mobile"
 - View mode persists across reload via `localStorage["agenda-view-mode"]`.
 - Zero new dependencies.
 - Existing `useCalendarAgenda` RPC and `AgendaItem` types unchanged.
+
+---
+
+## Execution Log
+
+**Date**: 2026-04-21
+**Branch**: `feat/agenda-mobile-plan7` (17 commits ahead of `main`)
+**Execution mode**: subagent-driven-development (Claude Sonnet 4.6 for implementation/review, Claude Haiku 4.5 for mechanical tasks)
+
+### Commits
+
+| # | SHA | Description |
+|---|---|---|
+| 1 | `615531b` | feat(agenda): add useAgendaViewMode hook with localStorage persistence |
+| 2 | `2bc2219` | feat(agenda): add AgendaDayList — focused-day event list for mobile |
+| 2b | `cdb2bd6` | fix(agenda): restore plan-specified header format with weekday |
+| 3 | `0a78aa3` | feat(agenda): add MonthGridMobile with dot indicators for mobile month view |
+| 4 | `f6a248f` | feat(agenda): add WeekStrip — 7-day horizontal strip for mobile week view |
+| 5 | `71c4456` | feat(agenda): add DayViewMobile — vertical hourly timeline with all-day band |
+| 6 | `541d948` | feat(agenda): add CalendarFiltersSheet wrapper for mobile filter access |
+| 7 | `7dec6e4` | refactor(agenda): migrate AgendaItemSheet to ResponsiveDialog |
+| 8 | `b4a162f` | refactor(agenda): migrate CreateEventDialog to ResponsiveDialog |
+| 9 | `91b9a60` | refactor(agenda): migrate OwnershipPageChooserDialog to ResponsiveDialog |
+| 10 | `fc5659d` | feat(agenda): dual-render desktop + mobile layouts in CalendarPage |
+
+### Polish commits (post user review)
+
+| # | SHA | Trigger |
+|---|---|---|
+| P1 | `b69f27e` | feat(ui): add reusable SlidingPillTabs component |
+| P2 | `b6d61e2` | refactor(agenda): use SlidingPillTabs for view mode selector |
+| P3 | `5c4a8f3` | refactor(cards): use SlidingPillTabs for mobile tab bar (DRY) |
+| P4 | `a135eec` | style(agenda): event cards in day list with tinted bg + left-border accent |
+| P5 | `c810d9c` | refactor(agenda): CalendarFiltersSheet as bottom sheet with slide-up animation |
+| P6 | `ef7c04b` | style(agenda): breathing room between hour labels and event cards in DayViewMobile |
+
+### User-driven adjustments captured
+
+1. **`SlidingPillTabs` extraction** — the original plan used shadcn `ToggleGroup` for Mês/Semana/Dia. User noted the pills felt cramped and asked for the sliding-pill pattern from CreditCards. We extracted a reusable `src/components/ui/sliding-pill-tabs.tsx` and applied it to both Agenda and CreditCards (DRY win).
+2. **Event card style in AgendaDayList** — user wanted the list items on Mês/Semana to match the colored-card look of DayViewMobile. Updated to tinted background + left-border accent.
+3. **Filter UX as bottom sheet** — user rejected the full-screen `ResponsiveDialog` for filters ("looks like a new page"). Rebuilt `CalendarFiltersSheet` as a proper bottom sheet with slide-up animation and dimmed backdrop.
+4. **DayViewMobile spacing** — user noted cards were too close to the hour labels. Bumped `left-14 → left-20`, increased card padding to `px-3 py-1.5`, aligned now-line offset.
+
+### Automated verification
+
+- New unit tests: 34 new tests across `useAgendaViewMode`, `AgendaDayList`, `MonthGridMobile`, `WeekStrip`, `DayViewMobile`, `CalendarFiltersSheet`, `SlidingPillTabs`, `CalendarPage.layout.test`.
+- Calendar folder full suite: 142/142 passing.
+- Full suite: same 8 pre-existing `CalendarPage` /`ticktick-sync-closure` failures as on `main` (unrelated to this plan).
+
+### Category slug discovery (implementation-time)
+
+The spec assumed slugs `events | payable | reminders | external`. In reality `getAgendaItemFilterCategory` returns `personal | work | mentoring | financial | external`. All new components (`AgendaDayList`, `MonthGridMobile`, `WeekStrip`, `DayViewMobile`) use the real slugs. Color mapping settled on:
+
+- personal → blue-500
+- work → purple-500
+- mentoring → amber-500
+- financial → red-500
+- external → slate-500
+
+### Deviations from the original plan
+
+- **`SlidingPillTabs` component** was not in the plan — added post-review.
+- **Bottom-sheet filter** replaced the ResponsiveDialog approach — the spec said "ícone no header → bottom sheet" but the plan reused ResponsiveDialog; user correctly pointed out that ResponsiveDialog mobile path is full-screen and doesn't match the spec's intent.
+- **Visual polish on AgendaDayList and DayViewMobile** was added after user review (cards, spacing).
+- **No swipe gestures** — confirmed Q12 (out-of-MVP) decision held; navigation stays on `‹ ›` buttons.
+
+### Manual verification pending (USER ACTION)
+
+Required checks before merging:
+- [ ] Desktop (1440×900): MonthView/WeekView/DayView pixel-identical to `main`. Sidebar filters inline. No mobile chrome.
+- [ ] Tablet portrait (768×1024): 3 modes work, bottom-sheet filters, event detail opens cleanly.
+- [ ] Phone (375×667): all 3 modes, localStorage persists mode across reload, filter sheet slides from bottom, event detail cleanly opens/closes, create-event (`+` in header) opens chooser → form.
+- [ ] No horizontal scroll at 320/375/768/1024/1440.
+- [ ] Back button works across modes.
