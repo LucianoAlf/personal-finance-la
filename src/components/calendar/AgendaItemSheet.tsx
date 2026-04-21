@@ -3,12 +3,10 @@ import { format, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Link } from 'react-router-dom';
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-} from '@/components/ui/sheet';
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogHeader,
+} from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CreateEventDialog } from './CreateEventDialog';
@@ -92,41 +90,38 @@ export function AgendaItemSheet({ item, open, onClose, onMutationSuccess }: Agen
 
   return (
     <>
-    <Sheet open={open} onOpenChange={(next) => { if (!next) onClose(); }}>
-      <SheetContent className="w-full border-l-0 bg-surface sm:max-w-md" side="right">
+    <ResponsiveDialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <ResponsiveDialogHeader
+        title={item.title}
+        description={item.subtitle ?? undefined}
+        onClose={onClose}
+      />
+      <ResponsiveDialogBody>
         {/* Accent bar */}
         <div className={cn('absolute left-0 top-0 h-full w-1.5 rounded-l-lg', isDerived ? 'bg-muted-foreground/30' : indicator.dot.replace('bg-', 'bg-'))} />
 
-        <SheetHeader className="pl-4">
-          <div className="mb-2 flex flex-wrap items-center gap-2">
-            <span className={cn('inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold', badge.bg, badge.text)}>
-              {badge.label}
+        <div className="mb-4 flex flex-wrap items-center gap-2 pl-4">
+          <span className={cn('inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold', badge.bg, badge.text)}>
+            {badge.label}
+          </span>
+          {isDerived && (
+            <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-2 py-1 text-[0.65rem] font-medium text-muted-foreground">
+              <Lock className="h-3 w-3" /> Somente leitura
             </span>
-            {isDerived && (
-              <span className="inline-flex items-center gap-1 rounded-lg bg-muted px-2 py-1 text-[0.65rem] font-medium text-muted-foreground">
-                <Lock className="h-3 w-3" /> Somente leitura
-              </span>
-            )}
-            {item.status === 'completed' && (
-              <Badge variant="outline" className="gap-1 border-success/30 text-success">
-                <CheckCircle2 className="h-3 w-3" /> Concluído
-              </Badge>
-            )}
-            {item.status === 'cancelled' && (
-              <Badge variant="outline" className="gap-1 border-danger/30 text-danger">
-                <XCircle className="h-3 w-3" /> Cancelado
-              </Badge>
-            )}
-          </div>
-          <SheetTitle className="text-xl font-bold text-foreground">{item.title}</SheetTitle>
-          {item.subtitle && (
-            <SheetDescription className="text-sm text-muted-foreground">
-              {item.subtitle}
-            </SheetDescription>
           )}
-        </SheetHeader>
+          {item.status === 'completed' && (
+            <Badge variant="outline" className="gap-1 border-success/30 text-success">
+              <CheckCircle2 className="h-3 w-3" /> Concluído
+            </Badge>
+          )}
+          {item.status === 'cancelled' && (
+            <Badge variant="outline" className="gap-1 border-danger/30 text-danger">
+              <XCircle className="h-3 w-3" /> Cancelado
+            </Badge>
+          )}
+        </div>
 
-        <div className="mt-6 space-y-5 pl-4">
+        <div className="mt-2 space-y-5 pl-4">
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={cn(
@@ -259,8 +254,8 @@ export function AgendaItemSheet({ item, open, onClose, onMutationSuccess }: Agen
             </Button>
           </div>
         )}
-      </SheetContent>
-    </Sheet>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
     <CreateEventDialog
       open={editOpen}
       onOpenChange={setEditOpen}
