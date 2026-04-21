@@ -92,9 +92,9 @@ export function StatCard({
         )}
       />
 
-      <div className="mb-3 md:mb-4 flex items-start justify-between">
-        <div className="flex-1 space-y-1 md:space-y-2">
-          <p className="mb-1 text-xs md:text-sm font-medium text-muted-foreground">{title}</p>
+      <div className="mb-3 md:mb-4 flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1 space-y-1 md:space-y-2">
+          <p className="mb-1 truncate text-xs md:text-sm font-medium text-muted-foreground">{title}</p>
           {loading ? (
             <div className="h-7 w-28 animate-pulse rounded-full bg-surface-elevated" />
           ) : (
@@ -111,7 +111,7 @@ export function StatCard({
         </div>
         <div
           className={cn(
-            'flex h-8 w-8 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-white ring-1 shadow-[0_14px_24px_rgba(5,10,24,0.26)]',
+            'flex h-7 w-7 md:h-11 md:w-11 shrink-0 items-center justify-center rounded-lg md:rounded-xl bg-gradient-to-br text-white ring-1 shadow-[0_14px_24px_rgba(5,10,24,0.26)]',
             accentStyles[gradient].iconRing,
             iconBoxClassName,
             gradient === 'blue' && 'from-blue-500 to-blue-600',
@@ -122,7 +122,7 @@ export function StatCard({
             gradient === 'pink' && 'from-pink-500 to-pink-600'
           )}
         >
-          <Icon className={cn('h-5 w-5 text-white', iconClassName)} />
+          <Icon className={cn('h-4 w-4 md:h-5 md:w-5 text-white', iconClassName)} />
         </div>
       </div>
 

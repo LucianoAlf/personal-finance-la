@@ -176,28 +176,28 @@ export function CreditCards() {
             value={formatCurrency(getTotalLimit())}
             icon={CreditCard}
             gradient="blue"
-            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
+            valueClassName="text-[0.98rem] sm:text-[1.32rem] md:text-[1.52rem] [font-variant-numeric:tabular-nums]"
           />
           <StatCard
             title="Limite Usado"
             value={formatCurrency(getTotalUsed())}
             icon={TrendingUp}
             gradient="orange"
-            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
+            valueClassName="text-[0.98rem] sm:text-[1.32rem] md:text-[1.52rem] [font-variant-numeric:tabular-nums]"
           />
           <StatCard
             title="Limite Disponível"
             value={formatCurrency(getTotalAvailable())}
             icon={Wallet}
             gradient="green"
-            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
+            valueClassName="text-[0.98rem] sm:text-[1.32rem] md:text-[1.52rem] [font-variant-numeric:tabular-nums]"
           />
           <StatCard
             title={currentMonthInvoicesSummary.count === 1 ? 'Fatura do Mês' : 'Faturas do Mês'}
             value={formatCurrency(currentMonthInvoicesSummary.total)}
             icon={Receipt}
             gradient="red"
-            valueClassName="text-[1.4rem] sm:text-[1.52rem]"
+            valueClassName="text-[0.98rem] sm:text-[1.32rem] md:text-[1.52rem] [font-variant-numeric:tabular-nums]"
             subtitle={`${currentMonthInvoicesSummary.monthName} • ${currentMonthInvoicesSummary.count} ${currentMonthInvoicesSummary.count === 1 ? 'cartão' : 'cartões'}`}
           />
         </div>
@@ -224,34 +224,30 @@ export function CreditCards() {
             <TabsTrigger
               value="cartoes"
               aria-label="Meus Cartões"
-              className="relative z-10 flex flex-1 flex-col items-center gap-1 py-2 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+              className="relative z-10 flex flex-1 items-center justify-center py-2.5 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
             >
-              <CreditCard className="h-[15px] w-[15px]" />
-              <span className="text-[9px] font-bold leading-none">Cartões</span>
+              <span className="text-xs font-semibold leading-none">Cartões</span>
             </TabsTrigger>
             <TabsTrigger
               value="faturas"
               aria-label="Faturas"
-              className="relative z-10 flex flex-1 flex-col items-center gap-1 py-2 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+              className="relative z-10 flex flex-1 items-center justify-center py-2.5 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
             >
-              <Receipt className="h-[15px] w-[15px]" />
-              <span className="text-[9px] font-bold leading-none">Faturas</span>
+              <span className="text-xs font-semibold leading-none">Faturas</span>
             </TabsTrigger>
             <TabsTrigger
               value="analises"
               aria-label="Análises"
-              className="relative z-10 flex flex-1 flex-col items-center gap-1 py-2 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+              className="relative z-10 flex flex-1 items-center justify-center py-2.5 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
             >
-              <BarChart3 className="h-[15px] w-[15px]" />
-              <span className="text-[9px] font-bold leading-none">Análises</span>
+              <span className="text-xs font-semibold leading-none">Análises</span>
             </TabsTrigger>
             <TabsTrigger
               value="historico"
               aria-label="Histórico"
-              className="relative z-10 flex flex-1 flex-col items-center gap-1 py-2 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
+              className="relative z-10 flex flex-1 items-center justify-center py-2.5 bg-transparent hover:bg-transparent data-[state=active]:bg-transparent data-[state=active]:text-primary-foreground data-[state=active]:shadow-none"
             >
-              <History className="h-[15px] w-[15px]" />
-              <span className="text-[9px] font-bold leading-none">Histórico</span>
+              <span className="text-xs font-semibold leading-none">Histórico</span>
             </TabsTrigger>
           </TabsList>
 
