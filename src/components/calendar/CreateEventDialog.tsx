@@ -2,12 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { format, parseISO } from 'date-fns';
 import { Link } from 'react-router-dom';
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogHeader,
+} from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -512,25 +510,26 @@ export function CreateEventDialog({
     setSaving(false);
   };
 
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-md overflow-hidden border-border/60 bg-surface p-0 shadow-[0_20px_60px_rgba(0,0,0,0.15)] sm:max-w-2xl sm:rounded-2xl">
-        <div className="flex max-h-[92vh] flex-col">
-        <DialogHeader className="shrink-0 border-b border-border/40 px-6 pb-4 pt-6 pr-14">
-          <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
-            <CalendarDays className="h-5 w-5 text-primary" />
-            {isEditMode ? 'Editar Compromisso' : ownership === 'financial' ? 'Obrigação financeira' : 'Novo Compromisso'}
-          </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground">
-            {isEditMode
-              ? 'Atualize os dados do compromisso. As alterações serão refletidas no sistema e sincronizadas com o TickTick.'
-              : ownership === 'financial'
-              ? 'Contas e faturas ficam no módulo financeiro, com regras próprias.'
-              : 'Preencha os dados e salve. O evento ficará na sua agenda.'}
-          </DialogDescription>
-        </DialogHeader>
+  const dialogTitle = isEditMode
+    ? 'Editar Compromisso'
+    : ownership === 'financial'
+    ? 'Obrigação financeira'
+    : 'Novo Compromisso';
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4">
+  const dialogDescription = isEditMode
+    ? 'Atualize os dados do compromisso. As alterações serão refletidas no sistema e sincronizadas com o TickTick.'
+    : ownership === 'financial'
+    ? 'Contas e faturas ficam no módulo financeiro, com regras próprias.'
+    : 'Preencha os dados e salve. O evento ficará na sua agenda.';
+
+  return (
+    <ResponsiveDialog open={open} onOpenChange={handleOpenChange} className="max-w-2xl">
+      <ResponsiveDialogHeader
+        title={dialogTitle}
+        description={dialogDescription}
+        onClose={() => handleOpenChange(false)}
+      />
+      <ResponsiveDialogBody>
         <div className="space-y-4">
           {!isEditMode && !hideOwnershipChooser ? (
             <OwnershipChooser value={ownership} onChange={setOwnership} />
@@ -688,9 +687,7 @@ export function CreateEventDialog({
             </form>
           )}
         </div>
-        </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }

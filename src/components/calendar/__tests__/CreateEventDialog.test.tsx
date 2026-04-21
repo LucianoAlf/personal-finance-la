@@ -2,6 +2,15 @@
 
 import React, { useState } from 'react';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+
+vi.mock('@/components/ui/responsive-dialog', () => ({
+  ResponsiveDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div data-testid="rd-root">{children}</div> : null,
+  ResponsiveDialogHeader: ({ title, onClose }: { title: string; onClose?: () => void }) => (
+    <div><h2>{title}</h2><button type="button" onClick={onClose}>Fechar</button></div>
+  ),
+  ResponsiveDialogBody: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
