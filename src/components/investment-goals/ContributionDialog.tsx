@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogHeader,
+} from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -62,19 +59,12 @@ export function ContributionDialog({ open, onOpenChange, goal, onSave }: Contrib
     setIsSaving(false);
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md rounded-[1.65rem] border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
-        <DialogHeader className="border-b border-border/60 px-6 py-5">
-          <DialogTitle className="flex items-center gap-2 text-xl font-semibold text-foreground">
-            <TrendingUp className="h-5 w-5 text-success" />
-            Registrar Aporte
-          </DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
-            Meta: {goal.name}
-          </DialogDescription>
-        </DialogHeader>
+  const dialogTitle = 'Registrar Aporte';
 
+  return (
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-md">
+      <ResponsiveDialogHeader title={dialogTitle} onClose={() => onOpenChange(false)} />
+      <ResponsiveDialogBody>
         <form onSubmit={handleSubmit} className="space-y-5 px-6 py-5">
           <div className="space-y-2">
             <Label htmlFor="amount">Valor do Aporte (R$) *</Label>
@@ -135,18 +125,18 @@ export function ContributionDialog({ open, onOpenChange, goal, onSave }: Contrib
             </div>
           )}
 
-          <DialogFooter className="border-t border-border/60 px-0 pt-5">
-            <Button 
-              type="button" 
-              variant="outline" 
+          <div className="flex justify-end gap-3 border-t border-border/60 px-0 pt-5">
+            <Button
+              type="button"
+              variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isSaving}
               className="rounded-xl border-border/70 bg-surface/80 px-5 shadow-sm hover:bg-surface-elevated"
             >
               Cancelar
             </Button>
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               disabled={isSaving || amountNumber <= 0}
               className="rounded-xl bg-success px-5 text-success-foreground shadow-[0_16px_28px_rgba(34,197,94,0.24)] hover:bg-success/90"
             >
@@ -162,9 +152,9 @@ export function ContributionDialog({ open, onOpenChange, goal, onSave }: Contrib
                 </>
               )}
             </Button>
-          </DialogFooter>
+          </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }
