@@ -46,15 +46,19 @@ vi.mock('sonner', () => ({
   toast: { error: vi.fn() },
 }));
 
+vi.mock('@/components/ui/responsive-dialog', () => ({
+  ResponsiveDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div data-testid="rd-root">{children}</div> : null,
+  ResponsiveDialogHeader: ({ title, onClose }: { title: string; onClose?: () => void }) => (
+    <div><h2>{title}</h2><button type="button" onClick={onClose}>Fechar</button></div>
+  ),
+  ResponsiveDialogBody: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
 vi.mock('@/components/ui/dialog', () => ({
   Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (open ? <div>{children}</div> : null),
-  DialogContent: ({
-    children,
-    className,
-  }: {
-    children: React.ReactNode;
-    className?: string;
-  }) => <div data-testid="dialog-content" className={className}>{children}</div>,
+  DialogContent: ({ children, className }: { children: React.ReactNode; className?: string }) =>
+    <div data-testid="dialog-content" className={className}>{children}</div>,
   DialogHeader: ({ children, className }: { children: React.ReactNode; className?: string }) => <div className={className}>{children}</div>,
   DialogTitle: ({ children, className }: { children: React.ReactNode; className?: string }) => <div className={className}>{children}</div>,
   DialogDescription: ({ children, className }: { children: React.ReactNode; className?: string }) => <div className={className}>{children}</div>,
@@ -126,9 +130,7 @@ describe('Investment and cycle dialogs premium shell', () => {
     render(<InvestmentGoalDialog open onOpenChange={vi.fn()} onSave={vi.fn().mockResolvedValue(true)} />);
 
     expect(screen.getByText(/Nova Meta de Investimento/i)).not.toBeNull();
-    const content = screen.getByTestId('dialog-content');
-    expect(content.className).toContain('bg-card/95');
-    expect(content.className).toContain('border-border/70');
+    expect(screen.getByTestId('rd-root')).not.toBeNull();
 
     const tabsList = screen.getByTestId('tabs-list');
     expect(tabsList.className).toContain('bg-surface-elevated');
@@ -150,9 +152,7 @@ describe('Investment and cycle dialogs premium shell', () => {
     );
 
     expect(screen.getAllByText('Registrar Aporte').length).toBeGreaterThan(0);
-    const content = screen.getByTestId('dialog-content');
-    expect(content.className).toContain('bg-card/95');
-    expect(content.className).toContain('rounded-[1.65rem]');
+    expect(screen.getByTestId('rd-root')).not.toBeNull();
   });
 
   it('renders the cycle dialog with premium shell and tokenized tabs', () => {
