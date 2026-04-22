@@ -3,12 +3,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogHeader,
+} from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -97,8 +95,7 @@ const goalFormSchema = z.object({
 
 type GoalFormData = z.infer<typeof goalFormSchema>;
 
-const dialogContentClassName =
-  'max-h-[90vh] overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl sm:max-w-[500px]';
+const dialogTitle = 'Nova Meta Financeira';
 
 const dialogSectionClassName = 'rounded-[1.35rem] border border-border/60 bg-surface-elevated/45 p-4';
 
@@ -203,21 +200,9 @@ export function CreateGoalDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={dialogContentClassName}>
-        <DialogHeader className="border-b border-border/60 px-6 py-5">
-          <DialogTitle className="text-[1.6rem] font-semibold tracking-tight text-foreground">
-            Nova Meta Financeira
-          </DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed text-foreground/72">
-            {allowedTypes.length === 1
-              ? allowedTypes[0] === 'spending_limit'
-                ? 'Defina um limite de gastos por categoria.'
-                : 'Crie uma meta de economia para um objetivo.'
-              : 'Crie uma meta de economia ou defina um limite de gastos por categoria.'}
-          </DialogDescription>
-        </DialogHeader>
-
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-md">
+      <ResponsiveDialogHeader title={dialogTitle} onClose={() => onOpenChange(false)} />
+      <ResponsiveDialogBody>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 px-6 py-5">
           {/* Seletor de tipo */}
           {allowedTypes.length > 1 && (
@@ -480,7 +465,7 @@ export function CreateGoalDialog({
             </Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }
