@@ -4,13 +4,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import * as z from 'zod';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogHeader,
+} from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -277,19 +274,12 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
     toast.error('Preencha todos os campos obrigatórios');
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto rounded-[1.7rem] border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl">
-        <DialogHeader className="border-b border-border/60 px-6 py-5">
-          <DialogTitle className="flex items-center gap-2 text-[1.65rem] font-semibold tracking-tight text-foreground">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            {goal ? 'Editar Meta de Investimento' : 'Nova Meta de Investimento'}
-          </DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed text-foreground/72">
-            {goal ? 'Atualize sua meta de longo prazo' : 'Configure sua meta com juros compostos e projeções'}
-          </DialogDescription>
-        </DialogHeader>
+  const dialogTitle = goal ? 'Editar Meta de Investimento' : 'Nova Meta de Investimento';
 
+  return (
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-3xl">
+      <ResponsiveDialogHeader title={dialogTitle} onClose={() => onOpenChange(false)} />
+      <ResponsiveDialogBody>
         <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="px-6 py-5">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-4 rounded-[1.2rem] border border-border/70 bg-surface-elevated p-1">
@@ -665,23 +655,23 @@ export function InvestmentGoalDialog({ open, onOpenChange, goal, onSave }: Inves
             </TabsContent>
           </Tabs>
 
-            <DialogFooter className="mt-6 gap-3 border-t border-border/60 pt-4">
+            <div className="mt-6 flex justify-end gap-3 border-t border-border/60 pt-4">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="rounded-xl border-border/70 bg-surface/85 hover:bg-surface-elevated">
                 Cancelar
               </Button>
               <Button type="submit" disabled={isSaving} className="rounded-xl border border-primary/30 bg-primary text-primary-foreground shadow-[0_18px_35px_rgba(139,92,246,0.24)] hover:bg-primary/90">
                 {isSaving ? (
                   <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Salvando...
-                </>
-              ) : (
-                'Salvar Meta'
-              )}
-            </Button>
-          </DialogFooter>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  'Salvar Meta'
+                )}
+              </Button>
+            </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }

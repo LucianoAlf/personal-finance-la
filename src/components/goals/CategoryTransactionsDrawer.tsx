@@ -1,6 +1,19 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '@/components/ui/sheet';
+
+function useIsMobileViewport(): boolean {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia('(max-width: 1023px)');
+    const update = () => setIsMobile(mql.matches);
+    update();
+    mql.addEventListener('change', update);
+    return () => mql.removeEventListener('change', update);
+  }, []);
+  return isMobile;
+}
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -58,6 +71,7 @@ export function CategoryTransactionsDrawer({
   periodStart,
   periodEnd,
 }: CategoryTransactionsDrawerProps) {
+  const isMobile = useIsMobileViewport();
   const {
     transactions: regularTransactions,
     addTransaction,
@@ -264,7 +278,13 @@ export function CategoryTransactionsDrawer({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-md md:max-w-lg overflow-y-auto">
+        <SheetContent
+          side={isMobile ? 'bottom' : 'right'}
+          className={isMobile
+            ? 'flex h-[85dvh] flex-col rounded-t-2xl pb-[env(safe-area-inset-bottom)] overflow-y-auto'
+            : 'w-full sm:max-w-md md:max-w-lg overflow-y-auto'
+          }
+        >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-3">
             {categoryIcon && categoryColor && (

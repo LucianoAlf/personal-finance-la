@@ -3,12 +3,10 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogHeader,
+} from '@/components/ui/responsive-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,8 +29,6 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-const dialogContentClassName =
-  'max-h-[90vh] overflow-y-auto border border-border/70 bg-card/95 p-0 text-foreground shadow-[0_30px_90px_rgba(2,6,23,0.42)] backdrop-blur-xl sm:max-w-[450px]';
 
 export function AddValueDialog({ open, onOpenChange, goal }: AddValueDialogProps) {
   const [loading, setLoading] = useState(false);
@@ -71,18 +67,12 @@ export function AddValueDialog({ open, onOpenChange, goal }: AddValueDialogProps
 
   if (!goal) return null;
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={dialogContentClassName}>
-        <DialogHeader className="border-b border-border/60 px-6 py-5">
-          <DialogTitle className="text-[1.45rem] font-semibold tracking-tight text-foreground">
-            Adicionar Valor - {goal.name}
-          </DialogTitle>
-          <DialogDescription className="text-sm leading-relaxed text-foreground/72">
-            Adicione um valor à sua meta de economia.
-          </DialogDescription>
-        </DialogHeader>
+  const dialogTitle = `Adicionar Valor - ${goal.name}`;
 
+  return (
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange} className="max-w-md">
+      <ResponsiveDialogHeader title={dialogTitle} onClose={() => onOpenChange(false)} />
+      <ResponsiveDialogBody>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 px-6 py-5">
           {/* Progresso atual */}
           <div className="space-y-2 rounded-[1.35rem] border border-border/60 bg-surface-elevated/45 p-4">
@@ -166,7 +156,7 @@ export function AddValueDialog({ open, onOpenChange, goal }: AddValueDialogProps
             </Button>
           </div>
         </form>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveDialogBody>
+    </ResponsiveDialog>
   );
 }

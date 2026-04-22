@@ -28,18 +28,13 @@ vi.mock('react-hook-form', () => ({
   }),
 }));
 
-vi.mock('@/components/ui/dialog', () => ({
-  Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) => (open ? <div>{children}</div> : null),
-  DialogContent: ({
-    children,
-    className,
-  }: {
-    children: React.ReactNode;
-    className?: string;
-  }) => <div data-testid="dialog-content" className={className}>{children}</div>,
-  DialogHeader: ({ children, className }: { children: React.ReactNode; className?: string }) => <div className={className}>{children}</div>,
-  DialogTitle: ({ children, className }: { children: React.ReactNode; className?: string }) => <div className={className}>{children}</div>,
-  DialogDescription: ({ children, className }: { children: React.ReactNode; className?: string }) => <div className={className}>{children}</div>,
+vi.mock('@/components/ui/responsive-dialog', () => ({
+  ResponsiveDialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+    open ? <div data-testid="rd-root">{children}</div> : null,
+  ResponsiveDialogHeader: ({ title, onClose }: { title: string; onClose?: () => void }) => (
+    <div><h2>{title}</h2><button type="button" onClick={onClose}>Fechar</button></div>
+  ),
+  ResponsiveDialogBody: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 vi.mock('@/components/ui/button', () => ({
@@ -107,9 +102,7 @@ describe('Goals dialogs premium shell', () => {
     render(<CreateGoalDialog open onOpenChange={vi.fn()} />);
 
     expect(screen.getByText('Nova Meta Financeira')).not.toBeNull();
-    const content = screen.getByTestId('dialog-content');
-    expect(content.className).toContain('bg-card/95');
-    expect(content.className).toContain('border-border/70');
+    expect(screen.getByTestId('rd-root')).not.toBeNull();
   });
 
   it('renders the edit goal dialog with premium shell styling', () => {
@@ -128,9 +121,7 @@ describe('Goals dialogs premium shell', () => {
     );
 
     expect(screen.getByText('Editar Meta')).not.toBeNull();
-    const content = screen.getByTestId('dialog-content');
-    expect(content.className).toContain('bg-card/95');
-    expect(content.className).toContain('rounded-[1.7rem]');
+    expect(screen.getByTestId('rd-root')).not.toBeNull();
   });
 
   it('renders the add value dialog with premium progress panels', () => {
@@ -150,8 +141,6 @@ describe('Goals dialogs premium shell', () => {
 
     expect(screen.getByText(/Adicionar Valor/i)).not.toBeNull();
     expect(screen.getByText('goal-progress-mounted')).not.toBeNull();
-    const content = screen.getByTestId('dialog-content');
-    expect(content.className).toContain('bg-card/95');
-    expect(content.className).toContain('border-border/70');
+    expect(screen.getByTestId('rd-root')).not.toBeNull();
   });
 });
