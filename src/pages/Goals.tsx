@@ -8,6 +8,17 @@ import { motion, MotionConfig } from 'framer-motion';
 import { useGoals } from '@/hooks/useGoals';
 import { useSearchParams } from 'react-router-dom';
 import { useGoalNotifications } from '@/hooks/useGoalNotifications';
+import { SlidingPillTabs } from '@/components/ui/sliding-pill-tabs';
+import { useGoalsActiveTab, type GoalsTab } from '@/hooks/useGoalsActiveTab';
+import { GoalsHeroCard } from '@/components/goals/GoalsHeroCard';
+import { SavingsGoalCardList } from '@/components/goals/SavingsGoalCardList';
+import { SpendingGoalCardList } from '@/components/goals/SpendingGoalCardList';
+import { SpendingMonthSelector } from '@/components/goals/SpendingMonthSelector';
+import { InvestmentGoalCardList, type InvestmentGoalItem } from '@/components/goals/InvestmentGoalCardList';
+import { GamificationMobileLayout, type Achievement } from '@/components/goals/GamificationMobileLayout';
+import { GoalsConfigMobileLayout, type ConfigSection } from '@/components/goals/GoalsConfigMobileLayout';
+import { format as formatDate } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { SpendingGoalCard } from '@/components/goals/SpendingGoalCard';
 import { CreateGoalDialog } from '@/components/goals/CreateGoalDialog';
 import { EditGoalDialog } from '@/components/goals/EditGoalDialog';
@@ -502,16 +513,14 @@ export function Goals() {
   const [addValueDialogOpen, setAddValueDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<FinancialGoalWithCategory | null>(null);
-  const [activeTab, setActiveTab] = useState<'savings' | 'spending' | 'investments' | 'progress' | 'config'>(() => {
+  const [activeTab, setActiveTab] = useGoalsActiveTab((() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'budget') {
-      return 'spending';
-    }
+    if (tabParam === 'budget') return 'spending';
     if (tabParam === 'spending' || tabParam === 'investments' || tabParam === 'progress' || tabParam === 'config') {
-      return tabParam as 'savings' | 'spending' | 'investments' | 'progress' | 'config';
+      return tabParam as GoalsTab;
     }
     return 'savings';
-  });
+  })());
   const [selectedPlanningDate, setSelectedPlanningDate] = useState<Date>(new Date());
   const [createDialogAllowedTypes, setCreateDialogAllowedTypes] = useState<Array<'savings' | 'spending_limit'>>(['savings', 'spending_limit']);
   const [createDialogSource, setCreateDialogSource] = useState<'default' | 'planning'>('default');
@@ -625,6 +634,87 @@ export function Goals() {
   const heroPlanningUsagePct =
     heroTotalPlanned > 0 ? Math.min(100, Math.round((heroTotalActual / heroTotalPlanned) * 100)) : 0;
 
+  // --- Mobile mappings ---
+  const mobileMonthLabel = useMemo(
+    () => formatDate(new Date(), 'MMMM yyyy', { locale: ptBR }),
+    [],
+  );
+
+  const mobileSavingsGoals = useMemo(
+    () => goals.filter((g) => g.goal_type === 'savings'),
+    [goals],
+  );
+  const mobileSpendingGoals = useMemo(
+    () => goals.filter((g) => g.goal_type === 'spending_limit'),
+    [goals],
+  );
+
+  const mobileSavingsCurrentTotal = mobileSavingsGoals.reduce(
+    (acc, g) => acc + (g.current_amount ?? 0),
+    0,
+  );
+  const mobileSavingsTargetTotal = mobileSavingsGoals.reduce(
+    (acc, g) => acc + (g.target_amount ?? 0),
+    0,
+  );
+  const mobileSpendingLimitsOkCount = mobileSpendingGoals.filter(
+    (g) => (g.percentage ?? 0) <= 100,
+  ).length;
+  const mobileSpendingLimitsTotal = mobileSpendingGoals.length;
+  const mobileInvestmentsCurrentTotal = (investmentGoals ?? []).reduce(
+    (acc, g) => acc + Number(g.current_amount ?? 0),
+    0,
+  );
+  const mobileInvestmentsTargetTotal = (investmentGoals ?? []).reduce(
+    (acc, g) => acc + Number(g.target_amount ?? 0),
+    0,
+  );
+  // useGamification is called inside GoalsProgressContent, not at page level.
+  // For mobile we derive streak from spendingGoals best_streak as a proxy.
+  const mobileCurrentStreakDays = spendingGoalsBestStreak;
+
+  const mobileInvestmentGoalItems = useMemo<InvestmentGoalItem[]>(
+    () =>
+      (investmentGoals ?? []).map((g) => ({
+        id: g.id,
+        name: g.name,
+        icon: g.icon ?? null,
+        target_amount: Number(g.target_amount ?? 0),
+        current_amount: Number(
+          g.current_amount ?? g.metrics?.effective_current_amount ?? 0,
+        ),
+        percentage: Number(g.metrics?.percentage ?? g.percentage ?? 0),
+      })),
+    [investmentGoals],
+  );
+
+  const handleInvestmentGoalTap = (goal: InvestmentGoalItem) => {
+    navigate(`/investimentos?goalId=${goal.id}`);
+  };
+
+  // TODO: extract FinancialSettingsCard + FinancialCyclesManager into section children
+  // when GoalsConfigContent is refactored into lift-able sub-components.
+  const mobileConfigSections = useMemo<ConfigSection[]>(() => [], []);
+
+  const handleEditGoal = (goal: FinancialGoalWithCategory) => {
+    setSelectedGoal(goal);
+    setEditDialogOpen(true);
+  };
+
+  const handleAddValueClick = (goal: FinancialGoalWithCategory) => {
+    setSelectedGoal(goal);
+    setAddValueDialogOpen(true);
+  };
+
+  const mobileAchievements = useMemo<Achievement[]>(() => [], []);
+  // Mobile gamification fields are not available at page scope (hook lives in GoalsProgressContent).
+  // They are passed as zeroed defaults; the desktop tab remains the full gamification view.
+  const mobileGamificationLevel = 1;
+  const mobileGamificationLevelName = '';
+  const mobileGamificationXp = 0;
+  const mobileGamificationXpToNext = 0;
+  const mobileGamificationXpPct = 0;
+
   const handleEdit = (goal: FinancialGoalWithCategory) => {
     setSelectedGoal(goal);
     setEditDialogOpen(true);
@@ -703,7 +793,7 @@ export function Goals() {
   // Sincronizar activeTab com URL
   const handleTabChange = (newTab: string) => {
     const normalizedTab = newTab === 'budget' ? 'spending' : newTab;
-    setActiveTab(normalizedTab as any);
+    setActiveTab(normalizedTab as GoalsTab);
     setSearchParams({ tab: normalizedTab });
   };
   const showPageShell = loading;
@@ -766,7 +856,7 @@ export function Goals() {
             <DropdownMenuTrigger asChild>
               <Button className={primaryButtonClass}>
                 <Plus className="h-4 w-4 mr-2" />
-                Nova Meta
+                <span className="hidden sm:inline">Nova Meta</span>
                 <ChevronDown className="h-4 w-4 ml-2" />
               </Button>
             </DropdownMenuTrigger>
@@ -856,6 +946,8 @@ export function Goals() {
           </>
         ) : (
           <>
+            {/* Desktop-only: summary cards + Radix Tabs */}
+            <div className="hidden lg:block">
             {/* Hero: visão geral (mês atual para orçamento) */}
             <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
               <GoalsSummaryCard
@@ -1134,6 +1226,80 @@ export function Goals() {
           {/* Tab: Configurações */}
           {activeTab === 'config' ? <GoalsConfigContent /> : null}
         </Tabs>
+            </div>{/* end hidden lg:block */}
+
+            {/* Mobile subtree */}
+            <div className="lg:hidden">
+              <GoalsHeroCard
+                monthLabel={mobileMonthLabel}
+                savingsCurrent={mobileSavingsCurrentTotal}
+                savingsTarget={mobileSavingsTargetTotal}
+                spendingLimitsOk={mobileSpendingLimitsOkCount}
+                spendingLimitsTotal={mobileSpendingLimitsTotal}
+                investmentsCurrent={mobileInvestmentsCurrentTotal}
+                investmentsTarget={mobileInvestmentsTargetTotal}
+                streakDays={mobileCurrentStreakDays}
+                formatCurrency={formatCurrency}
+              />
+
+              <div className="mx-2 mt-3">
+                <SlidingPillTabs
+                  tabs={[
+                    { value: 'savings', label: 'Econ' },
+                    { value: 'spending', label: 'Gastos' },
+                    { value: 'investments', label: 'Invest' },
+                    { value: 'progress', label: 'Progr' },
+                    { value: 'config', label: 'Config' },
+                  ]}
+                  value={activeTab}
+                  onValueChange={(v) => setActiveTab(v as GoalsTab)}
+                  ariaLabel="Abas de metas"
+                />
+              </div>
+
+              {activeTab === 'savings' && (
+                <SavingsGoalCardList
+                  goals={mobileSavingsGoals}
+                  onCardTap={handleEditGoal}
+                  onAddValue={handleAddValueClick}
+                  formatCurrency={formatCurrency}
+                />
+              )}
+              {activeTab === 'spending' && (
+                <>
+                  <SpendingMonthSelector
+                    selectedMonth={selectedPlanningDate}
+                    onChange={setSelectedPlanningDate}
+                  />
+                  <SpendingGoalCardList
+                    goals={mobileSpendingGoals}
+                    onCardTap={handleEditGoal}
+                    formatCurrency={formatCurrency}
+                  />
+                </>
+              )}
+              {activeTab === 'investments' && (
+                <InvestmentGoalCardList
+                  goals={mobileInvestmentGoalItems}
+                  onCardTap={handleInvestmentGoalTap}
+                  formatCurrency={formatCurrency}
+                />
+              )}
+              {activeTab === 'progress' && (
+                <GamificationMobileLayout
+                  level={mobileGamificationLevel}
+                  levelName={mobileGamificationLevelName}
+                  xp={mobileGamificationXp}
+                  xpToNextLevel={mobileGamificationXpToNext}
+                  xpProgressPct={mobileGamificationXpPct}
+                  streakDays={mobileCurrentStreakDays}
+                  achievements={mobileAchievements}
+                />
+              )}
+              {activeTab === 'config' && (
+                <GoalsConfigMobileLayout sections={mobileConfigSections} />
+              )}
+            </div>
           </>
         )}
       </div>

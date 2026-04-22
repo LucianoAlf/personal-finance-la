@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import { Goals } from './Goals';
@@ -220,8 +220,43 @@ vi.mock('@/components/investment-goals/ContributionDialog', () => ({
   ContributionDialog: () => <div>contribution-dialog-mounted</div>,
 }));
 
+vi.mock('@/components/ui/sliding-pill-tabs', () => ({
+  SlidingPillTabs: ({ tabs, value, onValueChange }: { tabs: { value: string; label: string }[]; value: string; onValueChange: (v: string) => void }) => (
+    <div role="tablist">
+      {tabs.map((t) => (
+        <button key={t.value} role="tab" aria-selected={value === t.value} onClick={() => onValueChange(t.value)}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+
+vi.mock('@/components/goals/GoalsHeroCard', () => ({
+  GoalsHeroCard: () => <div data-testid="goals-hero-mobile" />,
+}));
+vi.mock('@/components/goals/SavingsGoalCardList', () => ({
+  SavingsGoalCardList: () => <div data-testid="savings-card-list-mobile" />,
+}));
+vi.mock('@/components/goals/SpendingGoalCardList', () => ({
+  SpendingGoalCardList: () => <div data-testid="spending-card-list-mobile" />,
+}));
+vi.mock('@/components/goals/SpendingMonthSelector', () => ({
+  SpendingMonthSelector: () => <div data-testid="spending-month-selector-mobile" />,
+}));
+vi.mock('@/components/goals/InvestmentGoalCardList', () => ({
+  InvestmentGoalCardList: () => <div data-testid="invest-goals-mobile" />,
+}));
+vi.mock('@/components/goals/GamificationMobileLayout', () => ({
+  GamificationMobileLayout: () => <div data-testid="gamification-mobile" />,
+}));
+vi.mock('@/components/goals/GoalsConfigMobileLayout', () => ({
+  GoalsConfigMobileLayout: () => <div data-testid="goals-config-mobile" />,
+}));
+
 describe('Goals initial render', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     goalsHookState.loading = false;
     goalsHookState.goals = [
       {
@@ -262,6 +297,7 @@ describe('Goals initial render', () => {
 
   afterEach(() => {
     cleanup();
+    window.localStorage.clear();
   });
 
   it('does not mount inactive heavy sections or closed dialogs on default savings tab', () => {
@@ -349,5 +385,65 @@ describe('Goals initial render', () => {
     const shell = screen.getByTestId('goals-progress-shell');
     expect(shell.className).toContain('bg-surface');
     expect(shell.className).toContain('rounded-[28px]');
+  });
+});
+
+describe('Goals mobile layout', () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+    useGamificationMock.mockReset();
+    useGamificationMock.mockReturnValue({
+      profile: null,
+      badges: [],
+      unlockedBadges: [],
+      xpForNextLevel: 0,
+      xpProgress: 0,
+      levelTitle: 'Iniciante',
+      loading: false,
+      celebrationQueue: [],
+      showCelebration: false,
+      dismissCelebration: vi.fn(),
+    });
+    useSettingsMock.mockReset();
+    useSettingsMock.mockReturnValue({
+      userSettings: null,
+      notificationPreferences: null,
+      loading: false,
+      updateUserSettings: vi.fn(),
+      updateNotificationPreferences: vi.fn(),
+      refresh: vi.fn(),
+    });
+  });
+  afterEach(() => {
+    cleanup();
+    window.localStorage.clear();
+  });
+
+  it('dual-renders the hero and savings list on default tab', () => {
+    render(<MemoryRouter><Goals /></MemoryRouter>);
+    expect(screen.getByTestId('goals-hero-mobile')).toBeTruthy();
+    expect(screen.getByTestId('savings-card-list-mobile')).toBeTruthy();
+  });
+
+  it('switches to spending mobile view when spending tab is tapped', () => {
+    render(<MemoryRouter><Goals /></MemoryRouter>);
+    const tabs = screen.getAllByRole('tab', { name: /gastos/i });
+    fireEvent.click(tabs[0]);
+    expect(screen.getByTestId('spending-card-list-mobile')).toBeTruthy();
+    expect(screen.getByTestId('spending-month-selector-mobile')).toBeTruthy();
+  });
+
+  it('switches to gamification when progress tab is tapped', () => {
+    render(<MemoryRouter><Goals /></MemoryRouter>);
+    const tabs = screen.getAllByRole('tab', { name: /progr/i });
+    fireEvent.click(tabs[0]);
+    expect(screen.getByTestId('gamification-mobile')).toBeTruthy();
+  });
+
+  it('persists active tab to localStorage', () => {
+    render(<MemoryRouter><Goals /></MemoryRouter>);
+    const tabs = screen.getAllByRole('tab', { name: /config/i });
+    fireEvent.click(tabs[0]);
+    expect(window.localStorage.getItem('metas-active-tab')).toBe('config');
   });
 });
