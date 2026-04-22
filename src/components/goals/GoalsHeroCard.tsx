@@ -1,4 +1,4 @@
-import { Trophy } from 'lucide-react';
+import { Flame, PiggyBank, Shield, TrendingUp, Trophy } from 'lucide-react';
 
 interface GoalsHeroCardProps {
   monthLabel: string;
@@ -49,25 +49,25 @@ export function GoalsHeroCard({
 
       <dl className="relative mt-4 space-y-2 border-t border-white/[0.08] pt-4 text-sm">
         <div className="flex items-center justify-between">
-          <dt className="text-muted-foreground">💰 Economia</dt>
+          <dt className="inline-flex items-center gap-1.5 text-muted-foreground"><PiggyBank className="h-3.5 w-3.5" aria-hidden="true" /> Economia</dt>
           <dd className="font-bold text-foreground [font-variant-numeric:tabular-nums]">
             {formatCurrency(savingsCurrent)} / {formatCurrency(savingsTarget)}
           </dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-muted-foreground">📊 Limites</dt>
+          <dt className="inline-flex items-center gap-1.5 text-muted-foreground"><Shield className="h-3.5 w-3.5" aria-hidden="true" /> Limites</dt>
           <dd className="font-bold text-foreground">
             {spendingLimitsOk} / {spendingLimitsTotal} OK
           </dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-muted-foreground">📈 Investimentos</dt>
+          <dt className="inline-flex items-center gap-1.5 text-muted-foreground"><TrendingUp className="h-3.5 w-3.5" aria-hidden="true" /> Investimentos</dt>
           <dd className="font-bold text-foreground [font-variant-numeric:tabular-nums]">
             {formatCurrency(investmentsCurrent)} / {formatCurrency(investmentsTarget)}
           </dd>
         </div>
         <div className="flex items-center justify-between">
-          <dt className="text-muted-foreground">🔥 Streak</dt>
+          <dt className="inline-flex items-center gap-1.5 text-muted-foreground"><Flame className="h-3.5 w-3.5" aria-hidden="true" /> Streak</dt>
           <dd className="font-bold text-foreground">{streakDays} dias</dd>
         </div>
       </dl>
