@@ -1,3 +1,4 @@
+import { Shield } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import type { FinancialGoalWithCategory } from '@/types/goals.types';
 
@@ -44,7 +45,7 @@ export function SpendingGoalCardList({
               )}
             >
               <div className="flex items-center gap-2">
-                <span aria-hidden="true" className="text-base">{goal.icon ?? '📊'}</span>
+                <Shield className="h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />
                 <span className="flex-1 truncate text-sm font-bold text-foreground">{goal.name}</span>
                 <span
                   data-testid="pct-badge"
